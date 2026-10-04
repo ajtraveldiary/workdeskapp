@@ -3,7 +3,6 @@ import { Link } from "react-router";
 import {
   ArrowRight,
   CalendarDays,
-  ChevronRight,
   CircleCheck,
   Clock,
   ExternalLink,
@@ -47,8 +46,11 @@ export function HomePage() {
   const editTask = (task: Task) => setDialog({ kind: "edit", task });
 
   return (
-    <div className="px-4 py-5 md:px-6 lg:px-8">
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+    <>
+    {/* Wide screens: stat cards + task panels on the left, Pending Emails full height on the right. */}
+    <div className="px-4 py-5 md:px-6 lg:px-8 xl:grid xl:h-[calc(100dvh-5rem-1px)] xl:min-h-[680px] xl:grid-cols-[minmax(0,2.35fr)_minmax(0,1.1fr)] xl:gap-5">
+      <div className="flex min-h-0 flex-col gap-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {/* Each card is green when its list is clear, and coloured by urgency when it isn't. */}
         <StatCard to="/inbox" icon={Mail} value={counts.pendingEmails} label="Pending emails" note={counts.pendingEmails ? (counts.unreadPending ? `${counts.unreadPending} unread` : "Need your attention") : "All decided"} tone={counts.pendingEmails ? "info" : "low"} />
         <StatCard to="/tasks?view=today" icon={CircleCheck} value={counts.dueToday} label="Tasks due today" note={counts.dueToday ? "Stay on track" : "Nothing due today"} tone={counts.dueToday ? "high" : "low"} />
@@ -56,14 +58,19 @@ export function HomePage() {
         <StatCard to="/reports" icon={FileText} value={null} label="Upcoming reports" note="Coming soon" tone="info" />
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
+      <div className="grid min-h-0 grid-cols-1 gap-5 lg:grid-cols-2 xl:flex-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <CommandCenter summary={summary} onNew={() => setDialog({ kind: "new" })} onEdit={editTask} />
         <TodoPanel open={counts.openTasks} completed={counts.completedTotal} onEdit={editTask} />
-        <EmailsPanel onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} />
+      </div>
       </div>
 
-      <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
+      <div className="mt-5 min-h-0 xl:mt-0">
+        <EmailsPanel onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} />
+      </div>
     </div>
+
+    <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
+    </>
   );
 }
 
@@ -71,18 +78,22 @@ export function HomePage() {
 
 function StatCard({ to, icon: Icon, value, label, note, tone }: { to: string; icon: LucideIcon; value: number | null; label: string; note: string; tone: Tone }) {
   return (
-    <Link to={to} className="group flex flex-col items-start gap-3 rounded-xl border border-line bg-white p-3.5 transition-shadow hover:shadow-[0_8px_24px_-14px_rgb(31_33_48/0.35)] sm:flex-row sm:items-center sm:gap-4 sm:p-4">
-      <span className={cx("flex size-11 shrink-0 items-center justify-center rounded-xl shadow-sm sm:size-14", TONE[tone].solid)}>
-        <Icon size={26} strokeWidth={1.6} />
+    <Link
+      to={to}
+      className="flex min-w-0 flex-col items-start gap-2.5 rounded-xl border border-line bg-white p-3.5 transition-shadow hover:shadow-[0_8px_24px_-14px_rgb(31_33_48/0.35)] sm:flex-row sm:items-center sm:gap-2.5 sm:px-3 sm:py-3"
+    >
+      <span className={cx("flex size-10 shrink-0 items-center justify-center rounded-lg shadow-sm", TONE[tone].solid)}>
+        <Icon size={20} strokeWidth={1.8} />
       </span>
       <div className="min-w-0 flex-1">
-        <div className={cx("text-2xl leading-none font-semibold tabular-nums sm:text-[28px]", tone === "urgent" ? "text-urgent-ink" : "text-ink")}>
-          {value === null ? "—" : String(value).padStart(2, "0")}
+        <div className="flex items-baseline gap-2">
+          <span className={cx("text-2xl leading-none font-semibold tabular-nums", tone === "urgent" ? "text-urgent-ink" : "text-ink")}>
+            {value === null ? "—" : String(value).padStart(2, "0")}
+          </span>
         </div>
-        <div className="mt-1.5 truncate text-sm font-medium text-ink sm:text-[15px]">{label}</div>
-        <div className="truncate text-[13px] text-slate-500">{note}</div>
+        <div className="mt-1 line-clamp-2 text-[13px] leading-snug font-medium text-ink">{label}</div>
+        <div className="truncate text-xs text-slate-500">{note}</div>
       </div>
-      <ChevronRight size={20} className="hidden shrink-0 text-slate-400 sm:block transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
     </Link>
   );
 }
@@ -91,7 +102,7 @@ function StatCard({ to, icon: Icon, value, label, note, tone }: { to: string; ic
 
 function Panel({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <section className={cx("flex min-h-[420px] flex-col rounded-xl border border-line bg-white xl:h-[calc(100dvh-16.5rem)] xl:min-h-[560px]", className)}>
+    <section className={cx("flex min-h-[420px] flex-col rounded-xl border border-line bg-white xl:h-full xl:min-h-0", className)}>
       {children}
     </section>
   );
@@ -145,7 +156,7 @@ function CommandCenter({ summary, onNew, onEdit }: { summary: NonNullable<Return
   const tasks = tab === "reports" ? [] : (data?.tasks ?? []);
 
   return (
-    <Panel className="lg:col-span-2 xl:col-span-1">
+    <Panel>
       <PanelHeader
         title="Today / Command Center"
         subtitle={new Date(`${today}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}
@@ -179,7 +190,7 @@ function CommandCenter({ summary, onNew, onEdit }: { summary: NonNullable<Return
             {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
           </Empty>
         ) : (
-          <ul className="divide-y divide-line px-5">
+          <ul className="@container divide-y divide-line px-5">
             {tasks.map((t) => (
               <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} />
             ))}
@@ -218,13 +229,13 @@ function dueTone(task: Task, today: string): Tone {
 function DueChips({ task, today }: { task: Task; today: string }) {
   if (!task.dueDate) return <span className="text-xs text-slate-400">No date</span>;
   return (
-    <div className="flex flex-col gap-1 text-[13px]">
+    <div className="flex flex-wrap items-center gap-1.5 text-[13px]">
       <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5", TONE[dueTone(task, today)].soft)}>
         <CalendarDays size={14} className="shrink-0" />
         {formatDay(task.dueDate, today)}
       </span>
       {task.dueTime && (
-        <span className="inline-flex items-center gap-1.5 px-1.5 text-slate-600">
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-700">
           <Clock size={14} className="shrink-0" />
           {formatTime(task.dueTime)}
         </span>
@@ -237,19 +248,21 @@ function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit
   const categories = useCategories().data ?? [];
   const a = useTaskActions(task);
   return (
-    <li className="flex items-center gap-3 py-4">
-      <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
-      <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
-      <button onClick={() => onEdit(task)} className="min-w-0 flex-1 text-left">
-        <span className={cx("line-clamp-2 text-[15px] leading-snug font-semibold", a.done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</span>
-        <span className="mt-0.5 block truncate text-[13px] text-slate-500">{subtitleFor(task, categories)}</span>
-        {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800">New reply</span>}
-      </button>
-      <div className="hidden shrink-0 sm:block">
-        <DueChips task={task} today={today} />
+    <li className="flex items-start gap-3 py-4">
+      <div className="pt-0.5">
+        <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
       </div>
-      <div className="w-16 shrink-0 text-right">
-        <PriorityPill priority={task.priority} />
+      <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
+      <div className="min-w-0 flex-1 @lg:flex @lg:items-center @lg:gap-4">
+        <button onClick={() => onEdit(task)} className="block w-full min-w-0 text-left @lg:w-auto @lg:flex-1">
+          <span className={cx("line-clamp-2 text-[15px] leading-snug font-semibold", a.done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</span>
+          <span className="mt-0.5 block truncate text-[13px] text-slate-500">{subtitleFor(task, categories)}</span>
+          {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800">New reply</span>}
+        </button>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 @lg:mt-0 @lg:shrink-0">
+          <DueChips task={task} today={today} />
+          <PriorityPill priority={task.priority} />
+        </div>
       </div>
       <Menu
         items={[
@@ -317,7 +330,7 @@ function TodoRow({ task, today, categories, onEdit }: { task: Task; today: strin
           <span className="mt-0.5 block truncate text-[13px] text-slate-500">{context}</span>
         </button>
         <div className="mt-2 flex items-center justify-between gap-2">
-          <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[13px]", TONE[dueTone(task, today)].soft)}>
+          <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[13px] whitespace-nowrap", TONE[dueTone(task, today)].soft)}>
             <CalendarDays size={14} />
             {a.done && task.completedAt
               ? `Done ${formatWhen(task.completedAt)}`
