@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AuditEvent, Category, EmailState, Me, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { AuditEvent, Category, DayTasks, EmailState, Me, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -52,6 +52,13 @@ export const useTasks = (f: TaskFilter) =>
   useQuery({
     queryKey: ["tasks", f],
     queryFn: () => api<{ tasks: Task[]; today: string }>(`/tasks${qs({ view: f.view, q: f.q, category: f.category })}`),
+    placeholderData: (prev) => prev,
+  });
+
+export const useDayTasks = (date: string | undefined) =>
+  useQuery({
+    queryKey: ["tasks", "day", date],
+    queryFn: () => api<DayTasks>(`/tasks/day${qs({ date })}`),
     placeholderData: (prev) => prev,
   });
 
@@ -127,6 +134,14 @@ export function useSync() {
       return total;
     },
     onSettled: () => qc.invalidateQueries(),
+  });
+}
+
+export function useUpdateProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; title: string | null }) => api(`/me`, { method: "PATCH", body: input }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["me"] }),
   });
 }
 

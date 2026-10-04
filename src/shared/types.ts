@@ -3,6 +3,8 @@
 export type EmailState = "needs_decision" | "task" | "snoozed" | "dismissed";
 export type Priority = "low" | "normal" | "high" | "urgent";
 export type TaskView = "today" | "upcoming" | "overdue" | "nodate" | "all" | "completed";
+// Tasks due on one day (open and done); for today it also includes overdue open tasks.
+export type DayTasks = { date: string; today: string; tasks: Task[] };
 
 export type Category = { id: string; name: string; sortOrder: number };
 
@@ -55,6 +57,8 @@ export type AuditEvent = {
 export type Me = {
   email: string;
   name: string | null;
+  title: string | null;
+  picture: string | null;
   demo: boolean;
   today: string;
   timezone: string;
@@ -71,6 +75,7 @@ export type Summary = {
     dueTomorrow: number;
     newActivity: number;
     completedThisWeek: number;
+    openTasks: number;
   };
   overdue: Task[];
   dueToday: Task[];

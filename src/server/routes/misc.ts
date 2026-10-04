@@ -7,7 +7,7 @@ import { timezone } from "../env";
 import { addDays, todayIn } from "../lib/dates";
 import { syncUser, wakeSnoozed } from "../lib/sync";
 import { demoArrival } from "../lib/users";
-import { categoryInput } from "../../shared/schemas";
+import { categoryInput, profileInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
 import { selectThreads } from "./threads";
 import { openTaskOrder, selectTasks, toTask, viewFilter } from "./tasks";
@@ -21,6 +21,8 @@ export const miscRoutes = new Hono<AppEnv>()
     return c.json({
       email: user!.email,
       name: user!.name,
+      title: user!.title,
+      picture: user!.picture,
       demo: c.get("demo"),
       today: todayIn(timezone(c.env)),
       timezone: timezone(c.env),
@@ -35,6 +37,12 @@ export const miscRoutes = new Hono<AppEnv>()
     });
   })
 
+  .patch("/me", async (c) => {
+    const input = profileInput.parse(await c.req.json());
+    await c.get("db").update(users).set(input).where(eq(users.id, c.get("userId")));
+    return c.json({ ok: true });
+  })
+
   // The Command Center / daily review.
   .get("/summary", async (c) => {
     const db = c.get("db");
@@ -45,7 +53,7 @@ export const miscRoutes = new Hono<AppEnv>()
     const mine = eq(tasks.userId, userId);
     const weekAgo = new Date(Date.now() - 7 * 86400_000);
 
-    const [overdue, dueToday, dueTomorrow, newActivity, recentlyCompleted, pendingEmails, pendingCounts, doneCount] =
+    const [overdue, dueToday, dueTomorrow, newActivity, recentlyCompleted, pendingEmails, pendingCounts, doneCount, openCount] =
       await Promise.all([
         selectTasks(db).where(and(mine, viewFilter("overdue", today))).orderBy(...openTaskOrder),
         selectTasks(db).where(and(mine, viewFilter("today", today))).orderBy(...openTaskOrder),
@@ -70,6 +78,7 @@ export const miscRoutes = new Hono<AppEnv>()
           .select({ n: count() })
           .from(tasks)
           .where(and(mine, eq(tasks.status, "done"), gte(tasks.completedAt, weekAgo))),
+        db.select({ n: count() }).from(tasks).where(and(mine, eq(tasks.status, "open"))),
       ]);
 
     const pending = pendingCounts.reduce((s, r) => s + r.n, 0);
@@ -83,6 +92,7 @@ export const miscRoutes = new Hono<AppEnv>()
         dueTomorrow: dueTomorrow.length,
         newActivity: newActivity.length,
         completedThisWeek: doneCount[0]?.n ?? 0,
+        openTasks: openCount[0]?.n ?? 0,
       },
       overdue: overdue.map(toTask),
       dueToday: dueToday.map(toTask),

@@ -79,6 +79,22 @@ async function loadTask(db: DB, userId: string, id: string) {
 const VIEWS: TaskView[] = ["today", "upcoming", "overdue", "nodate", "all", "completed"];
 
 export const taskRoutes = new Hono<AppEnv>()
+  .get("/day", async (c) => {
+    const today = todayIn(timezone(c.env));
+    const date = c.req.query("date") ?? today;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HTTPException(400, { message: "Use date=YYYY-MM-DD" });
+    const onDay = eq(tasks.dueDate, date);
+    const rows = await selectTasks(c.get("db"))
+      .where(
+        and(
+          eq(tasks.userId, c.get("userId")),
+          date === today ? or(onDay, and(eq(tasks.status, "open"), lt(tasks.dueDate, today))) : onDay,
+        ),
+      )
+      .orderBy(desc(tasks.status), ...openTaskOrder);
+    return c.json({ date, today, tasks: rows.map(toTask) });
+  })
+
   .get("/", async (c) => {
     const db = c.get("db");
     const view = (c.req.query("view") ?? "all") as TaskView;

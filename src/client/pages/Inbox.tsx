@@ -11,7 +11,7 @@ type StateTab = EmailState | "all";
 export function InboxPage() {
   const [params, setParams] = useSearchParams();
   const state = (params.get("state") as StateTab) ?? "needs_decision";
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(params.get("q") ?? "");
   const [unread, setUnread] = useState(false);
   const [category, setCategory] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());

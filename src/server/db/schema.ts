@@ -20,6 +20,9 @@ export const users = pgTable("users", {
   id: id(),
   email: text("email").notNull().unique(),
   name: text("name"),
+  // Shown on the home screen profile card, e.g. "Clerk, District Hospital".
+  title: text("title"),
+  picture: text("picture"),
   createdAt: createdAt(),
 });
 

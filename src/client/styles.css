@@ -1,25 +1,44 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
-  --color-brand-50: #f0fdfa;
-  --color-brand-100: #ccfbf1;
-  --color-brand-600: #0d9488;
-  --color-brand-700: #0f766e;
-  --color-brand-800: #115e59;
+  --font-sans: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  /* Green accent and mint surfaces */
+  --color-brand-50: #f1faf5;
+  --color-brand-100: #e3f5ea;
+  --color-brand-200: #c6ead4;
+  --color-brand-500: #4cb27e;
+  --color-brand-600: #3e9f6e;
+  --color-brand-700: #2f875a;
+  --color-brand-800: #246b47;
+  --color-mint: #ecf8f1;
+
+  /* Dark highlight card and the soft purple call-to-action */
+  --color-ink: #1f2130;
+  --color-ink-soft: #2c2f40;
+  --color-violet: #a48bf5;
+
+  --color-canvas: #e4e6ea;
+  --color-line: #eceef1;
 }
 
 html,
 body {
-  background: var(--color-slate-50);
-  color: var(--color-slate-900);
+  background: var(--color-canvas);
+  color: #1f2130;
 }
 
 dialog::backdrop {
-  background: rgb(15 23 42 / 0.4);
+  background: rgb(31 33 48 / 0.45);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-brand-600);
+  outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
+}
+
+/* Thin scrollbars inside panels */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d6d9de transparent;
 }

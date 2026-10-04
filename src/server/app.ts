@@ -89,6 +89,7 @@ export function createApp(opts: Options) {
 
     const db = c.get("db");
     const { user } = await ensureUser(db, email, claims.name);
+    if (claims.picture) await db.update(users).set({ picture: claims.picture }).where(eq(users.id, user.id));
     const values: Partial<typeof gmailAccounts.$inferInsert> = {};
     if (tokens.refresh_token) values.refreshTokenEnc = await encryptSecret(tokens.refresh_token, requireEnv(env, "TOKEN_ENC_KEY"));
     await db

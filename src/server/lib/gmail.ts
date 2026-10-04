@@ -120,7 +120,7 @@ export const refreshAccessToken = (clientId: string, clientSecret: string, refre
   });
 
 // The id_token comes straight from Google's token endpoint over TLS, so its claims can be read directly.
-export function idTokenClaims(idToken: string): { email?: string; email_verified?: boolean; name?: string } {
+export function idTokenClaims(idToken: string): { email?: string; email_verified?: boolean; name?: string; picture?: string } {
   const part = idToken.split(".")[1] ?? "";
   return JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
 }

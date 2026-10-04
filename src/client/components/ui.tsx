@@ -15,10 +15,10 @@ export function Button({ variant = "secondary", size = "md", className, ...rest 
     <button
       {...rest}
       className={cx(
-        "inline-flex items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50",
-        size === "sm" ? "h-8 px-2.5 text-sm" : "h-9 px-3.5 text-sm",
-        variant === "primary" && "bg-brand-700 text-white hover:bg-brand-800",
-        variant === "secondary" && "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100",
+        "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50",
+        size === "sm" ? "h-8 px-3 text-[13px]" : "h-10 px-4 text-sm",
+        variant === "primary" && "bg-brand-600 text-white hover:bg-brand-700",
+        variant === "secondary" && "border border-line bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
         variant === "ghost" && "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
         variant === "danger" && "border border-red-200 bg-white text-red-700 hover:bg-red-50",
         className,
@@ -45,14 +45,14 @@ export function Badge({ children, tone = "slate" }: { children: ReactNode; tone?
 }
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <section className={cx("rounded-lg border border-slate-200 bg-white", className)}>{children}</section>;
+  return <section className={cx("rounded-xl border border-line bg-white", className)}>{children}</section>;
 }
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
     <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h1>
+        <h1 className="text-[22px] font-medium text-ink">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -80,7 +80,7 @@ export function Tabs<T extends string>({
 }) {
   return (
     <div className="-mx-4 mb-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <div role="tablist" className="inline-flex gap-1 rounded-lg bg-slate-200/60 p-1">
+      <div role="tablist" className="flex gap-6 border-b border-line">
         {options.map((o) => (
           <button
             key={o.value}
@@ -88,13 +88,13 @@ export function Tabs<T extends string>({
             aria-selected={value === o.value}
             onClick={() => onChange(o.value)}
             className={cx(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap",
-              value === o.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900",
+              "-mb-px flex items-center gap-1.5 border-b-2 px-1 pb-2.5 text-sm whitespace-nowrap",
+              value === o.value ? "border-brand-600 font-medium text-ink" : "border-transparent text-slate-500 hover:text-ink",
             )}
           >
             {o.label}
             {o.count !== undefined && o.count > 0 && (
-              <span className="rounded bg-slate-100 px-1.5 text-xs tabular-nums text-slate-600">{o.count}</span>
+              <span className="rounded-full bg-brand-100 px-1.5 text-xs tabular-nums text-brand-700">{o.count}</span>
             )}
           </button>
         ))}
@@ -110,7 +110,7 @@ export function SearchInput({ value, onChange, placeholder }: { value: string; o
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm placeholder:text-slate-400 sm:w-64"
+      className="h-10 w-full rounded-lg border border-transparent bg-mint px-3.5 text-sm placeholder:text-slate-400 focus:border-brand-200 sm:w-72"
     />
   );
 }
@@ -127,12 +127,12 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
     <dialog
       ref={ref}
       onClose={onClose}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-slate-200 bg-white p-0 shadow-xl"
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-white p-0 shadow-xl"
     >
       {open && (
         <div className="p-5">
           <div className="mb-4 flex items-start justify-between gap-4">
-            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+            <h2 className="text-lg font-medium text-ink">{title}</h2>
             <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100" aria-label="Close">
               <X size={18} />
             </button>
@@ -144,7 +144,7 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
   );
 }
 
-export const inputClass = "h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm";
+export const inputClass = "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-200";
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (

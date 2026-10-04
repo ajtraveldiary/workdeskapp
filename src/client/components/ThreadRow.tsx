@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AlarmClock, ExternalLink, ListPlus, Undo2, X } from "lucide-react";
 import type { Category, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
@@ -38,7 +38,7 @@ export function ThreadRow({
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          {thread.unread && <span className="size-2 shrink-0 translate-y-[-1px] rounded-full bg-blue-600" title="Unread in Gmail" />}
+          {thread.unread && <span className="size-2 shrink-0 translate-y-[-1px] rounded-full bg-brand-500" title="Unread in Gmail" />}
           <span className={cx("truncate text-sm", thread.unread ? "font-semibold text-slate-900" : "text-slate-700")}>
             {thread.fromName ?? thread.fromEmail ?? "Unknown sender"}
           </span>
@@ -117,7 +117,7 @@ function snoozeOptions() {
   ];
 }
 
-function SnoozeMenu({ id }: { id: string }) {
+export function SnoozeMenu({ id, icon }: { id: string; icon?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState("");
   const snooze = useSnooze();
@@ -138,10 +138,10 @@ function SnoozeMenu({ id }: { id: string }) {
   return (
     <div className="relative" ref={ref}>
       <Button size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <AlarmClock size={15} /> Snooze
+        {icon ?? <AlarmClock size={15} />} Snooze
       </Button>
       {open && (
-        <div className="absolute left-0 z-20 mt-1 w-56 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+        <div className="absolute left-0 z-20 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-lg">
           {snoozeOptions().map((o) => (
             <button key={o.label} onClick={() => pick(o.until)} className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-100">
               {o.label}
