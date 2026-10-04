@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "workdesk",
+  "main": "src/server/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // The built React app is served by the same Worker, so the API and UI share one origin.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // Every 10 minutes: Gmail sync, wake snoozed emails.
+  "triggers": { "crons": ["*/10 * * * *"] },
+  "vars": {
+    "APP_TIMEZONE": "Asia/Kolkata"
+  }
+  // Secrets (set with `wrangler secret put NAME`):
+  // DATABASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OWNER_EMAIL,
+  // SESSION_SECRET, TOKEN_ENC_KEY, APP_URL
+}
