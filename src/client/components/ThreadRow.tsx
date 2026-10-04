@@ -4,7 +4,8 @@ import type { Category, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useDismiss, useRestore, useSetThreadCategory, useSnooze } from "../api";
 import { formatDateTime, formatWhen } from "../format";
-import { Badge, Button, cx } from "./ui";
+import { Button, cx } from "./ui";
+import { EmailStatusTags } from "./EmailStatus";
 
 export function ThreadRow({
   thread,
@@ -60,9 +61,8 @@ export function ThreadRow({
               </Button>
             </>
           )}
-          {thread.state === "snoozed" && thread.snoozedUntil && <Badge tone="snooze">Snoozed until {formatDateTime(thread.snoozedUntil)}</Badge>}
-          {thread.state === "dismissed" && <Badge>Dismissed {formatWhen(thread.stateChangedAt)}</Badge>}
-          {thread.state === "task" && <Badge tone="brand">Converted to task</Badge>}
+          {!inQueue && <EmailStatusTags thread={thread} />}
+          {thread.state === "snoozed" && thread.snoozedUntil && <span className="text-xs text-slate-500">until {formatDateTime(thread.snoozedUntil)}</span>}
           {!inQueue && (
             <Button size="sm" onClick={() => restore.mutate(thread.id)} disabled={restore.isPending}>
               <Undo2 size={15} /> Return to queue

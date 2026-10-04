@@ -8,6 +8,9 @@ export type RangeTasks = { from: string; to: string; today: string; tasks: Task[
 
 export type Category = { id: string; name: string; sortOrder: number };
 
+// Linked tasks of an email: how many are open or done, and whether an open one is overdue.
+export type ThreadTaskInfo = { open: number; done: number; overdue: boolean };
+
 export type Thread = {
   id: string;
   gmailThreadId: string;
@@ -24,6 +27,7 @@ export type Thread = {
   hasNewActivity: boolean;
   categoryId: string | null;
   stateChangedAt: string;
+  task: ThreadTaskInfo | null;
 };
 
 export type Task = {

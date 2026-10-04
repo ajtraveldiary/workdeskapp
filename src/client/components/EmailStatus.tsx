@@ -1,0 +1,33 @@
+import type { Thread } from "../../shared/types";
+import { formatDateTime, formatWhen } from "../format";
+import { TONE, cx, type Tone } from "./ui";
+
+type Tag = { tone: Tone; label: string; title?: string };
+
+// Up to two tags: what happened to the email's task (if it has one), and where the email itself stands.
+// An email with no task shows only its state ("Needs decision", "Snoozed", "Dismissed").
+export function emailTags(thread: Thread): Tag[] {
+  const tags: Tag[] = [];
+  const t = thread.task;
+  if (t && t.open > 0) tags.push(t.overdue ? { tone: "urgent", label: "Task overdue" } : { tone: "high", label: t.open > 1 ? `${t.open} tasks pending` : "Task pending" });
+  else if (t && t.done > 0) tags.push({ tone: "low", label: "Task done" });
+
+  if (thread.state === "needs_decision") tags.push({ tone: "brand", label: "Needs decision" });
+  else if (thread.state === "snoozed")
+    tags.push({ tone: "snooze", label: "Snoozed", title: thread.snoozedUntil ? `Until ${formatDateTime(thread.snoozedUntil)}` : undefined });
+  else if (thread.state === "dismissed") tags.push({ tone: "neutral", label: "Dismissed", title: `Dismissed ${formatWhen(thread.stateChangedAt)}` });
+  return tags;
+}
+
+export function EmailStatusTags({ thread, className }: { thread: Thread; className?: string }) {
+  return (
+    <span className={cx("inline-flex flex-wrap items-center gap-1.5", className)}>
+      {emailTags(thread).map((tag) => (
+        <span key={tag.label} title={tag.title} className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", TONE[tag.tone].soft)}>
+          <span className={cx("size-1.5 rounded-full", TONE[tag.tone].dot)} aria-hidden />
+          {tag.label}
+        </span>
+      ))}
+    </span>
+  );
+}

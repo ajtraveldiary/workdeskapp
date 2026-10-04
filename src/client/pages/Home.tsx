@@ -8,10 +8,12 @@ import {
   Clock,
   ExternalLink,
   FileText,
+  ListChecks,
   ListPlus,
   Mail,
   Plus,
   TriangleAlert,
+  Undo2,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -24,12 +26,14 @@ import {
   useDismiss,
   useMarkSeen,
   useReopenTask,
+  useRestore,
   useSummary,
   useTasks,
   useThreads,
 } from "../api";
 import { formatDay, formatTime, formatWhen } from "../format";
 import { SnoozeMenu } from "../components/ThreadRow";
+import { EmailStatusTags } from "../components/EmailStatus";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Button, CheckCircle, Menu, PRIORITY_BAR, PriorityPill, Segmented, TONE, cx, type Tone } from "../components/ui";
 
@@ -335,14 +339,20 @@ function TodoRow({ task, today, categories, onEdit }: { task: Task; today: strin
   );
 }
 
-// --- New emails ---
+// --- Emails: pending queue, or every email with its status ---
+
+type EmailTab = "pending" | "all";
 
 function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
-  const { data } = useThreads({ state: "needs_decision" });
+  const [tab, setTab] = useState<EmailTab>("pending");
+  const { data } = useThreads({ state: tab === "pending" ? "needs_decision" : "all" });
   const bulk = useBulkDismiss();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const threads = data?.threads ?? [];
-  const live = [...selected].filter((id) => threads.some((t) => t.id === id));
+  const counts = data?.counts ?? {};
+  const total = Object.values(counts).reduce((a, n) => a + (n ?? 0), 0);
+  const pending = tab === "pending";
+  const live = pending ? [...selected].filter((id) => threads.some((t) => t.id === id)) : [];
 
   const toggle = (id: string, on: boolean) =>
     setSelected((prev) => {
@@ -354,7 +364,20 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
 
   return (
     <Panel>
-      <PanelHeader title="New Emails" action={<ViewAll to="/inbox" />} />
+      <PanelHeader title={pending ? "Pending Emails" : "All Emails"} action={<ViewAll to={pending ? "/inbox" : "/inbox?state=all"} />} />
+      <div className="mt-4 px-5">
+        <Segmented<EmailTab>
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            setSelected(new Set());
+          }}
+          options={[
+            { value: "pending", label: "Pending", count: counts.needs_decision ?? 0 },
+            { value: "all", label: "All emails", count: total },
+          ]}
+        />
+      </div>
       {live.length > 0 && (
         <div className="mx-5 mt-3 flex items-center justify-between gap-2 rounded-lg bg-tint px-3 py-2 text-sm">
           <span className="text-brand-800">{live.length} selected</span>
@@ -372,13 +395,20 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
         {!data ? (
           <Loading />
         ) : threads.length === 0 ? (
-          <Empty icon={Mail} title="Every email accounted for">
-            New Gmail messages land here until you make them a task, snooze them, or dismiss them.
+          <Empty icon={Mail} title={pending ? "Every email accounted for" : "No emails yet"}>
+            {pending ? "New Gmail messages land here until you make them a task, snooze them, or dismiss them." : "Emails appear here after the first sync."}
           </Empty>
         ) : (
           <ul className="divide-y divide-line px-5">
             {threads.map((t) => (
-              <EmailCard key={t.id} thread={t} selected={selected.has(t.id)} onSelect={(on) => toggle(t.id, on)} onCreateTask={onCreateTask} />
+              <EmailCard
+                key={t.id}
+                thread={t}
+                showStatus={!pending}
+                selected={selected.has(t.id)}
+                onSelect={pending ? (on) => toggle(t.id, on) : undefined}
+                onCreateTask={onCreateTask}
+              />
             ))}
           </ul>
         )}
@@ -387,18 +417,34 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
   );
 }
 
-function EmailCard({ thread, selected, onSelect, onCreateTask }: { thread: Thread; selected: boolean; onSelect: (on: boolean) => void; onCreateTask: (t: Thread) => void }) {
+function EmailCard({
+  thread,
+  showStatus,
+  selected,
+  onSelect,
+  onCreateTask,
+}: {
+  thread: Thread;
+  showStatus: boolean;
+  selected: boolean;
+  onSelect?: (on: boolean) => void;
+  onCreateTask: (t: Thread) => void;
+}) {
   const dismiss = useDismiss();
+  const restore = useRestore();
   const gmailUrl = gmailThreadUrl(thread.accountEmail, thread.gmailThreadId);
+  const inQueue = thread.state === "needs_decision";
   return (
     <li className={cx("-mx-5 flex gap-3 px-5 py-4", selected && "bg-tint")}>
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={(e) => onSelect(e.target.checked)}
-        aria-label={`Select email from ${thread.fromName ?? thread.fromEmail}`}
-        className="mt-1 size-[18px] shrink-0 accent-brand-600"
-      />
+      {onSelect && (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => onSelect(e.target.checked)}
+          aria-label={`Select email from ${thread.fromName ?? thread.fromEmail}`}
+          className="mt-1 size-[18px] shrink-0 accent-brand-600"
+        />
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           {thread.unread && <span className="size-2 shrink-0 -translate-y-px rounded-full bg-brand-600" title="Unread in Gmail" />}
@@ -409,15 +455,28 @@ function EmailCard({ thread, selected, onSelect, onCreateTask }: { thread: Threa
           <span className="ml-auto shrink-0 text-xs text-slate-500">{formatWhen(thread.lastMessageAt)}</span>
         </div>
         <p className="mt-0.5 truncate text-sm text-ink">{thread.subject}</p>
-        <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed text-slate-500">{thread.snippet}</p>
+        {showStatus && <EmailStatusTags thread={thread} className="mt-1.5" />}
+        <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-slate-500">{thread.snippet}</p>
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={() => onCreateTask(thread)}>
-            <ListPlus size={15} /> Create task
-          </Button>
-          <SnoozeMenu id={thread.id} compact />
-          <Button size="sm" onClick={() => dismiss.mutate(thread.id)} disabled={dismiss.isPending} title="Remove from the queue. Gmail is not changed.">
-            <X size={15} /> Dismiss
-          </Button>
+          {inQueue ? (
+            <>
+              <Button size="sm" onClick={() => onCreateTask(thread)}>
+                <ListPlus size={15} /> Create task
+              </Button>
+              <SnoozeMenu id={thread.id} compact />
+              <Button size="sm" onClick={() => dismiss.mutate(thread.id)} disabled={dismiss.isPending} title="Remove from the queue. Gmail is not changed.">
+                <X size={15} /> Dismiss
+              </Button>
+            </>
+          ) : thread.state === "task" ? (
+            <Link to={`/search?q=${encodeURIComponent(thread.subject)}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300">
+              <ListChecks size={15} /> View task
+            </Link>
+          ) : (
+            <Button size="sm" onClick={() => restore.mutate(thread.id)} disabled={restore.isPending}>
+              <Undo2 size={15} /> Return to pending
+            </Button>
+          )}
           {gmailUrl && (
             <a href={gmailUrl} target="_blank" rel="noreferrer" className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink" title="Open in Gmail" aria-label="Open in Gmail">
               <ExternalLink size={16} />

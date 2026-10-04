@@ -9,7 +9,7 @@ import { syncUser, wakeSnoozed } from "../lib/sync";
 import { demoArrival } from "../lib/users";
 import { categoryInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
-import { selectThreads } from "./threads";
+import { selectThreads, withTaskInfo } from "./threads";
 import { openTaskOrder, selectTasks, toTask, viewFilter } from "./tasks";
 
 export const miscRoutes = new Hono<AppEnv>()
@@ -97,7 +97,7 @@ export const miscRoutes = new Hono<AppEnv>()
       dueTomorrow: dueTomorrow.map(toTask),
       newActivity: newActivity.map(toTask),
       recentlyCompleted: recentlyCompleted.map(toTask),
-      pendingEmails: pendingEmails as unknown as Summary["pendingEmails"],
+      pendingEmails: (await withTaskInfo(db, pendingEmails, today)) as unknown as Summary["pendingEmails"],
     };
     return c.json(summary);
   })

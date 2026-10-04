@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, count, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { EMAIL_STATES, emailThreads, gmailAccounts, tasks } from "../db/schema";
@@ -8,6 +8,9 @@ import { logEvent } from "../lib/audit";
 import { wakeSnoozed } from "../lib/sync";
 import { bulkIds, snoozeInput, taskInput, threadPatch } from "../../shared/schemas";
 import { events } from "../db/schema";
+import { timezone } from "../env";
+import { todayIn } from "../lib/dates";
+import type { ThreadTaskInfo } from "../../shared/types";
 
 // Every route here changes only WorkDesk's own database. Gmail is never written to.
 
@@ -31,6 +34,27 @@ export const threadColumns = {
 
 export function selectThreads(db: DB) {
   return db.select(threadColumns).from(emailThreads).leftJoin(gmailAccounts, eq(emailThreads.accountId, gmailAccounts.id));
+}
+
+type ThreadRow = Awaited<ReturnType<ReturnType<typeof selectThreads>["execute"]>>[number];
+
+// Adds the state of each email's linked tasks (open / done / overdue), so lists can tag them.
+export async function withTaskInfo<T extends ThreadRow>(db: DB, threads: T[], today: string) {
+  const ids = threads.map((t) => t.id);
+  const rows = ids.length
+    ? await db
+        .select({
+          threadId: tasks.threadId,
+          open: sql<number>`(count(*) filter (where ${tasks.status} = 'open'))::int`,
+          done: sql<number>`(count(*) filter (where ${tasks.status} = 'done'))::int`,
+          overdue: sql<boolean>`coalesce(bool_or(${tasks.status} = 'open' and ${tasks.dueDate} < ${today}), false)`,
+        })
+        .from(tasks)
+        .where(inArray(tasks.threadId, ids))
+        .groupBy(tasks.threadId)
+    : [];
+  const byThread = new Map(rows.map((r) => [r.threadId, { open: Number(r.open), done: Number(r.done), overdue: !!r.overdue }]));
+  return threads.map((t) => ({ ...t, task: (byThread.get(t.id) ?? null) as ThreadTaskInfo | null }));
 }
 
 async function loadThread(db: DB, userId: string, id: string) {
@@ -98,7 +122,10 @@ export const threadRoutes = new Hono<AppEnv>()
         .where(eq(emailThreads.userId, userId))
         .groupBy(emailThreads.state),
     ]);
-    return c.json({ threads, counts: Object.fromEntries(counts.map((r) => [r.state, r.n])) });
+    return c.json({
+      threads: await withTaskInfo(db, threads, todayIn(timezone(c.env))),
+      counts: Object.fromEntries(counts.map((r) => [r.state, r.n])),
+    });
   })
 
   .post("/:id/task", async (c) => {
