@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AuditEvent, Category, DayTasks, EmailState, Me, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { AuditEvent, Category, RangeTasks, EmailState, Me, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -37,8 +37,9 @@ export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<Me>("
 export const useSummary = () => useQuery({ queryKey: ["summary"], queryFn: () => api<Summary>("/summary") });
 
 export type ThreadFilter = { state: EmailState | "all"; unread?: boolean; q?: string; category?: string };
-export const useThreads = (f: ThreadFilter) =>
+export const useThreads = (f: ThreadFilter, enabled = true) =>
   useQuery({
+    enabled,
     queryKey: ["threads", f],
     queryFn: () =>
       api<{ threads: Thread[]; counts: Partial<Record<EmailState, number>> }>(
@@ -48,17 +49,18 @@ export const useThreads = (f: ThreadFilter) =>
   });
 
 export type TaskFilter = { view: TaskView; q?: string; category?: string };
-export const useTasks = (f: TaskFilter) =>
+export const useTasks = (f: TaskFilter, enabled = true) =>
   useQuery({
+    enabled,
     queryKey: ["tasks", f],
     queryFn: () => api<{ tasks: Task[]; today: string }>(`/tasks${qs({ view: f.view, q: f.q, category: f.category })}`),
     placeholderData: (prev) => prev,
   });
 
-export const useDayTasks = (date: string | undefined) =>
+export const useRangeTasks = (from: string, to: string) =>
   useQuery({
-    queryKey: ["tasks", "day", date],
-    queryFn: () => api<DayTasks>(`/tasks/day${qs({ date })}`),
+    queryKey: ["tasks", "range", from, to],
+    queryFn: () => api<RangeTasks>(`/tasks/range${qs({ from, to })}`),
     placeholderData: (prev) => prev,
   });
 
@@ -134,14 +136,6 @@ export function useSync() {
       return total;
     },
     onSettled: () => qc.invalidateQueries(),
-  });
-}
-
-export function useUpdateProfile() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { name: string; title: string | null }) => api(`/me`, { method: "PATCH", body: input }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["me"] }),
   });
 }
 

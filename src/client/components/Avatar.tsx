@@ -1,13 +1,13 @@
 import { cx } from "./ui";
 
-// Soft background tones, picked from the name so a sender always gets the same colour.
+// Pastel tones from Google's extended palette, picked from the name so a sender always gets the same colour.
+// Red, yellow, blue and green are left out: those mean priority.
 const TONES = [
-  "bg-[#e3f5ea] text-[#2f875a]",
-  "bg-[#ece7fe] text-[#6b51d8]",
-  "bg-[#fdeedd] text-[#b4651c]",
-  "bg-[#e2effd] text-[#2f6fb8]",
-  "bg-[#fde6ea] text-[#b8405a]",
-  "bg-[#e9ecf1] text-[#4b5263]",
+  "bg-[#f3e8fd] text-[#8430ce]", // purple
+  "bg-[#fde7f3] text-[#b80672]", // pink
+  "bg-[#e4f7fb] text-[#007b83]", // cyan
+  "bg-[#feefe3] text-[#c26401]", // orange
+  "bg-[#f1f3f4] text-[#5f6368]", // grey
 ];
 
 function initials(name: string) {

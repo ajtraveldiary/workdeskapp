@@ -95,6 +95,8 @@ export const tasks = pgTable(
     title: text("title").notNull(),
     notes: text("notes").notNull().default(""),
     dueDate: date("due_date"),
+    // Optional time of day, "HH:MM" (24h) in the app timezone.
+    dueTime: text("due_time"),
     priority: text("priority", { enum: PRIORITIES }).notNull().default("normal"),
     status: text("status", { enum: ["open", "done"] }).notNull().default("open"),
     categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),

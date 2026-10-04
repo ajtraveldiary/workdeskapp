@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, desc, eq, gt, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { emailThreads, gmailAccounts, tasks } from "../db/schema";
@@ -11,7 +11,12 @@ import { taskInput, taskPatch } from "../../shared/schemas";
 import type { Task, TaskView } from "../../shared/types";
 
 const priorityRank = sql`case ${tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end`;
-export const openTaskOrder = [sql`${tasks.dueDate} asc nulls last`, priorityRank, asc(tasks.createdAt)];
+export const openTaskOrder = [
+  sql`${tasks.dueDate} asc nulls last`,
+  sql`${tasks.dueTime} asc nulls last`,
+  priorityRank,
+  asc(tasks.createdAt),
+];
 
 export function selectTasks(db: DB) {
   return db
@@ -40,6 +45,7 @@ export function toTask({ task, thread }: Row): Task {
     title: task.title,
     notes: task.notes,
     dueDate: task.dueDate,
+    dueTime: task.dueTime,
     priority: task.priority,
     status: task.status,
     categoryId: task.categoryId,
@@ -64,6 +70,8 @@ export function viewFilter(view: TaskView, today: string): SQL | undefined {
       return open;
     case "completed":
       return eq(tasks.status, "done");
+    case "any":
+      return undefined;
   }
 }
 
@@ -76,23 +84,19 @@ async function loadTask(db: DB, userId: string, id: string) {
   return t;
 }
 
-const VIEWS: TaskView[] = ["today", "upcoming", "overdue", "nodate", "all", "completed"];
+const VIEWS: TaskView[] = ["today", "upcoming", "overdue", "nodate", "all", "completed", "any"];
 
 export const taskRoutes = new Hono<AppEnv>()
-  .get("/day", async (c) => {
-    const today = todayIn(timezone(c.env));
-    const date = c.req.query("date") ?? today;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HTTPException(400, { message: "Use date=YYYY-MM-DD" });
-    const onDay = eq(tasks.dueDate, date);
+  // Calendar: everything due in a date range.
+  .get("/range", async (c) => {
+    const isDay = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const from = c.req.query("from");
+    const to = c.req.query("to");
+    if (!isDay(from) || !isDay(to)) throw new HTTPException(400, { message: "Use from=YYYY-MM-DD&to=YYYY-MM-DD" });
     const rows = await selectTasks(c.get("db"))
-      .where(
-        and(
-          eq(tasks.userId, c.get("userId")),
-          date === today ? or(onDay, and(eq(tasks.status, "open"), lt(tasks.dueDate, today))) : onDay,
-        ),
-      )
-      .orderBy(desc(tasks.status), ...openTaskOrder);
-    return c.json({ date, today, tasks: rows.map(toTask) });
+      .where(and(eq(tasks.userId, c.get("userId")), gte(tasks.dueDate, from!), lte(tasks.dueDate, to!)))
+      .orderBy(...openTaskOrder);
+    return c.json({ from, to, today: todayIn(timezone(c.env)), tasks: rows.map(toTask) });
   })
 
   .get("/", async (c) => {

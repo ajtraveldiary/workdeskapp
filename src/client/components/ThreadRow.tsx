@@ -38,7 +38,7 @@ export function ThreadRow({
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          {thread.unread && <span className="size-2 shrink-0 translate-y-[-1px] rounded-full bg-brand-500" title="Unread in Gmail" />}
+          {thread.unread && <span className="size-2 shrink-0 translate-y-[-1px] rounded-full bg-brand-600" title="Unread in Gmail" />}
           <span className={cx("truncate text-sm", thread.unread ? "font-semibold text-slate-900" : "text-slate-700")}>
             {thread.fromName ?? thread.fromEmail ?? "Unknown sender"}
           </span>
@@ -60,7 +60,7 @@ export function ThreadRow({
               </Button>
             </>
           )}
-          {thread.state === "snoozed" && thread.snoozedUntil && <Badge tone="amber">Snoozed until {formatDateTime(thread.snoozedUntil)}</Badge>}
+          {thread.state === "snoozed" && thread.snoozedUntil && <Badge tone="snooze">Snoozed until {formatDateTime(thread.snoozedUntil)}</Badge>}
           {thread.state === "dismissed" && <Badge>Dismissed {formatWhen(thread.stateChangedAt)}</Badge>}
           {thread.state === "task" && <Badge tone="brand">Converted to task</Badge>}
           {!inQueue && (
@@ -117,7 +117,7 @@ function snoozeOptions() {
   ];
 }
 
-export function SnoozeMenu({ id, icon }: { id: string; icon?: ReactNode }) {
+export function SnoozeMenu({ id, icon, compact }: { id: string; icon?: ReactNode; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState("");
   const snooze = useSnooze();
@@ -137,8 +137,9 @@ export function SnoozeMenu({ id, icon }: { id: string; icon?: ReactNode }) {
 
   return (
     <div className="relative" ref={ref}>
-      <Button size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        {icon ?? <AlarmClock size={15} />} Snooze
+      <Button size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Snooze" aria-label="Snooze" className={compact ? "w-8 px-0!" : undefined}>
+        {icon ?? <AlarmClock size={15} />}
+        {!compact && " Snooze"}
       </Button>
       {open && (
         <div className="absolute left-0 z-20 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-lg">

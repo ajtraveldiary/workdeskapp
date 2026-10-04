@@ -1,0 +1,81 @@
+import { useEffect, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router";
+import { Search } from "lucide-react";
+import type { Thread } from "../../shared/types";
+import { useCategories, useTasks, useThreads } from "../api";
+import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
+import { TaskRow } from "../components/TaskRow";
+import { ThreadRow } from "../components/ThreadRow";
+import { Card, Empty, PageHeader } from "../components/ui";
+
+export function SearchPage() {
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q")?.trim() ?? "";
+  const [draft, setDraft] = useState(q);
+  useEffect(() => setDraft(q), [q]);
+  const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
+  const categories = useCategories().data ?? [];
+  const threads = useThreads({ state: "all", q }, !!q);
+  const tasks = useTasks({ view: "any", q }, !!q);
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    setParams(draft.trim() ? { q: draft.trim() } : {});
+  };
+
+  const emailList = q ? (threads.data?.threads ?? []) : [];
+  const taskList = q ? (tasks.data?.tasks ?? []) : [];
+
+  return (
+    <>
+      <PageHeader title="Search" subtitle={q ? `Results for “${q}”` : "Search across emails and tasks."} />
+      <form onSubmit={submit} className="relative mb-6 max-w-xl">
+        <Search size={18} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-slate-400" />
+        <input
+          type="search"
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Sender, subject, task title, notes…"
+          className="h-11 w-full rounded-xl border border-line bg-white pr-3 pl-10 text-sm focus:border-brand-200"
+        />
+      </form>
+
+      {q && (
+        <div className="space-y-6">
+          <section>
+            <h2 className="mb-2 text-sm font-medium text-slate-600">Tasks ({taskList.length})</h2>
+            <Card>
+              {taskList.length === 0 ? (
+                <Empty title="No matching tasks" />
+              ) : (
+                <ul className="divide-y divide-line">
+                  {taskList.map((t) => (
+                    <TaskRow key={t.id} task={t} today={tasks.data!.today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} />
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </section>
+          <section>
+            <h2 className="mb-2 text-sm font-medium text-slate-600">Emails ({emailList.length})</h2>
+            <Card>
+              {emailList.length === 0 ? (
+                <Empty title="No matching emails" />
+              ) : (
+                <ul className="divide-y divide-line">
+                  {emailList.map((t: Thread) => (
+                    <ThreadRow key={t.id} thread={t} categories={categories} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} />
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </section>
+          <p className="text-xs text-slate-500">Reports will be searchable once recurring reports are added.</p>
+        </div>
+      )}
+
+      <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
+    </>
+  );
+}

@@ -28,7 +28,7 @@ export function HistoryPage() {
       <div className="mb-3">
         <SearchInput value={q} onChange={setQ} placeholder="Search history…" />
       </div>
-      {error && <p className="text-red-700">{error.message}</p>}
+      {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>
         {!data || data.events.length === 0 ? (
           <Empty title="Nothing recorded yet" />

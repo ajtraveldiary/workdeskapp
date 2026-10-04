@@ -1,35 +1,61 @@
 @import "tailwindcss";
 
+/*
+  Minimal white surfaces; colour is reserved for meaning, using Google's palette.
+  Each priority level has a pastel surface (-soft), the bright Google colour, and a dark ink for text:
+    urgent  Google Red     alarm: act now (urgent priority, overdue, errors)
+    high    Google Yellow  attention (high priority, due today)
+    medium  Google Blue    calm, normal (medium priority, upcoming)
+    low     Google Green   safe, relaxed (low priority, done, all clear)
+    snooze  Google Grey    on hold
+  Actions and selection use Google's UI blue, as Google's own apps do.
+*/
 @theme {
   --font-sans: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
 
-  /* Green accent and mint surfaces */
-  --color-brand-50: #f1faf5;
-  --color-brand-100: #e3f5ea;
-  --color-brand-200: #c6ead4;
-  --color-brand-500: #4cb27e;
-  --color-brand-600: #3e9f6e;
-  --color-brand-700: #2f875a;
-  --color-brand-800: #246b47;
-  --color-mint: #ecf8f1;
+  --color-urgent: #ea4335;
+  --color-urgent-soft: #fce8e6;
+  --color-urgent-ink: #c5221f;
 
-  /* Dark highlight card and the soft purple call-to-action */
-  --color-ink: #1f2130;
-  --color-ink-soft: #2c2f40;
-  --color-violet: #a48bf5;
+  --color-high: #fbbc04;
+  --color-high-soft: #fef7e0;
+  --color-high-ink: #b06000;
 
-  --color-canvas: #e4e6ea;
-  --color-line: #eceef1;
+  --color-medium: #4285f4;
+  --color-medium-soft: #e8f0fe;
+  --color-medium-ink: #1967d2;
+
+  --color-low: #34a853;
+  --color-low-soft: #e6f4ea;
+  --color-low-ink: #137333;
+
+  --color-snooze: #9aa0a6;
+  --color-snooze-soft: #f1f3f4;
+  --color-snooze-ink: #5f6368;
+
+  /* Google UI blue: buttons, links, selection, "new" */
+  --color-brand-50: #f4f8fe;
+  --color-brand-100: #e8f0fe;
+  --color-brand-200: #d2e3fc;
+  --color-brand-500: #4285f4;
+  --color-brand-600: #1a73e8;
+  --color-brand-700: #1967d2;
+  --color-brand-800: #185abc;
+  --color-tint: #f4f8fe;
+
+  --color-ink: #202124;
+  --color-canvas-soft: #fcfcfd;
+  --color-line: #e8eaed;
 }
 
 html,
 body {
-  background: var(--color-canvas);
-  color: #1f2130;
+  background: #ffffff;
+  color: var(--color-ink);
 }
 
 dialog::backdrop {
-  background: rgb(31 33 48 / 0.45);
+  background: rgb(32 33 36 / 0.4);
 }
 
 :focus-visible {
@@ -40,5 +66,5 @@ dialog::backdrop {
 /* Thin scrollbars inside panels */
 .scroll-thin {
   scrollbar-width: thin;
-  scrollbar-color: #d6d9de transparent;
+  scrollbar-color: #dcdce4 transparent;
 }

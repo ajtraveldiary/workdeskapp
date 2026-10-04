@@ -70,7 +70,7 @@ One Worker serves both the dashboard and the API, and a cron trigger syncs Gmail
 
 ```
 src/
-  client/          React dashboard (Today, Inbox, Tasks, Reports, History, Settings)
+  client/          React dashboard (Home, Emails, Tasks, Reports, Calendar, History, Search, Settings)
   server/
     app.ts         Hono API, Google sign-in, session cookie
     worker.ts      Cloudflare entry (fetch + cron)

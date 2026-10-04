@@ -12,7 +12,7 @@ export function LoginPage() {
           <span className="text-xl font-semibold tracking-tight">WorkDesk</span>
         </div>
         <p className="mt-3 text-sm text-slate-600">Every email accounted for. Every task tracked.</p>
-        {error && <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-4 rounded-md bg-urgent-soft px-3 py-2 text-sm text-urgent-ink">{error}</p>}
         <a
           href="/api/auth/google"
           className="mt-5 flex h-10 w-full items-center justify-center rounded-md bg-brand-700 text-sm font-medium text-white hover:bg-brand-800"

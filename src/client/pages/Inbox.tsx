@@ -38,7 +38,7 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader title="Inbox" subtitle="Every email here needs a decision: make it a task, snooze it, or dismiss it. Gmail itself is never changed." />
+      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task, snooze it, or dismiss it. Gmail itself is never changed." />
 
       <Tabs<StateTab>
         value={state}
@@ -92,7 +92,7 @@ export function InboxPage() {
         </div>
       )}
 
-      {error && <p className="text-red-700">{error.message}</p>}
+      {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>
         {threads.length === 0 ? (
           <Empty title={inQueue ? "Nothing waiting for a decision" : "No emails here"}>

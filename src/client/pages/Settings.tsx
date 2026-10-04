@@ -34,7 +34,7 @@ export function SettingsPage() {
               {me.account.lastSyncError && (
                 <>
                   <dt className="text-slate-500">Last error</dt>
-                  <dd className="text-red-700">{me.account.lastSyncError}</dd>
+                  <dd className="text-urgent-ink">{me.account.lastSyncError}</dd>
                 </>
               )}
             </dl>
@@ -57,7 +57,7 @@ export function SettingsPage() {
                 {c.name}
                 <button
                   onClick={() => confirm(`Remove "${c.name}"? Emails and tasks keep working, they just lose this category.`) && remove.mutate(c.id)}
-                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"
+                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-urgent-ink"
                   aria-label={`Remove ${c.name}`}
                 >
                   <Trash2 size={15} />

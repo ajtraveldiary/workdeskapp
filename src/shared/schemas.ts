@@ -7,6 +7,7 @@ export const taskInput = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   notes: z.string().max(10_000).default(""),
   dueDate: day.nullable().default(null),
+  dueTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM").nullable().default(null),
   priority: priority.default("normal"),
   categoryId: z.uuid().nullable().default(null),
 });
@@ -17,9 +18,4 @@ export const taskPatch = taskInput.partial();
 export const snoozeInput = z.object({ until: z.iso.datetime({ offset: true }) });
 export const threadPatch = z.object({ categoryId: z.uuid().nullable() });
 export const bulkIds = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
-export const profileInput = z.object({
-  name: z.string().trim().min(1).max(80),
-  title: z.string().trim().max(120).nullable(),
-});
-
 export const categoryInput = z.object({ name: z.string().trim().min(1).max(60) });

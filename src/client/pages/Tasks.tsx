@@ -14,6 +14,7 @@ const EMPTY: Record<TaskView, string> = {
   nodate: "No undated tasks",
   all: "No open tasks",
   completed: "No completed tasks yet",
+  any: "No tasks",
 };
 
 export function TasksPage() {
@@ -63,7 +64,7 @@ export function TasksPage() {
         {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
       </div>
 
-      {error && <p className="text-red-700">{error.message}</p>}
+      {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>
         {!data || data.tasks.length === 0 ? (
           <Empty title={EMPTY[view]} />

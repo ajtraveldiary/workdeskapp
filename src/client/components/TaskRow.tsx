@@ -2,8 +2,8 @@ import { Check, ExternalLink, Mail, RotateCcw } from "lucide-react";
 import type { Category, Task } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
-import { daysBetween, formatDateTime, formatDay } from "../format";
-import { Badge, cx } from "./ui";
+import { daysBetween, formatDateTime, formatDay, formatTime } from "../format";
+import { Badge, PriorityPill, cx } from "./ui";
 
 export function TaskRow({
   task,
@@ -33,7 +33,7 @@ export function TaskRow({
         title={done ? "Reopen" : "Mark complete"}
         className={cx(
           "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2",
-          done ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 text-transparent hover:border-brand-600 hover:text-brand-600",
+          done ? "border-low bg-low text-white" : "border-slate-300 text-transparent hover:border-low hover:text-low",
         )}
       >
         <Check size={12} strokeWidth={3} />
@@ -45,13 +45,12 @@ export function TaskRow({
         </button>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
           {task.dueDate && !done && (
-            <Badge tone={overdue ? "red" : task.dueDate === today ? "amber" : "slate"}>
+            <Badge tone={overdue ? "urgent" : task.dueDate === today ? "high" : "medium"}>
               {overdue ? `Overdue ${daysBetween(task.dueDate, today)}d · ${formatDay(task.dueDate, today)}` : `Due ${formatDay(task.dueDate, today)}`}
+              {task.dueTime && `, ${formatTime(task.dueTime)}`}
             </Badge>
           )}
-          {(task.priority === "high" || task.priority === "urgent") && (
-            <Badge tone={task.priority === "urgent" ? "red" : "amber"}>{task.priority === "urgent" ? "Urgent" : "High"}</Badge>
-          )}
+          <PriorityPill priority={task.priority} />
           {category && <Badge>{category.name}</Badge>}
           {done && task.completedAt && <span>Completed {formatDateTime(task.completedAt)}</span>}
           {task.thread && (
@@ -65,7 +64,7 @@ export function TaskRow({
         </div>
         {task.notes && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{task.notes}</p>}
         {task.thread?.hasNewActivity && !done && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-blue-50 px-2.5 py-1.5 text-xs text-blue-800">
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-brand-100 px-2.5 py-1.5 text-xs text-brand-800">
             <span className="font-medium">New reply in the linked email.</span>
             {gmailUrl && (
               <a href={gmailUrl} target="_blank" rel="noreferrer" className="underline">
