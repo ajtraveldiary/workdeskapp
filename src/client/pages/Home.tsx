@@ -50,10 +50,10 @@ export function HomePage() {
     <div className="px-4 py-5 md:px-6 lg:px-8">
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {/* Each card is green when its list is clear, and coloured by urgency when it isn't. */}
-        <StatCard to="/inbox" icon={Mail} value={counts.pendingEmails} label="Pending emails" note={counts.pendingEmails ? (counts.unreadPending ? `${counts.unreadPending} unread` : "Need your attention") : "All decided"} tone={counts.pendingEmails ? "brand" : "low"} />
+        <StatCard to="/inbox" icon={Mail} value={counts.pendingEmails} label="Pending emails" note={counts.pendingEmails ? (counts.unreadPending ? `${counts.unreadPending} unread` : "Need your attention") : "All decided"} tone={counts.pendingEmails ? "info" : "low"} />
         <StatCard to="/tasks?view=today" icon={CircleCheck} value={counts.dueToday} label="Tasks due today" note={counts.dueToday ? "Stay on track" : "Nothing due today"} tone={counts.dueToday ? "high" : "low"} />
         <StatCard to="/tasks?view=overdue" icon={TriangleAlert} value={counts.overdue} label="Overdue tasks" note={counts.overdue ? "Needs action" : "All on time"} tone={counts.overdue ? "urgent" : "low"} />
-        <StatCard to="/reports" icon={FileText} value={null} label="Upcoming reports" note="Coming soon" tone="medium" />
+        <StatCard to="/reports" icon={FileText} value={null} label="Upcoming reports" note="Coming soon" tone="info" />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -72,7 +72,7 @@ export function HomePage() {
 function StatCard({ to, icon: Icon, value, label, note, tone }: { to: string; icon: LucideIcon; value: number | null; label: string; note: string; tone: Tone }) {
   return (
     <Link to={to} className="group flex flex-col items-start gap-3 rounded-xl border border-line bg-white p-3.5 transition-shadow hover:shadow-[0_8px_24px_-14px_rgb(31_33_48/0.35)] sm:flex-row sm:items-center sm:gap-4 sm:p-4">
-      <span className={cx("flex size-11 shrink-0 items-center justify-center rounded-xl sm:size-14", TONE[tone].soft)}>
+      <span className={cx("flex size-11 shrink-0 items-center justify-center rounded-xl shadow-sm sm:size-14", TONE[tone].solid)}>
         <Icon size={26} strokeWidth={1.6} />
       </span>
       <div className="min-w-0 flex-1">
@@ -122,7 +122,7 @@ function Scroll({ children }: { children: ReactNode }) {
 function Empty({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children?: ReactNode }) {
   return (
     <div className="flex flex-col items-center px-6 py-14 text-center">
-      <span className="flex size-12 items-center justify-center rounded-full bg-low-soft text-low-ink">
+      <span className="flex size-12 items-center justify-center rounded-full bg-low text-white">
         <Icon size={22} />
       </span>
       <p className="mt-3 font-medium text-ink">{title}</p>
@@ -162,7 +162,7 @@ function CommandCenter({ summary, onNew, onEdit }: { summary: NonNullable<Return
           options={[
             { value: "today", label: "Today", count: counts.dueToday, tone: "high" },
             { value: "overdue", label: "Overdue", count: counts.overdue, tone: "urgent" },
-            { value: "upcoming", label: "Upcoming", count: counts.upcoming, tone: "medium" },
+            { value: "upcoming", label: "Upcoming", count: counts.upcoming, tone: "info" },
             { value: "reports", label: "Reports", count: 0 },
           ]}
         />
@@ -212,7 +212,7 @@ function dueTone(task: Task, today: string): Tone {
   if (task.status === "done" || !task.dueDate) return "neutral";
   if (task.dueDate < today) return "urgent";
   if (task.dueDate === today) return "high";
-  return "medium";
+  return "info";
 }
 
 function DueChips({ task, today }: { task: Task; today: string }) {

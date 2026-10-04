@@ -9,7 +9,7 @@ type Tag = { tone: Tone; label: string; title?: string };
 export function emailTags(thread: Thread): Tag[] {
   const tags: Tag[] = [];
   const t = thread.task;
-  if (t && t.open > 0) tags.push(t.overdue ? { tone: "urgent", label: "Task overdue" } : { tone: "high", label: t.open > 1 ? `${t.open} tasks pending` : "Task pending" });
+  if (t && t.open > 0) tags.push(t.overdue ? { tone: "urgent", label: "Task overdue" } : { tone: "medium", label: t.open > 1 ? `${t.open} tasks pending` : "Task pending" });
   else if (t && t.done > 0) tags.push({ tone: "low", label: "Task done" });
 
   if (thread.state === "needs_decision") tags.push({ tone: "brand", label: "Needs decision" });

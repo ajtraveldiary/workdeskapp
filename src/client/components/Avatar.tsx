@@ -1,13 +1,13 @@
 import { cx } from "./ui";
 
-// Pastel tones from Google's extended palette, picked from the name so a sender always gets the same colour.
-// Red, yellow, blue and green are left out: those mean priority.
+// Picked from the name so a sender always gets the same colour. Uses in-between hues
+// (pink, cyan, teal, indigo, grey) because the primary and secondary colours mean priority.
 const TONES = [
-  "bg-[#f3e8fd] text-[#8430ce]", // purple
-  "bg-[#fde7f3] text-[#b80672]", // pink
-  "bg-[#e4f7fb] text-[#007b83]", // cyan
-  "bg-[#feefe3] text-[#c26401]", // orange
-  "bg-[#f1f3f4] text-[#5f6368]", // grey
+  "bg-[#ffe0f0] text-[#c2185b]", // pink
+  "bg-[#d9f6fb] text-[#00838f]", // cyan
+  "bg-[#d5f5ee] text-[#00796b]", // teal
+  "bg-[#e3e5ff] text-[#3949ab]", // indigo
+  "bg-[#eef0f3] text-[#4b5563]", // grey
 ];
 
 function initials(name: string) {

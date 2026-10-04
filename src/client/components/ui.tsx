@@ -27,17 +27,20 @@ export function Button({ variant = "secondary", size = "md", className, ...rest 
   );
 }
 
-// Colour carries meaning (see styles.css): urgent > high > medium > low, plus snooze, brand and neutral.
-export type Tone = "urgent" | "high" | "medium" | "low" | "snooze" | "brand" | "neutral";
+// Colour carries meaning (see styles.css): urgent red > high orange > medium yellow > low green,
+// plus snooze purple, info blue, brand blue (actions) and neutral grey.
+// soft: tinted background + dark text (tags, chips). solid: saturated fill (icon tiles, badges). dot: accent only.
+export type Tone = "urgent" | "high" | "medium" | "low" | "snooze" | "info" | "brand" | "neutral";
 
 export const TONE: Record<Tone, { soft: string; solid: string; dot: string }> = {
   urgent: { soft: "bg-urgent-soft text-urgent-ink", solid: "bg-urgent text-white", dot: "bg-urgent" },
-  high: { soft: "bg-high-soft text-high-ink", solid: "bg-high text-ink", dot: "bg-high" },
-  medium: { soft: "bg-medium-soft text-medium-ink", solid: "bg-medium text-white", dot: "bg-medium" },
+  high: { soft: "bg-high-soft text-high-ink", solid: "bg-high text-white", dot: "bg-high" },
+  medium: { soft: "bg-medium-soft text-medium-ink", solid: "bg-medium text-ink", dot: "bg-medium" },
   low: { soft: "bg-low-soft text-low-ink", solid: "bg-low text-white", dot: "bg-low" },
   snooze: { soft: "bg-snooze-soft text-snooze-ink", solid: "bg-snooze text-white", dot: "bg-snooze" },
-  brand: { soft: "bg-brand-100 text-brand-800", solid: "bg-brand-600 text-white", dot: "bg-brand-500" },
-  neutral: { soft: "bg-slate-100 text-slate-700", solid: "bg-slate-500 text-white", dot: "bg-slate-300" },
+  info: { soft: "bg-info-soft text-info-ink", solid: "bg-info text-white", dot: "bg-info" },
+  brand: { soft: "bg-brand-100 text-brand-800", solid: "bg-brand-600 text-white", dot: "bg-brand-600" },
+  neutral: { soft: "bg-slate-100 text-slate-700", solid: "bg-slate-500 text-white", dot: "bg-slate-400" },
 };
 
 export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: Tone }) {
@@ -208,7 +211,8 @@ const PRIORITY_LABEL = { urgent: "Urgent", high: "High", normal: "Medium", low: 
 
 export function PriorityPill({ priority }: { priority: keyof typeof PRIORITY_TONE }) {
   return (
-    <span className={cx("inline-flex rounded-md px-2 py-0.5 text-xs font-medium", TONE[PRIORITY_TONE[priority]].soft)}>
+    <span className={cx("inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium", TONE[PRIORITY_TONE[priority]].soft)}>
+      <span className={cx("size-1.5 rounded-full", TONE[PRIORITY_TONE[priority]].dot)} aria-hidden />
       {PRIORITY_LABEL[priority]}
     </span>
   );

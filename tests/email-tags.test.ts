@@ -24,7 +24,7 @@ const labels = (t: Partial<Thread>) => emailTags({ ...base, ...t }).map((x) => `
 
 describe("emailTags", () => {
   it("marks open, overdue and finished tasks", () => {
-    expect(labels({ task: { open: 1, done: 0, overdue: false } })).toEqual(["high:Task pending"]);
+    expect(labels({ task: { open: 1, done: 0, overdue: false } })).toEqual(["medium:Task pending"]);
     expect(labels({ task: { open: 1, done: 2, overdue: true } })).toEqual(["urgent:Task overdue"]);
     expect(labels({ task: { open: 0, done: 1, overdue: false } })).toEqual(["low:Task done"]);
   });

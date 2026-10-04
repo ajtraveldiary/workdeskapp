@@ -1,47 +1,51 @@
 @import "tailwindcss";
 
 /*
-  Minimal white surfaces; colour is reserved for meaning, using Google's palette.
-  Each priority level has a pastel surface (-soft), the bright Google colour, and a dark ink for text:
-    urgent  Google Red     alarm: act now (urgent priority, overdue, errors)
-    high    Google Yellow  attention (high priority, due today)
-    medium  Google Blue    calm, normal (medium priority, upcoming)
-    low     Google Green   safe, relaxed (low priority, done, all clear)
-    snooze  Google Grey    on hold
-  Actions and selection use Google's UI blue, as Google's own apps do.
+  Minimal white surfaces; bright, saturated primary and secondary colours mark meaning.
+  Each tone has a solid accent (dots, bars, icon tiles, badges), a light tint (-soft) and a dark ink for text:
+    urgent  red      alarm: act now (urgent priority, overdue, errors)
+    high    orange   warning (high priority, due today)
+    medium  yellow   caution (medium priority, task pending)
+    low     green    safe, relaxed (low priority, done, all clear)
+    snooze  purple   on hold
+    info    blue     calm, informational (upcoming); blue is also the action colour (brand)
 */
 @theme {
   --font-sans: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
 
-  --color-urgent: #ea4335;
-  --color-urgent-soft: #fce8e6;
-  --color-urgent-ink: #c5221f;
+  --color-urgent: #f0283c;
+  --color-urgent-soft: #ffe4e7;
+  --color-urgent-ink: #c1121f;
 
-  --color-high: #fbbc04;
-  --color-high-soft: #fef7e0;
-  --color-high-ink: #b06000;
+  --color-high: #ff7a00;
+  --color-high-soft: #ffecd9;
+  --color-high-ink: #b45300;
 
-  --color-medium: #4285f4;
-  --color-medium-soft: #e8f0fe;
-  --color-medium-ink: #1967d2;
+  --color-medium: #ffc300;
+  --color-medium-soft: #fff5cc;
+  --color-medium-ink: #8a6500;
 
-  --color-low: #34a853;
-  --color-low-soft: #e6f4ea;
-  --color-low-ink: #137333;
+  --color-low: #12b85c;
+  --color-low-soft: #dcfce7;
+  --color-low-ink: #077a3b;
 
-  --color-snooze: #9aa0a6;
-  --color-snooze-soft: #f1f3f4;
-  --color-snooze-ink: #5f6368;
+  --color-snooze: #8b3dff;
+  --color-snooze-soft: #f0e6ff;
+  --color-snooze-ink: #6a1fd6;
 
-  /* Google UI blue: buttons, links, selection, "new" */
-  --color-brand-50: #f4f8fe;
-  --color-brand-100: #e8f0fe;
-  --color-brand-200: #d2e3fc;
-  --color-brand-500: #4285f4;
-  --color-brand-600: #1a73e8;
-  --color-brand-700: #1967d2;
-  --color-brand-800: #185abc;
-  --color-tint: #f4f8fe;
+  --color-info: #1e6bff;
+  --color-info-soft: #e3edff;
+  --color-info-ink: #0f4fd6;
+
+  /* Saturated blue: buttons, links, selection, "new" */
+  --color-brand-50: #f3f7ff;
+  --color-brand-100: #e3edff;
+  --color-brand-200: #c4d8ff;
+  --color-brand-500: #4d8cff;
+  --color-brand-600: #1e6bff;
+  --color-brand-700: #1257e6;
+  --color-brand-800: #0f46b8;
+  --color-tint: #f3f7ff;
 
   --color-ink: #202124;
   --color-canvas-soft: #fcfcfd;

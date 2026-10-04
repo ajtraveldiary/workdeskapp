@@ -45,7 +45,7 @@ export function TaskRow({
         </button>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
           {task.dueDate && !done && (
-            <Badge tone={overdue ? "urgent" : task.dueDate === today ? "high" : "medium"}>
+            <Badge tone={overdue ? "urgent" : task.dueDate === today ? "high" : "info"}>
               {overdue ? `Overdue ${daysBetween(task.dueDate, today)}d · ${formatDay(task.dueDate, today)}` : `Due ${formatDay(task.dueDate, today)}`}
               {task.dueTime && `, ${formatTime(task.dueTime)}`}
             </Badge>
