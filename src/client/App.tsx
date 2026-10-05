@@ -177,7 +177,12 @@ function TopBar() {
             <CalendarCheck size={18} />
           </span>
           <span>
-            <span className="block text-lg leading-tight font-semibold text-ink md:text-2xl">WorkDesk</span>
+            <span className="block text-lg leading-tight font-semibold text-ink md:text-2xl">
+              WorkDesk
+              <span className="ml-1.5 align-baseline text-[11px] font-normal text-slate-400 md:text-xs" title="Version">
+                v{__APP_VERSION__}
+              </span>
+            </span>
             <span className="hidden text-[13px] text-slate-500 lg:block">Every email accounted for. Every task tracked.</span>
           </span>
         </Link>

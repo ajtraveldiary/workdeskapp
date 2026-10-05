@@ -94,6 +94,19 @@ src/
 
 **What's stored:** for each email, only the subject, sender, Gmail snippet, dates, and IDs. Message bodies are never stored. Refresh tokens are encrypted with AES-GCM.
 
+## Version number
+
+The small grey number next to "WorkDesk" (e.g. **v1.14**) is worked out from git when the dashboard is built (`vite.config.ts`):
+
+- **MINOR** goes up by one with every commit.
+- **MAJOR** changes only on a major update. Mark one with a tag, then deploy; the version restarts at `.0` and counts on from there:
+  ```bash
+  git tag v2
+  ```
+- With no tag yet, the major number is 1.
+
+The live site shows the version it was deployed with, so commit before `npm run deploy`. The local dev server picks up a new number when it restarts.
+
 ## Roadmap
 - [x] Phase 1: Gmail queue, Create task / Dismiss / Snooze / Open in Gmail
 - [x] Phase 2: tasks with due dates, priorities, notes, categories, and completion history

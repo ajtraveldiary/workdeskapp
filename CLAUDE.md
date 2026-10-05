@@ -23,5 +23,6 @@ Single-user Gmail → task dashboard. React + Vite + Tailwind v4 (src/client), H
 - Reports: a period's task and the period move together (completing/reopening either updates the other via `setPeriodStatus`). Period maths lives in `src/shared/reportSchedule.ts` with tests.
 - Gmail sync fetches each message once: downloaded message IDs live in `gmail_messages`; new messages in stored conversations are fetched singly; read/unread comes from the history log without downloads. First sync covers the last 30 days, continued across runs. Covered by `tests/sync.test.ts`.
 - Client data is a hybrid: TanStack Query cache persisted to localStorage (`src/client/queryClient.ts`, 5 min stale time); the database is the source of truth. Every screen and list has a `RefreshButton`. Per-request housekeeping on the server is throttled in `src/server/lib/maintenance.ts`.
+- Version shown beside the title is computed from git at build time (`appVersion` in `vite.config.ts`): MAJOR from the latest `vN` tag (1 if none), MINOR = commits since it. Don't hard-code versions; a major update is the user tagging `vN`.
 - Calendar dates are `YYYY-MM-DD` strings in `APP_TIMEZONE` (default Asia/Kolkata).
 - Before finishing: `npm run typecheck` and `npm test`.

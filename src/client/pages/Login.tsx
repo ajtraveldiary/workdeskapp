@@ -9,7 +9,9 @@ export function LoginPage() {
           <span className="flex size-8 items-center justify-center rounded-md bg-brand-700 text-white">
             <CalendarCheck size={18} />
           </span>
-          <span className="text-xl font-semibold tracking-tight">WorkDesk</span>
+          <span className="text-xl font-semibold tracking-tight">
+            WorkDesk <span className="align-baseline text-xs font-normal tracking-normal text-slate-400">v{__APP_VERSION__}</span>
+          </span>
         </div>
         <p className="mt-3 text-sm text-slate-600">Every email accounted for. Every task tracked.</p>
         {error && <p className="mt-4 rounded-md bg-urgent-soft px-3 py-2 text-sm text-urgent-ink">{error}</p>}
