@@ -15,6 +15,7 @@ import { threadRoutes } from "./routes/threads";
 import { taskRoutes } from "./routes/tasks";
 import { miscRoutes } from "./routes/misc";
 import { reportRoutes } from "./routes/reports";
+import { labelRoutes, threadLabelRoute } from "./routes/labels";
 
 export type AppEnv = {
   Bindings: Env;
@@ -141,6 +142,8 @@ export function createApp(opts: Options) {
   });
 
   app.route("/threads", threadRoutes);
+  app.route("/threads", threadLabelRoute);
+  app.route("/labels", labelRoutes);
   app.route("/tasks", taskRoutes);
   app.route("/reports", reportRoutes);
   app.route("/", miscRoutes);

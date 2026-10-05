@@ -2,13 +2,15 @@
 // On phones the preview opens over the email with a Back button. Content comes from Gmail on demand and
 // is never stored in WorkDesk's database.
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Paperclip, X } from "lucide-react";
+import { ArrowLeft, Check, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Paperclip, Tag, X } from "lucide-react";
 import type { EmailAttachment, EmailMessageContent, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
-import { attachmentUrl, useDismiss, useEmailContent, useMarkRead } from "../api";
+import { attachmentUrl, useDismiss, useEmailContent, useLabels, useMarkRead, useSetThreadLabels } from "../api";
 import { formatDateTime } from "../format";
 import { Avatar } from "./Avatar";
 import { EmailStatusTags } from "./EmailStatus";
+import { LabelChip, LabelChips } from "./LabelChips";
+import { Link } from "react-router";
 import { SnoozeMenu } from "./ThreadRow";
 import { Button, cx } from "./ui";
 
@@ -63,6 +65,8 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
     }
   }, [data, thread.unread, thread.id, markRead]);
   const needsSignIn = markRead.data?.marked === false && markRead.data.reason === "permission";
+  // Labels shown here follow the picker straight away; the lists refresh from the server.
+  const [labelIds, setLabelIds] = useState(thread.labelIds);
 
   // Newest message first; the preview starts on the newest PDF (or image) in the conversation.
   const messages = useMemo(() => [...(data?.messages ?? [])].reverse(), [data]);
@@ -89,6 +93,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
             <span>· {formatDateTime(thread.lastMessageAt)}</span>
             {thread.messageCount > 1 && <span>· {thread.messageCount} messages</span>}
             {!inQueue && <EmailStatusTags thread={thread} />}
+            <LabelChips ids={labelIds} max={6} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -103,6 +108,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
               </Button>
             </>
           )}
+          <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} />
           {gmailUrl && (
             <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:size-9" title="Open in Gmail" aria-label="Open in Gmail">
               <ExternalLink size={18} />
@@ -340,5 +346,68 @@ function Preview({ threadId, selected, empty }: { threadId: string; selected: Se
         )}
       </div>
     </>
+  );
+}
+
+// Add or remove the user's Gmail labels on this conversation (changes Gmail too). Each tap applies at once.
+function LabelPicker({ thread, selected, onChange }: { thread: Thread; selected: string[]; onChange: (ids: string[]) => void }) {
+  const { data } = useLabels();
+  const setLabels = useSetThreadLabels();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const toggle = (id: string) => {
+    const on = selected.includes(id);
+    const next = on ? selected.filter((x) => x !== id) : [...selected, id];
+    onChange(next);
+    setLabels.mutate({ id: thread.id, add: on ? [] : [id], remove: on ? [id] : [] }, { onError: () => onChange(selected) });
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Labels">
+        <Tag size={15} /> <span className="hidden sm:inline">Labels</span>
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white p-1 shadow-xl">
+          <p className="px-3 pt-2 pb-1 text-xs text-slate-500">Labels on this email (changes Gmail too)</p>
+          {!data ? (
+            <p className="px-3 py-3 text-sm text-slate-500">Loading…</p>
+          ) : !data.canEdit ? (
+            <p className="px-3 py-3 text-sm text-slate-600">
+              <a href="/api/auth/google" className="font-medium text-brand-700 underline">Sign in again</a> to let WorkDesk change labels.
+            </p>
+          ) : data.labels.length === 0 ? (
+            <p className="px-3 py-3 text-sm text-slate-500">No labels yet.</p>
+          ) : (
+            <ul className="scroll-thin max-h-72 overflow-y-auto">
+              {data.labels.map((l) => {
+                const on = selected.includes(l.id);
+                return (
+                  <li key={l.id}>
+                    <button onClick={() => toggle(l.id)} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50" aria-pressed={on}>
+                      <span className={cx("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300")}>
+                        {on && <Check size={11} strokeWidth={3} />}
+                      </span>
+                      <LabelChip label={l} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {setLabels.error && <p className="px-3 py-2 text-xs text-urgent-ink">{setLabels.error.message}</p>}
+          <Link to="/settings#mail" className="mt-1 block border-t border-line px-3 py-2 text-[13px] font-medium text-brand-700 hover:bg-slate-50">
+            Manage labels
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }

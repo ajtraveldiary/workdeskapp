@@ -1,10 +1,13 @@
-// Gmail access for WorkDesk. READ-ONLY BY CONSTRUCTION, with one exception the user approved
-// (2026-10-06): opening an email in WorkDesk's viewer marks that conversation read in Gmail.
+// Gmail access for WorkDesk. Reads, plus a short list of changes the user approved:
 //  - Reads: HTTP GET only, and only to the read endpoints listed in READ_PATHS.
-//  - The single change: markThreadRead() removes the UNREAD label. Its path and body are fixed in code.
-//  - There is no code path that deletes, trashes, archives, adds labels, or sends anything.
+//  - Mark read (2026-10-06): markThreadRead() removes the UNREAD label from a conversation opened in WorkDesk.
+//  - Labels (2026-10-06): create / rename / recolour / delete the user's own labels, and add or remove the
+//    user's own labels (IDs "Label_…") on a conversation. System labels (INBOX, TRASH, SPAM, UNREAD, …)
+//    can't be passed, so this can never archive, trash or mark anything.
+//  - Every write goes through gmailWrite(), which only allows the label paths in WRITE_ROUTES.
+//  - There is no code path that deletes or trashes emails, sends, drafts, or changes filters.
 //    tests/gmail-safety.test.ts fails the build if such code appears.
-//  - The scope is gmail.modify (needed for the mark-read); it does not allow permanent deletion.
+//  - The scope is gmail.modify; it does not allow permanent deletion.
 
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 
@@ -26,6 +29,7 @@ const READ_PATHS = [
   /^\/messages\/[\w-]+\/attachments\/[\w-]+$/,
   /^\/threads\/[\w-]+$/,
   /^\/history$/,
+  /^\/labels$/,
 ];
 
 export class GmailError extends Error {
@@ -62,12 +66,22 @@ export type GmailMessage = {
 export const getProfile = (token: string) =>
   gmailGet<{ emailAddress: string; historyId: string }>(token, "/profile");
 
-export const listMessages = (token: string, q: string, pageToken?: string) =>
+export const listMessages = (token: string, q: string, pageToken?: string, labelId?: string) =>
   gmailGet<{ messages?: { id: string; threadId: string }[]; nextPageToken?: string }>(token, "/messages", {
     q,
     maxResults: "100",
     ...(pageToken ? { pageToken } : {}),
+    ...(labelId ? { labelIds: labelId } : {}),
   });
+
+export type GmailLabel = {
+  id: string;
+  name: string;
+  type: "user" | "system";
+  color?: { backgroundColor: string; textColor: string };
+};
+
+export const listLabels = (token: string) => gmailGet<{ labels?: GmailLabel[] }>(token, "/labels");
 
 export const getThread = (token: string, threadId: string) =>
   gmailGet<{ id: string; messages?: GmailMessage[] }>(token, `/threads/${threadId}`, {
@@ -115,6 +129,53 @@ export async function markThreadRead(accessToken: string, threadId: string): Pro
     body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
   });
   if (!res.ok) throw new GmailError(`Gmail mark-read failed: ${res.status} ${await res.text()}`, res.status);
+}
+
+// --- Label changes (approved by the user on 2026-10-06) ---
+
+// The user's own labels have IDs like "Label_12". System labels (INBOX, TRASH, SPAM, UNREAD, STARRED…)
+// never match, so the label tools can't archive, trash or mark anything.
+export const isUserLabelId = (id: string) => /^Label_[\w-]+$/.test(id);
+
+const WRITE_ROUTES: { method: "POST" | "PATCH" | "DELETE"; path: RegExp }[] = [
+  { method: "POST", path: /^\/labels$/ },
+  { method: "PATCH", path: /^\/labels\/Label_[\w-]+$/ },
+  { method: "DELETE", path: /^\/labels\/Label_[\w-]+$/ },
+  { method: "POST", path: /^\/threads\/[\w-]+\/modify$/ },
+];
+
+async function gmailWrite<T>(accessToken: string, method: "POST" | "PATCH" | "DELETE", path: string, body?: unknown): Promise<T | null> {
+  if (!WRITE_ROUTES.some((r) => r.method === method && r.path.test(path))) throw new Error(`Blocked Gmail change: ${method} ${path}`);
+  const res = await fetch(`${GMAIL}${path}`, {
+    method,
+    headers: { authorization: `Bearer ${accessToken}`, ...(body ? { "content-type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new GmailError(`Gmail ${method} ${path} failed: ${res.status} ${await res.text()}`, res.status);
+  return res.status === 204 ? null : ((await res.json()) as T);
+}
+
+export type LabelChange = { name?: string; color?: { backgroundColor: string; textColor: string } };
+
+export const createLabel = (token: string, change: Required<Pick<LabelChange, "name">> & LabelChange) =>
+  gmailWrite<GmailLabel>(token, "POST", "/labels", { ...change, labelListVisibility: "labelShow", messageListVisibility: "show" });
+
+export function updateLabel(token: string, labelId: string, change: LabelChange) {
+  if (!isUserLabelId(labelId)) throw new Error("Only your own labels can be changed");
+  return gmailWrite<GmailLabel>(token, "PATCH", `/labels/${labelId}`, change);
+}
+
+// Deleting a label removes it from every email that has it; the emails themselves are not affected.
+export function deleteLabel(token: string, labelId: string) {
+  if (!isUserLabelId(labelId)) throw new Error("Only your own labels can be deleted");
+  return gmailWrite<null>(token, "DELETE", `/labels/${labelId}`);
+}
+
+// Adds / removes the user's own labels on a conversation. Anything else is refused before calling Gmail.
+export function setThreadLabels(token: string, threadId: string, add: string[], remove: string[]) {
+  if (!/^[\w-]+$/.test(threadId)) throw new Error("Invalid Gmail thread id");
+  if (![...add, ...remove].every(isUserLabelId)) throw new Error("Only your own labels can be added or removed");
+  return gmailWrite<unknown>(token, "POST", `/threads/${threadId}/modify`, { addLabelIds: add, removeLabelIds: remove });
 }
 
 type MessageRef = { id: string; threadId: string; labelIds?: string[] };

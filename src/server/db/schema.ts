@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   uuid,
@@ -42,6 +43,11 @@ export const gmailAccounts = pgTable("gmail_accounts", {
   pendingMessageIds: jsonb("pending_message_ids").$type<string[]>().notNull().default([]),
   // Next page of the first sync's 30-day listing; set while that backfill is still running.
   initialPageToken: text("initial_page_token"),
+  // When the label list was last read from Gmail, and whether stored conversations got their labels.
+  labelsSyncedAt: timestamp("labels_synced_at", { withTimezone: true }),
+  labelsBackfilledAt: timestamp("labels_backfilled_at", { withTimezone: true }),
+  // Last label handled by that one-time backfill, which runs a few labels per sync.
+  labelsBackfillCursor: text("labels_backfill_cursor"),
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
   lastSyncError: text("last_sync_error"),
   createdAt: createdAt(),
@@ -70,6 +76,20 @@ export const categories = pgTable(
     sortOrder: integer("sort_order").notNull().default(0),
   },
   (t) => [uniqueIndex("categories_user_name").on(t.userId, t.name)],
+);
+
+// The user's own Gmail labels, as last read from Gmail (demo mode keeps them here only).
+export const gmailLabels = pgTable(
+  "gmail_labels",
+  {
+    userId: uuid("user_id").notNull().references(() => users.id),
+    gmailLabelId: text("gmail_label_id").notNull(),
+    name: text("name").notNull(),
+    backgroundColor: text("background_color"),
+    textColor: text("text_color"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.gmailLabelId] })],
 );
 
 // Senders whose emails skip Pending (they still appear under All emails). A pattern is an exact
@@ -108,6 +128,8 @@ export const emailThreads = pgTable(
     // A new message arrived after the thread was turned into a task.
     hasNewActivity: boolean("has_new_activity").notNull().default(false),
     categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+    // The user's own Gmail labels on this conversation (IDs like "Label_12"); system labels aren't kept.
+    labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
     stateChangedAt: timestamp("state_changed_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

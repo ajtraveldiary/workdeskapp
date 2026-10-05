@@ -21,7 +21,7 @@ export function LoginPage() {
         </a>
         <p className="mt-4 flex gap-2 text-xs text-slate-500">
           <ShieldCheck size={16} className="shrink-0 text-brand-700" />
-          WorkDesk reads your Gmail and marks emails read when you open them here. It cannot delete, archive, label or send email.
+          WorkDesk reads your Gmail, marks emails read when you open them here, and manages your labels when you ask. It cannot delete, archive or send email.
         </p>
       </div>
     </div>

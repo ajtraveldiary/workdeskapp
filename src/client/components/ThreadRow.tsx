@@ -6,6 +6,7 @@ import { useDismiss, useRestore, useSetThreadCategory, useSnooze } from "../api"
 import { formatDateTime, formatWhen } from "../format";
 import { Button, cx } from "./ui";
 import { EmailStatusTags } from "./EmailStatus";
+import { LabelChips } from "./LabelChips";
 
 export function ThreadRow({
   thread,
@@ -51,6 +52,7 @@ export function ThreadRow({
           <span className="ml-auto shrink-0 text-xs text-slate-500 tabular-nums">{formatWhen(thread.lastMessageAt)}</span>
         </div>
         <p className={cx("truncate", thread.unread ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{thread.subject}</p>
+        <LabelChips ids={thread.labelIds} className="mt-1" />
         <p className="line-clamp-1 text-sm text-slate-500">{thread.snippet}</p>
         </OpenArea>
 

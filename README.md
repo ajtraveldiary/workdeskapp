@@ -4,7 +4,7 @@
 
 A personal dashboard on top of Gmail. Every email that comes in needs a decision: turn it into a task, snooze it, or dismiss it. Tasks keep a link back to their email, and a History screen records every decision.
 
-**Gmail is only ever changed in one way:** opening an email in WorkDesk's viewer marks that conversation read in Gmail (approved 2026-10-06). WorkDesk asks for `gmail.modify` for this; the code has no way to delete, trash, archive, add labels or send anything, and `tests/gmail-safety.test.ts` fails if any such code is added. Dismissing, snoozing and completing tasks never touch Gmail.
+**Gmail is only changed in the ways you approved (2026-10-06):** opening an email in WorkDesk's viewer marks that conversation read, and you can create / rename / recolour / delete your own labels (Settings → Mail) and add or remove them on an email (viewer → Labels). System labels (Inbox, Trash, Spam, Unread…) can't be touched through the label tools. WorkDesk asks for `gmail.modify`; the code has no way to delete or trash emails, archive, or send anything, and `tests/gmail-safety.test.ts` fails if any such code is added. Dismissing, snoozing and completing tasks never touch Gmail.
 
 ## Run it locally
 
@@ -76,7 +76,7 @@ src/
     worker.ts      Cloudflare entry (fetch + cron)
     dev.ts         Local Node entry
     db/schema.ts   Drizzle schema: users, gmail_accounts, email_threads, tasks, categories, events
-    lib/gmail.ts   Gmail client: GET requests to an allowlist of read endpoints, plus one fixed mark-read call
+    lib/gmail.ts   Gmail client: GET requests to an allowlist of read endpoints, a fixed mark-read call, and guarded label changes
     lib/sync.ts    Incremental sync via Gmail history, in batches
     lib/threadRules.ts  What a new message does to a dismissed, snoozed, or converted email
     lib/reports.ts Creates each report period and its task ahead of the due date; keeps period and task in step

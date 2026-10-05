@@ -50,6 +50,20 @@
       "when": 1791228482107,
       "tag": "0006_muted_senders",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791228888177,
+      "tag": "0007_gmail_labels",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791228968154,
+      "tag": "0008_labels_backfill",
+      "breakpoints": true
     }
   ]
 }

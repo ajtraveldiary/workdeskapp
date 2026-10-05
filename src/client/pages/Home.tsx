@@ -33,6 +33,7 @@ import {
 import { formatDay, formatTime, formatWhen } from "../format";
 import { SnoozeMenu } from "../components/ThreadRow";
 import { EmailStatusTags } from "../components/EmailStatus";
+import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Button, CheckCircle, Menu, PRIORITY_BAR, PriorityPill, Segmented, TONE, cx, type Tone } from "../components/ui";
@@ -581,7 +582,12 @@ function EmailCard({
           <span className="ml-auto shrink-0 text-xs text-slate-500">{formatWhen(thread.lastMessageAt)}</span>
         </div>
         <p className="mt-0.5 truncate text-sm text-ink">{thread.subject}</p>
-        {showStatus && <EmailStatusTags thread={thread} className="mt-1.5" />}
+        {(showStatus || thread.labelIds.length > 0) && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {showStatus && <EmailStatusTags thread={thread} />}
+            <LabelChips ids={thread.labelIds} />
+          </div>
+        )}
         <p className="mt-1 line-clamp-1 text-[13px] leading-relaxed text-slate-500 sm:line-clamp-2">{thread.snippet}</p>
         </button>
         <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-2.5">

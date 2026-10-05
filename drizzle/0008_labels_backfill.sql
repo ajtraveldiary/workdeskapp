@@ -1,0 +1,1 @@
+ALTER TABLE "gmail_accounts" ADD COLUMN "labels_backfill_cursor" text;

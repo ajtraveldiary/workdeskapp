@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LABEL_COLORS } from "./labelColors";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 export const priority = z.enum(["low", "normal", "high", "urgent"]);
@@ -58,4 +59,19 @@ export const mutedSenderInput = z.object({
       if (!p) ctx.addIssue({ code: "custom", message: "Enter an email address, or @domain for a whole domain" });
       return p ?? "";
     }),
+});
+
+// Gmail labels. Colours must come from LABEL_COLORS (Gmail only accepts its own palette).
+const labelColor = z
+  .object({ backgroundColor: z.string(), textColor: z.string() })
+  .refine((c) => LABEL_COLORS.some((p) => p.backgroundColor === c.backgroundColor && p.textColor === c.textColor), "Pick one of the offered colours")
+  .nullable();
+export const labelInput = z.object({
+  name: z.string().trim().min(1, "Name is required").max(225),
+  color: labelColor.default(null),
+});
+export const labelPatch = labelInput.partial();
+export const threadLabelsInput = z.object({
+  add: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).default([]),
+  remove: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).default([]),
 });

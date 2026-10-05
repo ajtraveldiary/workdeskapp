@@ -36,6 +36,7 @@ export const threadColumns = {
   stateChangedAt: emailThreads.stateChangedAt,
   // On the user's "hide from Pending" list (Settings > Mail)
   muted: isMuted,
+  labelIds: emailThreads.labelIds,
 };
 
 export function selectThreads(db: DB) {

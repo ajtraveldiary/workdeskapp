@@ -30,7 +30,11 @@ export type Thread = {
   task: ThreadTaskInfo | null;
   // Sender is hidden from Pending in Settings > Mail (the email still shows under All emails).
   muted: boolean;
+  // The user's own Gmail labels on the conversation (IDs; names and colours come from /labels).
+  labelIds: string[];
 };
+
+export type Label = { id: string; name: string; backgroundColor: string | null; textColor: string | null };
 
 export type MutedSender = { id: string; pattern: string; hidden: number };
 

@@ -1,6 +1,6 @@
-import { and, eq, inArray, lte, sql, count } from "drizzle-orm";
+import { and, eq, inArray, lte, notInArray, sql, count } from "drizzle-orm";
 import type { DB } from "../db";
-import { emailThreads, events, gmailAccounts, gmailMessages, tasks } from "../db/schema";
+import { emailThreads, events, gmailAccounts, gmailLabels, gmailMessages, tasks } from "../db/schema";
 import type { Env } from "../env";
 import { requireEnv, timezone } from "../env";
 import { todayIn } from "./dates";
@@ -10,6 +10,8 @@ import {
   GmailError,
   getMessage,
   getProfile,
+  isUserLabelId,
+  listLabels,
   getThread,
   header,
   listHistory,
@@ -33,6 +35,8 @@ export type ThreadSnapshot = {
   messageCount: number;
   unread: boolean;
   inInbox: boolean;
+  // The user's own labels on the conversation; omitted (e.g. demo) keeps whatever is stored.
+  labelIds?: string[];
 };
 
 export function snapshotFromGmail(threadId: string, messages: GmailMessage[]): ThreadSnapshot | null {
@@ -51,6 +55,7 @@ export function snapshotFromGmail(threadId: string, messages: GmailMessage[]): T
     messageCount: sorted.length,
     unread: sorted.some((m) => m.labelIds?.includes("UNREAD")),
     inInbox: inbox.length > 0,
+    labelIds: [...new Set(sorted.flatMap((m) => (m.labelIds ?? []).filter(isUserLabelId)))].sort(),
   };
 }
 
@@ -103,6 +108,7 @@ export async function applySnapshots(db: DB, userId: string, accountId: string |
       lastMessageAt: s.lastMessageAt,
       messageCount: s.messageCount,
       unread: s.unread,
+      labelIds: s.labelIds ?? prev?.labelIds ?? [],
       state: d.state,
       hasNewActivity: d.hasNewActivity,
       snoozedUntil: d.state === "snoozed" ? prev?.snoozedUntil : null,
@@ -129,6 +135,7 @@ export async function applySnapshots(db: DB, userId: string, accountId: string |
         lastMessageAt: ex("last_message_at"),
         messageCount: ex("message_count"),
         unread: ex("unread"),
+        labelIds: ex("label_ids"),
         state: ex("state"),
         hasNewActivity: ex("has_new_activity"),
         snoozedUntil: ex("snoozed_until"),
@@ -166,11 +173,95 @@ export async function wakeSnoozed(db: DB, userId?: string) {
   }
 }
 
+// --- Labels ---
+
+export type LabelOp = { threadId: string; labelId: string; add: boolean };
+
+// Applies label additions/removals (in order) to stored conversations in one update.
+export async function applyLabelOps(db: DB, userId: string, ops: LabelOp[]) {
+  if (ops.length === 0) return;
+  const ids = [...new Set(ops.map((o) => o.threadId))];
+  const stored = await db
+    .select({ gid: emailThreads.gmailThreadId, labelIds: emailThreads.labelIds })
+    .from(emailThreads)
+    .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.gmailThreadId, ids)));
+  const next = new Map(stored.map((t) => [t.gid, new Set(t.labelIds)]));
+  for (const o of ops) {
+    const set = next.get(o.threadId);
+    if (!set) continue; // not a conversation WorkDesk tracks
+    if (o.add) set.add(o.labelId);
+    else set.delete(o.labelId);
+  }
+  const updates = stored
+    .map((t) => ({ gid: t.gid, before: [...t.labelIds].sort().join(","), after: [...next.get(t.gid)!].sort() }))
+    .filter((u) => u.before !== u.after.join(","));
+  if (updates.length === 0) return;
+  await db.execute(sql`
+    update email_threads as t set label_ids = v.labels::text[]
+    from (values ${sql.join(updates.map((u) => sql`(${u.gid}, ${`{${u.after.join(",")}}`})`), sql`, `)}) as v(gid, labels)
+    where t.user_id = ${userId} and t.gmail_thread_id = v.gid`);
+}
+
+const LABEL_REFRESH = 60 * 60_000;
+
+// Reads the user's own labels from Gmail (at most hourly unless forced) and stores them.
+export async function refreshLabels(db: DB, token: string, account: Account, force = false) {
+  if (!force && account.labelsSyncedAt && Date.now() - account.labelsSyncedAt.getTime() < LABEL_REFRESH) return;
+  const { labels = [] } = await listLabels(token);
+  const own = labels.filter((l) => l.type === "user" && isUserLabelId(l.id));
+  if (own.length) {
+    const ex = (col: string) => sql.raw(`excluded.${col}`);
+    await db
+      .insert(gmailLabels)
+      .values(own.map((l) => ({ userId: account.userId, gmailLabelId: l.id, name: l.name, backgroundColor: l.color?.backgroundColor ?? null, textColor: l.color?.textColor ?? null })))
+      .onConflictDoUpdate({
+        target: [gmailLabels.userId, gmailLabels.gmailLabelId],
+        set: { name: ex("name"), backgroundColor: ex("background_color"), textColor: ex("text_color"), updatedAt: new Date() },
+      });
+  }
+  // Labels deleted in Gmail go here too.
+  await db
+    .delete(gmailLabels)
+    .where(and(eq(gmailLabels.userId, account.userId), own.length ? notInArray(gmailLabels.gmailLabelId, own.map((l) => l.id)) : undefined));
+  await db.update(gmailAccounts).set({ labelsSyncedAt: new Date() }).where(eq(gmailAccounts.id, account.id));
+  account.labelsSyncedAt = new Date();
+}
+
+const BACKFILL_LABELS_PER_RUN = 5;
+
+// One time: conversations stored before labels were tracked get their labels, a few labels per run,
+// by listing each label's messages (IDs only; nothing is downloaded).
+export async function backfillLabels(db: DB, token: string, account: Account) {
+  if (account.labelsBackfilledAt) return;
+  const all = await db
+    .select({ id: gmailLabels.gmailLabelId })
+    .from(gmailLabels)
+    .where(eq(gmailLabels.userId, account.userId))
+    .orderBy(gmailLabels.gmailLabelId);
+  const todo = all.filter((l) => !account.labelsBackfillCursor || l.id > account.labelsBackfillCursor).slice(0, BACKFILL_LABELS_PER_RUN);
+  const ops: LabelOp[] = [];
+  for (const l of todo) {
+    let pageToken: string | undefined;
+    for (let page = 0; page < 2; page++) {
+      const r = await listMessages(token, "", pageToken, l.id);
+      for (const m of r.messages ?? []) ops.push({ threadId: m.threadId, labelId: l.id, add: true });
+      pageToken = r.nextPageToken;
+      if (!pageToken) break;
+    }
+  }
+  await applyLabelOps(db, account.userId, ops);
+  const done = todo.length < BACKFILL_LABELS_PER_RUN;
+  await db
+    .update(gmailAccounts)
+    .set(done ? { labelsBackfilledAt: new Date(), labelsBackfillCursor: null } : { labelsBackfillCursor: todo.at(-1)!.id })
+    .where(eq(gmailAccounts.id, account.id));
+}
+
 export type SyncResult = { fetched: number; remaining: number };
 
 type StoredThread = Pick<
   typeof emailThreads.$inferSelect,
-  "subject" | "fromName" | "fromEmail" | "snippet" | "lastMessageAt" | "messageCount" | "unread"
+  "subject" | "fromName" | "fromEmail" | "snippet" | "lastMessageAt" | "messageCount" | "unread" | "labelIds"
 >;
 
 // New messages in a conversation we already store: update it from just those messages.
@@ -187,6 +278,7 @@ export function mergeNewMessages(existing: StoredThread | undefined, threadId: s
     lastMessageAt: newer ? fresh.lastMessageAt : existing.lastMessageAt,
     messageCount: existing.messageCount + messages.length,
     unread: existing.unread || fresh.unread,
+    labelIds: [...new Set([...existing.labelIds, ...(fresh.labelIds ?? [])])].sort(),
     inInbox: true,
   };
 }
@@ -218,6 +310,7 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
   let pageToken = account.initialPageToken;
   const seen: { id: string; threadId: string }[] = [];
   const unreadChanges = new Map<string, boolean>(); // gmail thread id -> unread
+  const labelOps: LabelOp[] = []; // the user's own labels added/removed in Gmail, in order
 
   if (firstRun) historyId = (await getProfile(token)).historyId;
 
@@ -239,8 +332,14 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
         const r = await listHistory(token, historyId!, next);
         for (const h of r.history ?? []) {
           for (const a of h.messagesAdded ?? []) seen.push(a.message);
-          for (const l of h.labelsAdded ?? []) if (l.labelIds.includes("UNREAD")) unreadChanges.set(l.message.threadId, true);
-          for (const l of h.labelsRemoved ?? []) if (l.labelIds.includes("UNREAD")) unreadChanges.set(l.message.threadId, false);
+          for (const l of h.labelsAdded ?? []) {
+            if (l.labelIds.includes("UNREAD")) unreadChanges.set(l.message.threadId, true);
+            for (const id of l.labelIds.filter(isUserLabelId)) labelOps.push({ threadId: l.message.threadId, labelId: id, add: true });
+          }
+          for (const l of h.labelsRemoved ?? []) {
+            if (l.labelIds.includes("UNREAD")) unreadChanges.set(l.message.threadId, false);
+            for (const id of l.labelIds.filter(isUserLabelId)) labelOps.push({ threadId: l.message.threadId, labelId: id, add: false });
+          }
         }
         historyId = r.historyId;
         next = r.nextPageToken;
@@ -284,6 +383,13 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
       else pendingThreads.add(m.threadId);
     }
   }
+
+  // Label changes too: applied from the change log, nothing is downloaded.
+  await applyLabelOps(db, account.userId, labelOps);
+  // The label list (at most hourly) and, once, labels for conversations stored before labels existed.
+  await refreshLabels(db, token, account);
+  // A brand-new account downloads every conversation with its labels, so it needs no backfill.
+  if (!firstRun) await backfillLabels(db, token, account);
 
   // Read/unread changes go straight onto the stored conversation; nothing is downloaded.
   for (const value of [true, false]) {
@@ -354,6 +460,7 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
       pendingMessageIds: restMessages,
       lastSyncAt: new Date(),
       lastSyncError: null,
+      ...(firstRun ? { labelsBackfilledAt: new Date() } : {}),
     })
     .where(eq(gmailAccounts.id, account.id));
   return {

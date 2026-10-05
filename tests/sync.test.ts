@@ -29,6 +29,8 @@ let mailbox: Msg[];
 let listPages: { id: string; threadId: string }[][];
 let history: unknown[];
 let calls: string[];
+let gmailLabelList: { id: string; name: string; type: string }[];
+let labelMembers: Record<string, { id: string; threadId: string }[]>;
 
 function fakeFetch(input: string | URL | Request) {
   const url = new URL(String(input));
@@ -38,6 +40,8 @@ function fakeFetch(input: string | URL | Request) {
   calls.push(path);
   if (path === "/profile") return json({ emailAddress: "me@example.gov", historyId: "100" });
   if (path === "/messages") {
+    const labelId = url.searchParams.get("labelIds");
+    if (labelId) return json({ messages: labelMembers[labelId] ?? [] });
     const page = Number(url.searchParams.get("pageToken") ?? 0);
     return json({ messages: listPages[page], nextPageToken: page + 1 < listPages.length ? String(page + 1) : undefined });
   }
@@ -50,6 +54,7 @@ function fakeFetch(input: string | URL | Request) {
     return m ? json(m) : json({ error: "not found" }, 404);
   }
   if (path === "/history") return json({ history, historyId: "200" });
+  if (path === "/labels") return json({ labels: gmailLabelList });
   return json({ error: "unexpected" }, 500);
 }
 
@@ -71,6 +76,8 @@ beforeEach(async () => {
   accountId = acc!.id;
   calls = [];
   history = [];
+  gmailLabelList = [];
+  labelMembers = {};
   vi.stubGlobal("fetch", vi.fn(fakeFetch));
 });
 
@@ -83,7 +90,7 @@ describe("Gmail sync", () => {
 
     const r = await syncAccount(db, env, await account());
     expect(r).toEqual({ fetched: 2, remaining: 0 });
-    expect(calls).toEqual(["/profile", "/messages", "/threads/t1", "/threads/t2"]);
+    expect(calls).toEqual(["/profile", "/messages", "/labels", "/threads/t1", "/threads/t2"]);
     const t = await threads();
     expect(t.t1).toMatchObject({ messageCount: 2, unread: true });
     expect(await db.select().from(schema.gmailMessages)).toHaveLength(3);
@@ -130,5 +137,46 @@ describe("Gmail sync", () => {
     expect(calls).toEqual(["/messages", "/messages", "/history", "/threads/t5", "/threads/t6"]);
     expect(second.remaining).toBe(0);
     expect(Object.keys(await threads())).toHaveLength(7);
+  });
+
+  it("keeps the user's own labels: from downloads, from the change log, and once for older conversations", async () => {
+    gmailLabelList = [
+      { id: "Label_1", name: "Accounts", type: "user" },
+      { id: "Label_2", name: "Urgent", type: "user" },
+      { id: "INBOX", name: "INBOX", type: "system" },
+    ];
+    mailbox = [msg("m1", "t1", 1000, ["INBOX", "Label_1"]), msg("m2", "t2", 2000)];
+    listPages = [[{ id: "m1", threadId: "t1" }, { id: "m2", threadId: "t2" }]];
+    await syncAccount(db, env, await account());
+    expect((await threads()).t1!.labelIds).toEqual(["Label_1"]); // system labels aren't kept
+    expect((await db.select().from(schema.gmailLabels)).map((l) => l.name).sort()).toEqual(["Accounts", "Urgent"]);
+
+    // Labels changed in Gmail arrive through the change log; nothing is downloaded.
+    calls = [];
+    history = [
+      { labelsAdded: [{ message: { id: "m2", threadId: "t2" }, labelIds: ["Label_2"] }] },
+      { labelsRemoved: [{ message: { id: "m1", threadId: "t1" }, labelIds: ["Label_1"] }] },
+    ];
+    await syncAccount(db, env, await account());
+    expect(calls).toEqual(["/history"]);
+    const t = await threads();
+    expect(t.t1!.labelIds).toEqual([]);
+    expect(t.t2!.labelIds).toEqual(["Label_2"]);
+  });
+
+  it("backfills labels once for conversations stored before labels were tracked", async () => {
+    mailbox = [msg("m1", "t1", 1000)];
+    listPages = [[{ id: "m1", threadId: "t1" }]];
+    await syncAccount(db, env, await account());
+    // Pretend this account predates labels: no backfill done yet, label list due a refresh.
+    await db.update(schema.gmailAccounts).set({ labelsBackfilledAt: null, labelsSyncedAt: null }).where(eq(schema.gmailAccounts.id, accountId));
+    gmailLabelList = [{ id: "Label_7", name: "HMIS", type: "user" }];
+    labelMembers = { Label_7: [{ id: "m1", threadId: "t1" }] };
+    calls = [];
+    history = [];
+    await syncAccount(db, env, await account());
+    expect(calls).toEqual(["/history", "/labels", "/messages"]); // one listing per label, no downloads
+    expect((await threads()).t1!.labelIds).toEqual(["Label_7"]);
+    expect((await account()).labelsBackfilledAt).not.toBeNull();
   });
 });

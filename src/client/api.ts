@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, Category, EmailContent, RangeTasks, EmailState, Me, MutedSender, Report, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { AuditEvent, Category, EmailContent, Label, RangeTasks, EmailState, Me, MutedSender, Report, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { ReportInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -155,6 +155,37 @@ export function useMutedSenderActions() {
     add: useMutation({ mutationFn: (pattern: string) => api<MutedSender>(`/muted-senders`, { method: "POST", body: { pattern } }), onSettled: refresh }),
     remove: useMutation({ mutationFn: (id: string) => api(`/muted-senders/${id}`, { method: "DELETE" }), onSettled: refresh }),
   };
+}
+
+// --- Gmail labels ---
+
+type LabelsResponse = { labels: Label[]; canEdit: boolean; syncedAt: string | null };
+export const useLabels = () => useQuery({ queryKey: ["labels"], queryFn: () => api<LabelsResponse>("/labels") });
+
+type LabelColorValue = { backgroundColor: string; textColor: string } | null;
+
+// Label changes happen in Gmail; afterwards the label list and every email list refresh.
+export function useLabelActions() {
+  const qc = useQueryClient();
+  const refresh = () => Promise.all(["labels", "threads", "summary", "history"].map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return {
+    reload: useMutation({ mutationFn: () => api<LabelsResponse>("/labels?refresh=1"), onSuccess: (d) => qc.setQueryData(["labels"], d), onSettled: refresh }),
+    create: useMutation({ mutationFn: (input: { name: string; color: LabelColorValue }) => api<{ id: string }>("/labels", { method: "POST", body: input }), onSettled: refresh }),
+    update: useMutation({
+      mutationFn: ({ id, ...input }: { id: string; name?: string; color?: LabelColorValue }) => api(`/labels/${encodeURIComponent(id)}`, { method: "PATCH", body: input }),
+      onSettled: refresh,
+    }),
+    remove: useMutation({ mutationFn: (id: string) => api(`/labels/${encodeURIComponent(id)}`, { method: "DELETE" }), onSettled: refresh }),
+  };
+}
+
+export function useSetThreadLabels() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, add, remove }: { id: string; add: string[]; remove: string[] }) =>
+      api(`/threads/${id}/labels`, { method: "PUT", body: { add, remove } }),
+    onSettled: () => Promise.all(["threads", "summary", "history"].map((k) => qc.invalidateQueries({ queryKey: [k] }))),
+  });
 }
 
 // --- Email viewer ---

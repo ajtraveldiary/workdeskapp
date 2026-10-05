@@ -20,6 +20,7 @@ const base: Thread = {
   stateChangedAt: "2026-10-05T00:00:00Z",
   task: null,
   muted: false,
+  labelIds: [],
 };
 const labels = (t: Partial<Thread>) => emailTags({ ...base, ...t }).map((x) => `${x.tone}:${x.label}`);
 
