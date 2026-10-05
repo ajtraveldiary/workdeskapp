@@ -2,11 +2,12 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
-import { categories, emailThreads, events, gmailAccounts, tasks, users } from "../db/schema";
+import { categories, emailThreads, events, gmailAccounts, reportPeriods, tasks, users } from "../db/schema";
 import { timezone } from "../env";
 import { addDays, todayIn } from "../lib/dates";
 import { syncUser, wakeSnoozed } from "../lib/sync";
 import { demoArrival } from "../lib/users";
+import { ensureReportPeriods } from "../lib/reports";
 import { categoryInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
@@ -43,11 +44,12 @@ export const miscRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     await wakeSnoozed(db, userId);
     const today = todayIn(timezone(c.env));
+    await ensureReportPeriods(db, today, userId);
     const tomorrow = addDays(today, 1);
     const mine = eq(tasks.userId, userId);
     const weekAgo = new Date(Date.now() - 7 * 86400_000);
 
-    const [overdue, dueToday, dueTomorrow, newActivity, recentlyCompleted, pendingEmails, pendingCounts, doneCount, openCount, upcomingCount, completedTotal] =
+    const [overdue, dueToday, dueTomorrow, newActivity, recentlyCompleted, pendingEmails, pendingCounts, doneCount, openCount, upcomingCount, completedTotal, reportCounts, reportTaskCount] =
       await Promise.all([
         selectTasks(db).where(and(mine, viewFilter("overdue", today))).orderBy(...openTaskOrder),
         selectTasks(db).where(and(mine, viewFilter("today", today))).orderBy(...openTaskOrder),
@@ -75,6 +77,14 @@ export const miscRoutes = new Hono<AppEnv>()
         db.select({ n: count() }).from(tasks).where(and(mine, eq(tasks.status, "open"))),
         db.select({ n: count() }).from(tasks).where(and(mine, viewFilter("upcoming", today))),
         db.select({ n: count() }).from(tasks).where(and(mine, eq(tasks.status, "done"))),
+        db
+          .select({
+            upcoming: sql<number>`(count(*) filter (where ${reportPeriods.dueDate} >= ${today} and ${reportPeriods.dueDate} <= ${addDays(today, 30)}))::int`,
+            overdue: sql<number>`(count(*) filter (where ${reportPeriods.dueDate} < ${today}))::int`,
+          })
+          .from(reportPeriods)
+          .where(and(eq(reportPeriods.userId, userId), eq(reportPeriods.status, "pending"))),
+        db.select({ n: count() }).from(tasks).where(and(mine, viewFilter("reports", today))),
       ]);
 
     const pending = pendingCounts.reduce((s, r) => s + r.n, 0);
@@ -91,6 +101,9 @@ export const miscRoutes = new Hono<AppEnv>()
         openTasks: openCount[0]?.n ?? 0,
         upcoming: upcomingCount[0]?.n ?? 0,
         completedTotal: completedTotal[0]?.n ?? 0,
+        reportsUpcoming: Number(reportCounts[0]?.upcoming ?? 0),
+        reportsOverdue: Number(reportCounts[0]?.overdue ?? 0),
+        reportTasks: reportTaskCount[0]?.n ?? 0,
       },
       overdue: overdue.map(toTask),
       dueToday: dueToday.map(toTask),

@@ -6,13 +6,15 @@ import { ZodError } from "zod";
 import type { DB } from "./db";
 import { gmailAccounts, users } from "./db/schema";
 import type { Env } from "./env";
-import { requireEnv } from "./env";
+import { requireEnv, timezone } from "./env";
 import { encryptSecret, randomToken, signPayload, verifyPayload } from "./lib/crypto";
 import { authUrl, exchangeCode, idTokenClaims } from "./lib/gmail";
-import { ensureUser, seedDemoMailbox } from "./lib/users";
+import { ensureUser, seedDemoMailbox, seedDemoReports } from "./lib/users";
+import { todayIn } from "./lib/dates";
 import { threadRoutes } from "./routes/threads";
 import { taskRoutes } from "./routes/tasks";
 import { miscRoutes } from "./routes/misc";
+import { reportRoutes } from "./routes/reports";
 
 export type AppEnv = {
   Bindings: Env;
@@ -122,7 +124,10 @@ export function createApp(opts: Options) {
     const db = c.get("db");
     if (c.get("demo")) {
       const { user, created } = await ensureUser(db, "demo@localhost", "Demo user");
-      if (created) await seedDemoMailbox(db, user.id);
+      if (created) {
+        await seedDemoMailbox(db, user.id);
+        await seedDemoReports(db, user.id, todayIn(timezone(c.env)));
+      }
       c.set("userId", user.id);
       return next();
     }
@@ -137,6 +142,7 @@ export function createApp(opts: Options) {
 
   app.route("/threads", threadRoutes);
   app.route("/tasks", taskRoutes);
+  app.route("/reports", reportRoutes);
   app.route("/", miscRoutes);
 
   return app;

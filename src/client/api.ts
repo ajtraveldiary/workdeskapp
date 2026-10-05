@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AuditEvent, Category, RangeTasks, EmailState, Me, Summary, Task, TaskView, Thread } from "../shared/types";
-import type { TaskInput } from "../shared/schemas";
+import type { AuditEvent, Category, RangeTasks, EmailState, Me, Report, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { ReportInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
   constructor(
@@ -138,5 +138,20 @@ export function useSync() {
     onSettled: () => qc.invalidateQueries(),
   });
 }
+
+// --- Reports ---
+
+export const useReports = () =>
+  useQuery({ queryKey: ["reports"], queryFn: () => api<{ reports: Report[]; today: string }>("/reports") });
+
+// Report changes create or complete tasks, so every list refreshes (useAction invalidates all but categories).
+export const useCreateReport = () => useAction((input: ReportInput) => api(`/reports`, { method: "POST", body: input }));
+export const useUpdateReport = () =>
+  useAction(({ id, input }: { id: string; input: Partial<ReportInput> }) => api(`/reports/${id}`, { method: "PATCH", body: input }));
+export const useDeleteReport = () => useAction((id: string) => api(`/reports/${id}`, { method: "DELETE" }));
+export const useSetPeriodStatus = () =>
+  useAction(({ id, submitted }: { id: string; submitted: boolean }) =>
+    api(`/reports/periods/${id}/${submitted ? "submit" : "reopen"}`, { method: "POST" }),
+  );
 
 export const logout = () => api(`/auth/logout`, { method: "POST" });

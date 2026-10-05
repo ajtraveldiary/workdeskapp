@@ -2,7 +2,9 @@ import { and, eq, inArray, lte, sql, count } from "drizzle-orm";
 import type { DB } from "../db";
 import { emailThreads, events, gmailAccounts, tasks } from "../db/schema";
 import type { Env } from "../env";
-import { requireEnv } from "../env";
+import { requireEnv, timezone } from "../env";
+import { todayIn } from "./dates";
+import { ensureReportPeriods } from "./reports";
 import { decryptSecret } from "./crypto";
 import {
   GmailError,
@@ -258,6 +260,7 @@ export async function syncUser(db: DB, env: Env, userId: string): Promise<SyncRe
 // Cron entry point: every user, errors recorded per account rather than aborting the run.
 export async function scheduledSync(db: DB, env: Env) {
   await wakeSnoozed(db);
+  await ensureReportPeriods(db, todayIn(timezone(env)));
   const accounts = await db.select().from(gmailAccounts);
   for (const a of accounts) {
     if (!a.refreshTokenEnc) continue;

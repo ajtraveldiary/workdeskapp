@@ -3,10 +3,11 @@ import { HTTPException } from "hono/http-exception";
 import { and, asc, desc, eq, gt, gte, ilike, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { emailThreads, gmailAccounts, tasks } from "../db/schema";
+import { emailThreads, gmailAccounts, reportPeriods, reports, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { logEvent } from "../lib/audit";
 import { todayIn } from "../lib/dates";
+import { setPeriodStatus } from "../lib/reports";
 import { taskInput, taskPatch } from "../../shared/schemas";
 import type { Task, TaskView } from "../../shared/types";
 
@@ -31,15 +32,23 @@ export function selectTasks(db: DB) {
         fromEmail: emailThreads.fromEmail,
         hasNewActivity: emailThreads.hasNewActivity,
       },
+      report: {
+        reportId: reports.id,
+        periodId: reportPeriods.id,
+        name: reports.name,
+        label: reportPeriods.label,
+      },
     })
     .from(tasks)
     .leftJoin(emailThreads, eq(tasks.threadId, emailThreads.id))
-    .leftJoin(gmailAccounts, eq(emailThreads.accountId, gmailAccounts.id));
+    .leftJoin(gmailAccounts, eq(emailThreads.accountId, gmailAccounts.id))
+    .leftJoin(reportPeriods, eq(tasks.reportPeriodId, reportPeriods.id))
+    .leftJoin(reports, eq(reportPeriods.reportId, reports.id));
 }
 
 type Row = Awaited<ReturnType<ReturnType<typeof selectTasks>["execute"]>>[number];
 
-export function toTask({ task, thread }: Row): Task {
+export function toTask({ task, thread, report }: Row): Task {
   return {
     id: task.id,
     title: task.title,
@@ -52,6 +61,7 @@ export function toTask({ task, thread }: Row): Task {
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
     thread: thread?.id ? (thread as Task["thread"]) : null,
+    report: report?.periodId ? (report as Task["report"]) : null,
   };
 }
 
@@ -70,6 +80,8 @@ export function viewFilter(view: TaskView, today: string): SQL | undefined {
       return open;
     case "completed":
       return eq(tasks.status, "done");
+    case "reports":
+      return and(open, sql`${tasks.reportPeriodId} is not null`);
     case "any":
       return undefined;
   }
@@ -84,7 +96,7 @@ async function loadTask(db: DB, userId: string, id: string) {
   return t;
 }
 
-const VIEWS: TaskView[] = ["today", "upcoming", "overdue", "nodate", "all", "completed", "any"];
+const VIEWS: TaskView[] = ["today", "upcoming", "overdue", "nodate", "all", "completed", "any", "reports"];
 
 export const taskRoutes = new Hono<AppEnv>()
   // Calendar: everything due in a date range.
@@ -156,6 +168,8 @@ export const taskRoutes = new Hono<AppEnv>()
     if (t.status === "done") return c.json({ ok: true });
     await db.update(tasks).set({ status: "done", completedAt: new Date(), updatedAt: new Date() }).where(eq(tasks.id, t.id));
     await logEvent(db, { userId, entityType: "task", entityId: t.id, action: "task.completed", summary: "Completed", detail: { title: t.title } });
+    // A report's task and its period move together.
+    if (t.reportPeriodId) await setPeriodStatus(db, userId, t.reportPeriodId, "submitted");
     return c.json({ ok: true });
   })
 
@@ -166,5 +180,6 @@ export const taskRoutes = new Hono<AppEnv>()
     if (t.status === "open") return c.json({ ok: true });
     await db.update(tasks).set({ status: "open", completedAt: null, updatedAt: new Date() }).where(eq(tasks.id, t.id));
     await logEvent(db, { userId, entityType: "task", entityId: t.id, action: "task.reopened", summary: "Reopened", detail: { title: t.title } });
+    if (t.reportPeriodId) await setPeriodStatus(db, userId, t.reportPeriodId, "pending");
     return c.json({ ok: true });
   });

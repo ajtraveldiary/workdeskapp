@@ -55,7 +55,14 @@ export function HomePage() {
         <StatCard to="/inbox" icon={Mail} value={counts.pendingEmails} label="Pending emails" note={counts.pendingEmails ? (counts.unreadPending ? `${counts.unreadPending} unread` : "Need your attention") : "All decided"} tone={counts.pendingEmails ? "info" : "low"} />
         <StatCard to="/tasks?view=today" icon={CircleCheck} value={counts.dueToday} label="Tasks due today" note={counts.dueToday ? "Stay on track" : "Nothing due today"} tone={counts.dueToday ? "high" : "low"} />
         <StatCard to="/tasks?view=overdue" icon={TriangleAlert} value={counts.overdue} label="Overdue tasks" note={counts.overdue ? "Needs action" : "All on time"} tone={counts.overdue ? "urgent" : "low"} />
-        <StatCard to="/reports" icon={FileText} value={null} label="Upcoming reports" note="Coming soon" tone="info" />
+        <StatCard
+          to="/reports"
+          icon={FileText}
+          value={counts.reportsUpcoming + counts.reportsOverdue}
+          label="Upcoming reports"
+          note={counts.reportsOverdue ? `${counts.reportsOverdue} overdue` : counts.reportsUpcoming ? "Next 30 days" : "Nothing due soon"}
+          tone={counts.reportsOverdue ? "urgent" : counts.reportsUpcoming ? "info" : "low"}
+        />
       </div>
 
       <div className="grid min-h-0 grid-cols-1 gap-5 lg:grid-cols-2 xl:flex-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
@@ -151,9 +158,9 @@ type CommandTab = "today" | "overdue" | "upcoming" | "reports";
 function CommandCenter({ summary, onNew, onEdit }: { summary: NonNullable<ReturnType<typeof useSummary>["data"]>; onNew: () => void; onEdit: (t: Task) => void }) {
   const { counts, today } = summary;
   const [tab, setTab] = useState<CommandTab>(counts.dueToday || !counts.overdue ? "today" : "overdue");
-  const view: TaskView = tab === "reports" ? "today" : tab;
+  const view: TaskView = tab;
   const { data } = useTasks({ view });
-  const tasks = tab === "reports" ? [] : (data?.tasks ?? []);
+  const tasks = data?.tasks ?? [];
 
   return (
     <Panel>
@@ -174,17 +181,17 @@ function CommandCenter({ summary, onNew, onEdit }: { summary: NonNullable<Return
             { value: "today", label: "Today", count: counts.dueToday, tone: "high" },
             { value: "overdue", label: "Overdue", count: counts.overdue, tone: "urgent" },
             { value: "upcoming", label: "Upcoming", count: counts.upcoming, tone: "info" },
-            { value: "reports", label: "Reports", count: 0 },
+            { value: "reports", label: "Reports", count: counts.reportTasks },
           ]}
         />
       </div>
       <Scroll>
-        {tab === "reports" ? (
-          <Empty icon={FileText} title="Recurring reports are coming">
-            Monthly and annual reports will appear here with their due dates, one task per reporting period.
-          </Empty>
-        ) : !data ? (
+        {!data ? (
           <Loading />
+        ) : tasks.length === 0 && tab === "reports" ? (
+          <Empty icon={FileText} title="No report tasks open">
+            Each report's task appears here ahead of its due date. <Link to="/reports" className="font-medium text-brand-700 hover:underline">Set up reports</Link>
+          </Empty>
         ) : tasks.length === 0 ? (
           <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
             {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
@@ -205,6 +212,7 @@ function subtitleFor(task: Task, categories: Category[]) {
   const firstLine = task.notes.split("\n")[0]?.trim();
   if (firstLine) return firstLine;
   if (task.thread) return `${task.thread.fromName ?? task.thread.fromEmail}: ${task.thread.subject}`;
+  if (task.report) return `Recurring report · ${task.report.label}`;
   return categories.find((c) => c.id === task.categoryId)?.name ?? "";
 }
 
@@ -317,7 +325,7 @@ function TodoPanel({ open, completed, onEdit }: { open: number; completed: numbe
 function TodoRow({ task, today, categories, onEdit }: { task: Task; today: string; categories: Category[]; onEdit: (t: Task) => void }) {
   const a = useTaskActions(task);
   const category = categories.find((c) => c.id === task.categoryId)?.name;
-  const context = category ?? (task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : "Manual task");
+  const context = category ?? (task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Recurring report" : "Manual task");
 
   return (
     <li className="flex gap-3 py-4">

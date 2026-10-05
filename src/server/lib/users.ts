@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import type { DB } from "../db";
-import { categories, users } from "../db/schema";
+import { categories, reportPeriods, reports, users } from "../db/schema";
 import { applySnapshots, type ThreadSnapshot } from "./sync";
+import { ensureReportPeriods, setPeriodStatus } from "./reports";
 
 // Examples from the plan; editable on the Settings screen.
 const DEFAULT_CATEGORIES = ["Establishment", "Accounts", "NHM", "HMC", "Pharmacy", "General Administration"];
@@ -97,4 +98,26 @@ export async function demoArrival(db: DB, userId: string) {
       inInbox: true,
     },
   ]);
+}
+
+// Sample reporting duties (from the WorkDesk plan; illustrative, not a verified list of obligations).
+// Periods already past their due date are marked submitted so the demo starts with some history.
+export async function seedDemoReports(db: DB, userId: string, today: string) {
+  const back = (months: number) => {
+    const d = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - months);
+    return d.toISOString().slice(0, 10);
+  };
+  await db.insert(reports).values([
+    { userId, name: "Monthly expenditure statement", frequency: "monthly", dueDay: 5, dueMonthOffset: 1, leadDays: 7, priority: "high", responsible: "Accounts section", firstPeriodStart: back(4) },
+    { userId, name: "Monthly HMIS report", frequency: "monthly", dueDay: 10, dueMonthOffset: 1, leadDays: 7, priority: "high", firstPeriodStart: back(3) },
+    { userId, name: "NHM quarterly progress report", frequency: "quarterly", dueDay: 15, dueMonthOffset: 1, yearStartMonth: 4, leadDays: 14, priority: "normal", firstPeriodStart: back(6) },
+    { userId, name: "Annual administrative report", frequency: "annual", dueDay: 30, dueMonthOffset: 3, yearStartMonth: 4, leadDays: 30, priority: "normal", firstPeriodStart: back(18) },
+  ]);
+  await ensureReportPeriods(db, today, userId);
+  const past = await db
+    .select({ id: reportPeriods.id })
+    .from(reportPeriods)
+    .where(and(eq(reportPeriods.userId, userId), lt(reportPeriods.dueDate, today)));
+  for (const p of past) await setPeriodStatus(db, userId, p.id, "submitted");
 }

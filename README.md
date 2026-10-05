@@ -79,6 +79,8 @@ src/
     lib/gmail.ts   Read-only Gmail client (GET requests to an allowlist of read endpoints)
     lib/sync.ts    Incremental sync via Gmail history, in batches
     lib/threadRules.ts  What a new message does to a dismissed, snoozed, or converted email
+    lib/reports.ts Creates each report period and its task ahead of the due date; keeps period and task in step
+  shared/reportSchedule.ts  Period and due-date rules (shared with the browser for previews)
   shared/          Types and Zod schemas used by both sides
 ```
 
@@ -93,5 +95,5 @@ src/
 ## Roadmap
 - [x] Phase 1: Gmail queue, Create task / Dismiss / Snooze / Open in Gmail
 - [x] Phase 2: tasks with due dates, priorities, notes, categories, and completion history
-- [ ] Phase 3: recurring reports (monthly, quarterly, annual) with period-by-period tracking
+- [x] Phase 3: recurring reports (monthly, quarterly, half-yearly, annual) with period-by-period tracking and a reporting calendar
 - [~] Phase 4: Command Center (the Today screen exists; backup and reminders are still to do)

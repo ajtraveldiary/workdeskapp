@@ -101,6 +101,8 @@ export const tasks = pgTable(
     status: text("status", { enum: ["open", "done"] }).notNull().default("open"),
     categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
     threadId: uuid("thread_id").references(() => emailThreads.id),
+    // Set when the task was generated for a recurring report's period.
+    reportPeriodId: uuid("report_period_id").references(() => reportPeriods.id, { onDelete: "set null" }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -109,6 +111,54 @@ export const tasks = pgTable(
 );
 
 // Audit trail, kept separate from Gmail's own history.
+export const FREQUENCIES = ["monthly", "quarterly", "half_yearly", "annual"] as const;
+export type Frequency = (typeof FREQUENCIES)[number];
+
+// A recurring reporting duty, e.g. "Monthly expenditure statement, due on the 5th of the following month".
+export const reports = pgTable("reports", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  notes: text("notes").notNull().default(""),
+  frequency: text("frequency", { enum: FREQUENCIES }).notNull(),
+  // Day of the due month (31 = last day of the month).
+  dueDay: integer("due_day").notNull(),
+  // 0 = due in the period's last month, 1 = the month after the period ends, ...
+  dueMonthOffset: integer("due_month_offset").notNull().default(1),
+  // Quarters, halves and years start in this month (4 = April, the Indian financial year).
+  yearStartMonth: integer("year_start_month").notNull().default(4),
+  // The period's task appears this many days before it is due.
+  leadDays: integer("lead_days").notNull().default(7),
+  priority: text("priority", { enum: PRIORITIES }).notNull().default("high"),
+  categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+  responsible: text("responsible"),
+  // Start of the first period to track.
+  firstPeriodStart: date("first_period_start").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+// One row per reporting period, so each period's submission is tracked on its own.
+export const reportPeriods = pgTable(
+  "report_periods",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    reportId: uuid("report_id")
+      .notNull()
+      .references(() => reports.id, { onDelete: "cascade" }),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    label: text("label").notNull(),
+    dueDate: date("due_date").notNull(),
+    status: text("status", { enum: ["pending", "submitted"] }).notNull().default("pending"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("report_periods_report_start").on(t.reportId, t.periodStart), index("report_periods_user_due").on(t.userId, t.dueDate)],
+);
+
 export const events = pgTable(
   "events",
   {

@@ -71,7 +71,6 @@ export function SearchPage() {
               )}
             </Card>
           </section>
-          <p className="text-xs text-slate-500">Reports will be searchable once recurring reports are added.</p>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { Check, ExternalLink, Mail, RotateCcw } from "lucide-react";
+import { Check, ExternalLink, FileText, Mail, RotateCcw } from "lucide-react";
 import type { Category, Task } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
@@ -53,6 +53,12 @@ export function TaskRow({
           <PriorityPill priority={task.priority} />
           {category && <Badge>{category.name}</Badge>}
           {done && task.completedAt && <span>Completed {formatDateTime(task.completedAt)}</span>}
+          {task.report && (
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <FileText size={12} className="shrink-0" />
+              <span className="truncate">Report: {task.report.label}</span>
+            </span>
+          )}
           {task.thread && (
             <span className="inline-flex min-w-0 items-center gap-1">
               <Mail size={12} className="shrink-0" />
