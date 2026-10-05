@@ -36,3 +36,26 @@ export const reportInput = z.object({
 });
 export type ReportInput = z.input<typeof reportInput>;
 export const reportPatch = reportInput.partial();
+
+// "Hide from Pending" entries: an exact address, or "@domain" for a whole domain. Accepts pasted forms
+// like "Name <a@b.gov>", "mailto:a@b.gov" or a bare "b.gov". Returns null when it isn't either.
+export function normalizeSenderPattern(raw: string): string | null {
+  let v = raw.trim().toLowerCase();
+  const angle = v.match(/<([^>]+)>/);
+  if (angle) v = angle[1]!.trim();
+  v = v.replace(/^mailto:/, "");
+  if (/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(v)) return v;
+  const domain = v.startsWith("@") ? v : v.includes("@") ? null : `@${v}`;
+  return domain && /^@[^\s@<>]+\.[^\s@<>]+$/.test(domain) ? domain : null;
+}
+
+export const mutedSenderInput = z.object({
+  pattern: z
+    .string()
+    .max(254)
+    .transform((v, ctx) => {
+      const p = normalizeSenderPattern(v);
+      if (!p) ctx.addIssue({ code: "custom", message: "Enter an email address, or @domain for a whole domain" });
+      return p ?? "";
+    }),
+});

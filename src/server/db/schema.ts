@@ -72,6 +72,19 @@ export const categories = pgTable(
   (t) => [uniqueIndex("categories_user_name").on(t.userId, t.name)],
 );
 
+// Senders whose emails skip Pending (they still appear under All emails). A pattern is an exact
+// address ("clerk@example.gov") or a whole domain ("@example.gov"), stored lowercase.
+export const mutedSenders = pgTable(
+  "muted_senders",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    pattern: text("pattern").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("muted_senders_user_pattern").on(t.userId, t.pattern)],
+);
+
 export const EMAIL_STATES = ["needs_decision", "task", "snoozed", "dismissed"] as const;
 export type EmailState = (typeof EMAIL_STATES)[number];
 

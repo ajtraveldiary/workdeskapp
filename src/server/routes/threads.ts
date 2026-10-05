@@ -6,6 +6,7 @@ import type { DB } from "../db";
 import { EMAIL_STATES, emailThreads, gmailAccounts, tasks } from "../db/schema";
 import { logEvent } from "../lib/audit";
 import { maintain } from "../lib/maintenance";
+import { isMuted, notMuted } from "../lib/muted";
 import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, getAttachment, getMessageFull, getThreadFull, markThreadRead } from "../lib/gmail";
 import { decodeBase64Url, demoContent, demoPdf, findPart, parseMessage } from "../lib/emailContent";
@@ -33,6 +34,8 @@ export const threadColumns = {
   hasNewActivity: emailThreads.hasNewActivity,
   categoryId: emailThreads.categoryId,
   stateChangedAt: emailThreads.stateChangedAt,
+  // On the user's "hide from Pending" list (Settings > Mail)
+  muted: isMuted,
 };
 
 export function selectThreads(db: DB) {
@@ -122,6 +125,8 @@ export const threadRoutes = new Hono<AppEnv>()
       if (!(EMAIL_STATES as readonly string[]).includes(state)) throw new HTTPException(400, { message: "Unknown state" });
       where.push(eq(emailThreads.state, state as (typeof EMAIL_STATES)[number]));
     }
+    // Pending skips senders hidden in Settings > Mail; they still appear under All emails.
+    if (state === "needs_decision") where.push(notMuted);
     if (c.req.query("unread") === "1") where.push(eq(emailThreads.unread, true));
     const category = c.req.query("category");
     if (category) where.push(eq(emailThreads.categoryId, category));
@@ -143,14 +148,22 @@ export const threadRoutes = new Hono<AppEnv>()
         .orderBy(desc(emailThreads.lastMessageAt))
         .limit(300),
       db
-        .select({ state: emailThreads.state, n: count() })
+        .select({ state: emailThreads.state, muted: isMuted, n: count() })
         .from(emailThreads)
         .where(eq(emailThreads.userId, userId))
-        .groupBy(emailThreads.state),
+        .groupBy(emailThreads.state, isMuted),
     ]);
+    // needs_decision counts only what is shown in Pending; hiddenPending is the rest.
+    const byState: Record<string, number> = {};
+    let hiddenPending = 0;
+    for (const r of counts) {
+      if (r.state === "needs_decision" && r.muted) hiddenPending += r.n;
+      else byState[r.state] = (byState[r.state] ?? 0) + r.n;
+    }
     return c.json({
       threads: await withTaskInfo(db, threads, todayIn(timezone(c.env))),
-      counts: Object.fromEntries(counts.map((r) => [r.state, r.n])),
+      counts: byState,
+      hiddenPending,
     });
   })
 

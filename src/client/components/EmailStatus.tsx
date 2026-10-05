@@ -12,7 +12,8 @@ export function emailTags(thread: Thread): Tag[] {
   if (t && t.open > 0) tags.push(t.overdue ? { tone: "urgent", label: "Task overdue" } : { tone: "medium", label: t.open > 1 ? `${t.open} tasks pending` : "Task pending" });
   else if (t && t.done > 0) tags.push({ tone: "low", label: "Task done" });
 
-  if (thread.state === "needs_decision") tags.push({ tone: "brand", label: "Needs decision" });
+  if (thread.state === "needs_decision")
+    tags.push(thread.muted ? { tone: "neutral", label: "Hidden from Pending", title: "Sender is hidden in Settings > Mail" } : { tone: "brand", label: "Needs decision" });
   else if (thread.state === "snoozed")
     tags.push({ tone: "snooze", label: "Snoozed", title: thread.snoozedUntil ? `Until ${formatDateTime(thread.snoozedUntil)}` : undefined });
   else if (thread.state === "dismissed") tags.push({ tone: "neutral", label: "Dismissed", title: `Dismissed ${formatWhen(thread.stateChangedAt)}` });

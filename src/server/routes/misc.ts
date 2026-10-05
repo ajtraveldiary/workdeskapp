@@ -2,14 +2,15 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
-import { categories, emailThreads, events, gmailAccounts, reportPeriods, tasks, users } from "../db/schema";
+import { categories, emailThreads, events, gmailAccounts, mutedSenders, reportPeriods, tasks, users } from "../db/schema";
 import { timezone } from "../env";
 import { addDays, todayIn } from "../lib/dates";
 import { syncUser, wakeSnoozed } from "../lib/sync";
 import { demoArrival } from "../lib/users";
 import { maintain } from "../lib/maintenance";
+import { notMuted } from "../lib/muted";
 import { canMarkRead } from "../lib/gmail";
-import { categoryInput } from "../../shared/schemas";
+import { categoryInput, mutedSenderInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
 import { openTaskOrder, selectTasks, toTask, viewFilter } from "./tasks";
@@ -63,13 +64,13 @@ export const miscRoutes = new Hono<AppEnv>()
           .orderBy(desc(tasks.completedAt))
           .limit(5),
         selectThreads(db)
-          .where(and(eq(emailThreads.userId, userId), eq(emailThreads.state, "needs_decision")))
+          .where(and(eq(emailThreads.userId, userId), eq(emailThreads.state, "needs_decision"), notMuted))
           .orderBy(desc(emailThreads.lastMessageAt))
           .limit(8),
         db
           .select({ unread: emailThreads.unread, n: count() })
           .from(emailThreads)
-          .where(and(eq(emailThreads.userId, userId), eq(emailThreads.state, "needs_decision")))
+          .where(and(eq(emailThreads.userId, userId), eq(emailThreads.state, "needs_decision"), notMuted))
           .groupBy(emailThreads.unread),
         db
           .select({ n: count() })
@@ -172,6 +173,51 @@ export const miscRoutes = new Hono<AppEnv>()
       .get("db")
       .delete(categories)
       .where(and(eq(categories.id, c.req.param("id")), eq(categories.userId, c.get("userId"))));
+    return c.json({ ok: true });
+  })
+
+  // --- Settings > Mail: senders hidden from Pending ---
+
+  .get("/muted-senders", async (c) => {
+    // With how many emails each entry currently keeps out of Pending.
+    const list = await c
+      .get("db")
+      .select({
+        id: mutedSenders.id,
+        pattern: mutedSenders.pattern,
+        hidden: sql<number>`(
+          select count(*)::int from ${emailThreads} t
+          where t.user_id = ${mutedSenders.userId} and t.state = 'needs_decision'
+            and (lower(t.from_email) = ${mutedSenders.pattern}
+              or (left(${mutedSenders.pattern}, 1) = '@' and lower(t.from_email) like '%' || ${mutedSenders.pattern}))
+        )`,
+      })
+      .from(mutedSenders)
+      .where(eq(mutedSenders.userId, c.get("userId")))
+      .orderBy(asc(mutedSenders.pattern));
+    return c.json({ senders: list.map((r) => ({ id: r.id, pattern: r.pattern, hidden: Number(r.hidden) })) });
+  })
+
+  .post("/muted-senders", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { pattern } = mutedSenderInput.parse(await c.req.json());
+    const [row] = await db.insert(mutedSenders).values({ userId, pattern }).onConflictDoNothing().returning();
+    if (!row) throw new HTTPException(409, { message: "That sender is already hidden" });
+    await db.insert(events).values({ userId, entityType: "email", action: "settings.sender_hidden", summary: "Sender hidden from Pending (still in All emails)", detail: { subject: pattern } });
+    return c.json(row, 201);
+  })
+
+  .delete("/muted-senders/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const [row] = await db
+      .delete(mutedSenders)
+      .where(and(eq(mutedSenders.id, c.req.param("id")), eq(mutedSenders.userId, userId)))
+      .returning();
+    if (row) {
+      await db.insert(events).values({ userId, entityType: "email", action: "settings.sender_shown", summary: "Sender shown in Pending again", detail: { subject: row.pattern } });
+    }
     return c.json({ ok: true });
   })
 

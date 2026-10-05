@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, Category, EmailContent, RangeTasks, EmailState, Me, Report, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { AuditEvent, Category, EmailContent, RangeTasks, EmailState, Me, MutedSender, Report, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { ReportInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -44,7 +44,7 @@ export const useThreads = (f: ThreadFilter, enabled = true) =>
     enabled,
     queryKey: ["threads", f],
     queryFn: () =>
-      api<{ threads: Thread[]; counts: Partial<Record<EmailState, number>> }>(
+      api<{ threads: Thread[]; counts: Partial<Record<EmailState, number>>; hiddenPending: number }>(
         `/threads${qs({ state: f.state, unread: f.unread && "1", q: f.q, category: f.category })}`,
       ),
     placeholderData: (prev) => prev,
@@ -139,6 +139,22 @@ export function useSync() {
     },
     onSettled: () => qc.invalidateQueries(),
   });
+}
+
+// --- Settings > Mail: senders hidden from Pending ---
+
+export const useMutedSenders = () =>
+  useQuery({ queryKey: ["muted-senders"], queryFn: () => api<{ senders: MutedSender[] }>("/muted-senders"), select: (d) => d.senders });
+
+// Changing the list changes what Pending shows, so the email lists and counts refresh too.
+export function useMutedSenderActions() {
+  const qc = useQueryClient();
+  const refresh = () =>
+    Promise.all(["muted-senders", "threads", "summary", "history"].map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  return {
+    add: useMutation({ mutationFn: (pattern: string) => api<MutedSender>(`/muted-senders`, { method: "POST", body: { pattern } }), onSettled: refresh }),
+    remove: useMutation({ mutationFn: (id: string) => api(`/muted-senders/${id}`, { method: "DELETE" }), onSettled: refresh }),
+  };
 }
 
 // --- Email viewer ---

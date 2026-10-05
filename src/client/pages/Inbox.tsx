@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import type { EmailState, Thread } from "../../shared/types";
 import { useBulkDismiss, useCategories, useThreads } from "../api";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
@@ -72,6 +72,15 @@ export function InboxPage() {
         {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
       </div>
 
+      {inQueue && (data?.hiddenPending ?? 0) > 0 && (
+        <p className="mb-2 px-1 text-xs text-slate-500">
+          {data!.hiddenPending} {data!.hiddenPending === 1 ? "email is" : "emails are"} hidden by{" "}
+          <Link to="/settings#mail" className="font-medium text-brand-700 hover:underline">
+            Settings › Mail
+          </Link>
+          . They're under All.
+        </p>
+      )}
       {inQueue && threads.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-3 px-1 text-sm">
           <label className="flex items-center gap-2 text-slate-600">

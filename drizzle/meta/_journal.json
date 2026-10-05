@@ -43,6 +43,13 @@
       "when": 1791227445240,
       "tag": "0005_granted_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791228482107,
+      "tag": "0006_muted_senders",
+      "breakpoints": true
     }
   ]
 }

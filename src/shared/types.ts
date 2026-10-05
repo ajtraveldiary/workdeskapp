@@ -28,7 +28,11 @@ export type Thread = {
   categoryId: string | null;
   stateChangedAt: string;
   task: ThreadTaskInfo | null;
+  // Sender is hidden from Pending in Settings > Mail (the email still shows under All emails).
+  muted: boolean;
 };
+
+export type MutedSender = { id: string; pattern: string; hidden: number };
 
 export type Task = {
   id: string;

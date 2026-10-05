@@ -19,6 +19,7 @@ const base: Thread = {
   categoryId: null,
   stateChangedAt: "2026-10-05T00:00:00Z",
   task: null,
+  muted: false,
 };
 const labels = (t: Partial<Thread>) => emailTags({ ...base, ...t }).map((x) => `${x.tone}:${x.label}`);
 
@@ -33,6 +34,10 @@ describe("emailTags", () => {
     expect(labels({ state: "needs_decision" })).toEqual(["brand:Needs decision"]);
     expect(labels({ state: "snoozed" })).toEqual(["snooze:Snoozed"]);
     expect(labels({ state: "dismissed" })).toEqual(["neutral:Dismissed"]);
+  });
+
+  it("marks pending emails from hidden senders", () => {
+    expect(labels({ state: "needs_decision", muted: true })).toEqual(["neutral:Hidden from Pending"]);
   });
 
   it("shows both when a finished task's email got a new reply", () => {
