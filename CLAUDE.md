@@ -2,6 +2,11 @@
 
 Single-user Gmail → task dashboard. React + Vite + Tailwind v4 (src/client), Hono API (src/server) that runs both as a Cloudflare Worker (Neon via drizzle neon-http) and locally on Node (PGlite in .data when DATABASE_URL is unset; demo user when GOOGLE_CLIENT_ID is unset). See README.md.
 
+## Committed work is settled
+- Once a function, feature, behaviour or design decision has been committed, do not delete or change it unless the user specifically asks to revise or change that item. Check `git log` / `git diff` to see what is committed.
+- New requests are built alongside existing work, not by reworking it. If a request seems to need a committed item changed or removed (including bug fixes, refactors, renames, or "improvements" noticed in passing), stop and ask the user first, naming the item and the proposed change.
+- Approval covers only the item the user named; it does not extend to related code.
+
 ## Non-negotiable
 - Gmail is read-only. Never add Gmail write calls (trash/delete/modify/labels/send/drafts) or broader scopes. `src/server/lib/gmail.ts` only does GET to `READ_PATHS`; `tests/gmail-safety.test.ts` enforces this.
 - Dismiss / complete / snooze change only WorkDesk's database, and every such action writes an `events` row (audit trail).
