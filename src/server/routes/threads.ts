@@ -168,6 +168,15 @@ export const threadRoutes = new Hono<AppEnv>()
     });
   })
 
+  // One conversation (e.g. to open the email a task was created from).
+  .get("/:id", async (c) => {
+    const db = c.get("db");
+    const rows = await selectThreads(db).where(and(eq(emailThreads.id, c.req.param("id")), eq(emailThreads.userId, c.get("userId"))));
+    if (!rows[0]) throw new HTTPException(404, { message: "Email not found" });
+    const [thread] = await withTaskInfo(db, rows, todayIn(timezone(c.env)));
+    return c.json(thread);
+  })
+
   // The whole conversation, read from Gmail for the viewer. The client asks with ?v=<version> (the time of
   // the latest message); content for a given version never changes, so the browser may keep it and the
   // same email isn't fetched from Gmail twice. Nothing is stored in the database.

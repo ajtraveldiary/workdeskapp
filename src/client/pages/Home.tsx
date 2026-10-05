@@ -28,6 +28,7 @@ import {
   useRestore,
   useSummary,
   useTasks,
+  useThread,
   useThreads,
 } from "../api";
 import { formatDay, formatTime, formatWhen } from "../format";
@@ -35,6 +36,7 @@ import { SnoozeMenu } from "../components/ThreadRow";
 import { EmailStatusTags } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
+import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Button, CheckCircle, Menu, PRIORITY_BAR, PriorityPill, Segmented, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
@@ -85,7 +87,13 @@ export function HomePage() {
 
       <div className="grid min-h-0 grid-cols-1 gap-3 md:gap-5 lg:grid-cols-2 xl:flex-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <CommandCenter summary={summary} onNew={() => setDialog({ kind: "new" })} onEdit={editTask} hiddenOnPhone={mobilePanel !== "today"} />
-        <TodoPanel open={counts.openTasks} completed={counts.completedTotal} onEdit={editTask} hiddenOnPhone={mobilePanel !== "todo"} />
+        <TodoPanel
+          open={counts.openTasks}
+          completed={counts.completedTotal}
+          onEdit={editTask}
+          onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
+          hiddenOnPhone={mobilePanel !== "todo"}
+        />
       </div>
       </div>
 
@@ -340,8 +348,25 @@ function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit
 
 // --- To-do tasks ---
 
-function TodoPanel({ open, completed, onEdit, hiddenOnPhone }: { open: number; completed: number; onEdit: (t: Task) => void; hiddenOnPhone?: boolean }) {
+function TodoPanel({
+  open,
+  completed,
+  onEdit,
+  onCreateTask,
+  hiddenOnPhone,
+}: {
+  open: number;
+  completed: number;
+  onEdit: (t: Task) => void;
+  onCreateTask: (t: Thread) => void;
+  hiddenOnPhone?: boolean;
+}) {
   const [tab, setTab] = useState<"all" | "completed">("all");
+  // Tapping a task opens the email it came from, or (for tasks made by hand) its details.
+  const [emailId, setEmailId] = useState<string | null>(null);
+  const [details, setDetails] = useState<Task | null>(null);
+  const email = useThread(emailId).data ?? null;
+  const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
   const { data } = useTasks({ view: tab });
   const categories = useCategories().data ?? [];
   const tasks = data?.tasks ?? [];
@@ -381,16 +406,44 @@ function TodoPanel({ open, completed, onEdit, hiddenOnPhone }: { open: number; c
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
             {tasks.map((t) => (
-              <TodoRow key={t.id} task={t} today={data!.today} categories={categories} onEdit={onEdit} />
+              <TodoRow key={t.id} task={t} today={data!.today} categories={categories} onEdit={onEdit} onOpen={openTask} />
             ))}
           </ul>
         )}
       </Scroll>
+      <EmailViewer
+        thread={emailId ? email : null}
+        onClose={() => setEmailId(null)}
+        onCreateTask={(thread) => {
+          setEmailId(null);
+          onCreateTask(thread);
+        }}
+      />
+      <TaskDetails
+        task={details}
+        onClose={() => setDetails(null)}
+        onEdit={(t) => {
+          setDetails(null);
+          onEdit(t);
+        }}
+      />
     </Panel>
   );
 }
 
-function TodoRow({ task, today, categories, onEdit }: { task: Task; today: string; categories: Category[]; onEdit: (t: Task) => void }) {
+function TodoRow({
+  task,
+  today,
+  categories,
+  onEdit,
+  onOpen,
+}: {
+  task: Task;
+  today: string;
+  categories: Category[];
+  onEdit: (t: Task) => void;
+  onOpen: (t: Task) => void;
+}) {
   const a = useTaskActions(task);
   const category = categories.find((c) => c.id === task.categoryId)?.name;
   const context = category ?? (task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Recurring report" : "Manual task");
@@ -401,7 +454,11 @@ function TodoRow({ task, today, categories, onEdit }: { task: Task; today: strin
         <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
       </div>
       <div className="min-w-0 flex-1">
-        <button onClick={() => onEdit(task)} className="block max-w-full text-left">
+        <button
+          onClick={() => onOpen(task)}
+          className="block max-w-full text-left"
+          aria-label={task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`}
+        >
           <span className={cx("line-clamp-2 text-sm leading-snug font-semibold sm:text-[15px]", a.done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</span>
           <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[13px]">{context}</span>
         </button>

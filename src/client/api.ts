@@ -188,6 +188,10 @@ export function useSetThreadLabels() {
   });
 }
 
+// One conversation, e.g. the email a task came from.
+export const useThread = (id: string | null) =>
+  useQuery({ queryKey: ["thread", id], queryFn: () => api<Thread>(`/threads/${id}`), enabled: !!id });
+
 // --- Email viewer ---
 
 // Keyed by the conversation's latest-message time: a given version never changes, so it is fetched from
