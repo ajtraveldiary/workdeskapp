@@ -5,7 +5,7 @@ import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { EMAIL_STATES, emailThreads, gmailAccounts, tasks } from "../db/schema";
 import { logEvent } from "../lib/audit";
-import { wakeSnoozed } from "../lib/sync";
+import { maintain } from "../lib/maintenance";
 import { bulkIds, snoozeInput, taskInput, threadPatch } from "../../shared/schemas";
 import { events } from "../db/schema";
 import { timezone } from "../env";
@@ -87,7 +87,7 @@ export const threadRoutes = new Hono<AppEnv>()
   .get("/", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    await wakeSnoozed(db, userId);
+    await maintain(db, userId, todayIn(timezone(c.env)));
 
     const state = c.req.query("state") ?? "needs_decision";
     const q = c.req.query("q")?.trim();

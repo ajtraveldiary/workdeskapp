@@ -4,6 +4,7 @@ import type { AuditEvent } from "../../shared/types";
 import { useHistory, useRestore } from "../api";
 import { formatDateTime } from "../format";
 import { Button, Card, Empty, PageHeader, SearchInput, Tabs } from "../components/ui";
+import { RefreshButton } from "../components/RefreshButton";
 
 type Filter = "" | "email" | "task";
 
@@ -15,7 +16,7 @@ export function HistoryPage() {
 
   return (
     <>
-      <PageHeader title="History" subtitle="A record of every decision: tasks created, completed and reopened; emails dismissed, snoozed and restored." />
+      <PageHeader title="History" subtitle="A record of every decision: tasks created, completed and reopened; emails dismissed, snoozed and restored." actions={<RefreshButton keys={[["history"]]} label="Refresh history" />} />
       <Tabs<Filter>
         value={type}
         onChange={setType}

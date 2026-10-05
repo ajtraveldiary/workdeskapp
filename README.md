@@ -90,6 +90,8 @@ src/
 - If a new message arrives after the task was completed, the conversation goes back to the queue.
 - A dismissed email can be restored from History or from the Inbox's Dismissed tab.
 
+**Easy on Gmail and the database:** the first sync lists the last 30 days; after that only Gmail's change log is read, and each message is downloaded once (read/unread changes need no download). The browser keeps a saved copy of loaded screens in localStorage, so pages open without database reads; every screen and list has a refresh button that reloads it on demand.
+
 **What's stored:** for each email, only the subject, sender, Gmail snippet, dates, and IDs. Message bodies are never stored. Refresh tokens are encrypted with AES-GCM.
 
 ## Roadmap

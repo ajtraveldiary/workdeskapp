@@ -7,7 +7,7 @@ import { timezone } from "../env";
 import { addDays, todayIn } from "../lib/dates";
 import { syncUser, wakeSnoozed } from "../lib/sync";
 import { demoArrival } from "../lib/users";
-import { ensureReportPeriods } from "../lib/reports";
+import { maintain } from "../lib/maintenance";
 import { categoryInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
@@ -42,9 +42,8 @@ export const miscRoutes = new Hono<AppEnv>()
   .get("/summary", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    await wakeSnoozed(db, userId);
     const today = todayIn(timezone(c.env));
-    await ensureReportPeriods(db, today, userId);
+    await maintain(db, userId, today);
     const tomorrow = addDays(today, 1);
     const mine = eq(tasks.userId, userId);
     const weekAgo = new Date(Date.now() - 7 * 86400_000);
@@ -171,6 +170,12 @@ export const miscRoutes = new Hono<AppEnv>()
       .get("db")
       .delete(categories)
       .where(and(eq(categories.id, c.req.param("id")), eq(categories.userId, c.get("userId"))));
+    return c.json({ ok: true });
+  })
+
+  // Manual refresh: run housekeeping now instead of waiting for its interval.
+  .post("/maintain", async (c) => {
+    await maintain(c.get("db"), c.get("userId"), todayIn(timezone(c.env)), true);
     return c.json({ ok: true });
   })
 

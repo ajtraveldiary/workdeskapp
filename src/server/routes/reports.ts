@@ -7,6 +7,7 @@ import { events, reportPeriods, reports, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { ensureReportPeriods, setPeriodStatus } from "../lib/reports";
+import { maintain } from "../lib/maintenance";
 import { reportInput, reportPatch } from "../../shared/schemas";
 import { periodsFrom, type ScheduleRule } from "../../shared/reportSchedule";
 import type { Report } from "../../shared/types";
@@ -30,7 +31,7 @@ export const reportRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const today = todayIn(timezone(c.env));
-    await ensureReportPeriods(db, today, userId);
+    await maintain(db, userId, today);
 
     const rows = await db.select().from(reports).where(eq(reports.userId, userId)).orderBy(desc(reports.active), asc(reports.name));
     const ids = rows.map((r) => r.id);

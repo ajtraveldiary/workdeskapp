@@ -6,6 +6,7 @@ import { useDeleteReport, useReports, useSetPeriodStatus, useUpdateReport } from
 import { addDays, formatDateTime, formatDay } from "../format";
 import { ReportDialog, type ReportDialogMode } from "../components/ReportDialog";
 import { Badge, Button, Card, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
+import { RefreshButton } from "../components/RefreshButton";
 
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const WINDOW = 9; // months shown in the reporting calendar
@@ -47,9 +48,12 @@ export function ReportsPage() {
         title="Reports"
         subtitle="Recurring reporting duties. Every period gets its own task and is tracked on its own."
         actions={
-          <Button variant="primary" onClick={() => setDialog({ kind: "new" })}>
-            <Plus size={17} /> New report
-          </Button>
+          <>
+            <RefreshButton keys={[["reports"], ["summary"], ["tasks"]]} label="Refresh reports" />
+            <Button variant="primary" onClick={() => setDialog({ kind: "new" })}>
+              <Plus size={17} /> New report
+            </Button>
+          </>
         }
       />
 

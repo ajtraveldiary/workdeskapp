@@ -9,6 +9,7 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
@@ -35,10 +36,28 @@ export const gmailAccounts = pgTable("gmail_accounts", {
   historyId: text("history_id"),
   // Gmail threads seen as changed but not fetched yet; drained a batch at a time.
   pendingThreadIds: jsonb("pending_thread_ids").$type<string[]>().notNull().default([]),
+  // New messages in already-stored conversations, as "threadId:messageId"; fetched one by one.
+  pendingMessageIds: jsonb("pending_message_ids").$type<string[]>().notNull().default([]),
+  // Next page of the first sync's 30-day listing; set while that backfill is still running.
+  initialPageToken: text("initial_page_token"),
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
   lastSyncError: text("last_sync_error"),
   createdAt: createdAt(),
 });
+
+// Every Gmail message WorkDesk has already downloaded (IDs only, no content), so none is fetched twice.
+export const gmailMessages = pgTable(
+  "gmail_messages",
+  {
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => gmailAccounts.id, { onDelete: "cascade" }),
+    gmailMessageId: text("gmail_message_id").notNull(),
+    gmailThreadId: text("gmail_thread_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.accountId, t.gmailMessageId] })],
+);
 
 export const categories = pgTable(
   "categories",

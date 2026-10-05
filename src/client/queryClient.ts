@@ -1,0 +1,45 @@
+import { QueryClient } from "@tanstack/react-query";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+
+// Hybrid storage: what the dashboard has loaded is kept in this browser's localStorage, so screens open
+// instantly from the saved copy and the database is only asked again when data is older than STALE
+// (or after a change, or a manual refresh). The database stays the source of truth.
+const STALE = 5 * 60_000;
+export const CACHE_MAX_AGE = 24 * 60 * 60_000;
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: STALE,
+      gcTime: CACHE_MAX_AGE, // must be at least the persisted max age
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
+
+// localStorage can be unavailable (private window, blocked site data); the app then just works without it.
+function browserStorage(): Storage | undefined {
+  try {
+    const s = window.localStorage;
+    s.setItem("workdesk-probe", "1");
+    s.removeItem("workdesk-probe");
+    return s;
+  } catch {
+    return undefined;
+  }
+}
+
+export const persister = createSyncStoragePersister({ storage: browserStorage(), key: "workdesk-cache", throttleTime: 1000 });
+
+// Bump to discard everyone's saved copy after a change to the data's shape.
+export const CACHE_VERSION = "1";
+
+export async function clearSavedData() {
+  queryClient.clear();
+  try {
+    await persister.removeClient();
+  } catch {
+    // nothing saved
+  }
+}

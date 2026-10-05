@@ -6,6 +6,7 @@ import { addDays, formatTime } from "../format";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { Button, Card, Empty, PRIORITY_BAR, PageHeader, cx } from "../components/ui";
+import { RefreshButton } from "../components/RefreshButton";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -58,6 +59,7 @@ export function CalendarPage() {
         subtitle="Tasks by due date. Click a day to see or add its work."
         actions={
           <div className="flex items-center gap-1">
+            <RefreshButton keys={[["tasks"]]} label="Refresh calendar" />
             {month !== monthStart(today) && (
               <Button size="sm" variant="ghost" onClick={() => { setMonth(monthStart(today)); setSelected(today); }}>
                 Today

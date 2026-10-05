@@ -3,6 +3,7 @@ import { ShieldCheck, Trash2 } from "lucide-react";
 import { useCategories, useCategoryActions, useMe } from "../api";
 import { formatDateTime } from "../format";
 import { Button, Card, ErrorNote, PageHeader, inputClass } from "../components/ui";
+import { RefreshButton } from "../components/RefreshButton";
 
 export function SettingsPage() {
   const me = useMe().data;
@@ -17,7 +18,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["categories"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         <Card className="p-5">
           <h2 className="font-semibold text-slate-900">Gmail connection</h2>

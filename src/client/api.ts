@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { clearSavedData } from "./queryClient";
 import type { AuditEvent, Category, RangeTasks, EmailState, Me, Report, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { ReportInput, TaskInput } from "../shared/schemas";
 
@@ -32,7 +33,8 @@ const qs = (params: Record<string, string | undefined | false>) => {
 
 // --- Queries ---
 
-export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me"), retry: false });
+// Always re-checked on load (cheap), so an expired sign-in is noticed even when a saved copy exists.
+export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me"), retry: false, staleTime: 0 });
 
 export const useSummary = () => useQuery({ queryKey: ["summary"], queryFn: () => api<Summary>("/summary") });
 
@@ -154,4 +156,5 @@ export const useSetPeriodStatus = () =>
     api(`/reports/periods/${id}/${submitted ? "submit" : "reopen"}`, { method: "POST" }),
   );
 
-export const logout = () => api(`/auth/logout`, { method: "POST" });
+// Signing out also clears the copy saved in this browser.
+export const logout = () => api(`/auth/logout`, { method: "POST" }).finally(clearSavedData);

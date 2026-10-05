@@ -6,6 +6,7 @@ import { useCategories, useTasks } from "../api";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { Button, Card, Empty, PageHeader, SearchInput, Tabs, inputClass } from "../components/ui";
+import { RefreshButton } from "../components/RefreshButton";
 
 const EMPTY: Record<TaskView, string> = {
   today: "Nothing due today",
@@ -33,9 +34,12 @@ export function TasksPage() {
         title="Tasks"
         subtitle="Work taken out of the inbox, plus anything you add yourself."
         actions={
-          <Button variant="primary" onClick={() => setDialog({ kind: "new" })}>
-            <Plus size={16} /> New task
-          </Button>
+          <>
+            <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh tasks" />
+            <Button variant="primary" onClick={() => setDialog({ kind: "new" })}>
+              <Plus size={16} /> New task
+            </Button>
+          </>
         }
       />
 

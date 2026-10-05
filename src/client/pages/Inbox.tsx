@@ -5,6 +5,7 @@ import { useBulkDismiss, useCategories, useThreads } from "../api";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { ThreadRow } from "../components/ThreadRow";
 import { Button, Card, Empty, PageHeader, SearchInput, Tabs, inputClass } from "../components/ui";
+import { RefreshButton } from "../components/RefreshButton";
 
 type StateTab = EmailState | "all";
 
@@ -38,7 +39,7 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task, snooze it, or dismiss it. Gmail itself is never changed." />
+      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task, snooze it, or dismiss it. Gmail itself is never changed." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
 
       <Tabs<StateTab>
         value={state}

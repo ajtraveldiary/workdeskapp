@@ -7,6 +7,7 @@ import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { ThreadRow } from "../components/ThreadRow";
 import { Card, Empty, PageHeader } from "../components/ui";
+import { RefreshButton } from "../components/RefreshButton";
 
 export function SearchPage() {
   const [params, setParams] = useSearchParams();
@@ -28,7 +29,7 @@ export function SearchPage() {
 
   return (
     <>
-      <PageHeader title="Search" subtitle={q ? `Results for “${q}”` : "Search across emails and tasks."} />
+      <PageHeader title="Search" subtitle={q ? `Results for “${q}”` : "Search across emails and tasks."} actions={<RefreshButton keys={[["threads"], ["tasks"]]} label="Refresh results" />} />
       <form onSubmit={submit} className="relative mb-6 max-w-xl">
         <Search size={18} className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-slate-400" />
         <input

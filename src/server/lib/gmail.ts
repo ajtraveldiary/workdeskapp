@@ -13,7 +13,7 @@ export const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
 ];
 
-const READ_PATHS = [/^\/profile$/, /^\/messages$/, /^\/threads\/[\w-]+$/, /^\/history$/];
+const READ_PATHS = [/^\/profile$/, /^\/messages$/, /^\/messages\/[\w-]+$/, /^\/threads\/[\w-]+$/, /^\/history$/];
 
 export class GmailError extends Error {
   constructor(
@@ -62,9 +62,23 @@ export const getThread = (token: string, threadId: string) =>
     metadataHeaders: ["From", "Subject", "Date"],
   });
 
+// A single message's headers, for a new message in a conversation we already have.
+export const getMessage = (token: string, messageId: string) =>
+  gmailGet<GmailMessage>(token, `/messages/${messageId}`, {
+    format: "metadata",
+    metadataHeaders: ["From", "Subject", "Date"],
+  });
+
+type MessageRef = { id: string; threadId: string; labelIds?: string[] };
+export type HistoryRecord = {
+  messagesAdded?: { message: MessageRef }[];
+  labelsAdded?: { message: MessageRef; labelIds: string[] }[];
+  labelsRemoved?: { message: MessageRef; labelIds: string[] }[];
+};
+
 export const listHistory = (token: string, startHistoryId: string, pageToken?: string) =>
   gmailGet<{
-    history?: { messages?: { id: string; threadId: string }[] }[];
+    history?: HistoryRecord[];
     historyId: string;
     nextPageToken?: string;
   }>(token, "/history", {

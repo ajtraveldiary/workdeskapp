@@ -1,6 +1,6 @@
 import { and, eq, inArray, lte, sql, count } from "drizzle-orm";
 import type { DB } from "../db";
-import { emailThreads, events, gmailAccounts, tasks } from "../db/schema";
+import { emailThreads, events, gmailAccounts, gmailMessages, tasks } from "../db/schema";
 import type { Env } from "../env";
 import { requireEnv, timezone } from "../env";
 import { todayIn } from "./dates";
@@ -8,6 +8,7 @@ import { ensureReportPeriods } from "./reports";
 import { decryptSecret } from "./crypto";
 import {
   GmailError,
+  getMessage,
   getProfile,
   getThread,
   header,
@@ -167,6 +168,40 @@ export async function wakeSnoozed(db: DB, userId?: string) {
 
 export type SyncResult = { fetched: number; remaining: number };
 
+type StoredThread = Pick<
+  typeof emailThreads.$inferSelect,
+  "subject" | "fromName" | "fromEmail" | "snippet" | "lastMessageAt" | "messageCount" | "unread"
+>;
+
+// New messages in a conversation we already store: update it from just those messages.
+export function mergeNewMessages(existing: StoredThread | undefined, threadId: string, messages: GmailMessage[]): ThreadSnapshot | null {
+  const fresh = snapshotFromGmail(threadId, messages);
+  if (!fresh || !existing) return fresh;
+  const newer = fresh.lastMessageAt.getTime() > existing.lastMessageAt.getTime();
+  return {
+    gmailThreadId: threadId,
+    subject: existing.subject,
+    fromName: newer ? fresh.fromName : existing.fromName,
+    fromEmail: newer ? fresh.fromEmail : existing.fromEmail,
+    snippet: newer ? fresh.snippet : existing.snippet,
+    lastMessageAt: newer ? fresh.lastMessageAt : existing.lastMessageAt,
+    messageCount: existing.messageCount + messages.length,
+    unread: existing.unread || fresh.unread,
+    inInbox: true,
+  };
+}
+
+const ignoreMissing = (e: unknown) => {
+  if (e instanceof GmailError && e.status === 404) return null; // deleted in Gmail by the user
+  throw e;
+};
+
+// Pulls new mail without ever downloading the same message twice:
+//  - First sync lists the last 30 days (500 messages per run, continued on later runs) and downloads each
+//    conversation once.
+//  - After that, Gmail's change log says what is new. A new message in a stored conversation is fetched on
+//    its own; a read/unread change is applied from the log without downloading anything.
+//  - Every downloaded message ID is recorded in gmail_messages and skipped from then on.
 export async function syncAccount(db: DB, env: Env, account: Account, retried = false): Promise<SyncResult> {
   if (!account.refreshTokenEnc) throw new Error("Gmail account is not connected");
   const refreshToken = await decryptSecret(account.refreshTokenEnc, requireEnv(env, "TOKEN_ENC_KEY"));
@@ -176,66 +211,156 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
     refreshToken,
   );
 
-  const pending = new Set(account.pendingThreadIds);
+  const pendingThreads = new Set(account.pendingThreadIds);
+  const pendingMessages = new Set(account.pendingMessageIds); // "threadId:messageId"
+  const firstRun = !account.historyId;
   let historyId = account.historyId;
+  let pageToken = account.initialPageToken;
+  const seen: { id: string; threadId: string }[] = [];
+  const unreadChanges = new Map<string, boolean>(); // gmail thread id -> unread
 
-  if (!historyId) {
-    // First sync: recent inbox conversations.
-    const profile = await getProfile(token);
+  if (firstRun) historyId = (await getProfile(token)).historyId;
+
+  // The 30-day backfill, continued from where the last run stopped.
+  if (firstRun || pageToken) {
     const days = Number(env.SYNC_INITIAL_DAYS || 30);
-    let pageToken: string | undefined;
     for (let page = 0; page < 5; page++) {
-      const r = await listMessages(token, `in:inbox newer_than:${days}d`, pageToken);
-      for (const m of r.messages ?? []) pending.add(m.threadId);
-      pageToken = r.nextPageToken;
+      const r = await listMessages(token, `in:inbox newer_than:${days}d`, pageToken ?? undefined);
+      seen.push(...(r.messages ?? []));
+      pageToken = r.nextPageToken ?? null;
       if (!pageToken) break;
     }
-    historyId = profile.historyId;
-  } else {
+  }
+
+  if (!firstRun) {
     try {
-      let pageToken: string | undefined;
+      let next: string | undefined;
       for (let page = 0; page < 10; page++) {
-        const r = await listHistory(token, historyId, pageToken);
-        for (const h of r.history ?? []) for (const m of h.messages ?? []) pending.add(m.threadId);
+        const r = await listHistory(token, historyId!, next);
+        for (const h of r.history ?? []) {
+          for (const a of h.messagesAdded ?? []) seen.push(a.message);
+          for (const l of h.labelsAdded ?? []) if (l.labelIds.includes("UNREAD")) unreadChanges.set(l.message.threadId, true);
+          for (const l of h.labelsRemoved ?? []) if (l.labelIds.includes("UNREAD")) unreadChanges.set(l.message.threadId, false);
+        }
         historyId = r.historyId;
-        pageToken = r.nextPageToken;
-        if (!pageToken) break;
+        next = r.nextPageToken;
+        if (!next) break;
       }
     } catch (e) {
-      // Gmail keeps history for about a week; if ours is too old, start over.
+      // Gmail keeps history for about a week; if ours is too old, list the last 30 days again.
+      // Messages already downloaded are still skipped.
       if (e instanceof GmailError && e.status === 404 && !retried) {
-        await db.update(gmailAccounts).set({ historyId: null }).where(eq(gmailAccounts.id, account.id));
-        return syncAccount(db, env, { ...account, historyId: null }, true);
+        await db.update(gmailAccounts).set({ historyId: null, initialPageToken: null }).where(eq(gmailAccounts.id, account.id));
+        return syncAccount(db, env, { ...account, historyId: null, initialPageToken: null }, true);
       }
       throw e;
     }
   }
 
-  const all = [...pending];
-  const batch = all.slice(0, Number(env.SYNC_BATCH || 30));
+  // Sort what Gmail reported: skip messages already downloaded; a new message in a stored conversation is
+  // fetched on its own; anything else means a new conversation, fetched whole.
+  const unique = [...new Map(seen.map((m) => [m.id, m])).values()];
+  if (unique.length) {
+    const known = new Set<string>();
+    const storedThreads = new Set<string>();
+    for (let i = 0; i < unique.length; i += 500) {
+      const chunk = unique.slice(i, i + 500);
+      const [k, t] = await Promise.all([
+        db
+          .select({ id: gmailMessages.gmailMessageId })
+          .from(gmailMessages)
+          .where(and(eq(gmailMessages.accountId, account.id), inArray(gmailMessages.gmailMessageId, chunk.map((m) => m.id)))),
+        db
+          .select({ id: emailThreads.gmailThreadId })
+          .from(emailThreads)
+          .where(and(eq(emailThreads.userId, account.userId), inArray(emailThreads.gmailThreadId, [...new Set(chunk.map((m) => m.threadId))]))),
+      ]);
+      for (const r of k) known.add(r.id);
+      for (const r of t) storedThreads.add(r.id);
+    }
+    for (const m of unique) {
+      if (known.has(m.id) || pendingThreads.has(m.threadId)) continue;
+      if (storedThreads.has(m.threadId)) pendingMessages.add(`${m.threadId}:${m.id}`);
+      else pendingThreads.add(m.threadId);
+    }
+  }
+
+  // Read/unread changes go straight onto the stored conversation; nothing is downloaded.
+  for (const value of [true, false]) {
+    const ids = [...unreadChanges].filter(([, v]) => v === value).map(([id]) => id);
+    if (ids.length) {
+      await db
+        .update(emailThreads)
+        .set({ unread: value })
+        .where(and(eq(emailThreads.userId, account.userId), inArray(emailThreads.gmailThreadId, ids)));
+    }
+  }
+
+  // Download a batch: new conversations first, then single new messages.
+  let budget = Number(env.SYNC_BATCH || 30);
+  const threadBatch = [...pendingThreads].slice(0, budget);
+  budget -= threadBatch.length;
+  const messageBatch = [...pendingMessages].slice(0, Math.max(0, budget));
+
   const snaps: ThreadSnapshot[] = [];
-  for (let i = 0; i < batch.length; i += 10) {
-    const chunk = await Promise.all(
-      batch.slice(i, i + 10).map((id) =>
-        getThread(token, id).catch((e) => {
-          if (e instanceof GmailError && e.status === 404) return null; // deleted in Gmail by the user
-          throw e;
-        }),
-      ),
-    );
+  const downloaded: (typeof gmailMessages.$inferInsert)[] = [];
+  for (let i = 0; i < threadBatch.length; i += 10) {
+    const chunk = await Promise.all(threadBatch.slice(i, i + 10).map((id) => getThread(token, id).catch(ignoreMissing)));
     for (const t of chunk) {
-      const s = t && snapshotFromGmail(t.id, t.messages ?? []);
+      if (!t) continue;
+      for (const m of t.messages ?? []) downloaded.push({ accountId: account.id, gmailMessageId: m.id, gmailThreadId: t.id });
+      const s = snapshotFromGmail(t.id, t.messages ?? []);
       if (s) snaps.push(s);
     }
   }
-  await applySnapshots(db, account.userId, account.id, snaps);
 
-  const remaining = all.slice(batch.length);
+  const byThread = new Map<string, GmailMessage[]>();
+  for (let i = 0; i < messageBatch.length; i += 10) {
+    const refs = messageBatch.slice(i, i + 10).map((key) => {
+      const [threadId, id] = key.split(":") as [string, string];
+      return { threadId, id };
+    });
+    const got = await Promise.all(refs.map((r) => getMessage(token, r.id).catch(ignoreMissing)));
+    refs.forEach((r, j) => {
+      // Recorded even if Gmail no longer has it, so it isn't asked for again.
+      downloaded.push({ accountId: account.id, gmailMessageId: r.id, gmailThreadId: r.threadId });
+      const m = got[j];
+      if (m) byThread.set(r.threadId, [...(byThread.get(r.threadId) ?? []), m]);
+    });
+  }
+  if (byThread.size) {
+    const stored = await db
+      .select()
+      .from(emailThreads)
+      .where(and(eq(emailThreads.userId, account.userId), inArray(emailThreads.gmailThreadId, [...byThread.keys()])));
+    const storedById = new Map(stored.map((t) => [t.gmailThreadId, t]));
+    for (const [threadId, msgs] of byThread) {
+      const s = mergeNewMessages(storedById.get(threadId), threadId, msgs);
+      if (s) snaps.push(s);
+    }
+  }
+
+  await applySnapshots(db, account.userId, account.id, snaps);
+  if (downloaded.length) await db.insert(gmailMessages).values(downloaded).onConflictDoNothing();
+
+  const restThreads = [...pendingThreads].slice(threadBatch.length);
+  const restMessages = [...pendingMessages].slice(messageBatch.length);
   await db
     .update(gmailAccounts)
-    .set({ historyId, pendingThreadIds: remaining, lastSyncAt: new Date(), lastSyncError: null })
+    .set({
+      historyId,
+      initialPageToken: pageToken,
+      pendingThreadIds: restThreads,
+      pendingMessageIds: restMessages,
+      lastSyncAt: new Date(),
+      lastSyncError: null,
+    })
     .where(eq(gmailAccounts.id, account.id));
-  return { fetched: batch.length, remaining: remaining.length };
+  return {
+    fetched: threadBatch.length + messageBatch.length,
+    // A backfill page still to list counts as remaining work, so "Sync now" keeps going until it is done.
+    remaining: restThreads.length + restMessages.length + (pageToken ? 1 : 0),
+  };
 }
 
 export async function syncUser(db: DB, env: Env, userId: string): Promise<SyncResult> {

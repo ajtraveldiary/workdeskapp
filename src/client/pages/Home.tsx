@@ -35,6 +35,7 @@ import { SnoozeMenu } from "../components/ThreadRow";
 import { EmailStatusTags } from "../components/EmailStatus";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Button, CheckCircle, Menu, PRIORITY_BAR, PriorityPill, Segmented, TONE, cx, type Tone } from "../components/ui";
+import { RefreshButton } from "../components/RefreshButton";
 
 export function HomePage() {
   const { data: summary, error } = useSummary();
@@ -168,9 +169,12 @@ function CommandCenter({ summary, onNew, onEdit }: { summary: NonNullable<Return
         title="Today / Command Center"
         subtitle={new Date(`${today}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}
         action={
-          <Button variant="primary" onClick={onNew}>
-            <Plus size={17} /> New task
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Command Center" />
+            <Button variant="primary" onClick={onNew}>
+              <Plus size={17} /> New task
+            </Button>
+          </div>
         }
       />
       <div className="mt-4 px-5">
@@ -294,7 +298,15 @@ function TodoPanel({ open, completed, onEdit }: { open: number; completed: numbe
 
   return (
     <Panel>
-      <PanelHeader title="To-do Tasks" action={<ViewAll to="/tasks" />} />
+      <PanelHeader
+        title="To-do Tasks"
+        action={
+          <div className="flex shrink-0 items-center gap-3">
+            <ViewAll to="/tasks" />
+            <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh to-do list" />
+          </div>
+        }
+      />
       <div className="mt-4 px-5">
         <Segmented
           value={tab}
@@ -385,7 +397,15 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
 
   return (
     <Panel>
-      <PanelHeader title={pending ? "Pending Emails" : "All Emails"} action={<ViewAll to={pending ? "/inbox" : "/inbox?state=all"} />} />
+      <PanelHeader
+        title={pending ? "Pending Emails" : "All Emails"}
+        action={
+          <div className="flex shrink-0 items-center gap-3">
+            <ViewAll to={pending ? "/inbox" : "/inbox?state=all"} />
+            <RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />
+          </div>
+        }
+      />
       <div className="mt-4 px-5">
         <Segmented<EmailTab>
           value={tab}
