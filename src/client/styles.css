@@ -72,3 +72,44 @@ dialog::backdrop {
   scrollbar-width: thin;
   scrollbar-color: #dcdce4 transparent;
 }
+
+/*
+  Touch first (see CLAUDE.md). Every button, link and tab gets a hit area of at least 44x44px without
+  changing how it looks, so small icons and chips are easy to tap. Touch screens also get press feedback,
+  no double-tap-zoom delay, and 16px form text (smaller text makes iOS zoom into the field).
+*/
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :where(button, a[href], [role="tab"], select, summary) {
+    touch-action: manipulation;
+  }
+
+  :where(button, a[href], [role="tab"]):not(.no-tap) {
+    position: relative;
+  }
+  :where(button, a[href], [role="tab"]):not(.no-tap)::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+
+}
+
+/* Outside the layers on purpose, so it beats text-size utilities on form fields. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  :where(button, a[href], [role="tab"]):not(:disabled):active {
+    opacity: 0.7;
+  }
+}

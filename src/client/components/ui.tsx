@@ -16,7 +16,7 @@ export function Button({ variant = "secondary", size = "md", className, ...rest 
       {...rest}
       className={cx(
         "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
-        size === "sm" ? "h-8 px-3 text-[13px]" : "h-10 px-4 text-sm",
+        size === "sm" ? "h-8 px-3 text-[13px] pointer-coarse:h-11 pointer-coarse:px-4 pointer-coarse:text-sm" : "h-10 px-4 text-sm pointer-coarse:h-11",
         variant === "primary" && "bg-brand-600 text-white hover:bg-brand-700",
         variant === "secondary" && "border border-line bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
         variant === "ghost" && "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
@@ -117,7 +117,7 @@ export function SearchInput({ value, onChange, placeholder }: { value: string; o
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="h-10 w-full rounded-lg border border-line bg-white px-3.5 text-sm placeholder:text-slate-400 focus:border-brand-200 sm:w-72"
+      className="h-10 w-full rounded-lg border border-line bg-white px-3.5 text-sm placeholder:text-slate-400 focus:border-brand-200 pointer-coarse:h-11 sm:w-72"
     />
   );
 }
@@ -140,7 +140,7 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
         <div className="p-5">
           <div className="mb-4 flex items-start justify-between gap-4">
             <h2 className="text-lg font-medium text-ink">{title}</h2>
-            <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100" aria-label="Close">
+            <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100 pointer-coarse:p-2" aria-label="Close">
               <X size={18} />
             </button>
           </div>
@@ -151,7 +151,7 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
   );
 }
 
-export const inputClass = "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-200";
+export const inputClass = "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-200 pointer-coarse:h-11";
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -190,7 +190,7 @@ export function Segmented<T extends string>({
           aria-selected={value === o.value}
           onClick={() => onChange(o.value)}
           className={cx(
-            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors",
+            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors pointer-coarse:px-3.5 pointer-coarse:py-2.5",
             value === o.value
               ? "border-brand-200 bg-tint font-medium text-brand-800"
               : "border-line bg-white text-slate-600 hover:border-slate-300 hover:text-ink",
@@ -247,7 +247,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-ink"
+        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:p-2.5"
         aria-label={label}
         aria-expanded={open}
       >
@@ -257,7 +257,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
         <div className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-line bg-white p-1 shadow-lg">
           {shown.map((it) =>
             it.href ? (
-              <a key={it.label} href={it.href} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50">
+              <a key={it.label} href={it.href} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-3">
                 {it.label}
               </a>
             ) : (
@@ -267,7 +267,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
                   it.onClick?.();
                   setOpen(false);
                 }}
-                className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
+                className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 pointer-coarse:py-3"
               >
                 {it.label}
               </button>
@@ -288,7 +288,7 @@ export function CheckCircle({ checked, onToggle, label, disabled }: { checked: b
       aria-label={label}
       title={label}
       className={cx(
-        "flex size-[22px] shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+        "flex size-[22px] shrink-0 items-center justify-center rounded-md border-2 transition-colors pointer-coarse:size-7",
         checked ? "border-low bg-low text-white" : "border-slate-300 text-transparent hover:border-low hover:text-low",
       )}
     >

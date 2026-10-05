@@ -11,6 +11,11 @@ Single-user Gmail → task dashboard. React + Vite + Tailwind v4 (src/client), H
 - Gmail is read-only. Never add Gmail write calls (trash/delete/modify/labels/send/drafts) or broader scopes. `src/server/lib/gmail.ts` only does GET to `READ_PATHS`; `tests/gmail-safety.test.ts` enforces this.
 - Dismiss / complete / snooze change only WorkDesk's database, and every such action writes an `events` row (audit trail).
 
+## Touch first (always)
+- Every UI change must work well by touch. Tappable controls need a hit area of at least 44×44px: the base CSS in `src/client/styles.css` gives every `button`, `a[href]` and `[role="tab"]` an invisible 44px hit area (opt out with `no-tap`), and small controls also grow on touch devices with Tailwind `pointer-coarse:` sizes (e.g. `h-8 … pointer-coarse:h-11`).
+- Leave at least 8px between neighbouring tap targets on touch; never put an action or needed information only behind hover (tooltips are extras); give pressed feedback (base `:active` style); keep form text 16px on touch (base CSS) so iOS doesn't zoom.
+- Check new screens on the phone preset (375px wide, touch emulation) as well as desktop.
+
 ## Conventions
 - Schema change: edit `src/server/db/schema.ts`, then `npm run db:generate` (commit the SQL in `drizzle/`).
 - Neon HTTP driver: no interactive transactions; prefer bulk inserts/upserts. Keep Worker requests well under the subrequest limit (each DB query and Gmail call is one).

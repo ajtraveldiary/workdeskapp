@@ -34,7 +34,7 @@ export function ThreadRow({
           checked={selected}
           onChange={(e) => onSelect(e.target.checked)}
           aria-label="Select email"
-          className="mt-1 size-4 shrink-0 accent-brand-700"
+          className="mt-1 size-4 shrink-0 accent-brand-700 pointer-coarse:size-6"
         />
       )}
       <div className="min-w-0 flex-1">
@@ -73,7 +73,7 @@ export function ThreadRow({
               href={gmailUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 pointer-coarse:h-11"
             >
               <ExternalLink size={15} /> Open in Gmail
             </a>
@@ -84,7 +84,7 @@ export function ThreadRow({
             value={thread.categoryId ?? ""}
             onChange={(e) => setCategory.mutate({ id: thread.id, categoryId: e.target.value || null })}
             aria-label="Category"
-            className="ml-auto h-8 max-w-40 rounded-md border border-transparent bg-transparent px-1.5 text-xs text-slate-500 hover:border-slate-200"
+            className="ml-auto h-8 max-w-40 rounded-md border border-transparent bg-transparent px-1.5 text-xs text-slate-500 hover:border-slate-200 pointer-coarse:h-11 pointer-coarse:border-line"
           >
             <option value="">No category</option>
             {categories.map((c) => (
@@ -137,14 +137,14 @@ export function SnoozeMenu({ id, icon, compact }: { id: string; icon?: ReactNode
 
   return (
     <div className="relative" ref={ref}>
-      <Button size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Snooze" aria-label="Snooze" className={compact ? "w-8 px-0!" : undefined}>
+      <Button size="sm" onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Snooze" aria-label="Snooze" className={compact ? "w-8 px-0! pointer-coarse:w-11" : undefined}>
         {icon ?? <AlarmClock size={15} />}
         {!compact && " Snooze"}
       </Button>
       {open && (
         <div className="absolute left-0 z-20 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-lg">
           {snoozeOptions().map((o) => (
-            <button key={o.label} onClick={() => pick(o.until)} className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-100">
+            <button key={o.label} onClick={() => pick(o.until)} className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-100 pointer-coarse:py-3">
               {o.label}
             </button>
           ))}
@@ -153,7 +153,7 @@ export function SnoozeMenu({ id, icon, compact }: { id: string; icon?: ReactNode
               type="datetime-local"
               value={custom}
               onChange={(e) => setCustom(e.target.value)}
-              className="h-8 w-full rounded border border-slate-300 px-2 text-xs"
+              className="h-8 w-full rounded border border-slate-300 px-2 text-xs pointer-coarse:h-11"
             />
             <Button size="sm" className="mt-1.5 w-full" disabled={!custom} onClick={() => pick(new Date(custom))}>
               Snooze until then

@@ -65,11 +65,11 @@ export function CalendarPage() {
                 Today
               </Button>
             )}
-            <button onClick={() => setMonth(shiftMonth(month, -1))} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Previous month">
+            <button onClick={() => setMonth(shiftMonth(month, -1))} className="rounded-lg p-2 hover:bg-slate-100 pointer-coarse:p-3" aria-label="Previous month">
               <ChevronLeft size={18} />
             </button>
             <span className="min-w-40 text-center text-lg font-medium text-ink">{monthLabel}</span>
-            <button onClick={() => setMonth(shiftMonth(month, 1))} className="rounded-lg p-2 hover:bg-slate-100" aria-label="Next month">
+            <button onClick={() => setMonth(shiftMonth(month, 1))} className="rounded-lg p-2 hover:bg-slate-100 pointer-coarse:p-3" aria-label="Next month">
               <ChevronRight size={18} />
             </button>
           </div>

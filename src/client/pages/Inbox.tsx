@@ -64,7 +64,7 @@ export function InboxPage() {
           ))}
         </select>
         <label className="flex items-center gap-2 px-1 text-sm text-slate-600">
-          <input type="checkbox" checked={unread} onChange={(e) => setUnread(e.target.checked)} className="accent-brand-700" />
+          <input type="checkbox" checked={unread} onChange={(e) => setUnread(e.target.checked)} className="accent-brand-700 pointer-coarse:size-6" />
           Unread only
         </label>
         {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
@@ -75,7 +75,7 @@ export function InboxPage() {
           <label className="flex items-center gap-2 text-slate-600">
             <input
               type="checkbox"
-              className="size-4 accent-brand-700"
+              className="size-4 accent-brand-700 pointer-coarse:size-6"
               checked={selected.size > 0 && selected.size === threads.length}
               onChange={(e) => setSelected(e.target.checked ? new Set(threads.map((t) => t.id)) : new Set())}
             />

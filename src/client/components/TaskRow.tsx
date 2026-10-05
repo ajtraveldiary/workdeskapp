@@ -32,7 +32,7 @@ export function TaskRow({
         aria-label={done ? "Reopen task" : "Mark task complete"}
         title={done ? "Reopen" : "Mark complete"}
         className={cx(
-          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2",
+          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2 pointer-coarse:size-7",
           done ? "border-low bg-low text-white" : "border-slate-300 text-transparent hover:border-low hover:text-low",
         )}
       >
@@ -90,7 +90,7 @@ export function TaskRow({
           target="_blank"
           rel="noreferrer"
           title="Open email in Gmail"
-          className="shrink-0 rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="shrink-0 rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 pointer-coarse:p-2.5"
         >
           <ExternalLink size={16} />
         </a>
@@ -99,7 +99,7 @@ export function TaskRow({
         <button
           onClick={() => reopen.mutate(task.id)}
           title="Reopen"
-          className="shrink-0 rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          className="shrink-0 rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 pointer-coarse:p-2.5"
         >
           <RotateCcw size={16} />
         </button>

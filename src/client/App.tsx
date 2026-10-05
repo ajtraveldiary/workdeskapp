@@ -194,8 +194,8 @@ function TopBar() {
           />
         </form>
 
-        <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0">
-          <Link to="/search" className="rounded-lg p-2 text-slate-600 sm:hidden" aria-label="Search">
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0 pointer-coarse:gap-2">
+          <Link to="/search" className="rounded-lg p-2 text-slate-600 sm:hidden pointer-coarse:p-2.5" aria-label="Search">
             <Search size={20} />
           </Link>
           <SyncButton />
@@ -224,9 +224,14 @@ function SyncButton() {
       disabled={sync.isPending}
       title={status}
       aria-label={status}
-      className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-60"
+      className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-60 pointer-coarse:p-2.5"
     >
-      <RefreshCw size={20} strokeWidth={1.8} className={cx(sync.isPending && "animate-spin text-brand-600")} />
+      <span className="relative inline-flex">
+        <Mail size={21} strokeWidth={1.8} className={cx(sync.isPending && "text-brand-600")} />
+        <span className="absolute -right-1.5 -bottom-1 flex size-3.5 items-center justify-center rounded-full bg-white">
+          <RefreshCw size={10} strokeWidth={2.8} className={cx(sync.isPending ? "animate-spin text-brand-600" : "text-slate-600")} />
+        </span>
+      </span>
       {a?.lastSyncError && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-urgent" />}
     </button>
   );
@@ -264,7 +269,7 @@ function Notifications() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100" aria-label={`Notifications (${alertCount})`} aria-expanded={open}>
+      <button onClick={() => setOpen((o) => !o)} className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 pointer-coarse:p-2.5" aria-label={`Notifications (${alertCount})`} aria-expanded={open}>
         <Bell size={21} strokeWidth={1.8} />
         {alertCount > 0 && <CountDot n={alertCount} urgent className="-top-0.5 -right-0.5" />}
       </button>
@@ -318,13 +323,13 @@ function UserMenu() {
             <div className="truncate text-xs text-slate-500">{me?.demo ? "Demo mode · sample emails" : (me?.account?.email ?? me?.email)}</div>
           </div>
           <div className="my-1 h-px bg-line" />
-          <Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50">
+          <Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-3">
             <SettingsIcon size={16} /> Settings
           </Link>
           {!me?.demo && (
             <button
               onClick={() => logout().then(() => location.assign("/"))}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 pointer-coarse:py-3"
             >
               <LogOut size={16} /> Sign out
             </button>

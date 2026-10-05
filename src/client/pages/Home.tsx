@@ -118,8 +118,9 @@ function Panel({ children, className }: { children: ReactNode; className?: strin
 
 function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-3 px-5 pt-5">
-      <div className="min-w-0">
+    // Wraps on narrow screens so the buttons drop below the title instead of squeezing it.
+    <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
+      <div className="min-w-0 flex-1 basis-52">
         <h2 className="text-lg font-semibold text-ink sm:text-xl">{title}</h2>
         {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
       </div>
@@ -483,7 +484,7 @@ function EmailCard({
           checked={selected}
           onChange={(e) => onSelect(e.target.checked)}
           aria-label={`Select email from ${thread.fromName ?? thread.fromEmail}`}
-          className="mt-1 size-[18px] shrink-0 accent-brand-600"
+          className="mt-1 size-[18px] shrink-0 accent-brand-600 pointer-coarse:size-6"
         />
       )}
       <div className="min-w-0 flex-1">
@@ -510,7 +511,7 @@ function EmailCard({
               </Button>
             </>
           ) : thread.state === "task" ? (
-            <Link to={`/search?q=${encodeURIComponent(thread.subject)}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300">
+            <Link to={`/search?q=${encodeURIComponent(thread.subject)}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-11 pointer-coarse:px-4">
               <ListChecks size={15} /> View task
             </Link>
           ) : (
@@ -519,7 +520,7 @@ function EmailCard({
             </Button>
           )}
           {gmailUrl && (
-            <a href={gmailUrl} target="_blank" rel="noreferrer" className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink" title="Open in Gmail" aria-label="Open in Gmail">
+            <a href={gmailUrl} target="_blank" rel="noreferrer" className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink pointer-coarse:p-2.5" title="Open in Gmail" aria-label="Open in Gmail">
               <ExternalLink size={16} />
             </a>
           )}
