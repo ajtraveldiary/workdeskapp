@@ -5,11 +5,12 @@ import { HTTPException } from "hono/http-exception";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { emailThreads, events, gmailAccounts, gmailLabels } from "../db/schema";
+import { emailThreads, events, gmailAccounts, gmailLabels, users } from "../db/schema";
 import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, createLabel, deleteLabel, setThreadLabels, updateLabel } from "../lib/gmail";
 import { applyLabelOps, refreshLabels } from "../lib/sync";
-import { labelInput, labelPatch, threadLabelsInput } from "../../shared/schemas";
+import { labelInput, labelPatch, taskLabelSettingsInput, threadLabelsInput } from "../../shared/schemas";
+import { clearMissingTaskLabels, getTaskLabels, importLabel, runLabelRules } from "../lib/taskLabels";
 import { LABEL_COLORS } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
 
@@ -58,6 +59,34 @@ async function seedDemoLabels(db: DB, userId: string) {
 }
 
 export const labelRoutes = new Hono<AppEnv>()
+  // Settings > Mail: the task label and the done label.
+  .get("/task-settings", async (c) => c.json(await getTaskLabels(c.get("db"), c.get("userId"))))
+
+  // Choosing a label (or a different one) turns every email that has it into a task: open for the task
+  // label, completed for the done label. Emails not yet in WorkDesk are fetched over the next syncs.
+  .put("/task-settings", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const input = taskLabelSettingsInput.parse(await c.req.json());
+    if (input.taskLabelId && input.taskLabelId === input.doneLabelId) throw new HTTPException(400, { message: "Choose two different labels" });
+    const known = new Set((await listLocal(db, userId)).map((l) => l.id));
+    for (const id of [input.taskLabelId, input.doneLabelId]) if (id && !known.has(id)) throw new HTTPException(400, { message: "Unknown label" });
+    const before = await getTaskLabels(db, userId);
+    await db.update(users).set(input).where(eq(users.id, userId));
+
+    const result = { created: 0, completed: 0, queued: 0 };
+    for (const id of [input.taskLabelId, input.doneLabelId]) {
+      if (!id || id === before.taskLabelId || id === before.doneLabelId) continue; // only newly chosen labels import
+      const r = await importLabel(db, c.env, userId, id);
+      result.created += r.created;
+      result.completed += r.completed;
+      result.queued += r.queued;
+    }
+    const names = Object.fromEntries((await listLocal(db, userId)).map((l) => [l.id, l.name]));
+    const summary = `Task label: ${input.taskLabelId ? names[input.taskLabelId] : "none"} · Done label: ${input.doneLabelId ? names[input.doneLabelId] : "none"}`;
+    await db.insert(events).values({ userId, entityType: "email", action: "settings.task_labels", summary, detail: { subject: summary } });
+    return c.json(result);
+  })
   // ?refresh=1 re-reads the list from Gmail now; otherwise it is refreshed at most hourly.
   .get("/", async (c) => {
     const db = c.get("db");
@@ -125,6 +154,8 @@ export const labelRoutes = new Hono<AppEnv>()
     await db.delete(gmailLabels).where(and(eq(gmailLabels.userId, userId), eq(gmailLabels.gmailLabelId, id)));
     await db.update(emailThreads).set({ labelIds: sql`array_remove(${emailThreads.labelIds}, ${id})` }).where(eq(emailThreads.userId, userId));
     await db.insert(events).values({ userId, entityType: "email", action: "label.deleted", summary: "Label deleted in Gmail (emails kept)", detail: { subject: current.name } });
+    // A deleted label can't stay the task / done label.
+    await clearMissingTaskLabels(db, userId);
     return c.json({ ok: true });
   });
 
@@ -146,5 +177,7 @@ export const threadLabelRoute = new Hono<AppEnv>().put("/:id/labels", async (c) 
     ...remove.map((labelId) => ({ threadId: t.gmailThreadId, labelId, add: false })),
   ]);
   await db.insert(events).values({ userId, entityType: "email", entityId: t.id, action: "email.labels_changed", summary: "Labels changed (in Gmail too)", detail: { subject: t.subject } });
+  // Adding the task / done label here makes it a task (or completes it), same as in Gmail.
+  await runLabelRules(db, c.env, userId, [t.gmailThreadId]);
   return c.json({ ok: true });
 });

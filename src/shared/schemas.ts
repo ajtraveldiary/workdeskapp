@@ -75,3 +75,8 @@ export const threadLabelsInput = z.object({
   add: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).default([]),
   remove: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).default([]),
 });
+
+export const taskLabelSettingsInput = z.object({
+  taskLabelId: z.string().regex(/^Label_[\w-]+$/).nullable(),
+  doneLabelId: z.string().regex(/^Label_[\w-]+$/).nullable(),
+});

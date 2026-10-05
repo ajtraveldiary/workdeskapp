@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Check, EyeOff, Pencil, RefreshCw, ShieldCheck, Tag, Trash2, X } from "lucide-react";
-import { useCategories, useCategoryActions, useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders } from "../api";
+import { Check, EyeOff, ListChecks, Pencil, RefreshCw, ShieldCheck, Tag, Trash2, X } from "lucide-react";
+import { useCategories, useCategoryActions, useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useTaskLabelSettings } from "../api";
 import { LABEL_COLORS, type LabelColor } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
 import { LabelChip } from "../components/LabelChips";
@@ -22,7 +22,7 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["categories"], ["muted-senders"], ["labels"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["categories"], ["muted-senders"], ["labels"], ["task-label-settings"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         <Card className="p-5">
           <h2 className="font-semibold text-slate-900">Gmail connection</h2>
@@ -168,6 +168,10 @@ function MailSettings() {
       ) : null}
       <div className="mt-2">
         <ErrorNote error={add.error} />
+      </div>
+
+      <div className="mt-6 border-t border-line pt-5">
+        <TaskLabels />
       </div>
 
       <div className="mt-6 border-t border-line pt-5">
@@ -357,6 +361,94 @@ function ColorPicker({ value, onChange, allowNone = true }: { value: LabelColor 
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// Settings > Mail > Tasks and labels: a Gmail label for emails that become tasks, another for completed ones.
+function TaskLabels() {
+  const labels = useLabels().data;
+  const settings = useTaskLabelSettings().data;
+  const save = useSetTaskLabelSettings();
+  const [notice, setNotice] = useState<string | null>(null);
+  const list = labels?.labels ?? [];
+  const nameOf = (id: string | null) => list.find((l) => l.id === id)?.name ?? "";
+
+  const change = (which: "taskLabelId" | "doneLabelId", id: string | null) => {
+    if (!settings) return;
+    const next = { ...settings, [which]: id };
+    if (id) {
+      const what =
+        which === "taskLabelId"
+          ? `Every email labelled "${nameOf(id)}" in Gmail will become a task, and emails you turn into tasks will get this label.`
+          : `Every email labelled "${nameOf(id)}" in Gmail will become a completed task, and emails whose task you complete will get this label.`;
+      if (!confirm(`${what}\n\nEmails not in WorkDesk yet are fetched over the next few syncs. Continue?`)) return;
+    }
+    setNotice(null);
+    save.mutate(next, {
+      onSuccess: (r) => {
+        const parts = [
+          r.created && `${r.created} ${r.created === 1 ? "task" : "tasks"} created`,
+          r.completed && `${r.completed} completed`,
+          r.queued && `${r.queued} more being fetched from Gmail (they'll appear after the next syncs)`,
+        ].filter(Boolean);
+        setNotice(id ? (parts.length ? `Done: ${parts.join(" · ")}.` : "Saved. No emails had this label yet.") : "Saved.");
+      },
+    });
+  };
+
+  const picker = (which: "taskLabelId" | "doneLabelId", label: string, help: string) => {
+    const other = which === "taskLabelId" ? settings?.doneLabelId : settings?.taskLabelId;
+    return (
+      <label className="block">
+        <span className="block text-sm font-medium text-ink">{label}</span>
+        <span className="mt-0.5 block text-xs text-slate-500">{help}</span>
+        <select
+          className={`${inputClass} mt-1.5`}
+          aria-label={label}
+          value={settings?.[which] ?? ""}
+          disabled={!settings || !labels?.canEdit || save.isPending}
+          onChange={(e) => change(which, e.target.value || null)}
+        >
+          <option value="">Don't use a label</option>
+          {list.map((l) => (
+            <option key={l.id} value={l.id} disabled={l.id === other}>
+              {l.name}
+              {l.id === other ? " (used for the other one)" : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  };
+
+  return (
+    <div>
+      <h3 className="flex items-center gap-1.5 text-sm font-medium text-ink">
+        <ListChecks size={15} className="text-slate-500" /> Tasks and Gmail labels
+      </h3>
+      <p className="mt-1 text-sm text-slate-600">
+        Keep Gmail and your tasks in step. Choosing a label also brings in every email that already has it, and adding the
+        label to an email later (in Gmail or here) does the same.
+      </p>
+      {labels && !labels.canEdit && (
+        <p className="mt-2 rounded-lg bg-snooze-soft px-3 py-2 text-[13px] text-snooze-ink">
+          <a href="/api/auth/google" className="font-medium underline">
+            Sign in again
+          </a>{" "}
+          to let WorkDesk label emails in Gmail.
+        </p>
+      )}
+      <div className="mt-3 grid gap-4 sm:grid-cols-2">
+        {picker("taskLabelId", "Label for emails that become tasks", "Its emails are tasks in WorkDesk.")}
+        {picker("doneLabelId", "Label for emails whose task is completed", "Replaces the task label when the task is done.")}
+      </div>
+      {save.isPending && <p className="mt-2 text-xs text-slate-500">Applying… this can take a moment for a busy label.</p>}
+      {notice && <p className="mt-2 rounded-lg bg-low-soft px-3 py-2 text-[13px] text-low-ink">{notice}</p>}
+      <div className="mt-2">
+        <ErrorNote error={save.error} />
+      </div>
+      {list.length === 0 && labels && <p className="mt-2 text-xs text-slate-500">Create labels under Gmail labels below.</p>}
     </div>
   );
 }

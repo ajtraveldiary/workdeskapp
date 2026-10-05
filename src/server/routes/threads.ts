@@ -6,6 +6,7 @@ import type { DB } from "../db";
 import { EMAIL_STATES, emailThreads, gmailAccounts, tasks } from "../db/schema";
 import { logEvent } from "../lib/audit";
 import { maintain } from "../lib/maintenance";
+import { reconcileThreadLabels } from "../lib/taskLabels";
 import { isMuted, notMuted } from "../lib/muted";
 import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, getAttachment, getMessageFull, getThreadFull, markThreadRead } from "../lib/gmail";
@@ -147,7 +148,8 @@ export const threadRoutes = new Hono<AppEnv>()
       selectThreads(db)
         .where(and(...where))
         .orderBy(desc(emailThreads.lastMessageAt))
-        .limit(300),
+        // Optional ?limit= (1-300): the home card asks for fewer to keep each response light.
+        .limit(Math.min(300, Math.max(1, Number(c.req.query("limit")) || 300))),
       db
         .select({ state: emailThreads.state, muted: isMuted, n: count() })
         .from(emailThreads)
@@ -268,6 +270,8 @@ export const threadRoutes = new Hono<AppEnv>()
       { userId, entityType: "email", entityId: t.id, action: "email.converted", summary: "Converted to task", detail: { subject: t.subject } },
       { userId, entityType: "task", entityId: task!.id, action: "task.created", summary: "Created from email", detail: { title: task!.title, subject: t.subject } },
     ]);
+    // Settings > Mail task label, if one is chosen (best effort; never blocks creating the task).
+    await reconcileThreadLabels(db, c.env, userId, [t.id]).catch(() => undefined);
     return c.json(task, 201);
   })
 

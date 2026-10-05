@@ -92,6 +92,8 @@ src/
 
 **Easy on Gmail and the database:** the first sync lists the last 30 days; after that only Gmail's change log is read, and each message is downloaded once (read/unread changes need no download). The browser keeps a saved copy of loaded screens in localStorage, so pages open without database reads; every screen and list has a refresh button that reloads it on demand.
 
+**Task labels (Settings → Mail):** pick one Gmail label for emails that are tasks and one for emails whose task is done. WorkDesk keeps them in step both ways: turning an email into a task adds the task label in Gmail, completing it swaps in the done label (reopening swaps back), and any email that gets either label, in Gmail or in WorkDesk, becomes an open or completed task. Choosing a label brings in every email that already has it (its 500 most recent), fetching ones WorkDesk didn't have over the next syncs.
+
 **What's stored:** for each email, only the subject, sender, Gmail snippet, dates, and IDs. Message bodies are never stored. Refresh tokens are encrypted with AES-GCM.
 
 ## Version number

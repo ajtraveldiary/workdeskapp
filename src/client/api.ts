@@ -38,14 +38,14 @@ export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<Me>("
 
 export const useSummary = () => useQuery({ queryKey: ["summary"], queryFn: () => api<Summary>("/summary") });
 
-export type ThreadFilter = { state: EmailState | "all"; unread?: boolean; q?: string; category?: string };
+export type ThreadFilter = { state: EmailState | "all"; unread?: boolean; q?: string; category?: string; limit?: number };
 export const useThreads = (f: ThreadFilter, enabled = true) =>
   useQuery({
     enabled,
     queryKey: ["threads", f],
     queryFn: () =>
       api<{ threads: Thread[]; counts: Partial<Record<EmailState, number>>; hiddenPending: number }>(
-        `/threads${qs({ state: f.state, unread: f.unread && "1", q: f.q, category: f.category })}`,
+        `/threads${qs({ state: f.state, unread: f.unread && "1", q: f.q, category: f.category, limit: f.limit ? String(f.limit) : undefined })}`,
       ),
     placeholderData: (prev) => prev,
   });
@@ -177,6 +177,21 @@ export function useLabelActions() {
     }),
     remove: useMutation({ mutationFn: (id: string) => api(`/labels/${encodeURIComponent(id)}`, { method: "DELETE" }), onSettled: refresh }),
   };
+}
+
+// Settings > Mail: the task label and the done label.
+type TaskLabelSettings = { taskLabelId: string | null; doneLabelId: string | null };
+export const useTaskLabelSettings = () =>
+  useQuery({ queryKey: ["task-label-settings"], queryFn: () => api<TaskLabelSettings>("/labels/task-settings") });
+
+// Choosing a label turns the emails that have it into tasks, so every list refreshes afterwards.
+export function useSetTaskLabelSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: TaskLabelSettings) =>
+      api<{ created: number; completed: number; queued: number }>("/labels/task-settings", { method: "PUT", body: input }),
+    onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "categories" }),
+  });
 }
 
 export function useSetThreadLabels() {

@@ -22,6 +22,10 @@ export const users = pgTable("users", {
   id: id(),
   email: text("email").notNull().unique(),
   name: text("name"),
+  // Settings > Mail: Gmail label put on emails that become tasks, and the one for completed tasks.
+  // Choosing one also turns every email that already has it into a task (open / completed).
+  taskLabelId: text("task_label_id"),
+  doneLabelId: text("done_label_id"),
   // Shown on the home screen profile card, e.g. "Clerk, District Hospital".
   title: text("title"),
   picture: text("picture"),

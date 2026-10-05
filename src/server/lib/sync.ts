@@ -5,6 +5,7 @@ import type { Env } from "../env";
 import { requireEnv, timezone } from "../env";
 import { todayIn } from "./dates";
 import { ensureReportPeriods } from "./reports";
+import { clearMissingTaskLabels, getTaskLabels, runLabelRules } from "./taskLabels";
 import { decryptSecret } from "./crypto";
 import {
   GmailError,
@@ -69,7 +70,9 @@ function decodeEntities(s: string) {
 }
 
 // Writes Gmail snapshots into the queue, applying the state rules. Never touches Gmail.
-export async function applySnapshots(db: DB, userId: string, accountId: string | null, snaps: ThreadSnapshot[]) {
+// alsoTrackLabels: conversations carrying one of these labels are kept even if they aren't in the inbox
+// (the task / done labels from Settings > Mail, so labelled emails can become tasks).
+export async function applySnapshots(db: DB, userId: string, accountId: string | null, snaps: ThreadSnapshot[], alsoTrackLabels: string[] = []) {
   if (snaps.length === 0) return;
   const ids = snaps.map((s) => s.gmailThreadId);
   const existing = await db
@@ -94,7 +97,8 @@ export async function applySnapshots(db: DB, userId: string, accountId: string |
   const log: EventRow[] = [];
   for (const s of snaps) {
     const prev = byGmailId.get(s.gmailThreadId);
-    if (!prev && !s.inInbox) continue; // only track conversations that reached the inbox
+    // Only track conversations that reached the inbox, or carry a task/done label.
+    if (!prev && !s.inInbox && !s.labelIds?.some((l) => alsoTrackLabels.includes(l))) continue;
     const d = onThreadUpdate(prev, s.lastMessageAt, prev ? (openCounts.get(prev.id) ?? 0) : 0);
     const stateChanged = !prev || d.state !== prev.state;
     rows.push({
@@ -225,6 +229,7 @@ export async function refreshLabels(db: DB, token: string, account: Account, for
     .where(and(eq(gmailLabels.userId, account.userId), own.length ? notInArray(gmailLabels.gmailLabelId, own.map((l) => l.id)) : undefined));
   await db.update(gmailAccounts).set({ labelsSyncedAt: new Date() }).where(eq(gmailAccounts.id, account.id));
   account.labelsSyncedAt = new Date();
+  await clearMissingTaskLabels(db, account.userId);
 }
 
 const BACKFILL_LABELS_PER_RUN = 5;
@@ -446,7 +451,11 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
     }
   }
 
-  await applySnapshots(db, account.userId, account.id, snaps);
+  const taskLabels = await getTaskLabels(db, account.userId);
+  const watched = [taskLabels.taskLabelId, taskLabels.doneLabelId].filter((x): x is string => !!x);
+  await applySnapshots(db, account.userId, account.id, snaps, watched);
+  // Emails that now carry the task/done label become tasks (and the reverse labels are tidied).
+  if (watched.length) await runLabelRules(db, env, account.userId, [...new Set([...snaps.map((x) => x.gmailThreadId), ...labelOps.map((o) => o.threadId)])]);
   if (downloaded.length) await db.insert(gmailMessages).values(downloaded).onConflictDoNothing();
 
   const restThreads = [...pendingThreads].slice(threadBatch.length);

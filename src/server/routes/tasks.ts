@@ -8,6 +8,7 @@ import { timezone } from "../env";
 import { logEvent } from "../lib/audit";
 import { todayIn } from "../lib/dates";
 import { setPeriodStatus } from "../lib/reports";
+import { reconcileThreadLabels } from "../lib/taskLabels";
 import { taskInput, taskPatch } from "../../shared/schemas";
 import type { Task, TaskView } from "../../shared/types";
 
@@ -170,6 +171,7 @@ export const taskRoutes = new Hono<AppEnv>()
     await logEvent(db, { userId, entityType: "task", entityId: t.id, action: "task.completed", summary: "Completed", detail: { title: t.title } });
     // A report's task and its period move together.
     if (t.reportPeriodId) await setPeriodStatus(db, userId, t.reportPeriodId, "submitted");
+    if (t.threadId) await reconcileThreadLabels(db, c.env, userId, [t.threadId]).catch(() => undefined);
     return c.json({ ok: true });
   })
 
@@ -181,5 +183,6 @@ export const taskRoutes = new Hono<AppEnv>()
     await db.update(tasks).set({ status: "open", completedAt: null, updatedAt: new Date() }).where(eq(tasks.id, t.id));
     await logEvent(db, { userId, entityType: "task", entityId: t.id, action: "task.reopened", summary: "Reopened", detail: { title: t.title } });
     if (t.reportPeriodId) await setPeriodStatus(db, userId, t.reportPeriodId, "pending");
+    if (t.threadId) await reconcileThreadLabels(db, c.env, userId, [t.threadId]).catch(() => undefined);
     return c.json({ ok: true });
   });

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import {
   ArrowRight,
@@ -488,10 +488,19 @@ function TodoRow({
 // --- Emails: pending queue, or every email with its status ---
 
 type EmailTab = "pending" | "all";
+const ALL_PAGE = 100;
 
 function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
   const [tab, setTab] = useState<EmailTab>("pending");
-  const { data } = useThreads({ state: tab === "pending" ? "needs_decision" : "all" });
+  // All emails loads in pages of ALL_PAGE (a full 300 at once can be too heavy for the server).
+  const [limit, setLimit] = useState(ALL_PAGE);
+  const { data, error, isFetching, isPlaceholderData, refetch } = useThreads(
+    tab === "pending" ? { state: "needs_decision" } : { state: "all", limit },
+  );
+  // While the other tab's list is still on screen as a placeholder, show "Loading…" instead of it.
+  const shownTab = useRef(tab);
+  if (data && !isPlaceholderData) shownTab.current = tab;
+  const waiting = !data || (isPlaceholderData && shownTab.current !== tab);
   const bulk = useBulkDismiss();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<Thread | null>(null);
@@ -563,7 +572,14 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
         </div>
       )}
       <Scroll>
-        {!data ? (
+        {error && !isFetching ? (
+          <div className="px-5 py-10 text-center text-sm">
+            <p className="text-urgent-ink">Couldn't load {pending ? "pending" : "all"} emails: {error.message}</p>
+            <Button size="sm" className="mt-3" onClick={() => refetch()}>
+              Try again
+            </Button>
+          </div>
+        ) : waiting ? (
           <Loading />
         ) : threads.length === 0 ? (
           <Empty icon={Mail} title={pending ? "Every email accounted for" : "No emails yet"}>
@@ -582,6 +598,13 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
                 onOpen={setViewing}
               />
             ))}
+            {!pending && threads.length >= limit && (
+              <li className="py-3 text-center">
+                <Button size="sm" onClick={() => setLimit((n) => n + ALL_PAGE)} disabled={isFetching}>
+                  {isFetching ? "Loading…" : "Show more"}
+                </Button>
+              </li>
+            )}
           </ul>
         )}
       </Scroll>
