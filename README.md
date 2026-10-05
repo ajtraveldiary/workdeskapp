@@ -4,7 +4,7 @@
 
 A personal dashboard on top of Gmail. Every email that comes in needs a decision: turn it into a task, snooze it, or dismiss it. Tasks keep a link back to their email, and a History screen records every decision.
 
-**Gmail is never changed.** WorkDesk asks only for `gmail.readonly`, and the code has no way to delete, trash, archive, label, mark read, or send anything. `tests/gmail-safety.test.ts` fails if any such code is added.
+**Gmail is only ever changed in one way:** opening an email in WorkDesk's viewer marks that conversation read in Gmail (approved 2026-10-06). WorkDesk asks for `gmail.modify` for this; the code has no way to delete, trash, archive, add labels or send anything, and `tests/gmail-safety.test.ts` fails if any such code is added. Dismissing, snoozing and completing tasks never touch Gmail.
 
 ## Run it locally
 
@@ -34,7 +34,7 @@ To start again with fresh demo data, stop the server and delete `.data`.
 1. In https://console.cloud.google.com, create a project (for example "WorkDesk").
 2. Go to **APIs & Services → Library**, find **Gmail API**, and enable it.
 3. Under **Google Auth Platform → Branding / Audience**, set up the consent screen. If your mailbox is a Google Workspace account, choose **Internal**. If it's an ordinary @gmail.com account, choose **External** and add yourself as a test user.
-4. Under **Data access**, add the scope `.../auth/gmail.readonly`.
+4. Under **Data access**, add the scope `.../auth/gmail.modify` (reading, plus marking opened emails read).
 5. Under **Clients**, create a **Web application** client with these authorized redirect URIs:
    - `http://localhost:5173/api/auth/google/callback`
    - `https://<your-worker>.workers.dev/api/auth/google/callback` (add this once it's deployed)
@@ -76,7 +76,7 @@ src/
     worker.ts      Cloudflare entry (fetch + cron)
     dev.ts         Local Node entry
     db/schema.ts   Drizzle schema: users, gmail_accounts, email_threads, tasks, categories, events
-    lib/gmail.ts   Read-only Gmail client (GET requests to an allowlist of read endpoints)
+    lib/gmail.ts   Gmail client: GET requests to an allowlist of read endpoints, plus one fixed mark-read call
     lib/sync.ts    Incremental sync via Gmail history, in batches
     lib/threadRules.ts  What a new message does to a dismissed, snoozed, or converted email
     lib/reports.ts Creates each report period and its task ahead of the due date; keeps period and task in step

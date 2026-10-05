@@ -44,8 +44,9 @@ export function SettingsPage() {
           )}
           <p className="mt-3 flex gap-2 text-sm text-slate-600">
             <ShieldCheck size={18} className="shrink-0 text-brand-700" />
-            Read-only access. Dismissing an email or completing a task only changes WorkDesk; nothing is deleted, archived,
-            labelled or marked read in Gmail.
+            WorkDesk reads your Gmail. The only change it makes there is marking an email read when you open it in
+            WorkDesk. Dismissing an email or completing a task only changes WorkDesk; nothing is deleted, archived or
+            labelled in Gmail.
           </p>
         </Card>
 

@@ -1,8 +1,10 @@
-// Gmail access for WorkDesk. READ-ONLY BY CONSTRUCTION:
-//  - The OAuth scope requested is gmail.readonly, so Google itself refuses any change.
-//  - This module can only issue HTTP GET requests, and only to the read endpoints listed in
-//    READ_PATHS. There is no code path that deletes, trashes, archives, labels, marks read,
-//    or sends anything. tests/gmail-safety.test.ts fails the build if such code appears.
+// Gmail access for WorkDesk. READ-ONLY BY CONSTRUCTION, with one exception the user approved
+// (2026-10-06): opening an email in WorkDesk's viewer marks that conversation read in Gmail.
+//  - Reads: HTTP GET only, and only to the read endpoints listed in READ_PATHS.
+//  - The single change: markThreadRead() removes the UNREAD label. Its path and body are fixed in code.
+//  - There is no code path that deletes, trashes, archives, adds labels, or sends anything.
+//    tests/gmail-safety.test.ts fails the build if such code appears.
+//  - The scope is gmail.modify (needed for the mark-read); it does not allow permanent deletion.
 
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 
@@ -10,10 +12,21 @@ export const GMAIL_SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.modify",
 ];
 
-const READ_PATHS = [/^\/profile$/, /^\/messages$/, /^\/messages\/[\w-]+$/, /^\/threads\/[\w-]+$/, /^\/history$/];
+// True when a granted scope list allows the mark-read change (accounts that signed in before it was
+// added only have gmail.readonly and must sign in again).
+export const canMarkRead = (grantedScopes: string | null | undefined) => !!grantedScopes?.includes("gmail.modify");
+
+const READ_PATHS = [
+  /^\/profile$/,
+  /^\/messages$/,
+  /^\/messages\/[\w-]+$/,
+  /^\/messages\/[\w-]+\/attachments\/[\w-]+$/,
+  /^\/threads\/[\w-]+$/,
+  /^\/history$/,
+];
 
 export class GmailError extends Error {
   constructor(
@@ -68,6 +81,41 @@ export const getMessage = (token: string, messageId: string) =>
     format: "metadata",
     metadataHeaders: ["From", "Subject", "Date"],
   });
+
+// --- Full content, read on demand for the email viewer (never stored in the database) ---
+
+export type GmailPart = {
+  partId?: string;
+  mimeType?: string;
+  filename?: string;
+  headers?: GmailHeader[];
+  body?: { size?: number; data?: string; attachmentId?: string };
+  parts?: GmailPart[];
+};
+export type GmailFullMessage = Omit<GmailMessage, "payload"> & { payload?: GmailPart };
+
+export const getThreadFull = (token: string, threadId: string) =>
+  gmailGet<{ id: string; messages?: GmailFullMessage[] }>(token, `/threads/${threadId}`, { format: "full" });
+
+export const getMessageFull = (token: string, messageId: string) =>
+  gmailGet<GmailFullMessage>(token, `/messages/${messageId}`, { format: "full" });
+
+export const getAttachment = (token: string, messageId: string, attachmentId: string) =>
+  gmailGet<{ size: number; data: string }>(token, `/messages/${messageId}/attachments/${attachmentId}`);
+
+// --- The one change WorkDesk makes in Gmail ---
+
+// Marks a conversation read by removing its UNREAD label. Nothing else can be changed through here:
+// the path and the request body are fixed.
+export async function markThreadRead(accessToken: string, threadId: string): Promise<void> {
+  if (!/^[\w-]+$/.test(threadId)) throw new Error("Invalid Gmail thread id");
+  const res = await fetch(`${GMAIL}/threads/${threadId}/modify`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
+    body: JSON.stringify({ removeLabelIds: ["UNREAD"] }),
+  });
+  if (!res.ok) throw new GmailError(`Gmail mark-read failed: ${res.status} ${await res.text()}`, res.status);
+}
 
 type MessageRef = { id: string; threadId: string; labelIds?: string[] };
 export type HistoryRecord = {

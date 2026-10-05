@@ -6,6 +6,7 @@ import { useCategories, useTasks, useThreads } from "../api";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { ThreadRow } from "../components/ThreadRow";
+import { EmailViewer } from "../components/EmailViewer";
 import { Card, Empty, PageHeader } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
@@ -15,6 +16,7 @@ export function SearchPage() {
   const [draft, setDraft] = useState(q);
   useEffect(() => setDraft(q), [q]);
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
+  const [viewing, setViewing] = useState<Thread | null>(null);
   const categories = useCategories().data ?? [];
   const threads = useThreads({ state: "all", q }, !!q);
   const tasks = useTasks({ view: "any", q }, !!q);
@@ -66,7 +68,7 @@ export function SearchPage() {
               ) : (
                 <ul className="divide-y divide-line">
                   {emailList.map((t: Thread) => (
-                    <ThreadRow key={t.id} thread={t} categories={categories} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} />
+                    <ThreadRow key={t.id} thread={t} categories={categories} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} onOpen={setViewing} />
                   ))}
                 </ul>
               )}
@@ -75,6 +77,14 @@ export function SearchPage() {
         </div>
       )}
 
+      <EmailViewer
+        thread={viewing}
+        onClose={() => setViewing(null)}
+        onCreateTask={(thread) => {
+          setViewing(null);
+          setDialog({ kind: "fromThread", thread });
+        }}
+      />
       <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
     </>
   );

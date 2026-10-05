@@ -49,7 +49,7 @@ export function createApp(opts: Options) {
     await next();
   });
 
-  // --- Sign-in with Google (also connects Gmail read-only) ---
+  // --- Sign-in with Google (also connects Gmail: reading, plus marking opened emails read) ---
 
   const redirectUri = (env: Env) => `${requireEnv(env, "APP_URL").replace(/\/$/, "")}/api/auth/google/callback`;
   const secure = (env: Env) => (env.APP_URL ?? "").startsWith("https://");
@@ -87,12 +87,12 @@ export function createApp(opts: Options) {
     const email = claims.email?.toLowerCase();
     if (!email || !claims.email_verified) return fail("Google did not return a verified email.");
     if (email !== requireEnv(env, "OWNER_EMAIL").toLowerCase()) return fail(`${email} is not allowed to use this WorkDesk.`);
-    if (!tokens.scope?.includes("gmail.readonly")) return fail("Gmail read access was not granted.");
+    if (!/gmail\.(readonly|modify)/.test(tokens.scope ?? "")) return fail("Gmail access was not granted.");
 
     const db = c.get("db");
     const { user } = await ensureUser(db, email, claims.name);
     if (claims.picture) await db.update(users).set({ picture: claims.picture }).where(eq(users.id, user.id));
-    const values: Partial<typeof gmailAccounts.$inferInsert> = {};
+    const values: Partial<typeof gmailAccounts.$inferInsert> = { grantedScopes: tokens.scope ?? null };
     if (tokens.refresh_token) values.refreshTokenEnc = await encryptSecret(tokens.refresh_token, requireEnv(env, "TOKEN_ENC_KEY"));
     await db
       .insert(gmailAccounts)

@@ -8,6 +8,7 @@ import { addDays, todayIn } from "../lib/dates";
 import { syncUser, wakeSnoozed } from "../lib/sync";
 import { demoArrival } from "../lib/users";
 import { maintain } from "../lib/maintenance";
+import { canMarkRead } from "../lib/gmail";
 import { categoryInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
@@ -33,6 +34,7 @@ export const miscRoutes = new Hono<AppEnv>()
             lastSyncAt: account.lastSyncAt,
             lastSyncError: account.lastSyncError,
             pending: account.pendingThreadIds.length,
+            canMarkRead: canMarkRead(account.grantedScopes),
           }
         : null,
     });

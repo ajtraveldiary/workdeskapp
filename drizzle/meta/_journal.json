@@ -36,6 +36,13 @@
       "when": 1791220554479,
       "tag": "0004_fetch_once",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791227445240,
+      "tag": "0005_granted_scopes",
+      "breakpoints": true
     }
   ]
 }

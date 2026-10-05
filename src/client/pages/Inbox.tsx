@@ -4,6 +4,7 @@ import type { EmailState, Thread } from "../../shared/types";
 import { useBulkDismiss, useCategories, useThreads } from "../api";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { ThreadRow } from "../components/ThreadRow";
+import { EmailViewer } from "../components/EmailViewer";
 import { Button, Card, Empty, PageHeader, SearchInput, Tabs, inputClass } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
@@ -17,6 +18,7 @@ export function InboxPage() {
   const [category, setCategory] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
+  const [viewing, setViewing] = useState<Thread | null>(null);
   const categories = useCategories().data ?? [];
   const { data, error, isFetching } = useThreads({ state, q, unread, category });
   const bulkDismiss = useBulkDismiss();
@@ -39,7 +41,7 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task, snooze it, or dismiss it. Gmail itself is never changed." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
+      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task, snooze it, or dismiss it. Deciding never changes Gmail; opening an email marks it read there." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
 
       <Tabs<StateTab>
         value={state}
@@ -109,12 +111,21 @@ export function InboxPage() {
                 selected={selected.has(t.id)}
                 onSelect={inQueue ? (on) => toggle(t.id, on) : undefined}
                 onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
+                onOpen={setViewing}
               />
             ))}
           </ul>
         )}
       </Card>
 
+      <EmailViewer
+        thread={viewing}
+        onClose={() => setViewing(null)}
+        onCreateTask={(thread) => {
+          setViewing(null);
+          setDialog({ kind: "fromThread", thread });
+        }}
+      />
       <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
     </>
   );

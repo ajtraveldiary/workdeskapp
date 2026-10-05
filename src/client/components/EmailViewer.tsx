@@ -1,0 +1,344 @@
+// Full-screen email viewer: the conversation on one side, the selected attachment (PDF or image) on the other.
+// On phones the preview opens over the email with a Back button. Content comes from Gmail on demand and
+// is never stored in WorkDesk's database.
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Paperclip, X } from "lucide-react";
+import type { EmailAttachment, EmailMessageContent, Thread } from "../../shared/types";
+import { gmailThreadUrl } from "../../shared/gmailUrl";
+import { attachmentUrl, useDismiss, useEmailContent, useMarkRead } from "../api";
+import { formatDateTime } from "../format";
+import { Avatar } from "./Avatar";
+import { EmailStatusTags } from "./EmailStatus";
+import { SnoozeMenu } from "./ThreadRow";
+import { Button, cx } from "./ui";
+
+const PdfPreview = lazy(() => import("./PdfPreview"));
+
+const VIEWABLE_IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
+const isPdf = (a: EmailAttachment) => a.mimeType === "application/pdf" || a.filename.toLowerCase().endsWith(".pdf");
+const isImage = (a: EmailAttachment) => VIEWABLE_IMAGE.test(a.mimeType);
+
+type Selected = { message: EmailMessageContent; attachment: EmailAttachment };
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+export function EmailViewer({ thread, onClose, onCreateTask }: { thread: Thread | null; onClose: () => void; onCreateTask: (t: Thread) => void }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (thread && !d.open) d.showModal();
+    if (!thread && d.open) d.close();
+  }, [thread]);
+
+  return (
+    <dialog
+      ref={ref}
+      onClose={onClose}
+      aria-label={thread?.subject ?? "Email"}
+      className="m-0 h-dvh max-h-none w-full max-w-none bg-white p-0 sm:m-auto sm:h-[min(100dvh-2rem,60rem)] sm:w-[min(100vw-2rem,84rem)] sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl"
+    >
+      {thread && <ViewerBody key={thread.id} thread={thread} onClose={onClose} onCreateTask={onCreateTask} />}
+    </dialog>
+  );
+}
+
+function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose: () => void; onCreateTask: (t: Thread) => void }) {
+  const { data, error, isPending, refetch } = useEmailContent(thread);
+  const dismiss = useDismiss();
+  const markRead = useMarkRead();
+  const gmailUrl = gmailThreadUrl(thread.accountEmail, thread.gmailThreadId);
+  const inQueue = thread.state === "needs_decision";
+
+  // Once an unread email has loaded, mark it read here and in Gmail (one request per opening).
+  const markedRef = useRef(false);
+  useEffect(() => {
+    if (data && thread.unread && !markedRef.current) {
+      markedRef.current = true;
+      markRead.mutate(thread.id);
+    }
+  }, [data, thread.unread, thread.id, markRead]);
+  const needsSignIn = markRead.data?.marked === false && markRead.data.reason === "permission";
+
+  // Newest message first; the preview starts on the newest PDF (or image) in the conversation.
+  const messages = useMemo(() => [...(data?.messages ?? [])].reverse(), [data]);
+  const files = useMemo(() => messages.flatMap((m) => m.attachments.filter((a) => !a.inline).map((a) => ({ message: m, attachment: a }))), [messages]);
+  const [selected, setSelected] = useState<Selected | null>(null);
+  const [mobilePreview, setMobilePreview] = useState(false);
+  useEffect(() => {
+    if (!selected && files.length) setSelected(files.find((f) => isPdf(f.attachment)) ?? files.find((f) => isImage(f.attachment)) ?? files[0]!);
+  }, [files, selected]);
+
+  const open = (f: Selected) => {
+    setSelected(f);
+    setMobilePreview(true);
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      {/* Header: subject, sender and the usual email actions */}
+      <header className="flex flex-wrap items-start gap-3 border-b border-line px-4 py-3 sm:px-5">
+        <div className="min-w-0 flex-1 basis-64">
+          <h2 className="line-clamp-2 text-lg leading-snug font-semibold text-ink">{thread.subject}</h2>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-slate-500">
+            <span className="font-medium text-slate-700">{thread.fromName ?? thread.fromEmail}</span>
+            <span>· {formatDateTime(thread.lastMessageAt)}</span>
+            {thread.messageCount > 1 && <span>· {thread.messageCount} messages</span>}
+            {!inQueue && <EmailStatusTags thread={thread} />}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {inQueue && (
+            <>
+              <Button size="sm" variant="primary" onClick={() => onCreateTask(thread)}>
+                <ListPlus size={15} /> Create task
+              </Button>
+              <SnoozeMenu id={thread.id} />
+              <Button size="sm" onClick={() => dismiss.mutate(thread.id, { onSuccess: onClose })} disabled={dismiss.isPending} title="Remove from the queue. Gmail is not changed.">
+                <X size={15} /> Dismiss
+              </Button>
+            </>
+          )}
+          {gmailUrl && (
+            <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:size-11" title="Open in Gmail" aria-label="Open in Gmail">
+              <ExternalLink size={18} />
+            </a>
+          )}
+          <button onClick={onClose} className="inline-flex size-9 items-center justify-center rounded-full border border-line text-slate-600 hover:bg-slate-100 hover:text-ink pointer-coarse:size-11" aria-label="Close" title="Close">
+            <X size={18} />
+          </button>
+        </div>
+      </header>
+
+      {needsSignIn && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-snooze-soft px-4 py-2 text-[13px] text-snooze-ink sm:px-5">
+          To also mark emails read in Gmail, WorkDesk needs one more permission.
+          <a href="/api/auth/google" className="font-medium underline">
+            Sign in again to allow it
+          </a>
+        </div>
+      )}
+
+      <div className="relative grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        {/* Left: the conversation and its attachments */}
+        <section className="scroll-thin min-h-0 overflow-y-auto px-4 py-4 sm:px-5" aria-label="Email">
+          {isPending ? (
+            <p className="py-16 text-center text-sm text-slate-500">Loading email…</p>
+          ) : error ? (
+            <div className="py-16 text-center text-sm">
+              <p className="text-urgent-ink">Couldn't load this email: {error.message}</p>
+              <div className="mt-3 flex justify-center gap-2">
+                <Button size="sm" onClick={() => refetch()}>Try again</Button>
+                {gmailUrl && (
+                  <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-[13px] font-medium pointer-coarse:h-11">
+                    Open in Gmail
+                  </a>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {messages.map((m, i) => (
+                <MessageBlock key={m.id} threadId={thread.id} message={m} initiallyOpen={i === 0} selected={selected} onOpenFile={open} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Right (wide screens): the selected attachment */}
+        <aside className="hidden min-h-0 flex-col border-l border-line bg-canvas-soft lg:flex" aria-label="Attachment preview">
+          <Preview threadId={thread.id} selected={selected} empty={!isPending && files.length === 0} />
+        </aside>
+
+        {/* Phones and tablets: the preview opens over the email */}
+        {mobilePreview && selected && (
+          <div className="absolute inset-0 z-10 flex flex-col bg-canvas-soft lg:hidden">
+            <button onClick={() => setMobilePreview(false)} className="flex items-center gap-2 border-b border-line bg-white px-4 py-3 text-left text-sm font-medium text-ink">
+              <ArrowLeft size={18} /> Back to email
+            </button>
+            <Preview threadId={thread.id} selected={selected} empty={false} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MessageBlock({
+  threadId,
+  message,
+  initiallyOpen,
+  selected,
+  onOpenFile,
+}: {
+  threadId: string;
+  message: EmailMessageContent;
+  initiallyOpen: boolean;
+  selected: Selected | null;
+  onOpenFile: (f: Selected) => void;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
+  const name = message.fromName ?? message.fromEmail ?? "Unknown sender";
+  const files = message.attachments.filter((a) => !a.inline);
+  const cids = useMemo(
+    () => Object.fromEntries(message.attachments.filter((a) => a.contentId).map((a) => [a.contentId!, attachmentUrl(threadId, message.id, a.partId)])),
+    [message, threadId],
+  );
+
+  return (
+    <article className="rounded-xl border border-line bg-white">
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-start gap-3 px-4 py-3 text-left" aria-expanded={open}>
+        <Avatar name={name} size={36} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="truncate text-sm font-semibold text-ink">{name}</span>
+            <span className="ml-auto shrink-0 text-xs text-slate-500">{formatDateTime(message.date)}</span>
+          </div>
+          <p className="truncate text-xs text-slate-500">
+            {message.fromEmail}
+            {message.to && ` → ${message.to}`}
+          </p>
+          {!open && <p className="mt-1 line-clamp-1 text-[13px] text-slate-500">{(message.text ?? "").slice(0, 160) || "(Tap to show)"}</p>}
+        </div>
+        {files.length > 0 && <Paperclip size={15} className="mt-1 shrink-0 text-slate-400" aria-label={`${files.length} attachments`} />}
+      </button>
+
+      {open && (
+        <div className="border-t border-line px-4 py-4">
+          {message.html ? (
+            <HtmlBody html={message.html} cids={cids} />
+          ) : (
+            <div className="text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">{message.text || "(No text in this message)"}</div>
+          )}
+
+          {files.length > 0 && (
+            <div className="mt-5">
+              <h3 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-slate-600">
+                <Paperclip size={14} /> Attachments ({files.length})
+              </h3>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {files.map((a) => {
+                  const active = selected?.message.id === message.id && selected.attachment.partId === a.partId;
+                  const Icon = isPdf(a) ? FileText : isImage(a) ? ImageIcon : File;
+                  return (
+                    <button
+                      key={a.partId}
+                      onClick={() => onOpenFile({ message, attachment: a })}
+                      className={cx(
+                        "flex min-h-24 flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors",
+                        active ? "border-brand-500 bg-tint ring-1 ring-brand-500" : "border-line bg-white hover:border-slate-300",
+                      )}
+                    >
+                      <span className={cx("flex size-9 items-center justify-center rounded-md text-white", isPdf(a) ? "bg-urgent" : isImage(a) ? "bg-info" : "bg-slate-400")}>
+                        <Icon size={18} />
+                      </span>
+                      <span className="line-clamp-2 text-[13px] leading-snug font-medium break-all text-ink">{a.filename}</span>
+                      <span className="text-xs text-slate-500">{formatSize(a.size)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+// HTML email in a sandboxed frame: no scripts or forms, links open in a new tab, and pictures from the
+// internet stay blocked until asked for (they can tell the sender you opened the email).
+function HtmlBody({ html, cids }: { html: string; cids: Record<string, string> }) {
+  const ref = useRef<HTMLIFrameElement>(null);
+  const [remote, setRemote] = useState(false);
+  const hasRemote = /<img[^>]+src\s*=\s*["']?https?:|url\(\s*["']?https?:/i.test(html);
+  const srcDoc = useMemo(() => {
+    const body = html.replace(/cid:([^"'\s)>]+)/gi, (m, id: string) => cids[id] ?? m);
+    const ext = remote ? " https: http:" : "";
+    const csp = `default-src 'none'; img-src 'self' data:${ext}; style-src 'unsafe-inline'${ext}; font-src data:${ext}`;
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><style>html,body{margin:0;background:#fff}body{font:14px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif;color:#1c1d26;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}</style></head><body>${body}</body></html>`;
+  }, [html, cids, remote]);
+
+  // Grow the frame to fit the email, so the panel scrolls rather than the frame.
+  useEffect(() => {
+    const frame = ref.current;
+    if (!frame) return;
+    let observer: ResizeObserver | null = null;
+    const fit = () => {
+      const doc = frame.contentDocument;
+      if (!doc?.body) return;
+      frame.style.height = `${doc.documentElement.scrollHeight}px`;
+      observer?.disconnect();
+      observer = new ResizeObserver(() => (frame.style.height = `${doc.documentElement.scrollHeight}px`));
+      observer.observe(doc.body);
+    };
+    frame.addEventListener("load", fit);
+    if (frame.contentDocument?.readyState === "complete") fit();
+    return () => {
+      frame.removeEventListener("load", fit);
+      observer?.disconnect();
+    };
+  }, [srcDoc]);
+
+  return (
+    <div>
+      {hasRemote && !remote && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-snooze-soft px-3 py-2 text-[13px] text-snooze-ink">
+          Pictures from the internet are hidden to protect your privacy.
+          <button onClick={() => setRemote(true)} className="font-medium underline">
+            Show pictures
+          </button>
+        </div>
+      )}
+      <iframe ref={ref} title="Email content" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcDoc={srcDoc} className="block min-h-24 w-full border-0" />
+    </div>
+  );
+}
+
+function Preview({ threadId, selected, empty }: { threadId: string; selected: Selected | null; empty: boolean }) {
+  if (!selected) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-sm text-slate-500">
+        <Paperclip size={28} className="mb-2 text-slate-300" />
+        {empty ? "No attachments in this conversation." : "Choose an attachment to preview it here."}
+      </div>
+    );
+  }
+  const { message, attachment: a } = selected;
+  const url = attachmentUrl(threadId, message.id, a.partId);
+  return (
+    <>
+      <div className="flex items-center gap-2 border-b border-line bg-white px-4 py-2.5">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink" title={a.filename}>
+          {a.filename}
+        </span>
+        {(isPdf(a) || isImage(a)) && (
+          <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-11">
+            <ExternalLink size={15} /> Open
+          </a>
+        )}
+        <a href={attachmentUrl(threadId, message.id, a.partId, true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-11">
+          <Download size={15} /> Download
+        </a>
+      </div>
+      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto p-4">
+        {isPdf(a) ? (
+          <Suspense fallback={<p className="py-10 text-center text-sm text-slate-500">Loading PDF…</p>}>
+            <PdfPreview url={url} />
+          </Suspense>
+        ) : isImage(a) ? (
+          <img src={url} alt={a.filename} className="mx-auto max-w-full rounded-md border border-line bg-white" />
+        ) : (
+          <div className="py-16 text-center text-sm text-slate-500">
+            <File size={32} className="mx-auto mb-2 text-slate-300" />
+            No preview for this file type. Download it to open.
+          </div>
+        )}
+      </div>
+    </>
+  );
+}

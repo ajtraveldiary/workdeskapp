@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, Category, RangeTasks, EmailState, Me, Report, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { AuditEvent, Category, EmailContent, RangeTasks, EmailState, Me, Report, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { ReportInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -140,6 +140,33 @@ export function useSync() {
     onSettled: () => qc.invalidateQueries(),
   });
 }
+
+// --- Email viewer ---
+
+// Keyed by the conversation's latest-message time: a given version never changes, so it is fetched from
+// Gmail once and then served from the browser's HTTP cache (not saved to localStorage; emails can be large).
+export const useEmailContent = (thread: Pick<Thread, "id" | "lastMessageAt"> | null) => {
+  const version = thread ? new Date(thread.lastMessageAt).getTime() : 0;
+  return useQuery({
+    queryKey: ["email-content", thread?.id, version],
+    queryFn: () => api<EmailContent>(`/threads/${thread!.id}/content?v=${version}`),
+    enabled: !!thread,
+    staleTime: Infinity,
+  });
+};
+
+// Marks an opened email read (in Gmail and here). Answers { marked: false, reason: "permission" } when the
+// account signed in before this permission existed.
+export function useMarkRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<{ marked: boolean; reason?: "permission" }>(`/threads/${id}/read`, { method: "POST" }),
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ["threads"] }), qc.invalidateQueries({ queryKey: ["summary"] })]),
+  });
+}
+
+export const attachmentUrl = (threadId: string, messageId: string, partId: string, download = false) =>
+  `/api/threads/${threadId}/messages/${encodeURIComponent(messageId)}/parts/${encodeURIComponent(partId)}${download ? "?download=1" : ""}`;
 
 // --- Reports ---
 

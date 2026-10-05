@@ -33,6 +33,7 @@ import {
 import { formatDay, formatTime, formatWhen } from "../format";
 import { SnoozeMenu } from "../components/ThreadRow";
 import { EmailStatusTags } from "../components/EmailStatus";
+import { EmailViewer } from "../components/EmailViewer";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Button, CheckCircle, Menu, PRIORITY_BAR, PriorityPill, Segmented, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
@@ -382,6 +383,7 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
   const { data } = useThreads({ state: tab === "pending" ? "needs_decision" : "all" });
   const bulk = useBulkDismiss();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [viewing, setViewing] = useState<Thread | null>(null);
   const threads = data?.threads ?? [];
   const counts = data?.counts ?? {};
   const total = Object.values(counts).reduce((a, n) => a + (n ?? 0), 0);
@@ -450,11 +452,20 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
                 selected={selected.has(t.id)}
                 onSelect={pending ? (on) => toggle(t.id, on) : undefined}
                 onCreateTask={onCreateTask}
+                onOpen={setViewing}
               />
             ))}
           </ul>
         )}
       </Scroll>
+      <EmailViewer
+        thread={viewing}
+        onClose={() => setViewing(null)}
+        onCreateTask={(t) => {
+          setViewing(null);
+          onCreateTask(t);
+        }}
+      />
     </Panel>
   );
 }
@@ -465,12 +476,14 @@ function EmailCard({
   selected,
   onSelect,
   onCreateTask,
+  onOpen,
 }: {
   thread: Thread;
   showStatus: boolean;
   selected: boolean;
   onSelect?: (on: boolean) => void;
   onCreateTask: (t: Thread) => void;
+  onOpen: (t: Thread) => void;
 }) {
   const dismiss = useDismiss();
   const restore = useRestore();
@@ -488,6 +501,8 @@ function EmailCard({
         />
       )}
       <div className="min-w-0 flex-1">
+        {/* Tapping the email opens it with its attachments */}
+        <button onClick={() => onOpen(thread)} className="block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
         <div className="flex items-baseline gap-2">
           {thread.unread && <span className="size-2 shrink-0 -translate-y-px rounded-full bg-brand-600" title="Unread in Gmail" />}
           <span className={cx("truncate text-sm", thread.unread ? "font-semibold text-ink" : "font-medium text-slate-800")}>
@@ -499,6 +514,7 @@ function EmailCard({
         <p className="mt-0.5 truncate text-sm text-ink">{thread.subject}</p>
         {showStatus && <EmailStatusTags thread={thread} className="mt-1.5" />}
         <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-slate-500">{thread.snippet}</p>
+        </button>
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
           {inQueue ? (
             <>

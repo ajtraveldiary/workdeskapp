@@ -1,0 +1,1 @@
+ALTER TABLE "gmail_accounts" ADD COLUMN "granted_scopes" text;

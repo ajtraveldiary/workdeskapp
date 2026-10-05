@@ -13,12 +13,15 @@ export function ThreadRow({
   selected,
   onSelect,
   onCreateTask,
+  onOpen,
 }: {
   thread: Thread;
   categories: Category[];
   selected?: boolean;
   onSelect?: (checked: boolean) => void;
   onCreateTask: (t: Thread) => void;
+  // When given, tapping the email's text opens it in the viewer.
+  onOpen?: (t: Thread) => void;
 }) {
   const dismiss = useDismiss();
   const restore = useRestore();
@@ -38,6 +41,7 @@ export function ThreadRow({
         />
       )}
       <div className="min-w-0 flex-1">
+        <OpenArea thread={thread} onOpen={onOpen}>
         <div className="flex items-baseline gap-2">
           {thread.unread && <span className="size-2 shrink-0 translate-y-[-1px] rounded-full bg-brand-600" title="Unread in Gmail" />}
           <span className={cx("truncate text-sm", thread.unread ? "font-semibold text-slate-900" : "text-slate-700")}>
@@ -48,6 +52,7 @@ export function ThreadRow({
         </div>
         <p className={cx("truncate", thread.unread ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{thread.subject}</p>
         <p className="line-clamp-1 text-sm text-slate-500">{thread.snippet}</p>
+        </OpenArea>
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {inQueue && (
@@ -96,6 +101,15 @@ export function ThreadRow({
         </div>
       </div>
     </li>
+  );
+}
+
+function OpenArea({ thread, onOpen, children }: { thread: Thread; onOpen?: (t: Thread) => void; children: ReactNode }) {
+  if (!onOpen) return <>{children}</>;
+  return (
+    <button onClick={() => onOpen(thread)} className="block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
+      {children}
+    </button>
   );
 }
 

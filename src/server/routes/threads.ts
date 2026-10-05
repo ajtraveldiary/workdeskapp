@@ -6,11 +6,14 @@ import type { DB } from "../db";
 import { EMAIL_STATES, emailThreads, gmailAccounts, tasks } from "../db/schema";
 import { logEvent } from "../lib/audit";
 import { maintain } from "../lib/maintenance";
+import { accessTokenFor } from "../lib/gmailAuth";
+import { GmailError, canMarkRead, getAttachment, getMessageFull, getThreadFull, markThreadRead } from "../lib/gmail";
+import { decodeBase64Url, demoContent, demoPdf, findPart, parseMessage } from "../lib/emailContent";
 import { bulkIds, snoozeInput, taskInput, threadPatch } from "../../shared/schemas";
 import { events } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
-import type { ThreadTaskInfo } from "../../shared/types";
+import type { EmailContent, EmailMessageContent, ThreadTaskInfo } from "../../shared/types";
 
 // Every route here changes only WorkDesk's own database. Gmail is never written to.
 
@@ -55,6 +58,29 @@ export async function withTaskInfo<T extends ThreadRow>(db: DB, threads: T[], to
     : [];
   const byThread = new Map(rows.map((r) => [r.threadId, { open: Number(r.open), done: Number(r.done), overdue: !!r.overdue }]));
   return threads.map((t) => ({ ...t, task: (byThread.get(t.id) ?? null) as ThreadTaskInfo | null }));
+}
+
+const IMMUTABLE = "private, max-age=31536000, immutable";
+// Shown inside the page; every other type is download-only.
+const VIEWABLE = new Set(["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp"]);
+
+function wrap(text: string, width: number) {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/)) {
+    if ((line + " " + word).trim().length > width) {
+      lines.push(line.trim());
+      line = word;
+    } else line += " " + word;
+  }
+  if (line.trim()) lines.push(line.trim());
+  return lines;
+}
+
+async function loadAccount(db: DB, accountId: string) {
+  const [a] = await db.select().from(gmailAccounts).where(eq(gmailAccounts.id, accountId));
+  if (!a) throw new HTTPException(404, { message: "Gmail account not found" });
+  return a;
 }
 
 async function loadThread(db: DB, userId: string, id: string) {
@@ -126,6 +152,80 @@ export const threadRoutes = new Hono<AppEnv>()
       threads: await withTaskInfo(db, threads, todayIn(timezone(c.env))),
       counts: Object.fromEntries(counts.map((r) => [r.state, r.n])),
     });
+  })
+
+  // The whole conversation, read from Gmail for the viewer. The client asks with ?v=<version> (the time of
+  // the latest message); content for a given version never changes, so the browser may keep it and the
+  // same email isn't fetched from Gmail twice. Nothing is stored in the database.
+  .get("/:id/content", async (c) => {
+    const db = c.get("db");
+    const t = await loadThread(db, c.get("userId"), c.req.param("id"));
+    const version = t.lastMessageAt.getTime();
+    let messages: EmailMessageContent[];
+    if (!t.accountId) {
+      messages = demoContent(t);
+    } else {
+      const token = await accessTokenFor(c.env, await loadAccount(db, t.accountId));
+      const g = await getThreadFull(token, t.gmailThreadId);
+      messages = (g.messages ?? []).map(parseMessage);
+    }
+    c.header("Cache-Control", c.req.query("v") === String(version) ? IMMUTABLE : "no-store");
+    return c.json({ threadId: t.id, version, messages } satisfies EmailContent);
+  })
+
+  // One attachment, streamed from Gmail. Only PDFs and common images are shown in the page; anything else
+  // is offered as a download, and the response is sandboxed so a file can never run code on this site.
+  .get("/:id/messages/:messageId/parts/:partId", async (c) => {
+    const db = c.get("db");
+    const t = await loadThread(db, c.get("userId"), c.req.param("id"));
+    const partId = c.req.param("partId");
+    let bytes: Uint8Array;
+    let mime: string;
+    let filename: string;
+    if (!t.accountId) {
+      bytes = demoPdf(t.subject, [`From: ${t.fromName ?? t.fromEmail ?? ""}`, "", ...wrap(t.snippet, 80), "", "(Sample attachment in demo mode.)"]);
+      mime = "application/pdf";
+      filename = `${t.subject.slice(0, 40)}.pdf`;
+    } else {
+      const token = await accessTokenFor(c.env, await loadAccount(db, t.accountId));
+      const m = await getMessageFull(token, c.req.param("messageId"));
+      const part = m.threadId === t.gmailThreadId ? findPart(m, partId) : null;
+      if (!part) throw new HTTPException(404, { message: "Attachment not found" });
+      const data = part.body?.data ?? (part.body?.attachmentId ? (await getAttachment(token, m.id, part.body.attachmentId)).data : "");
+      bytes = decodeBase64Url(data);
+      mime = (part.mimeType ?? "application/octet-stream").toLowerCase();
+      filename = part.filename || `attachment-${partId}`;
+    }
+    const viewable = VIEWABLE.has(mime) && c.req.query("download") !== "1";
+    return c.body(bytes as Uint8Array<ArrayBuffer>, 200, {
+      "Content-Type": viewable ? mime : "application/octet-stream",
+      "Content-Disposition": `${viewable ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      // A PDF can't run code on this site, and browsers refuse to show sandboxed PDFs in a new tab.
+      ...(viewable && mime === "application/pdf" ? {} : { "Content-Security-Policy": "sandbox" }),
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": IMMUTABLE,
+    });
+  })
+
+  // Opening an email in the viewer marks it read in Gmail too (approved by the user). Without the newer
+  // permission it reports that a fresh sign-in is needed instead of failing.
+  .post("/:id/read", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const t = await loadThread(db, userId, c.req.param("id"));
+    if (t.accountId) {
+      const account = await loadAccount(db, t.accountId);
+      if (!canMarkRead(account.grantedScopes)) return c.json({ marked: false, reason: "permission" as const });
+      try {
+        await markThreadRead(await accessTokenFor(c.env, account), t.gmailThreadId);
+      } catch (e) {
+        if (e instanceof GmailError && e.status === 403) return c.json({ marked: false, reason: "permission" as const });
+        throw e;
+      }
+      await logEvent(db, { userId, entityType: "email", entityId: t.id, action: "email.marked_read", summary: "Marked read in Gmail (opened in WorkDesk)", detail: { subject: t.subject } });
+    }
+    await db.update(emailThreads).set({ unread: false }).where(eq(emailThreads.id, t.id));
+    return c.json({ marked: true });
   })
 
   .post("/:id/task", async (c) => {

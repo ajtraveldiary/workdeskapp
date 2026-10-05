@@ -10,7 +10,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=.env src/server/db/migrate.ts",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "db:migrate:prod": "tsx --env-file=.env.production src/server/db/migrate.ts"
   },
   "type": "module",
   "dependencies": {
@@ -23,6 +24,7 @@
     "drizzle-orm": "^0.45.3",
     "hono": "^4.13.13",
     "lucide-react": "^1.52.0",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router": "^8.4.0",

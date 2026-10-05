@@ -5,3 +5,6 @@ dist
 .wrangler
 .data
 *.log
+# Any .env.<name> file holds secrets (e.g. .env.production); only the example is shared
+.env.*
+!.env.example

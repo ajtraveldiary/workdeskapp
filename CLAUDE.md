@@ -8,7 +8,7 @@ Single-user Gmail → task dashboard. React + Vite + Tailwind v4 (src/client), H
 - Approval covers only the item the user named; it does not extend to related code.
 
 ## Non-negotiable
-- Gmail is read-only. Never add Gmail write calls (trash/delete/modify/labels/send/drafts) or broader scopes. `src/server/lib/gmail.ts` only does GET to `READ_PATHS`; `tests/gmail-safety.test.ts` enforces this.
+- Gmail is read-only with one user-approved exception (2026-10-06): opening an email in the viewer marks that conversation read (`markThreadRead`, removes UNREAD only). Never add any other Gmail write (trash/delete/archive/labels/send/drafts/batchModify) or broader scopes than `gmail.modify`. `src/server/lib/gmail.ts` otherwise only does GET to `READ_PATHS`; `tests/gmail-safety.test.ts` enforces this.
 - Dismiss / complete / snooze change only WorkDesk's database, and every such action writes an `events` row (audit trail).
 
 ## Touch first (always)

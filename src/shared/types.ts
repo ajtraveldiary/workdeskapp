@@ -69,7 +69,7 @@ export type Me = {
   demo: boolean;
   today: string;
   timezone: string;
-  account: { email: string; lastSyncAt: string | null; lastSyncError: string | null; pending: number } | null;
+  account: { email: string; lastSyncAt: string | null; lastSyncError: string | null; pending: number; canMarkRead: boolean } | null;
 };
 
 export type Summary = {
@@ -129,3 +129,30 @@ export type Report = {
   // Generated periods, newest first.
   periods: ReportPeriod[];
 };
+
+// --- Email viewer (content read from Gmail on demand; never stored in the database) ---
+
+export type EmailAttachment = {
+  partId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  // Set for images embedded in the HTML body (referenced as cid:...).
+  contentId: string | null;
+  inline: boolean;
+};
+
+export type EmailMessageContent = {
+  id: string;
+  fromName: string | null;
+  fromEmail: string | null;
+  to: string;
+  cc: string;
+  date: string;
+  subject: string;
+  html: string | null;
+  text: string | null;
+  attachments: EmailAttachment[];
+};
+
+export type EmailContent = { threadId: string; version: number; messages: EmailMessageContent[] };

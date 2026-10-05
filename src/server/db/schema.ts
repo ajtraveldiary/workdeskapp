@@ -33,6 +33,8 @@ export const gmailAccounts = pgTable("gmail_accounts", {
   email: text("email").notNull().unique(),
   // AES-GCM encrypted; never sent to the browser.
   refreshTokenEnc: text("refresh_token_enc"),
+  // Scopes granted at the last sign-in (space separated), e.g. whether marking read is allowed.
+  grantedScopes: text("granted_scopes"),
   historyId: text("history_id"),
   // Gmail threads seen as changed but not fetched yet; drained a batch at a time.
   pendingThreadIds: jsonb("pending_thread_ids").$type<string[]>().notNull().default([]),
