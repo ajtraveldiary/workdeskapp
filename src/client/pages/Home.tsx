@@ -325,7 +325,7 @@ function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit
       <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <div className="min-w-0 flex-1 @lg:flex @lg:items-center @lg:gap-4">
         <button onClick={() => onEdit(task)} className="block w-full min-w-0 text-left @lg:w-auto @lg:flex-1">
-          <span className={cx("line-clamp-2 text-sm leading-snug font-semibold sm:text-[15px]", a.done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</span>
+          <span className={cx("line-clamp-2 text-[13px] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</span>
           <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[13px]">{subtitleFor(task, categories)}</span>
           {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800">New reply</span>}
         </button>
@@ -459,7 +459,7 @@ function TodoRow({
           className="block max-w-full text-left"
           aria-label={task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`}
         >
-          <span className={cx("line-clamp-2 text-sm leading-snug font-semibold sm:text-[15px]", a.done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</span>
+          <span className={cx("line-clamp-2 text-[13px] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</span>
           <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[13px]">{context}</span>
         </button>
         <div className="mt-1.5 flex items-center justify-between gap-2 sm:mt-2">
