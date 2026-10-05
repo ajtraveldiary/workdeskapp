@@ -12,7 +12,8 @@ Single-user Gmail → task dashboard. React + Vite + Tailwind v4 (src/client), H
 - Dismiss / complete / snooze change only WorkDesk's database, and every such action writes an `events` row (audit trail).
 
 ## Touch first (always)
-- Every UI change must work well by touch. Tappable controls need a hit area of at least 44×44px: the base CSS in `src/client/styles.css` gives every `button`, `a[href]` and `[role="tab"]` an invisible 44px hit area (opt out with `no-tap`), and small controls also grow on touch devices with Tailwind `pointer-coarse:` sizes (e.g. `h-8 … pointer-coarse:h-11`).
+- Every UI change must work well by touch. Tappable controls need a hit area of at least 44×44px: the base CSS in `src/client/styles.css` gives every `button`, `a[href]` and `[role="tab"]` an invisible 44px hit area (opt out with `no-tap`). Rely on that invisible area, not on bigger visuals.
+- Keep phones compact and information-dense (user feedback 2026-10-06: the enlarged mobile UI showed too little). Visible controls stay small; touch devices get at most a modest bump (`h-8 … pointer-coarse:h-9`). On phones use tight padding (`px-3`), one-row sideways-scrolling tabs (`no-scrollbar`), short labels, and hide descriptive text (page subtitles) rather than wrapping. Home on phones shows the stats as one row of four and one panel at a time via the Today / To-do / Emails switcher.
 - Leave at least 8px between neighbouring tap targets on touch; never put an action or needed information only behind hover (tooltips are extras); give pressed feedback (base `:active` style); keep form text 16px on touch (base CSS) so iOS doesn't zoom.
 - Check new screens on the phone preset (375px wide, touch emulation) as well as desktop.
 

@@ -89,13 +89,13 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
             type="button"
             key={q.label}
             onClick={() => setDueDate(q.value)}
-            className="rounded-full border border-slate-200 px-2.5 py-0.5 text-xs text-slate-600 hover:bg-slate-100 pointer-coarse:px-3.5 pointer-coarse:py-2 pointer-coarse:text-sm"
+            className="rounded-full border border-slate-200 px-2.5 py-0.5 text-xs text-slate-600 hover:bg-slate-100 pointer-coarse:py-1"
           >
             {q.label}
           </button>
         ))}
         {dueDate && (
-          <button type="button" onClick={() => { setDueDate(""); setDueTime(""); }} className="px-2 py-0.5 text-xs text-slate-500 hover:underline pointer-coarse:py-2 pointer-coarse:text-sm">
+          <button type="button" onClick={() => { setDueDate(""); setDueTime(""); }} className="px-2 py-0.5 text-xs text-slate-500 hover:underline pointer-coarse:py-1">
             No date
           </button>
         )}

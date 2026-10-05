@@ -58,7 +58,7 @@ export function TasksPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchInput value={q} onChange={setQ} placeholder="Search tasks…" />
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${inputClass} w-auto`} aria-label="Category filter">
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${inputClass} w-auto! min-w-0 max-w-52 sm:max-w-none`} aria-label="Category filter">
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>

@@ -16,7 +16,7 @@ export function Button({ variant = "secondary", size = "md", className, ...rest 
       {...rest}
       className={cx(
         "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
-        size === "sm" ? "h-8 px-3 text-[13px] pointer-coarse:h-11 pointer-coarse:px-4 pointer-coarse:text-sm" : "h-10 px-4 text-sm pointer-coarse:h-11",
+        size === "sm" ? "h-8 px-3 text-[13px] pointer-coarse:h-9" : "h-10 px-4 text-sm pointer-coarse:h-9",
         variant === "primary" && "bg-brand-600 text-white hover:bg-brand-700",
         variant === "secondary" && "border border-line bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
         variant === "ghost" && "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
@@ -57,10 +57,10 @@ export function Card({ children, className }: { children: ReactNode; className?:
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <header className="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-5">
       <div>
-        <h1 className="text-[22px] font-medium text-ink">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        <h1 className="text-lg font-medium text-ink sm:text-[22px]">{title}</h1>
+        {subtitle && <p className="mt-1 hidden text-sm text-slate-500 sm:block">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
@@ -86,8 +86,8 @@ export function Tabs<T extends string>({
   options: { value: T; label: string; count?: number }[];
 }) {
   return (
-    <div className="-mx-4 mb-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <div role="tablist" className="flex gap-6 border-b border-line">
+    <div className="no-scrollbar -mx-3 mb-3 overflow-x-auto px-3 sm:mx-0 sm:mb-4 sm:px-0">
+      <div role="tablist" className="flex gap-4 border-b border-line sm:gap-6">
         {options.map((o) => (
           <button
             key={o.value}
@@ -117,7 +117,7 @@ export function SearchInput({ value, onChange, placeholder }: { value: string; o
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="h-10 w-full rounded-lg border border-line bg-white px-3.5 text-sm placeholder:text-slate-400 focus:border-brand-200 pointer-coarse:h-11 sm:w-72"
+      className="h-10 w-full rounded-lg border border-line bg-white px-3.5 text-sm placeholder:text-slate-400 focus:border-brand-200 pointer-coarse:h-9 sm:w-72"
     />
   );
 }
@@ -151,7 +151,7 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
   );
 }
 
-export const inputClass = "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-200 pointer-coarse:h-11";
+export const inputClass = "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-200 pointer-coarse:h-9";
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -182,7 +182,7 @@ export function Segmented<T extends string>({
   options: { value: T; label: string; count?: number; tone?: Tone }[];
 }) {
   return (
-    <div role="tablist" className="flex flex-wrap gap-1.5">
+    <div role="tablist" className="no-scrollbar -mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
       {options.map((o) => (
         <button
           key={o.value}
@@ -190,7 +190,7 @@ export function Segmented<T extends string>({
           aria-selected={value === o.value}
           onClick={() => onChange(o.value)}
           className={cx(
-            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors pointer-coarse:px-3.5 pointer-coarse:py-2.5",
+            "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors",
             value === o.value
               ? "border-brand-200 bg-tint font-medium text-brand-800"
               : "border-line bg-white text-slate-600 hover:border-slate-300 hover:text-ink",
@@ -247,7 +247,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:p-2.5"
+        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:p-2"
         aria-label={label}
         aria-expanded={open}
       >
@@ -257,7 +257,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
         <div className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-line bg-white p-1 shadow-lg">
           {shown.map((it) =>
             it.href ? (
-              <a key={it.label} href={it.href} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-3">
+              <a key={it.label} href={it.href} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
                 {it.label}
               </a>
             ) : (
@@ -267,7 +267,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
                   it.onClick?.();
                   setOpen(false);
                 }}
-                className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 pointer-coarse:py-3"
+                className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 pointer-coarse:py-2.5"
               >
                 {it.label}
               </button>
@@ -288,7 +288,7 @@ export function CheckCircle({ checked, onToggle, label, disabled }: { checked: b
       aria-label={label}
       title={label}
       className={cx(
-        "flex size-[22px] shrink-0 items-center justify-center rounded-md border-2 transition-colors pointer-coarse:size-7",
+        "flex size-[22px] shrink-0 items-center justify-center rounded-md border-2 transition-colors pointer-coarse:size-6",
         checked ? "border-low bg-low text-white" : "border-slate-300 text-transparent hover:border-low hover:text-low",
       )}
     >

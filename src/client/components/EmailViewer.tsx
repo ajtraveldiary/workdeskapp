@@ -104,11 +104,11 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
             </>
           )}
           {gmailUrl && (
-            <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:size-11" title="Open in Gmail" aria-label="Open in Gmail">
+            <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:size-9" title="Open in Gmail" aria-label="Open in Gmail">
               <ExternalLink size={18} />
             </a>
           )}
-          <button onClick={onClose} className="inline-flex size-9 items-center justify-center rounded-full border border-line text-slate-600 hover:bg-slate-100 hover:text-ink pointer-coarse:size-11" aria-label="Close" title="Close">
+          <button onClick={onClose} className="inline-flex size-9 items-center justify-center rounded-full border border-line text-slate-600 hover:bg-slate-100 hover:text-ink pointer-coarse:size-9" aria-label="Close" title="Close">
             <X size={18} />
           </button>
         </div>
@@ -134,7 +134,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
               <div className="mt-3 flex justify-center gap-2">
                 <Button size="sm" onClick={() => refetch()}>Try again</Button>
                 {gmailUrl && (
-                  <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-[13px] font-medium pointer-coarse:h-11">
+                  <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-[13px] font-medium pointer-coarse:h-9">
                     Open in Gmail
                   </a>
                 )}
@@ -317,11 +317,11 @@ function Preview({ threadId, selected, empty }: { threadId: string; selected: Se
           {a.filename}
         </span>
         {(isPdf(a) || isImage(a)) && (
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-11">
+          <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
             <ExternalLink size={15} /> Open
           </a>
         )}
-        <a href={attachmentUrl(threadId, message.id, a.partId, true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-11">
+        <a href={attachmentUrl(threadId, message.id, a.partId, true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
           <Download size={15} /> Download
         </a>
       </div>

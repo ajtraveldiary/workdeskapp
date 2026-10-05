@@ -59,7 +59,7 @@ export function SettingsPage() {
                 {c.name}
                 <button
                   onClick={() => confirm(`Remove "${c.name}"? Emails and tasks keep working, they just lose this category.`) && remove.mutate(c.id)}
-                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-urgent-ink pointer-coarse:p-2.5"
+                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-urgent-ink pointer-coarse:p-2"
                   aria-label={`Remove ${c.name}`}
                 >
                   <Trash2 size={15} />

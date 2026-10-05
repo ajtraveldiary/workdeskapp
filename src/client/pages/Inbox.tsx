@@ -57,7 +57,7 @@ export function InboxPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchInput value={q} onChange={setQ} placeholder="Search sender, subject…" />
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${inputClass} w-auto`} aria-label="Category filter">
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${inputClass} w-auto! min-w-0 max-w-52 sm:max-w-none`} aria-label="Category filter">
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -66,7 +66,7 @@ export function InboxPage() {
           ))}
         </select>
         <label className="flex items-center gap-2 px-1 text-sm text-slate-600">
-          <input type="checkbox" checked={unread} onChange={(e) => setUnread(e.target.checked)} className="accent-brand-700 pointer-coarse:size-6" />
+          <input type="checkbox" checked={unread} onChange={(e) => setUnread(e.target.checked)} className="accent-brand-700 pointer-coarse:size-5" />
           Unread only
         </label>
         {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
@@ -77,7 +77,7 @@ export function InboxPage() {
           <label className="flex items-center gap-2 text-slate-600">
             <input
               type="checkbox"
-              className="size-4 accent-brand-700 pointer-coarse:size-6"
+              className="size-4 accent-brand-700 pointer-coarse:size-5"
               checked={selected.size > 0 && selected.size === threads.length}
               onChange={(e) => setSelected(e.target.checked ? new Set(threads.map((t) => t.id)) : new Set())}
             />

@@ -103,13 +103,13 @@ export function ReportsPage() {
 
 function Tile({ icon: Icon, value, label, tone }: { icon: LucideIcon; value: number; label: string; tone: Tone }) {
   return (
-    <div className="flex flex-col items-start gap-2.5 rounded-xl border border-line bg-white p-3.5 sm:flex-row sm:items-center sm:gap-3">
-      <span className={cx("flex size-10 shrink-0 items-center justify-center rounded-lg shadow-sm", TONE[tone].solid)}>
-        <Icon size={20} strokeWidth={1.8} />
+    <div className="flex flex-col items-start gap-1.5 rounded-xl border border-line bg-white p-2.5 sm:flex-row sm:items-center sm:gap-3 sm:p-3.5">
+      <span className={cx("flex size-7 shrink-0 items-center justify-center rounded-md shadow-sm sm:size-10 sm:rounded-lg", TONE[tone].solid)}>
+        <Icon strokeWidth={1.8} className="size-4 sm:size-5" />
       </span>
       <div className="min-w-0">
-        <div className={cx("text-2xl leading-none font-semibold tabular-nums", tone === "urgent" ? "text-urgent-ink" : "text-ink")}>{String(value).padStart(2, "0")}</div>
-        <div className="mt-1 text-[13px] leading-snug font-medium text-ink">{label}</div>
+        <div className={cx("text-lg leading-none font-semibold tabular-nums sm:text-2xl", tone === "urgent" ? "text-urgent-ink" : "text-ink")}>{String(value).padStart(2, "0")}</div>
+        <div className="mt-1 text-[11px] leading-tight font-medium text-ink sm:text-[13px] sm:leading-snug">{label}</div>
       </div>
     </div>
   );
@@ -162,10 +162,10 @@ function ReportingCalendar({ reports, today, onEdit }: { reports: Report[]; toda
               This month
             </Button>
           )}
-          <button onClick={() => setShift((s) => s - 3)} className="rounded-lg p-1.5 hover:bg-slate-100 pointer-coarse:p-3" aria-label="Earlier months">
+          <button onClick={() => setShift((s) => s - 3)} className="rounded-lg p-1.5 hover:bg-slate-100 pointer-coarse:p-2" aria-label="Earlier months">
             <ChevronLeft size={18} />
           </button>
-          <button onClick={() => setShift((s) => s + 3)} className="rounded-lg p-1.5 hover:bg-slate-100 pointer-coarse:p-3" aria-label="Later months">
+          <button onClick={() => setShift((s) => s + 3)} className="rounded-lg p-1.5 hover:bg-slate-100 pointer-coarse:p-2" aria-label="Later months">
             <ChevronRight size={18} />
           </button>
         </div>
@@ -329,7 +329,7 @@ function PeriodPill({ report, period, today }: { report: Report; period: ReportP
         onClick={(e) => toggle(e.currentTarget)}
         aria-expanded={open}
         title={`${period.label}: ${s.label.toLowerCase()}`}
-        className={cx("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap pointer-coarse:px-3 pointer-coarse:py-2 pointer-coarse:text-xs", TONE[s.tone].soft)}
+        className={cx("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap pointer-coarse:py-1", TONE[s.tone].soft)}
       >
         {submitted ? <Check size={11} strokeWidth={3} /> : <span className={cx("size-1.5 rounded-full", TONE[s.tone].dot)} />}
         {shortLabel(report, monthIndex(period.periodStart))}

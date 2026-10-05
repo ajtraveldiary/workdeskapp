@@ -113,3 +113,11 @@ dialog::backdrop {
     opacity: 0.7;
   }
 }
+
+/* Sideways-scrolling rows (tabs on phones) without a visible scrollbar */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
