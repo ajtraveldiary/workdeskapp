@@ -7,6 +7,7 @@ import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { ThreadRow } from "../components/ThreadRow";
+import { EmailBulkBar } from "../components/EmailBulkBar";
 import { EmailViewer } from "../components/EmailViewer";
 import { Card, Empty, PageHeader, SkeletonList } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
@@ -18,6 +19,7 @@ export function SearchPage() {
   useEffect(() => setDraft(q), [q]);
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
   const [viewing, setViewing] = useState<Thread | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   // Tapping a task opens the email it came from, or (for tasks without one) its details.
   const [emailId, setEmailId] = useState<string | null>(null);
   const [details, setDetails] = useState<Task | null>(null);
@@ -69,6 +71,8 @@ export function SearchPage() {
           </section>
           <section>
             <h2 className="mb-2 text-sm font-medium text-slate-600">Emails ({emailList.length})</h2>
+            {/* One toolbar for the list instead of buttons on every email (user request 2026-10-06). */}
+            <EmailBulkBar threads={emailList} selected={selected} onSelectedChange={setSelected} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} className="mb-2 px-1" />
             <Card>
               {threads.isPending ? (
                 <SkeletonList rows={3} />
@@ -77,7 +81,19 @@ export function SearchPage() {
               ) : (
                 <ul className="divide-y divide-line">
                   {emailList.map((t: Thread) => (
-                    <ThreadRow key={t.id} thread={t} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} onOpen={setViewing} />
+                    <ThreadRow
+                      key={t.id}
+                      thread={t}
+                      selected={selected.has(t.id)}
+                      onSelect={(on) => setSelected((prev) => {
+                        const next = new Set(prev);
+                        if (on) next.add(t.id);
+                        else next.delete(t.id);
+                        return next;
+                      })}
+                      onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
+                      onOpen={setViewing}
+                    />
                   ))}
                 </ul>
               )}

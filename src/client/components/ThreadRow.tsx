@@ -7,7 +7,7 @@ import { useDismiss, useRestore, useSnooze } from "../api";
 import { formatDateTime, formatWhen } from "../format";
 import { Button, Modal, cx } from "./ui";
 import { EmailStatusTags } from "./EmailStatus";
-import { LabelChips, LabelPicker } from "./LabelChips";
+import { LabelChips } from "./LabelChips";
 
 export function ThreadRow({
   thread,
@@ -25,9 +25,7 @@ export function ThreadRow({
 }) {
   const dismiss = useDismiss();
   const restore = useRestore();
-  // Labels follow the picker straight away; the list refreshes from the server.
-  const [labelIds, setLabelIds] = useState(thread.labelIds ?? []);
-  useEffect(() => setLabelIds(thread.labelIds), [thread.labelIds]);
+  const labelIds = thread.labelIds ?? [];
   const gmailUrl = gmailThreadUrl(thread.accountEmail, thread.gmailThreadId);
   const inQueue = thread.state === "needs_decision";
   // Phones: swipe right to make a task (or restore), left for Gmail / snooze / dismiss; the button bar goes away.
@@ -81,45 +79,14 @@ export function ThreadRow({
         </div>
         </OpenArea>
 
-        <div className={cx("flex flex-wrap items-center gap-2", swipe ? "mt-1.5 empty:hidden" : "mt-2")}>
-          {inQueue && !swipe && (
-            <>
-              <Button size="sm" variant="primary" onClick={() => onCreateTask(thread)}>
-                <ListPlus size={15} /> Create task
-              </Button>
-              <SnoozeMenu id={thread.id} />
-              <Button size="sm" onClick={() => dismiss.mutate(thread.id)} disabled={dismiss.isPending} title="Remove from the queue. Gmail is not changed.">
-                <X size={15} /> Dismiss
-              </Button>
-            </>
-          )}
-          {!inQueue && <EmailStatusTags thread={thread} />}
-          {thread.state === "snoozed" && thread.snoozedUntil && <span className="text-xs text-slate-500">until {formatDateTime(thread.snoozedUntil)}</span>}
-          {!inQueue && !swipe && (
-            <Button size="sm" onClick={() => restore.mutate(thread.id)} disabled={restore.isPending}>
-              <Undo2 size={15} /> <span className="sm:hidden">Restore</span>
-              <span className="hidden sm:inline">Return to queue</span>
-            </Button>
-          )}
-          {swipe ? null : gmailUrl ? (
-            <a
-              href={gmailUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 pointer-coarse:h-9"
-            >
-              <ExternalLink size={15} /> <span className="hidden sm:inline">Open in Gmail</span>
-            </a>
-          ) : (
-            <span className="hidden px-1 text-xs text-slate-400 sm:inline">Demo email</span>
-          )}
-          {/* Phones change labels from the email viewer's top bar instead (user request 2026-10-06). */}
-          {!swipe && (
-            <div className="ml-auto">
-              <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} compact />
-            </div>
-          )}
-        </div>
+        {/* The actions live in the list's toolbar (EmailBulkBar), not on every email (user request 2026-10-06);
+            phones also swipe. Only the state of emails outside Pending is shown here. */}
+        {!inQueue && (
+          <div className="mt-1 flex flex-wrap items-center gap-2 empty:hidden">
+            <EmailStatusTags thread={thread} />
+            {thread.state === "snoozed" && thread.snoozedUntil && <span className="text-xs text-slate-500">until {formatDateTime(thread.snoozedUntil)}</span>}
+          </div>
+        )}
       </div>
       <SnoozeSheet id={snoozing ? thread.id : null} onClose={() => setSnoozing(false)} />
     </SwipeRow>
@@ -142,7 +109,7 @@ function at(daysFromNow: number, hour: number) {
   return d;
 }
 
-function snoozeOptions() {
+export function snoozeOptions() {
   const now = new Date();
   const toMonday = ((8 - now.getDay()) % 7) || 7;
   return [

@@ -1,13 +1,13 @@
 // Reminders (formerly Reports, user request 2026-10-06): monthly reports, meetings, payment due dates...
 // Each occurrence gets its own task ahead of its date; marking either done updates the other.
 import { useState } from "react";
-import { CalendarClock, Check, CircleCheck, Clock, Plus, TriangleAlert, type LucideIcon } from "lucide-react";
+import { CalendarClock, CircleCheck, Clock, Plus, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { Report, ReportPeriod } from "../../shared/types";
 import { dayLabel, nextOccurrence, remindLabel, repeatText } from "../../shared/reminderSchedule";
 import { useDeleteReport, useReports, useSetPeriodStatus, useUpdateReport } from "../api";
 import { addDays, formatDay, formatTime } from "../format";
 import { ReminderDialog, type ReminderDialogMode } from "../components/ReminderDialog";
-import { Badge, Button, Card, Loading, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
+import { Badge, Button, Card, CheckCircle, Loading, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 export function RemindersPage() {
@@ -109,7 +109,8 @@ function DueRow({ report, period, today }: { report: Report; period: ReportPerio
   const tone: Tone = late ? "urgent" : period.dueDate <= addDays(today, Math.max(report.leadDays, 7)) ? "high" : "info";
   return (
     <li className="flex items-center gap-3 px-4 py-3 sm:px-5">
-      <span className={cx("size-2.5 shrink-0 rounded-full", TONE[tone].dot)} aria-hidden />
+      {/* A tick circle like tasks, instead of a "Done" button on every row (user request 2026-10-06). */}
+      <CheckCircle checked={false} onToggle={() => setStatus.mutate({ id: period.id, submitted: true })} disabled={setStatus.isPending} label={`Mark done: ${report.name}`} />
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-ink">{report.name}</p>
         <p className={cx("truncate text-[0.8125rem]", late ? "text-urgent-ink" : "text-slate-500")}>
@@ -119,9 +120,7 @@ function DueRow({ report, period, today }: { report: Report; period: ReportPerio
           {period.label !== dayLabel(period.dueDate) && <span className="text-slate-400"> · {period.label}</span>}
         </p>
       </div>
-      <Button size="sm" onClick={() => setStatus.mutate({ id: period.id, submitted: true })} disabled={setStatus.isPending}>
-        <Check size={15} /> Done
-      </Button>
+      <span className={cx("size-2 shrink-0 rounded-full", TONE[tone].dot)} aria-hidden />
     </li>
   );
 }

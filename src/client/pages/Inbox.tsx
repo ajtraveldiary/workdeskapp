@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import type { EmailState, Thread } from "../../shared/types";
-import { useBulkDismiss, useThreads } from "../api";
+import { useThreads } from "../api";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { ThreadRow } from "../components/ThreadRow";
+import { EmailBulkBar } from "../components/EmailBulkBar";
 import { EmailViewer } from "../components/EmailViewer";
 import { Button, Card, Empty, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
@@ -21,7 +22,6 @@ export function InboxPage() {
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
   const [viewing, setViewing] = useState<Thread | null>(null);
   const { data, error, isFetching } = useThreads({ state, q, unread, label });
-  const bulkDismiss = useBulkDismiss();
 
   const threads = data?.threads ?? [];
   const counts = data?.counts ?? {};
@@ -63,25 +63,17 @@ export function InboxPage() {
           <input type="checkbox" checked={unread} onChange={(e) => setUnread(e.target.checked)} className="size-4 accent-brand-700 pointer-coarse:size-5" />
           Unread
         </label>
-        {inQueue && threads.length > 0 && (
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              className="size-4 accent-brand-700 pointer-coarse:size-5"
-              checked={selected.size > 0 && selected.size === threads.length}
-              onChange={(e) => setSelected(e.target.checked ? new Set(threads.map((t) => t.id)) : new Set())}
-            />
-            {selected.size ? `${selected.size} selected` : "Select all"}
-          </label>
-        )}
-        {inQueue && selected.size > 0 && (
-          <Button size="sm" disabled={bulkDismiss.isPending} onClick={() => bulkDismiss.mutate([...selected], { onSuccess: () => setSelected(new Set()) })}>
-            Dismiss selected
-          </Button>
-        )}
         {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
       </div>
 
+      {/* One toolbar for the whole list instead of buttons on every email (user request 2026-10-06). */}
+      <EmailBulkBar
+        threads={threads}
+        selected={selected}
+        onSelectedChange={setSelected}
+        onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
+        className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 -mx-3 mb-2 bg-canvas-soft/95 px-4 py-1.5 backdrop-blur sm:top-16 sm:-mx-4 sm:px-5 md:top-20 md:-mx-6 md:px-7 lg:-mx-8 lg:px-9"
+      />
       {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>
         {!data && !error ? (
@@ -98,7 +90,7 @@ export function InboxPage() {
                 thread={t}
                
                 selected={selected.has(t.id)}
-                onSelect={inQueue ? (on) => toggle(t.id, on) : undefined}
+                onSelect={(on) => toggle(t.id, on)}
                 onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
                 onOpen={setViewing}
               />

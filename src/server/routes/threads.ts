@@ -304,6 +304,75 @@ export const threadRoutes = new Hono<AppEnv>()
     return c.json({ dismissed: done.length });
   })
 
+  // Bulk actions for the list toolbars (user request 2026-10-06): select emails, then act on them all at once.
+  .post("/bulk-task", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { ids } = bulkIds.parse(await c.req.json());
+    const picked = await db
+      .select({ id: emailThreads.id, subject: emailThreads.subject })
+      .from(emailThreads)
+      .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.id, ids), eq(emailThreads.state, "needs_decision")));
+    if (picked.length === 0) return c.json({ created: 0 });
+    const created = await db
+      .insert(tasks)
+      .values(picked.map((t) => ({ userId, title: t.subject, threadId: t.id, labelIds: [] })))
+      .returning({ id: tasks.id, title: tasks.title, threadId: tasks.threadId });
+    await db
+      .update(emailThreads)
+      .set({ state: "task", snoozedUntil: null, hasNewActivity: false, stateChangedAt: new Date(), updatedAt: new Date() })
+      .where(inArray(emailThreads.id, picked.map((t) => t.id)));
+    await db.insert(events).values(
+      picked.flatMap((t) => {
+        const task = created.find((x) => x.threadId === t.id)!;
+        return [
+          { userId, entityType: "email" as const, entityId: t.id, action: "email.converted", summary: "Converted to task (bulk)", detail: { subject: t.subject } },
+          { userId, entityType: "task" as const, entityId: task.id, action: "task.created", summary: "Created from email", detail: { title: task.title, subject: t.subject } },
+        ];
+      }),
+    );
+    // Task label in Gmail for a first batch; the sync catch-up (labelTaskEmails) labels the rest.
+    await reconcileThreadLabels(db, c.env, userId, picked.slice(0, 20).map((t) => t.id)).catch(() => undefined);
+    return c.json({ created: created.length });
+  })
+
+  .post("/bulk-snooze", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const body = await c.req.json();
+    const { ids } = bulkIds.parse(body);
+    const when = new Date(snoozeInput.parse(body).until);
+    if (when.getTime() <= Date.now()) throw new HTTPException(400, { message: "Snooze time must be in the future" });
+    const done = await db
+      .update(emailThreads)
+      .set({ state: "snoozed", snoozedUntil: when, stateChangedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.id, ids), eq(emailThreads.state, "needs_decision")))
+      .returning({ id: emailThreads.id, subject: emailThreads.subject });
+    if (done.length) {
+      await db.insert(events).values(
+        done.map((t) => ({ userId, entityType: "email" as const, entityId: t.id, action: "email.snoozed", summary: `Snoozed until ${when.toISOString()} (bulk)`, detail: { subject: t.subject } })),
+      );
+    }
+    return c.json({ snoozed: done.length });
+  })
+
+  .post("/bulk-restore", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { ids } = bulkIds.parse(await c.req.json());
+    const done = await db
+      .update(emailThreads)
+      .set({ state: "needs_decision", snoozedUntil: null, stateChangedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.id, ids), sql`${emailThreads.state} <> 'needs_decision'`))
+      .returning({ id: emailThreads.id, subject: emailThreads.subject });
+    if (done.length) {
+      await db.insert(events).values(
+        done.map((t) => ({ userId, entityType: "email" as const, entityId: t.id, action: "email.restored", summary: "Returned to queue (bulk)", detail: { subject: t.subject } })),
+      );
+    }
+    return c.json({ restored: done.length });
+  })
+
   .post("/:id/restore", async (c) => {
     await setState(c.get("db"), c.get("userId"), c.req.param("id"), { state: "needs_decision" }, "email.restored", "Returned to queue");
     return c.json({ ok: true });

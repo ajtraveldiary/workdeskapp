@@ -75,7 +75,7 @@ export const useHistory = (f: { type?: string; q?: string }) =>
 
 // --- Mutations: every one refreshes all lists, since an action can move items between screens ---
 
-function useAction<V>(fn: (v: V) => Promise<unknown>) {
+function useAction<V, R = unknown>(fn: (v: V) => Promise<R>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
@@ -91,6 +91,13 @@ export const useDismiss = () => useAction((id: string) => api(`/threads/${id}/di
 export const useBulkDismiss = () =>
   useAction((ids: string[]) => api<{ dismissed: number }>(`/threads/bulk-dismiss`, { method: "POST", body: { ids } }));
 export const useRestore = () => useAction((id: string) => api(`/threads/${id}/restore`, { method: "POST" }));
+// Bulk actions for the list toolbars.
+export const useBulkTask = () => useAction((ids: string[]) => api<{ created: number }>(`/threads/bulk-task`, { method: "POST", body: { ids } }));
+export const useBulkSnooze = () =>
+  useAction(({ ids, until }: { ids: string[]; until: Date }) =>
+    api<{ snoozed: number }>(`/threads/bulk-snooze`, { method: "POST", body: { ids, until: until.toISOString() } }),
+  );
+export const useBulkRestore = () => useAction((ids: string[]) => api<{ restored: number }>(`/threads/bulk-restore`, { method: "POST", body: { ids } }));
 export const useSnooze = () =>
   useAction(({ id, until }: { id: string; until: Date }) =>
     api(`/threads/${id}/snooze`, { method: "POST", body: { until: until.toISOString() } }),

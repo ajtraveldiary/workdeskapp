@@ -24,7 +24,6 @@ import { dayLabel } from "../../shared/reminderSchedule";
 import type { Task, TaskView, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import {
-  useBulkDismiss,
   useCompleteTask,
   useDismiss,
   useMarkSeen,
@@ -36,11 +35,12 @@ import {
   useThreads,
 } from "../api";
 import { formatWhen } from "../format";
-import { SnoozeMenu, SnoozeSheet } from "../components/ThreadRow";
+import { SnoozeSheet } from "../components/ThreadRow";
 import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../components/SwipeRow";
 import { EmailStatusTags } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
+import { EmailBulkBar } from "../components/EmailBulkBar";
 import { TaskDetails } from "../components/TaskDetails";
 import { EditableDue, EditablePriority, dueTone } from "../components/InlineTaskEdit";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
@@ -560,7 +560,6 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
   const shownTab = useRef(tab);
   if (data && !isPlaceholderData) shownTab.current = tab;
   const waiting = !data || (isPlaceholderData && shownTab.current !== tab);
-  const bulk = useBulkDismiss();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<Thread | null>(null);
   const threads = data?.threads ?? [];
@@ -568,7 +567,6 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
   const hidden = data?.hiddenPending ?? 0;
   const total = Object.values(counts).reduce((a, n) => a + (n ?? 0), 0) + hidden;
   const pending = tab === "pending";
-  const live = pending ? [...selected].filter((id) => threads.some((t) => t.id === id)) : [];
 
   const toggle = (id: string, on: boolean) =>
     setSelected((prev) => {
@@ -608,19 +606,8 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
           ]}
         />
       </TabsRow>
-      {live.length > 0 && (
-        <div className="mx-5 mt-3 flex items-center justify-between gap-2 rounded-lg bg-tint px-3 py-2 text-sm">
-          <span className="text-brand-800">{live.length} selected</span>
-          <div className="flex gap-2">
-            <button onClick={() => setSelected(new Set())} className="text-slate-600 hover:underline">
-              Clear
-            </button>
-            <Button size="sm" onClick={() => bulk.mutate(live, { onSuccess: () => setSelected(new Set()) })} disabled={bulk.isPending}>
-              Dismiss selected
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* One toolbar for the list instead of buttons on every email (user request 2026-10-06). */}
+      {!waiting && <EmailBulkBar threads={threads} selected={selected} onSelectedChange={setSelected} onCreateTask={onCreateTask} className="px-3 pt-2.5 sm:px-5" />}
       <Scroll>
         {error && !isFetching ? (
           <div className="px-5 py-10 text-center text-sm">
@@ -643,7 +630,7 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
                 thread={t}
                 showStatus={!pending}
                 selected={selected.has(t.id)}
-                onSelect={pending ? (on) => toggle(t.id, on) : undefined}
+                onSelect={(on) => toggle(t.id, on)}
                 onCreateTask={onCreateTask}
                 onOpen={setViewing}
               />
@@ -745,34 +732,7 @@ function EmailCard({
           <p className="min-w-0 truncate text-[0.8125rem] text-slate-500">{thread.snippet}</p>
         </div>
         </button>
-        {!swipe && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {inQueue ? (
-            <>
-              <Button size="sm" onClick={() => onCreateTask(thread)}>
-                <ListPlus size={15} /> Create task
-              </Button>
-              <SnoozeMenu id={thread.id} compact />
-              <Button size="sm" onClick={() => dismiss.mutate(thread.id)} disabled={dismiss.isPending} title="Remove from the queue. Gmail is not changed.">
-                <X size={15} /> Dismiss
-              </Button>
-            </>
-          ) : thread.state === "task" ? (
-            <Link to={`/search?q=${encodeURIComponent(thread.subject)}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[0.8125rem] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
-              <ListChecks size={15} /> View task
-            </Link>
-          ) : (
-            <Button size="sm" onClick={() => restore.mutate(thread.id)} disabled={restore.isPending}>
-              <Undo2 size={15} /> Return to pending
-            </Button>
-          )}
-          {gmailUrl && (
-            <a href={gmailUrl} target="_blank" rel="noreferrer" className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-ink pointer-coarse:p-2" title="Open in Gmail" aria-label="Open in Gmail">
-              <ExternalLink size={16} />
-            </a>
-          )}
-        </div>
-        )}
+        {/* Actions live in the card's toolbar (EmailBulkBar), not on every email (user request 2026-10-06). */}
       </div>
       <SnoozeSheet id={snoozing ? thread.id : null} onClose={() => setSnoozing(false)} />
     </SwipeRow>
