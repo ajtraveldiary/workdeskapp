@@ -21,11 +21,22 @@ function appVersion(): string {
   }
 }
 
+const version = appVersion();
+
+// dist/version.json names the build, so open copies of the app can notice a newer one and reload (see
+// src/client/autoUpdate.ts; 2026-10-06: home-screen apps on iPhones kept showing old versions).
+const versionFile = {
+  name: "workdesk-version-file",
+  generateBundle(this: { emitFile: (f: { type: "asset"; fileName: string; source: string }) => void }) {
+    this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ version }) });
+  },
+};
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), versionFile],
   root: "src/client",
   build: { outDir: "../../dist", emptyOutDir: true },
-  define: { __APP_VERSION__: JSON.stringify(appVersion()) },
+  define: { __APP_VERSION__: JSON.stringify(version) },
   server: {
     port: 5173,
     proxy: { "/api/": "http://localhost:8787" },
