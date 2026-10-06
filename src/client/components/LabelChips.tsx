@@ -18,9 +18,10 @@ export function LabelChip({ label, className }: { label: Label; className?: stri
   );
 }
 
-export function LabelChips({ ids, max = 3, className }: { ids: string[]; max?: number; className?: string }) {
+// ids may be missing on data saved by an older version of the app; show nothing rather than fail.
+export function LabelChips({ ids, max = 3, className }: { ids: string[] | undefined; max?: number; className?: string }) {
   const labels = useLabels().data?.labels ?? [];
-  const shown = ids.map((id) => labels.find((l) => l.id === id)).filter((l): l is Label => !!l);
+  const shown = (ids ?? []).map((id) => labels.find((l) => l.id === id)).filter((l): l is Label => !!l);
   if (shown.length === 0) return null;
   return (
     <span className={cx("inline-flex min-w-0 flex-wrap items-center gap-1", className)}>

@@ -26,7 +26,7 @@ export function ThreadRow({
   const dismiss = useDismiss();
   const restore = useRestore();
   // Labels follow the picker straight away; the list refreshes from the server.
-  const [labelIds, setLabelIds] = useState(thread.labelIds);
+  const [labelIds, setLabelIds] = useState(thread.labelIds ?? []);
   useEffect(() => setLabelIds(thread.labelIds), [thread.labelIds]);
   const gmailUrl = gmailThreadUrl(thread.accountEmail, thread.gmailThreadId);
   const inQueue = thread.state === "needs_decision";

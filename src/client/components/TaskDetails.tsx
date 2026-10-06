@@ -50,7 +50,7 @@ function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; o
           )}
         </Row>
         <Row icon={Tag} label="Labels">
-          {task.labelIds.length ? <LabelChips ids={task.labelIds} max={8} /> : <span className="text-slate-500">None</span>}
+          {task.labelIds?.length ? <LabelChips ids={task.labelIds} max={8} /> : <span className="text-slate-500">None</span>}
         </Row>
         {task.report && (
           <Row icon={FileText} label="Report">

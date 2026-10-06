@@ -33,7 +33,8 @@ function browserStorage(): Storage | undefined {
 export const persister = createSyncStoragePersister({ storage: browserStorage(), key: "workdesk-cache", throttleTime: 1000 });
 
 // Bump to discard everyone's saved copy after a change to the data's shape.
-export const CACHE_VERSION = "1";
+// 2: tasks and reports carry labelIds instead of categoryId (2026-10-06).
+export const CACHE_VERSION = "2";
 
 export async function clearSavedData() {
   queryClient.clear();

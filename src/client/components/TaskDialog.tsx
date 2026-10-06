@@ -35,7 +35,7 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
   const [dueDate, setDueDate] = useState(initial.dueDate ?? "");
   const [dueTime, setDueTime] = useState(initial.dueTime ?? "");
   const [priority, setPriority] = useState<Priority>(initial.priority);
-  const [labelIds, setLabelIds] = useState<string[]>(initial.labelIds);
+  const [labelIds, setLabelIds] = useState<string[]>(initial.labelIds ?? []);
   const [notes, setNotes] = useState(initial.notes);
 
   const create = useCreateTask();
