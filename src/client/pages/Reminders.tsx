@@ -61,7 +61,7 @@ export function RemindersPage() {
           </div>
 
           <Card>
-            <h2 className="border-b border-line px-4 py-3 text-[1.0625rem] font-semibold text-ink sm:px-5 sm:py-3.5">Due next</h2>
+            <h2 className="border-b border-line px-4 py-3 text-headline font-semibold text-ink sm:px-5 sm:py-3.5">Due next</h2>
             {dueNext.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-slate-500">Nothing due in the next 30 days.</p>
             ) : (
@@ -74,7 +74,7 @@ export function RemindersPage() {
           </Card>
 
           <Card>
-            <h2 className="border-b border-line px-4 py-3 text-[1.0625rem] font-semibold text-ink sm:px-5 sm:py-3.5">All reminders</h2>
+            <h2 className="border-b border-line px-4 py-3 text-headline font-semibold text-ink sm:px-5 sm:py-3.5">All reminders</h2>
             <ul className="divide-y divide-line">
               {reports.map((r) => (
                 <ReminderRow key={r.id} report={r} today={today} onEdit={() => setDialog({ kind: "edit", report: r })} />
@@ -97,7 +97,7 @@ function Tile({ icon: Icon, value, label, tone }: { icon: LucideIcon; value: num
       </span>
       <div className="min-w-0">
         <div className={cx("text-lg leading-none font-semibold tabular-nums sm:text-2xl", tone === "urgent" ? "text-urgent-ink" : "text-ink")}>{String(value).padStart(2, "0")}</div>
-        <div className="mt-1 text-[0.6875rem] leading-tight font-medium text-ink sm:text-[0.8125rem] sm:leading-snug">{label}</div>
+        <div className="mt-1 text-caption2 leading-tight font-medium text-ink sm:text-footnote sm:leading-snug">{label}</div>
       </div>
     </div>
   );
@@ -112,8 +112,8 @@ function DueRow({ report, period, today }: { report: Report; period: ReportPerio
       {/* A tick circle like tasks, instead of a "Done" button on every row (user request 2026-10-06). */}
       <CheckCircle checked={false} onToggle={() => setStatus.mutate({ id: period.id, submitted: true })} disabled={setStatus.isPending} label={`Mark done: ${report.name}`} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[0.9375rem] font-medium text-ink">{report.name}</p>
-        <p className={cx("flex min-w-0 items-center gap-1.5 truncate text-[0.8125rem]", late ? "text-urgent-ink" : "text-slate-500")}>
+        <p className="truncate text-subhead font-medium text-ink">{report.name}</p>
+        <p className={cx("flex min-w-0 items-center gap-1.5 truncate text-footnote", late ? "text-urgent-ink" : "text-slate-500")}>
           <span className={cx("size-2 shrink-0 rounded-full", TONE[tone].dot)} aria-hidden />
           {late ? `Overdue · was due ${formatDay(period.dueDate, today)}` : formatDay(period.dueDate, today)}
           {report.dueTime && ` · ${formatTime(report.dueTime)}`}
@@ -134,9 +134,9 @@ function ReminderRow({ report, today, onEdit }: { report: Report; today: string;
   return (
     <li className={cx("flex items-start gap-3 px-4 py-3 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5", !report.active && "opacity-60")}>
       <button onClick={onEdit} className="group/title min-w-0 flex-1 text-left">
-        <p className="text-[0.9375rem] font-medium text-ink group-hover/title:text-brand-700">{report.name}</p>
-        <p className="text-[0.8125rem] text-slate-500">{details}</p>
-        <p className="mt-0.5 text-[0.8125rem] text-slate-500">
+        <p className="text-subhead font-medium text-ink group-hover/title:text-brand-700">{report.name}</p>
+        <p className="text-footnote text-slate-500">{details}</p>
+        <p className="mt-0.5 text-footnote text-slate-500">
           {!report.active ? <Badge>Paused</Badge> : next ? <>Next: <span className="font-medium text-ink">{formatDay(next, today)}</span></> : "No more dates"}
         </p>
       </button>

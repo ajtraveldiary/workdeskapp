@@ -17,7 +17,7 @@ export function Button({ variant = "secondary", size = "md", className, ...rest 
       {...rest}
       className={cx(
         "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap transition enabled:active:scale-[0.97] disabled:opacity-50 [&_svg]:shrink-0",
-        size === "sm" ? "h-8 px-3 text-[0.8125rem] pointer-coarse:h-9" : "h-10 px-4 text-sm pointer-coarse:h-9",
+        size === "sm" ? "h-8 px-3 text-footnote pointer-coarse:h-9" : "h-10 px-4 text-sm pointer-coarse:h-9",
         variant === "primary" && "bg-brand-600 text-white shadow-sm enabled:hover:bg-brand-700 enabled:hover:shadow-md",
         variant === "secondary" && "border border-line bg-white text-slate-700 enabled:hover:border-slate-300 enabled:hover:bg-slate-50 enabled:hover:text-ink",
         variant === "ghost" && "text-slate-600 enabled:hover:bg-slate-100 enabled:hover:text-slate-900",
@@ -62,7 +62,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
     // title's line is as tall as the buttons so both share one centre line (alignment pass 2026-10-06).
     <header className="mb-3 flex items-start justify-between gap-3 sm:mb-5">
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-lg leading-9 font-semibold text-ink sm:text-[1.375rem] sm:leading-10">{title}</h1>
+        <h1 className="truncate text-title3 leading-9 font-bold text-ink sm:text-title2 sm:leading-10 sm:font-semibold">{title}</h1>
         {subtitle && <p className="hidden text-sm text-slate-500 sm:block">{subtitle}</p>}
       </div>
       {actions && <div className="flex h-9 shrink-0 items-center gap-2 sm:h-10">{actions}</div>}
@@ -164,7 +164,8 @@ export function Modal({ open, onClose, title, children, closeOnBackdrop }: { ope
         <div className="p-5 max-sm:px-4 max-sm:pt-2 max-sm:pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
           <span aria-hidden="true" className="mx-auto mb-2 block h-1 w-9 rounded-full bg-slate-300 sm:hidden" />
           <div className="mb-4 flex items-start justify-between gap-4">
-            <h2 className="text-lg font-medium text-ink">{title}</h2>
+            {/* Sheet title like iOS (headline, semibold) on phones. */}
+            <h2 className="text-headline font-semibold text-ink sm:text-lg sm:font-medium">{title}</h2>
             <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-ink active:scale-90 pointer-coarse:p-2" aria-label="Close">
               <X size={18} />
             </button>
@@ -219,7 +220,7 @@ export function Segmented<T extends string>({
           aria-selected={value === o.value}
           onClick={() => onChange(o.value)}
           className={cx(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[0.8125rem] whitespace-nowrap transition active:scale-[0.97]",
+            "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-footnote whitespace-nowrap transition active:scale-[0.97]",
             // Phones: one-row tabs share the width evenly so a few of them fit without scrolling.
             oneRow && "max-sm:flex-1 max-sm:justify-center max-sm:px-2",
             value === o.value
@@ -298,9 +299,9 @@ function ActionSheet({ onClose, title, children }: { onClose: () => void; title?
     >
       <div className="px-2 pt-2 pb-2">
         <span aria-hidden="true" className="mx-auto mb-1.5 block h-1 w-9 rounded-full bg-slate-300" />
-        {title && <p className="px-3 pt-1 pb-2 text-center text-[0.8125rem] font-medium text-slate-500">{title}</p>}
+        {title && <p className="px-3 pt-1 pb-2 text-center text-footnote font-medium text-slate-500">{title}</p>}
         {children}
-        <button onClick={onClose} className="sheet-cancel mt-2 block w-full rounded-xl bg-slate-100 py-3 text-center text-[0.9375rem] font-medium text-ink active:bg-slate-200">
+        <button onClick={onClose} className="sheet-cancel mt-2 block w-full rounded-xl bg-slate-100 py-3 text-center text-subhead font-medium text-ink active:bg-slate-200">
           Cancel
         </button>
       </div>

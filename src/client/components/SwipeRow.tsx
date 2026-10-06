@@ -229,7 +229,7 @@ export function SwipeRow({
           tabIndex={offset > 0 ? 0 : -1}
           onClick={() => fire(lead)}
           aria-label={lead.label}
-          className={cx("no-tap absolute inset-y-0 left-0 flex items-center gap-2 overflow-hidden pl-4 text-[0.8125rem] font-medium whitespace-nowrap", TONE[lead.tone].solid)}
+          className={cx("no-tap absolute inset-y-0 left-0 flex items-center gap-2 overflow-hidden pl-4 text-footnote font-medium whitespace-nowrap", TONE[lead.tone].solid)}
           style={{ width: Math.max(offset, 0) }}
         >
           <lead.icon size={20} className={cx("shrink-0 transition-transform", leadPast && "scale-125")} />
@@ -245,7 +245,7 @@ export function SwipeRow({
                 <span className="max-w-full truncate px-1">{a.label}</span>
               </>
             );
-            const cls = cx("no-tap flex flex-col items-center justify-center gap-1 text-[0.6875rem] font-medium active:brightness-90", TONE[a.tone].solid);
+            const cls = cx("no-tap flex flex-col items-center justify-center gap-1 text-caption2 font-medium active:brightness-90", TONE[a.tone].solid);
             const after = () => close();
             return a.href ? (
               <a key={a.label} href={a.href} target="_blank" rel="noreferrer" onClick={after} onFocus={() => setOffset(-trailW)} className={cls} style={{ width: ACTION_W }}>
@@ -319,7 +319,7 @@ export function UndoBar() {
   return (
     <div
       role="status"
-      className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+0.75rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-3 rounded-xl bg-ink px-4 py-2.5 text-[0.8125rem] text-white shadow-lg md:inset-x-auto md:right-6 md:bottom-6 md:w-80"
+      className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+0.75rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-3 rounded-xl bg-ink px-4 py-2.5 text-footnote text-white shadow-lg md:inset-x-auto md:right-6 md:bottom-6 md:w-80"
     >
       <span className="min-w-0 truncate">{current.message}</span>
       {undo && (

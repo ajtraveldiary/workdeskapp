@@ -112,12 +112,12 @@ export function EditableDue({ task, today, layout }: { task: Task; today: string
 
   const trigger =
     layout === "joined" ? (
-      <button type="button" onClick={openFrom} aria-label={label} title="Change due date" className={cx(chip, "text-xs sm:text-[0.8125rem]", tone)}>
+      <button type="button" onClick={openFrom} aria-label={label} title="Change due date" className={cx(chip, "text-xs sm:text-footnote", tone)}>
         <CalendarDays size={14} />
         {task.dueDate ? `${formatDay(task.dueDate, today)}${task.dueTime ? `, ${formatTime(task.dueTime)}` : ""}` : "No date"}
       </button>
     ) : (
-      <span className="flex flex-wrap items-center gap-1.5 text-xs sm:text-[0.8125rem]">
+      <span className="flex flex-wrap items-center gap-1.5 text-xs sm:text-footnote">
         <button type="button" onClick={openFrom} aria-label={label} title="Change due date" className={cx(chip, task.dueDate ? tone : "text-slate-400 hover:text-slate-600")}>
           {task.dueDate ? (
             <>

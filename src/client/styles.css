@@ -60,6 +60,33 @@
   --color-brand-800: #0f46b8;
   --color-tint: #f3f7ff;
 
+  /* Apple's text styles (iOS Human Interface Guidelines, default "Large" size: size/line height in pt), user
+     request 2026-10-06. Use these names instead of one-off sizes. Phones show everything at 90% (root font
+     size), so the proportions match iOS while more fits on screen. Weights: regular for text, font-medium for
+     emphasis, font-semibold for headlines and card titles, font-bold for page titles on phones. */
+  --text-caption2: 0.6875rem; /* 11/13 */
+  --text-caption2--line-height: calc(13 / 11);
+  --text-caption: 0.75rem; /* 12/16 */
+  --text-caption--line-height: calc(16 / 12);
+  --text-footnote: 0.8125rem; /* 13/18 */
+  --text-footnote--line-height: calc(18 / 13);
+  --text-subhead: 0.9375rem; /* 15/20 */
+  --text-subhead--line-height: calc(20 / 15);
+  --text-callout: 1rem; /* 16/21 */
+  --text-callout--line-height: calc(21 / 16);
+  --text-body: 1.0625rem; /* 17/22 */
+  --text-body--line-height: calc(22 / 17);
+  --text-headline: 1.0625rem; /* 17/22, semibold */
+  --text-headline--line-height: calc(22 / 17);
+  --text-title3: 1.25rem; /* 20/25 */
+  --text-title3--line-height: calc(25 / 20);
+  --text-title2: 1.375rem; /* 22/28 */
+  --text-title2--line-height: calc(28 / 22);
+  --text-title1: 1.75rem; /* 28/34 */
+  --text-title1--line-height: calc(34 / 28);
+  --text-largetitle: 2.125rem; /* 34/41 */
+  --text-largetitle--line-height: calc(41 / 34);
+
   --color-ink: #202124;
   --color-canvas-soft: #fcfcfd;
   --color-line: #e8eaed;
@@ -163,6 +190,24 @@ dialog::backdrop {
 @media (max-width: 767.98px) {
   html {
     font-size: 90%;
+  }
+  /* Phones look like iPhone apps (user request 2026-10-06): the device's own font (San Francisco on iPhone,
+     Roboto on Android) instead of Poppins, Malayalam still in Noto Sans Malayalam (first, but it only covers
+     Malayalam letters), and Tailwind's plain sizes snapped to Apple's text styles with their line spacing. */
+  :root {
+    --font-sans: "Noto Sans Malayalam", -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --text-xs: var(--text-caption);
+    --text-xs--line-height: var(--text-caption--line-height);
+    --text-sm: var(--text-subhead);
+    --text-sm--line-height: var(--text-subhead--line-height);
+    --text-base: var(--text-body);
+    --text-base--line-height: var(--text-body--line-height);
+    --text-lg: var(--text-title3);
+    --text-lg--line-height: var(--text-title3--line-height);
+    --text-xl: var(--text-title2);
+    --text-xl--line-height: var(--text-title2--line-height);
+    --text-2xl: var(--text-title1);
+    --text-2xl--line-height: var(--text-title1--line-height);
   }
   svg.lucide {
     zoom: 0.9;

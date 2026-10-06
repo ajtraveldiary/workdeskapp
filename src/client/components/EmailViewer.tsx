@@ -162,7 +162,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
       <header className="flex flex-wrap items-start gap-3 border-b border-line px-4 pt-1 pb-3 sm:px-5 sm:py-3">
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="line-clamp-2 text-lg leading-snug font-semibold text-ink">{thread.subject}</h2>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem] text-slate-500">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-footnote text-slate-500">
             <span className="font-medium text-slate-700">{thread.fromName ?? thread.fromEmail}</span>
             <span>· {formatDateTime(thread.lastMessageAt)}</span>
             {thread.messageCount > 1 && <span>· {thread.messageCount} messages</span>}
@@ -198,7 +198,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
       </header>
 
       {needsSignIn && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-snooze-soft px-4 py-2 text-[0.8125rem] text-snooze-ink sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-snooze-soft px-4 py-2 text-footnote text-snooze-ink sm:px-5">
           To also mark emails read in Gmail, WorkDesk needs one more permission.
           <a href="/api/auth/google" className="font-medium underline">
             Sign in again to allow it
@@ -217,7 +217,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
               <div className="mt-3 flex justify-center gap-2">
                 <Button size="sm" onClick={() => refetch()}>Try again</Button>
                 {gmailUrl && (
-                  <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-[0.8125rem] font-medium pointer-coarse:h-9">
+                  <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-footnote font-medium pointer-coarse:h-9">
                     Open in Gmail
                   </a>
                 )}
@@ -319,7 +319,7 @@ function MessageBlock({
             {message.fromEmail}
             {message.to && ` → ${message.to}`}
           </p>
-          {!open && <p className="mt-1 line-clamp-1 text-[0.8125rem] text-slate-500">{(message.text ?? "").slice(0, 160) || "(Tap to show)"}</p>}
+          {!open && <p className="mt-1 line-clamp-1 text-footnote text-slate-500">{(message.text ?? "").slice(0, 160) || "(Tap to show)"}</p>}
         </div>
         {files.length + links.length > 0 && <Paperclip size={15} className="mt-1 shrink-0 text-slate-400" aria-label={`${files.length + links.length} attachments`} />}
       </button>
@@ -339,7 +339,7 @@ function MessageBlock({
 
           {files.length + links.length > 0 && (
             <div className="mt-5">
-              <h3 className="mb-2 flex items-center gap-1.5 text-[0.8125rem] font-semibold text-slate-600">
+              <h3 className="mb-2 flex items-center gap-1.5 text-footnote font-semibold text-slate-600">
                 <Paperclip size={14} /> Attachments ({files.length + links.length})
               </h3>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -384,7 +384,7 @@ function FileCard({ active, onOpen, icon, color, name, detail }: { active: boole
       )}
     >
       <span className={cx("flex size-9 items-center justify-center rounded-md text-white", color)}>{icon}</span>
-      <span className="line-clamp-2 text-[0.8125rem] leading-snug font-medium break-all text-ink">{name}</span>
+      <span className="line-clamp-2 text-footnote leading-snug font-medium break-all text-ink">{name}</span>
       <span className="text-xs text-slate-500">{detail}</span>
     </button>
   );
@@ -428,7 +428,7 @@ function HtmlBody({ html, cids }: { html: string; cids: Record<string, string> }
   return (
     <div>
       {hasRemote && !remote && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-snooze-soft px-3 py-2 text-[0.8125rem] text-snooze-ink">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-snooze-soft px-3 py-2 text-footnote text-snooze-ink">
           Pictures from the internet are hidden to protect your privacy.
           <button onClick={() => setRemote(true)} className="font-medium underline">
             Show pictures
@@ -556,7 +556,7 @@ function GoogleButton({ link }: { link: DriveLink }) {
       href={link.url}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-[0.8125rem] font-medium text-ink hover:bg-slate-50 active:scale-[0.97] pointer-coarse:h-9"
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-footnote font-medium text-ink hover:bg-slate-50 active:scale-[0.97] pointer-coarse:h-9"
     >
       <ExternalLink size={14} /> Google
     </a>
@@ -850,7 +850,7 @@ function ShareChooserBody({ share }: { share: EmailShare }) {
               <label className="flex items-center gap-3 px-3 py-2.5">
                 <input type="checkbox" checked={picked.has(f)} onChange={() => toggle(f)} className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" />
                 <Icon size={18} className="shrink-0 text-slate-500" />
-                <span className="min-w-0 flex-1 truncate text-[0.9375rem] text-ink">{f.name}</span>
+                <span className="min-w-0 flex-1 truncate text-subhead text-ink">{f.name}</span>
                 <span className="shrink-0 text-xs text-slate-500 tabular-nums">{formatSize(f.size)}</span>
               </label>
             </li>
@@ -860,7 +860,7 @@ function ShareChooserBody({ share }: { share: EmailShare }) {
           <li key={`left:${name}`} className="flex items-center gap-3 px-3 py-2.5 opacity-60">
             <input type="checkbox" disabled className="size-4 shrink-0 pointer-coarse:size-5" aria-label={`${name} can't be shared`} />
             <File size={18} className="shrink-0 text-slate-400" />
-            <span className="min-w-0 flex-1 truncate text-[0.9375rem] text-slate-500">{name}</span>
+            <span className="min-w-0 flex-1 truncate text-subhead text-slate-500">{name}</span>
             <span className="shrink-0 text-xs text-slate-500">Can't share</span>
           </li>
         ))}

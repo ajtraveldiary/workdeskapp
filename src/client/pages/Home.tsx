@@ -129,7 +129,7 @@ function StatCard({ to, icon: Icon, value, label, note, tone }: { to: string; ic
             {value === null ? "—" : String(value).padStart(2, "0")}
           </span>
         </div>
-        <div className="mt-1 line-clamp-2 text-[0.6875rem] leading-tight font-medium text-ink sm:text-[0.8125rem] sm:leading-snug">{label}</div>
+        <div className="mt-1 line-clamp-2 text-caption2 leading-tight font-medium text-ink sm:text-footnote sm:leading-snug">{label}</div>
         <div className="hidden truncate text-xs text-slate-500 sm:block">{note}</div>
       </div>
     </Link>
@@ -347,7 +347,7 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
       <span className={cx("w-[3px] shrink-0 self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <button
         onClick={() => onOpen(task)}
-        className="line-clamp-3 min-w-0 flex-1 text-left text-[0.8125rem] leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
+        className="line-clamp-3 min-w-0 flex-1 text-left text-footnote leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
         aria-label={`Show details: ${task.title}`}
       >
         {task.report && <CalendarClock size={13} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
@@ -489,13 +489,13 @@ function TodoRow({
           className="group/title block max-w-full text-left"
           aria-label={task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`}
         >
-          <span className={cx("line-clamp-2 text-[0.9375rem] leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
-          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[0.8125rem]">{context}</span>
+          <span className={cx("line-clamp-2 text-subhead leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
+          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-footnote">{context}</span>
         </button>
         <div className="mt-1.5 flex items-center justify-between gap-2 sm:mt-2">
           {a.done ? (
             <>
-              <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap sm:text-[0.8125rem]", TONE[dueTone(task, today)].soft)}>
+              <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap sm:text-footnote", TONE[dueTone(task, today)].soft)}>
                 <CalendarDays size={14} />
                 {task.completedAt ? `Done ${formatWhen(task.completedAt)}` : "Done"}
               </span>

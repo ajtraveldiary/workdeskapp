@@ -86,7 +86,7 @@ export function InboxPage() {
               onClick={() => setUnread((u) => !u)}
               aria-pressed={unread}
               className={cx(
-                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-medium active:scale-[0.97] pointer-coarse:h-9",
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-footnote font-medium active:scale-[0.97] pointer-coarse:h-9",
                 unread ? "border-brand-200 bg-tint text-brand-800" : "border-line bg-white text-slate-600 hover:border-slate-300",
               )}
             >

@@ -46,7 +46,7 @@ export function HistoryPage() {
               <li key={e.id} className="flex items-start gap-3 px-4 py-3">
                 <EventIcon e={e} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[0.9375rem] font-medium text-slate-900">{e.detail?.title ?? e.detail?.subject ?? "—"}</p>
+                  <p className="truncate text-subhead font-medium text-slate-900">{e.detail?.title ?? e.detail?.subject ?? "—"}</p>
                   <p className="text-sm text-slate-600">
                     {e.summary}
                     <span className="text-slate-400"> · {formatDateTime(e.createdAt)}</span>

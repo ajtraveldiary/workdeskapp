@@ -65,11 +65,11 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
           <span className="mb-1 flex items-center justify-between text-sm font-medium text-slate-700">
             Time
             {dueTime ? (
-              <button type="button" onClick={() => setDueTime("")} className="text-[0.8125rem] font-medium text-brand-700 hover:underline active:scale-[0.97]">
+              <button type="button" onClick={() => setDueTime("")} className="text-footnote font-medium text-brand-700 hover:underline active:scale-[0.97]">
                 Clear
               </button>
             ) : (
-              <span className="text-[0.8125rem] font-normal text-slate-400">Optional</span>
+              <span className="text-footnote font-normal text-slate-400">Optional</span>
             )}
           </span>
           <input type="time" className={inputClass} value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
@@ -131,7 +131,7 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
         />
       </Field>
 
-      <div className="rounded-lg bg-tint px-3.5 py-2.5 text-[0.8125rem] text-slate-600">
+      <div className="rounded-lg bg-tint px-3.5 py-2.5 text-footnote text-slate-600">
         <p className="font-medium text-ink">
           {repeatText(rule)}
           {dueTime && ` · ${formatTime(dueTime)}`}

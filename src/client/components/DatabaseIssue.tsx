@@ -49,12 +49,12 @@ function IssueBody({ issue, onRetry }: { issue: DbIssue; onRetry: () => void }) 
       </div>
       <div className="rounded-lg bg-slate-50 px-3 py-2.5">
         <p className="font-medium text-ink">Check the usage limit in Neon</p>
-        <p className="mt-1 text-[0.8125rem] text-slate-600">
+        <p className="mt-1 text-footnote text-slate-600">
           Open your WorkDesk project and look at <span className="font-medium">Usage</span>. Free-plan limits each month: about 100 CU-hours of compute, 0.5 GB storage and 5 GB
           network transfer.
         </p>
       </div>
-      <p className="text-[0.8125rem] text-slate-600">
+      <p className="text-footnote text-slate-600">
         Nothing is lost: your tasks and reminders are safe, and Gmail is not affected. The database starts again when the limit resets next month, or once the limit is raised in Neon. You
         are not charged on the free plan.
       </p>

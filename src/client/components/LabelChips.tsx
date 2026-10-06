@@ -11,7 +11,7 @@ export function LabelChip({ label, className }: { label: Label; className?: stri
     <span
       title={label.name}
       style={label.backgroundColor ? { backgroundColor: label.backgroundColor, color: label.textColor ?? "#000" } : undefined}
-      className={cx("inline-flex max-w-36 items-center truncate rounded px-1.5 py-px text-[0.6875rem] leading-4 font-medium", !label.backgroundColor && "bg-slate-200 text-slate-700", className)}
+      className={cx("inline-flex max-w-36 items-center truncate rounded px-1.5 py-px text-caption2 leading-4 font-medium", !label.backgroundColor && "bg-slate-200 text-slate-700", className)}
     >
       {label.name}
     </span>
@@ -28,7 +28,7 @@ export function LabelChips({ ids, max = 3, className }: { ids: string[] | undefi
       {shown.slice(0, max).map((l) => (
         <LabelChip key={l.id} label={l} />
       ))}
-      {shown.length > max && <span className="text-[0.6875rem] text-slate-500">+{shown.length - max}</span>}
+      {shown.length > max && <span className="text-caption2 text-slate-500">+{shown.length - max}</span>}
     </span>
   );
 }
@@ -108,7 +108,7 @@ function LabelFilterChip({ value, onChange, labels }: { value: string; onChange:
         aria-expanded={open}
         aria-label={current ? `Label filter: ${current.name}` : "Label filter"}
         className={cx(
-          "inline-flex h-8 max-w-40 min-w-0 items-center gap-1 rounded-full border pr-2 pl-3 text-[0.8125rem] font-medium active:scale-[0.97] pointer-coarse:h-9",
+          "inline-flex h-8 max-w-40 min-w-0 items-center gap-1 rounded-full border pr-2 pl-3 text-footnote font-medium active:scale-[0.97] pointer-coarse:h-9",
           current ? "border-brand-200 bg-tint text-brand-800" : "border-line bg-white text-slate-600 hover:border-slate-300",
         )}
       >
@@ -193,7 +193,7 @@ export function LabelPicker({ thread, selected, onChange, compact }: { thread: P
             </ul>
           )}
           {setLabels.error && <p className="px-3 py-2 text-xs text-urgent-ink">{setLabels.error.message}</p>}
-          <Link to="/settings#mail" className="mt-1 block border-t border-line px-3 py-2 text-[0.8125rem] font-medium text-brand-700 hover:bg-slate-50">
+          <Link to="/settings#mail" className="mt-1 block border-t border-line px-3 py-2 text-footnote font-medium text-brand-700 hover:bg-slate-50">
             Manage labels
           </Link>
         </PopPanel>

@@ -201,7 +201,7 @@ export function CalendarPage() {
                       <span
                         key={t.id}
                         className={cx(
-                          "truncate rounded border-l-2 px-1.5 py-0.5 text-[0.6875rem]",
+                          "truncate rounded border-l-2 px-1.5 py-0.5 text-caption2",
                           t.status === "done" ? "border-slate-300 bg-slate-50 text-slate-400 line-through" : CHIP[t.priority],
                         )}
                       >
@@ -210,13 +210,13 @@ export function CalendarPage() {
                       </span>
                     ))}
                     {(scheduled.get(day) ?? []).slice(0, Math.max(0, 3 - tasks.length)).map((r) => (
-                      <span key={r.id} className="truncate rounded border border-dashed border-slate-300 px-1.5 py-0.5 text-[0.6875rem] text-slate-500">
+                      <span key={r.id} className="truncate rounded border border-dashed border-slate-300 px-1.5 py-0.5 text-caption2 text-slate-500">
                         {r.dueTime && `${formatTime(r.dueTime)} `}
                         {r.name}
                       </span>
                     ))}
                     {tasks.length + (scheduled.get(day)?.length ?? 0) > 3 && (
-                      <span className="px-1 text-[0.6875rem] text-slate-500">+{tasks.length + (scheduled.get(day)?.length ?? 0) - 3} more</span>
+                      <span className="px-1 text-caption2 text-slate-500">+{tasks.length + (scheduled.get(day)?.length ?? 0) - 3} more</span>
                     )}
                   </span>
                 </button>
@@ -276,7 +276,7 @@ function ScheduledList({ reminders, day, today }: { reminders: Report[]; day: st
           <li key={r.id} className="flex items-start gap-2.5 px-3 py-2.5 sm:px-4">
             <span className={cx("mt-1.5 size-2 shrink-0 rounded-full border-2", RING[r.priority])} aria-hidden />
             <div className="min-w-0 flex-1">
-              <Link to="/reminders" className="text-[0.9375rem] font-medium text-ink hover:text-brand-700 hover:underline">
+              <Link to="/reminders" className="text-subhead font-medium text-ink hover:text-brand-700 hover:underline">
                 <CalendarClock size={13} className="mr-1 inline -translate-y-px text-slate-400" aria-hidden />
                 {r.name}
               </Link>
