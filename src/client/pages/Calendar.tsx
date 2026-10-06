@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import type { Task } from "../../shared/types";
-import { useCategories, useMe, useRangeTasks } from "../api";
+import { useCategories, useMe, useRangeTasks, useThread } from "../api";
+import { EmailViewer } from "../components/EmailViewer";
+import { TaskDetails } from "../components/TaskDetails";
 import { addDays, formatTime } from "../format";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
@@ -39,6 +41,11 @@ export function CalendarPage() {
   const [month, setMonth] = useState(monthStart(today));
   const [selected, setSelected] = useState(today);
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
+  // Tapping a task opens the email it came from, or (for tasks without one) its details.
+  const [emailId, setEmailId] = useState<string | null>(null);
+  const [details, setDetails] = useState<Task | null>(null);
+  const email = useThread(emailId).data ?? null;
+  const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
   const days = gridDays(month);
   const { data } = useRangeTasks(days[0]!, days.at(-1)!);
   const categories = useCategories().data ?? [];
@@ -147,13 +154,29 @@ export function CalendarPage() {
           ) : (
             <ul className="divide-y divide-line">
               {selectedTasks.map((t) => (
-                <TaskRow key={t.id} task={t} today={today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} />
+                <TaskRow key={t.id} task={t} today={today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
               ))}
             </ul>
           )}
         </Card>
       </div>
 
+      <EmailViewer
+        thread={emailId ? email : null}
+        onClose={() => setEmailId(null)}
+        onCreateTask={(thread) => {
+          setEmailId(null);
+          setDialog({ kind: "fromThread", thread });
+        }}
+      />
+      <TaskDetails
+        task={details}
+        onClose={() => setDetails(null)}
+        onEdit={(t) => {
+          setDetails(null);
+          setDialog({ kind: "edit", task: t });
+        }}
+      />
       <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
     </>
   );

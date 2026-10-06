@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { Search } from "lucide-react";
-import type { Thread } from "../../shared/types";
-import { useCategories, useTasks, useThreads } from "../api";
+import type { Task, Thread } from "../../shared/types";
+import { useCategories, useTasks, useThread, useThreads } from "../api";
+import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { ThreadRow } from "../components/ThreadRow";
@@ -17,6 +18,11 @@ export function SearchPage() {
   useEffect(() => setDraft(q), [q]);
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
   const [viewing, setViewing] = useState<Thread | null>(null);
+  // Tapping a task opens the email it came from, or (for tasks without one) its details.
+  const [emailId, setEmailId] = useState<string | null>(null);
+  const [details, setDetails] = useState<Task | null>(null);
+  const taskEmail = useThread(emailId).data ?? null;
+  const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
   const categories = useCategories().data ?? [];
   const threads = useThreads({ state: "all", q }, !!q);
   const tasks = useTasks({ view: "any", q }, !!q);
@@ -54,7 +60,7 @@ export function SearchPage() {
               ) : (
                 <ul className="divide-y divide-line">
                   {taskList.map((t) => (
-                    <TaskRow key={t.id} task={t} today={tasks.data!.today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} />
+                    <TaskRow key={t.id} task={t} today={tasks.data!.today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
                   ))}
                 </ul>
               )}
@@ -77,12 +83,25 @@ export function SearchPage() {
         </div>
       )}
 
+      {/* An email opened from the email results, or the email behind a task result */}
       <EmailViewer
-        thread={viewing}
-        onClose={() => setViewing(null)}
+        thread={viewing ?? (emailId ? taskEmail : null)}
+        onClose={() => {
+          setViewing(null);
+          setEmailId(null);
+        }}
         onCreateTask={(thread) => {
           setViewing(null);
+          setEmailId(null);
           setDialog({ kind: "fromThread", thread });
+        }}
+      />
+      <TaskDetails
+        task={details}
+        onClose={() => setDetails(null)}
+        onEdit={(t) => {
+          setDetails(null);
+          setDialog({ kind: "edit", task: t });
         }}
       />
       <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
