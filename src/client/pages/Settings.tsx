@@ -379,7 +379,7 @@ function TaskLabels() {
       if (!confirm(`${what}\n\nEmails not in WorkDesk yet are fetched over the next few syncs. Continue?`)) return;
     }
     // A label chosen as the done label no longer needs its tick below.
-    const autoDoneLabelIds = which === "doneLabelId" && id ? settings.autoDoneLabelIds.filter((x) => x !== id) : settings.autoDoneLabelIds;
+    const autoDoneLabelIds = which === "doneLabelId" && id ? (settings.autoDoneLabelIds ?? []).filter((x) => x !== id) : (settings.autoDoneLabelIds ?? []);
     apply({ ...settings, autoDoneLabelIds, [which]: id }, !!id);
   };
 
@@ -390,7 +390,7 @@ function TaskLabels() {
       const gmail = settings.doneLabelId ? ` They also get "${nameOf(settings.doneLabelId)}" in Gmail.` : "";
       if (!confirm(`Every email labelled "${nameOf(id)}" in Gmail (already, or later) will become a completed task in WorkDesk, without going through Pending or your to-do list.${gmail}\n\nEmails not in WorkDesk yet are fetched over the next few syncs. Continue?`)) return;
     }
-    const autoDoneLabelIds = on ? [...settings.autoDoneLabelIds, id] : settings.autoDoneLabelIds.filter((x) => x !== id);
+    const autoDoneLabelIds = on ? [...(settings.autoDoneLabelIds ?? []), id] : (settings.autoDoneLabelIds ?? []).filter((x) => x !== id);
     apply({ ...settings, autoDoneLabelIds }, on, "completed task");
   };
 
@@ -452,7 +452,7 @@ function TaskLabels() {
             {list.map((l) => {
               const isTask = l.id === settings?.taskLabelId;
               const isDone = l.id === settings?.doneLabelId;
-              const checked = isDone || !!settings?.autoDoneLabelIds.includes(l.id);
+              const checked = isDone || !!(settings?.autoDoneLabelIds ?? []).includes(l.id);
               return (
                 <label key={l.id} className={cx("flex min-h-11 items-center gap-2.5 rounded-lg px-1.5", isTask || isDone ? "opacity-60" : "has-[:enabled]:cursor-pointer has-[:enabled]:hover:bg-slate-50")}>
                   <input

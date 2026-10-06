@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router";
 import { defaultShouldDehydrateQuery } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { App } from "./App";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CACHE_MAX_AGE, CACHE_VERSION, persister, queryClient } from "./queryClient";
 import "./styles.css";
 
@@ -17,7 +18,9 @@ createRoot(document.getElementById("root")!).render(
         dehydrateOptions: { shouldDehydrateQuery: (q) => defaultShouldDehydrateQuery(q) && q.queryKey[0] !== "email-content" },
       }}>
       <BrowserRouter>
-        <App />
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </BrowserRouter>
     </PersistQueryClientProvider>
   </StrictMode>,
