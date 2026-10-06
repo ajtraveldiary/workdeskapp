@@ -9,6 +9,16 @@ import { cx } from "./ui";
 import { EmailStatusTags } from "./EmailStatus";
 import { LabelChips } from "./LabelChips";
 
+// Email rows (user request 2026-10-06: tell sender, subject and email text apart at a glance): the sender is
+// small and blue, the subject is the biggest and darkest line, the preview of the email text is small and light
+// grey. Unread emails get a bolder sender and subject (plus the blue dot). Shared with Home's Pending emails.
+export const emailLine = {
+  sender: (unread: boolean) => cx("truncate text-[0.8125rem] text-brand-700", unread ? "font-semibold" : "font-medium"),
+  subject: (unread: boolean) =>
+    cx("truncate text-[0.9375rem] leading-snug transition-colors group-hover/title:text-brand-700", unread ? "font-semibold text-ink" : "font-medium text-slate-800"),
+  preview: "min-w-0 truncate text-[0.8125rem] text-slate-400",
+};
+
 export function ThreadRow({
   thread,
   selected,
@@ -64,17 +74,17 @@ export function ThreadRow({
         <OpenArea thread={thread} onOpen={onOpen}>
         <div className="flex items-baseline gap-2">
           {thread.unread && <span className="size-2 shrink-0 translate-y-[-1px] rounded-full bg-brand-600" title="Unread in Gmail" />}
-          <span className={cx("truncate text-sm", thread.unread ? "font-semibold text-slate-900" : "text-slate-700")}>
+          <span className={emailLine.sender(thread.unread)}>
             {thread.fromName ?? thread.fromEmail ?? "Unknown sender"}
           </span>
           {thread.messageCount > 1 && <span className="text-xs text-slate-400">{thread.messageCount}</span>}
           <span className="ml-auto shrink-0 text-xs text-slate-500 tabular-nums">{formatWhen(thread.lastMessageAt)}</span>
         </div>
-        <p className={cx("truncate text-[0.9375rem] transition-colors group-hover/title:text-brand-700", thread.unread ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{thread.subject}</p>
+        <p className={emailLine.subject(thread.unread)}>{thread.subject}</p>
         {/* Compact (user request 2026-10-06): labels share the preview line. */}
         <div className="flex min-w-0 items-center gap-1.5">
           <LabelChips ids={labelIds} max={2} className="shrink-0 flex-nowrap" />
-          <p className="min-w-0 truncate text-sm text-slate-500">{thread.snippet}</p>
+          <p className={emailLine.preview}>{thread.snippet}</p>
         </div>
         </OpenArea>
 

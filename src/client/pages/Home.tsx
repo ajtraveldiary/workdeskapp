@@ -38,6 +38,7 @@ import { EmailStatusTags } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
 import { EmailBulkBar } from "../components/EmailBulkBar";
+import { emailLine } from "../components/ThreadRow";
 import { PriorityGrouped } from "../components/PriorityGroups";
 import { TaskDetails } from "../components/TaskDetails";
 import { EditableDue, dueTone } from "../components/InlineTaskEdit";
@@ -683,18 +684,18 @@ function EmailCard({
         <button onClick={() => onOpen(thread)} className="group/title block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
         <div className="flex items-baseline gap-2">
           {thread.unread && <span className="size-2 shrink-0 -translate-y-px rounded-full bg-brand-600" title="Unread in Gmail" />}
-          <span className={cx("truncate text-sm", thread.unread ? "font-semibold text-ink" : "font-medium text-slate-800")}>
+          <span className={emailLine.sender(thread.unread)}>
             {thread.fromName ?? thread.fromEmail ?? "Unknown sender"}
           </span>
           {thread.messageCount > 1 && <span className="text-xs text-slate-400">({thread.messageCount})</span>}
           <span className="ml-auto shrink-0 text-xs text-slate-500">{formatWhen(thread.lastMessageAt)}</span>
         </div>
-        <p className="mt-0.5 truncate text-[0.9375rem] text-ink transition-colors group-hover/title:text-brand-700">{thread.subject}</p>
+        <p className={cx("mt-0.5", emailLine.subject(thread.unread))}>{thread.subject}</p>
         {/* Compact (user request 2026-10-06): status and labels share the preview line. */}
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
           {showStatus && <EmailStatusTags thread={thread} />}
           <LabelChips ids={thread.labelIds} max={2} className="shrink-0 flex-nowrap" />
-          <p className="min-w-0 truncate text-[0.8125rem] text-slate-500">{thread.snippet}</p>
+          <p className={emailLine.preview}>{thread.snippet}</p>
         </div>
         </button>
         {/* Actions live in the card's toolbar (EmailBulkBar), not on every email (user request 2026-10-06). */}
