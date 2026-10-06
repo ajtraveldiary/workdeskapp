@@ -1,4 +1,4 @@
-import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useRef, useState, useSyncExternalStore, type ReactNode, useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   CalendarClock,
@@ -231,13 +231,22 @@ function CommandCenter({
   const [details, setDetails] = useState<Task | null>(null);
   const email = useThread(emailId).data ?? null;
   const openTask = (t: Task) => setDetails(t);
-  const [tab, setTab] = useState<CommandTab>(counts.dueToday || !counts.overdue ? "today" : "overdue");
+  // The Today tab also lists overdue tasks and reminders (user request 2026-10-06), so it opens on Today.
+  const [tab, setTab] = useState<CommandTab>("today");
   const view: TaskView = tab;
   // Phones get the Today / Overdue / Upcoming tabs too (user request 2026-10-06); Reminders has its own
   // bottom-bar tab there.
   const phone = usePhoneWidth();
-  const { data } = useTasks({ view });
-  const tasks = data?.tasks ?? [];
+  const { data: viewData } = useTasks({ view });
+  const overdueList = useTasks({ view: "overdue" }).data;
+  // Today = overdue + due today, in priority order with the oldest first within each priority.
+  const data = tab === "today" ? (viewData && overdueList ? viewData : undefined) : viewData;
+  const tasks = useMemo(() => {
+    const list = data?.tasks ?? [];
+    if (tab !== "today") return list;
+    const seen = new Set(list.map((t) => t.id));
+    return [...(overdueList?.tasks ?? []).filter((t) => !seen.has(t.id)), ...list];
+  }, [data, tab, overdueList]);
 
   return (
     <Panel hiddenOnPhone={hiddenOnPhone}>
@@ -258,7 +267,7 @@ function CommandCenter({
           value={tab}
           onChange={setTab}
           options={[
-            { value: "today", label: "Today", count: counts.dueToday, tone: "high" },
+            { value: "today", label: "Today", count: counts.dueToday + counts.overdue, tone: "high" },
             { value: "overdue", label: "Overdue", count: counts.overdue, tone: "urgent" },
             { value: "upcoming", label: "Upcoming", count: counts.upcoming, tone: "info" },
             ...(phone ? [] : [{ value: "reports" as const, label: "Reminders", count: counts.reportTasks }]),
@@ -273,7 +282,7 @@ function CommandCenter({
             Each reminder's task appears here ahead of its date. <Link to="/reminders" className="font-medium text-brand-700 hover:underline">Set up reminders</Link>
           </Empty>
         ) : tasks.length === 0 ? (
-          <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
+          <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today or overdue" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
             {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
           </Empty>
         ) : (
