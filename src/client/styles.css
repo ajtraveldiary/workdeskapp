@@ -88,6 +88,8 @@
   --text-largetitle--line-height: calc(41 / 34);
 
   --color-ink: #202124;
+  /* Sender names in email lists (user request 2026-10-06: pastel red), deep enough to stay readable on white. */
+  --color-sender: #e06666;
   --color-canvas-soft: #fcfcfd;
   --color-line: #e8eaed;
 }

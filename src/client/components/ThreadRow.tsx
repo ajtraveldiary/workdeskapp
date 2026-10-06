@@ -10,10 +10,10 @@ import { EmailStatusTags } from "./EmailStatus";
 import { LabelChips } from "./LabelChips";
 
 // Email rows (user request 2026-10-06: tell sender, subject and email text apart at a glance): the sender is
-// small and blue, the subject is the biggest and darkest line, the preview of the email text is small and light
+// small and pastel red (user request 2026-10-06), the subject is the biggest and darkest line, the preview of the email text is small and light
 // grey. Unread emails get a bolder sender and subject (plus the blue dot). Shared with Home's Pending emails.
 export const emailLine = {
-  sender: (unread: boolean) => cx("truncate text-footnote text-brand-700", unread ? "font-semibold" : "font-medium"),
+  sender: (unread: boolean) => cx("truncate text-footnote text-sender", unread ? "font-semibold" : "font-medium"),
   subject: (unread: boolean) =>
     cx("truncate text-subhead leading-snug transition-colors group-hover/title:text-brand-700", unread ? "font-semibold text-ink" : "font-medium text-slate-800"),
   preview: "min-w-0 truncate text-footnote text-slate-400",
