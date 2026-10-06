@@ -334,6 +334,7 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
 
 // Due Today rows (user request 2026-10-06): a compact link to the task or reminder, its title wrapping to at
 // most three lines; tapping opens its details card. No sender, tick circle or menu (phones still swipe).
+// Phones show them a little larger (user request 2026-10-06): subheadline titles, footnote times, roomier rows.
 function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string; onEdit: (t: Task) => void; onOpen: (t: Task) => void }) {
   const a = useTaskActions(task);
   const late = !!task.dueDate && task.dueDate < today;
@@ -341,19 +342,19 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName="flex items-start gap-2.5 px-3 py-2 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5"
+      contentClassName="flex items-start gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2"
       {...taskSwipe(task, a, onEdit)}
     >
       <span className={cx("w-[3px] shrink-0 self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <button
         onClick={() => onOpen(task)}
-        className="line-clamp-3 min-w-0 flex-1 text-left text-footnote leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
+        className="line-clamp-3 min-w-0 flex-1 text-left text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
         aria-label={`Show details: ${task.title}`}
       >
-        {task.report && <CalendarClock size={13} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
+        {task.report && <CalendarClock size={14} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
         {task.title}
       </button>
-      {when && <span className={cx("shrink-0 pt-px text-xs tabular-nums", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
+      {when && <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
     </SwipeRow>
   );
 }
