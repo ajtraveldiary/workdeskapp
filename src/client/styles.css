@@ -160,6 +160,21 @@ dialog::backdrop {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+/* Sideways rows move only sideways (2026-10-06: on iPhone the Emails tabs slid up and down inside their row,
+   half cut off). The tabs' invisible 44px tap areas stick out above and below the row, which made it
+   scrollable up and down too. Unlayered, so it beats overflow-x-auto. */
+.no-scrollbar {
+  overscroll-behavior-x: contain;
+}
+.no-scrollbar.overflow-x-auto {
+  overflow-y: hidden;
+}
+@media (min-width: 640px) {
+  /* Rows that wrap instead of scrolling on wider screens stay as they were. */
+  .no-scrollbar.sm\:overflow-visible {
+    overflow-y: visible;
+  }
+}
 
 /*
   Interaction states for everything clickable (on top of each component's own hover/active styles):
