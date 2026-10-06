@@ -1,8 +1,8 @@
 // Full-screen email viewer: the conversation on one side, the selected attachment (PDF or image) on the other.
-// On phones the preview opens over the email with a Back button. Content comes from Gmail on demand and
-// is never stored in WorkDesk's database.
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Paperclip, Tag, X } from "lucide-react";
+// On phones and tablets the email comes first and the attachment preview follows it further down the same
+// scroll (user request 2026-10-06). Content comes from Gmail on demand and is never stored in WorkDesk's database.
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Check, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Paperclip, Tag, X } from "lucide-react";
 import type { EmailAttachment, EmailMessageContent, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { attachmentUrl, useDismiss, useEmailContent, useLabels, useMarkRead, useSetThreadLabels } from "../api";
@@ -21,6 +21,20 @@ const isPdf = (a: EmailAttachment) => a.mimeType === "application/pdf" || a.file
 const isImage = (a: EmailAttachment) => VIEWABLE_IMAGE.test(a.mimeType);
 
 type Selected = { message: EmailMessageContent; attachment: EmailAttachment };
+
+// Wide enough for the side-by-side layout (Tailwind's lg).
+const WIDE = "(min-width: 1024px)";
+function useWide() {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = window.matchMedia(WIDE);
+      m.addEventListener("change", cb);
+      return () => m.removeEventListener("change", cb);
+    },
+    () => window.matchMedia(WIDE).matches,
+    () => true,
+  );
+}
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
@@ -72,14 +86,16 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
   const messages = useMemo(() => [...(data?.messages ?? [])].reverse(), [data]);
   const files = useMemo(() => messages.flatMap((m) => m.attachments.filter((a) => !a.inline).map((a) => ({ message: m, attachment: a }))), [messages]);
   const [selected, setSelected] = useState<Selected | null>(null);
-  const [mobilePreview, setMobilePreview] = useState(false);
   useEffect(() => {
     if (!selected && files.length) setSelected(files.find((f) => isPdf(f.attachment)) ?? files.find((f) => isImage(f.attachment)) ?? files[0]!);
   }, [files, selected]);
 
+  // Narrow screens: tapping an attachment shows it in the preview below the email and scrolls there.
+  const wide = useWide();
+  const inlineRef = useRef<HTMLElement>(null);
   const open = (f: Selected) => {
     setSelected(f);
-    setMobilePreview(true);
+    if (!wide) requestAnimationFrame(() => inlineRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
   return (
@@ -153,21 +169,40 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
               ))}
             </div>
           )}
+
+          {/* Phones and tablets: the attachment follows the email; scroll down to it */}
+          {!wide && selected && !error && (
+            <section ref={inlineRef} className="mt-4 scroll-mt-2 overflow-hidden rounded-xl border border-line bg-canvas-soft" aria-label="Attachment preview">
+              {files.length > 1 && (
+                <div className="no-scrollbar flex gap-2 overflow-x-auto border-b border-line bg-white px-3 py-2">
+                  {files.map((f) => {
+                    const active = f.message.id === selected.message.id && f.attachment.partId === selected.attachment.partId;
+                    return (
+                      <button
+                        key={`${f.message.id}:${f.attachment.partId}`}
+                        onClick={() => setSelected(f)}
+                        aria-pressed={active}
+                        className={cx(
+                          "max-w-48 shrink-0 truncate rounded-full border px-3 py-1 text-xs font-medium active:scale-[0.97]",
+                          active ? "border-brand-500 bg-tint text-brand-700" : "border-line text-slate-600",
+                        )}
+                      >
+                        {f.attachment.filename}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <Preview threadId={thread.id} selected={selected} empty={false} inline />
+            </section>
+          )}
         </section>
 
         {/* Right (wide screens): the selected attachment */}
-        <aside className="hidden min-h-0 flex-col border-l border-line bg-canvas-soft lg:flex" aria-label="Attachment preview">
-          <Preview threadId={thread.id} selected={selected} empty={!isPending && files.length === 0} />
-        </aside>
-
-        {/* Phones and tablets: the preview opens over the email */}
-        {mobilePreview && selected && (
-          <div className="absolute inset-0 z-10 flex flex-col bg-canvas-soft lg:hidden">
-            <button onClick={() => setMobilePreview(false)} className="flex items-center gap-2 border-b border-line bg-white px-4 py-3 text-left text-sm font-medium text-ink">
-              <ArrowLeft size={18} /> Back to email
-            </button>
-            <Preview threadId={thread.id} selected={selected} empty={false} />
-          </div>
+        {wide && (
+          <aside className="flex min-h-0 flex-col border-l border-line bg-canvas-soft" aria-label="Attachment preview">
+            <Preview threadId={thread.id} selected={selected} empty={!isPending && files.length === 0} />
+          </aside>
         )}
       </div>
     </div>
@@ -305,7 +340,8 @@ function HtmlBody({ html, cids }: { html: string; cids: Record<string, string> }
   );
 }
 
-function Preview({ threadId, selected, empty }: { threadId: string; selected: Selected | null; empty: boolean }) {
+// inline: part of the email's scroll (narrow screens) instead of a panel that scrolls on its own.
+function Preview({ threadId, selected, empty, inline }: { threadId: string; selected: Selected | null; empty: boolean; inline?: boolean }) {
   if (!selected) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-sm text-slate-500">
@@ -331,7 +367,7 @@ function Preview({ threadId, selected, empty }: { threadId: string; selected: Se
           <Download size={15} /> Download
         </a>
       </div>
-      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto p-4">
+      <div className={inline ? "p-3" : "scroll-thin min-h-0 flex-1 overflow-y-auto p-4"}>
         {isPdf(a) ? (
           <Suspense fallback={<p className="py-10 text-center text-sm text-slate-500">Loading PDF…</p>}>
             <PdfPreview url={url} />
