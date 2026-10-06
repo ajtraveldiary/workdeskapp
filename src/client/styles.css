@@ -10,8 +10,21 @@
     snooze  purple   on hold
     info    blue     calm, informational (upcoming); blue is also the action colour (brand)
 */
+/* Malayalam in Noto Sans Malayalam on every device (user request 2026-10-06), served by WorkDesk itself
+   (public/fonts, SIL Open Font License). Only Malayalam letters use it, so it downloads only when Malayalam
+   text is on screen; English stays in Poppins. The email and Word preview frames declare it too. */
+@font-face {
+  font-family: "Noto Sans Malayalam";
+  src:
+    url("/fonts/noto-sans-malayalam.woff2") format("woff2-variations"),
+    url("/fonts/noto-sans-malayalam.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0D00-0D7F, U+200C-200D, U+25CC;
+}
+
 @theme {
-  --font-sans: "Poppins", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-sans: "Poppins", "Noto Sans Malayalam", "Segoe UI", system-ui, -apple-system, sans-serif;
 
   --color-urgent: #f0283c;
   --color-urgent-soft: #ffe4e7;

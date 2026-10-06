@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import mammoth from "mammoth/mammoth.browser";
 import { Loading } from "./ui";
+import { MALAYALAM_FONT } from "../fonts";
 
 const STYLE =
-  'html,body{margin:0;background:#fff}body{padding:16px;font:14px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif;color:#1c1d26;overflow-wrap:anywhere}' +
+  MALAYALAM_FONT +
+  'html,body{margin:0;background:#fff}body{padding:16px;font:14px/1.6 "Segoe UI","Noto Sans Malayalam",system-ui,-apple-system,sans-serif;color:#1c1d26;overflow-wrap:anywhere}' +
   "img{max-width:100%;height:auto}table{border-collapse:collapse;max-width:100%;margin:8px 0}td,th{border:1px solid #d5d9e2;padding:4px 6px;vertical-align:top}" +
   "p{margin:0 0 8px}h1,h2,h3{line-height:1.3;margin:12px 0 8px}h1{font-size:20px}h2{font-size:17px}h3{font-size:15px}";
 
@@ -41,7 +43,7 @@ function DocFrame({ html }: { html: string }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const srcDoc = useMemo(
     () =>
-      `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><base target="_blank"><style>${STYLE}</style></head><body>${html}</body></html>`,
+      `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src 'self'"><base target="_blank"><style>${STYLE}</style></head><body>${html}</body></html>`,
     [html],
   );
   // Grow the frame to fit the document, so the page scrolls rather than the frame.

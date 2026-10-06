@@ -18,8 +18,10 @@ import { LabelChips, LabelPicker } from "./LabelChips";
 import { Button, Loading, Modal, Spinner, cx } from "./ui";
 import { showUndo } from "./SwipeRow";
 import { usePullToClose } from "./sheet";
+import { MALAYALAM_FONT } from "../fonts";
 
 const PdfPreview = lazy(() => import("./PdfPreview"));
+
 // Office previews (user request 2026-10-06), fetched only when such a file is opened.
 const SheetPreview = lazy(() => import("./SheetPreview"));
 const DocxPreview = lazy(() => import("./DocxPreview"));
@@ -397,8 +399,9 @@ function HtmlBody({ html, cids }: { html: string; cids: Record<string, string> }
   const srcDoc = useMemo(() => {
     const body = html.replace(/cid:([^"'\s)>]+)/gi, (m, id: string) => cids[id] ?? m);
     const ext = remote ? " https: http:" : "";
-    const csp = `default-src 'none'; img-src 'self' data:${ext}; style-src 'unsafe-inline'${ext}; font-src data:${ext}`;
-    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><style>html,body{margin:0;background:#fff}body{font:14px/1.6 "Segoe UI",system-ui,-apple-system,sans-serif;color:#1c1d26;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}</style></head><body>${body}</body></html>`;
+    // font-src 'self': WorkDesk's own Noto Sans Malayalam (user request 2026-10-06).
+    const csp = `default-src 'none'; img-src 'self' data:${ext}; style-src 'unsafe-inline'${ext}; font-src 'self' data:${ext}`;
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><style>${MALAYALAM_FONT}html,body{margin:0;background:#fff}body{font:14px/1.6 "Segoe UI","Noto Sans Malayalam",system-ui,-apple-system,sans-serif;color:#1c1d26;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}</style></head><body>${body}</body></html>`;
   }, [html, cids, remote]);
 
   // Grow the frame to fit the email, so the panel scrolls rather than the frame.
