@@ -51,6 +51,8 @@ export function EmailViewer({ thread, onClose, onCreateTask }: { thread: Thread 
       d.style.transition = "";
       d.style.transform = "";
       d.showModal();
+      // Focus the sheet itself, not its first button, so no focus ring shows on open; Tab still reaches the buttons.
+      d.focus();
     }
     if (!thread && d.open) d.close();
   }, [thread]);
@@ -61,7 +63,8 @@ export function EmailViewer({ thread, onClose, onCreateTask }: { thread: Thread 
       ref={ref}
       onClose={onClose}
       aria-label={thread?.subject ?? "Email"}
-      className="sheet m-0 h-dvh max-h-none w-full max-w-none bg-white p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:m-auto sm:p-0 sm:h-[min(100dvh-2rem,60rem)] sm:w-[min(100vw-2rem,84rem)] sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl"
+      tabIndex={-1}
+      className="sheet m-0 outline-none h-dvh max-h-none w-full max-w-none bg-white p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:m-auto sm:p-0 sm:h-[min(100dvh-2rem,60rem)] sm:w-[min(100vw-2rem,84rem)] sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl"
     >
       {thread && <ViewerBody key={thread.id} thread={thread} onClose={onClose} onCreateTask={onCreateTask} />}
     </dialog>
