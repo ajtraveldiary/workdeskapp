@@ -39,3 +39,4 @@ Single-user Gmail → task dashboard. React + Vite + Tailwind v4 (src/client), H
 - Loading states (user request 2026-10-06) look like a mobile app: the logo splash on start-up (`index.html`, and `Splash` while sign-in is checked), shimmering `SkeletonList` rows while a list loads, and `Loading`/`Spinner` (brand-blue spinner) for other waits. Never plain "Loading…" text, and never show an empty-state message before the data has arrived.
 - Calendar dates are `YYYY-MM-DD` strings in `APP_TIMEZONE` (default Asia/Kolkata).
 - Before finishing: `npm run typecheck` and `npm test`.
+- After every change, end the reply to the user with the new version number (user request 2026-10-06): `v<MAJOR>.<MINOR>` as `appVersion` computes it, e.g. `git rev-list --count HEAD` after pushing when there is no `vN` tag (fetch enough history first; the clone is shallow).
