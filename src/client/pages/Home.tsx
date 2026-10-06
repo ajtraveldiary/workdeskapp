@@ -225,7 +225,7 @@ function CommandCenter({
   hiddenOnPhone?: boolean;
 }) {
   const { counts, today } = summary;
-  // Phones: tapping a task opens the email it came from, or (for tasks without one) its details.
+  // Tapping a task opens the email it came from, or (for tasks without one) its details; Edit is in the row's menu (swipe on phones).
   const [emailId, setEmailId] = useState<string | null>(null);
   const [details, setDetails] = useState<Task | null>(null);
   const email = useThread(emailId).data ?? null;
@@ -292,7 +292,7 @@ function CommandCenter({
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
             {tasks.map((t) => (
-              <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={phone ? openTask : undefined} />
+              <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />
             ))}
           </ul>
         )}
@@ -350,7 +350,7 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
   };
 }
 
-// onOpen (phones): tapping the title opens the task's email or details instead of the editor.
+// onOpen: tapping the title opens the task's email or details instead of the editor.
 function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string; onEdit: (t: Task) => void; onOpen?: (t: Task) => void }) {
   const categories = useCategories().data ?? [];
   const a = useTaskActions(task);
