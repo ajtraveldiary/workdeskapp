@@ -1,21 +1,31 @@
-// Read-only view of a task, with what was entered when it was created. Used for tasks that didn't come
-// from an email (made by hand, or by a reminder).
-import { CalendarDays, Check, Clock, CalendarClock, Pencil, RotateCcw, StickyNote } from "lucide-react";
+// Read-only view of a task, with what was entered when it was created. Opened from task lists; for a task
+// made from an email it also names the email and can open it (onOpenEmail).
+import { CalendarDays, Check, Clock, CalendarClock, Mail, Pencil, RotateCcw, StickyNote } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Task } from "../../shared/types";
 import { useCompleteTask, useMe, useReopenTask } from "../api";
 import { formatDateTime, formatDay, formatTime } from "../format";
 import { Badge, Button, Modal, PriorityPill } from "./ui";
 
-export function TaskDetails({ task, onClose, onEdit }: { task: Task | null; onClose: () => void; onEdit: (t: Task) => void }) {
+export function TaskDetails({
+  task,
+  onClose,
+  onEdit,
+  onOpenEmail,
+}: {
+  task: Task | null;
+  onClose: () => void;
+  onEdit: (t: Task) => void;
+  onOpenEmail?: (threadId: string) => void;
+}) {
   return (
     <Modal open={task !== null} onClose={onClose} title="Task details">
-      {task && <Details task={task} onClose={onClose} onEdit={onEdit} />}
+      {task && <Details task={task} onClose={onClose} onEdit={onEdit} onOpenEmail={onOpenEmail} />}
     </Modal>
   );
 }
 
-function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; onEdit: (t: Task) => void }) {
+function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: () => void; onEdit: (t: Task) => void; onOpenEmail?: (threadId: string) => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
   const complete = useCompleteTask();
   const reopen = useReopenTask();
@@ -29,7 +39,7 @@ function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; o
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <PriorityPill priority={task.priority} />
           {done ? <Badge tone="low">Completed</Badge> : overdue ? <Badge tone="urgent">Overdue</Badge> : <Badge>Open</Badge>}
-          {task.report ? <Badge tone="info">Reminder</Badge> : <Badge>Created by hand</Badge>}
+          {task.report ? <Badge tone="info">Reminder</Badge> : task.thread ? <Badge tone="info">From email</Badge> : <Badge>Created by hand</Badge>}
         </div>
       </div>
 
@@ -53,6 +63,11 @@ function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; o
             {task.report.name} · {task.report.label}
           </Row>
         )}
+        {task.thread && (
+          <Row icon={Mail} label="Email">
+            <span className="font-medium">{task.thread.fromName ?? task.thread.fromEmail}</span>: {task.thread.subject}
+          </Row>
+        )}
         <Row icon={StickyNote} label="Notes">
           {task.notes ? <span className="whitespace-pre-wrap">{task.notes}</span> : <span className="text-slate-500">No notes</span>}
         </Row>
@@ -67,6 +82,11 @@ function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; o
         <Button variant="ghost" onClick={onClose}>
           Close
         </Button>
+        {task.thread && onOpenEmail && (
+          <Button onClick={() => onOpenEmail(task.thread!.id)}>
+            <Mail size={15} /> Open email
+          </Button>
+        )}
         <Button onClick={() => onEdit(task)}>
           <Pencil size={15} /> Edit
         </Button>

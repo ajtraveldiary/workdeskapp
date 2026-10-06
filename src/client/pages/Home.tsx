@@ -20,7 +20,6 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { dayLabel } from "../../shared/reminderSchedule";
 import type { Task, TaskView, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import {
@@ -34,7 +33,7 @@ import {
   useThread,
   useThreads,
 } from "../api";
-import { formatWhen } from "../format";
+import { formatDay, formatTime, formatWhen } from "../format";
 import { SnoozeSheet } from "../components/ThreadRow";
 import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../components/SwipeRow";
 import { EmailStatusTags } from "../components/EmailStatus";
@@ -226,11 +225,11 @@ function CommandCenter({
   hiddenOnPhone?: boolean;
 }) {
   const { counts, today } = summary;
-  // Tapping a task opens the email it came from, or (for tasks without one) its details; Edit is in the row's menu (swipe on phones).
+  // Tapping a task or reminder opens its details card (user request 2026-10-06); the card can open the email.
   const [emailId, setEmailId] = useState<string | null>(null);
   const [details, setDetails] = useState<Task | null>(null);
   const email = useThread(emailId).data ?? null;
-  const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
+  const openTask = (t: Task) => setDetails(t);
   const [tab, setTab] = useState<CommandTab>(counts.dueToday || !counts.overdue ? "today" : "overdue");
   const view: TaskView = tab;
   // Phones have no tabs (user request 2026-10-06): one list, overdue first, then today. Wider screens use
@@ -308,6 +307,10 @@ function CommandCenter({
       />
       <TaskDetails
         task={details}
+        onOpenEmail={(id) => {
+          setDetails(null);
+          setEmailId(id);
+        }}
         onClose={() => setDetails(null)}
         onEdit={(t) => {
           setDetails(null);
@@ -316,14 +319,6 @@ function CommandCenter({
       />
     </Panel>
   );
-}
-
-function subtitleFor(task: Task) {
-  const firstLine = task.notes.split("\n")[0]?.trim();
-  if (firstLine) return firstLine;
-  if (task.thread) return `${task.thread.fromName ?? task.thread.fromEmail}: ${task.thread.subject}`;
-  if (task.report) return task.report.label === dayLabel(task.dueDate ?? "") ? "Reminder" : `Reminder · ${task.report.label}`;
-  return "";
 }
 
 function useTaskActions(task: Task) {
@@ -351,46 +346,28 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
   };
 }
 
-// onOpen: tapping the title opens the task's email or details instead of the editor.
-function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string; onEdit: (t: Task) => void; onOpen?: (t: Task) => void }) {
+// Today / Command Center rows (user request 2026-10-06): one compact line, a link to the task or reminder;
+// tapping opens its details card. No sender, tick circle or menu (phones still swipe to complete or edit).
+function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string; onEdit: (t: Task) => void; onOpen: (t: Task) => void }) {
   const a = useTaskActions(task);
-  const swipe = useSwipeMode();
+  const late = !!task.dueDate && task.dueDate < today;
+  const when = [task.dueDate && task.dueDate !== today ? formatDay(task.dueDate, today) : null, task.dueTime && formatTime(task.dueTime)].filter(Boolean).join(", ");
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName="flex items-start gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-4"
+      contentClassName="flex items-center gap-2.5 px-3 py-2 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5"
       {...taskSwipe(task, a, onEdit)}
     >
-      {!swipe && (
-        <div className="pt-0.5">
-          <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
-        </div>
-      )}
-      <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
-      <div className="min-w-0 flex-1 @lg:flex @lg:items-center @lg:gap-4">
-        <button
-          onClick={() => (onOpen ? onOpen(task) : onEdit(task))}
-          aria-label={onOpen ? (task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`) : undefined}
-          className="group/title block w-full min-w-0 text-left @lg:w-auto @lg:flex-1"
-        >
-          <span className={cx("line-clamp-2 text-[0.8125rem] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
-          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[0.8125rem]">{subtitleFor(task)}</span>
-          {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[0.6875rem] font-medium text-brand-800">New reply</span>}
-        </button>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2 @lg:mt-0 @lg:shrink-0">
-          <EditableDue task={task} today={today} layout="split" />
-        </div>
-      </div>
-      {!swipe && (
-        <Menu
-          items={[
-            { label: "Edit", onClick: () => onEdit(task) },
-            { label: a.done ? "Reopen" : "Mark complete", onClick: a.toggle },
-            { label: "Open email in Gmail", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
-            { label: "Mark reply as seen", onClick: a.markSeen, hidden: !task.thread?.hasNewActivity },
-          ]}
-        />
-      )}
+      <span className={cx("h-4 w-[3px] shrink-0 rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
+      <button
+        onClick={() => onOpen(task)}
+        className="min-w-0 flex-1 truncate text-left text-[0.8125rem] font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
+        aria-label={`Show details: ${task.title}`}
+      >
+        {task.report && <CalendarClock size={13} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
+        {task.title}
+      </button>
+      {when && <span className={cx("shrink-0 text-xs tabular-nums", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
     </SwipeRow>
   );
 }
