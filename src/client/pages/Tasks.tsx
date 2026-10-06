@@ -7,6 +7,7 @@ import { EmailViewer } from "../components/EmailViewer";
 import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
+import { PriorityGrouped } from "../components/PriorityGroups";
 import { Button, Card, Empty, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
@@ -74,9 +75,13 @@ export function TasksPage() {
           <Empty title={EMPTY[view]} />
         ) : (
           <ul className="divide-y divide-slate-100">
-            {data.tasks.map((t) => (
-              <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
-            ))}
+            {view === "completed" ? (
+              data.tasks.map((t) => <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />)
+            ) : (
+              <PriorityGrouped tasks={data.tasks} edge="px-3 md:px-4">
+                {(t) => <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />}
+              </PriorityGrouped>
+            )}
           </ul>
         )}
       </Card>

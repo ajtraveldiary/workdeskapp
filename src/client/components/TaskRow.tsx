@@ -3,7 +3,7 @@ import type { Task } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
 import { daysBetween, formatDateTime, formatDay, formatTime } from "../format";
-import { Badge, PriorityPill, cx } from "./ui";
+import { Badge, PRIORITY_BAR, cx } from "./ui";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
 
 export function TaskRow({
@@ -60,6 +60,8 @@ export function TaskRow({
         <Check size={12} strokeWidth={3} />
       </button>
       )}
+      {/* Priority shows as colour (and grouping on the Tasks page), not a badge (user request 2026-10-06). */}
+      <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority], done && "opacity-40")} aria-hidden />
 
       <div className="min-w-0 flex-1">
         <button
@@ -76,7 +78,6 @@ export function TaskRow({
               {task.dueTime && `, ${formatTime(task.dueTime)}`}
             </Badge>
           )}
-          <PriorityPill priority={task.priority} />
           {done && task.completedAt && <span>Completed {formatDateTime(task.completedAt)}</span>}
           {task.report && (
             <span className="inline-flex min-w-0 items-center gap-1">

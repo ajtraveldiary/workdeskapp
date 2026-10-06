@@ -41,10 +41,11 @@ import { EmailStatusTags } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
 import { EmailBulkBar } from "../components/EmailBulkBar";
+import { PriorityGrouped } from "../components/PriorityGroups";
 import { TaskDetails } from "../components/TaskDetails";
-import { EditableDue, EditablePriority, dueTone } from "../components/InlineTaskEdit";
+import { EditableDue, dueTone } from "../components/InlineTaskEdit";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
-import { Button, CheckCircle, Loading as PageLoading, Menu, PRIORITY_BAR, PriorityPill, Segmented, SkeletonList, Spinner, TONE, cx, type Tone } from "../components/ui";
+import { Button, CheckCircle, Loading as PageLoading, Menu, PRIORITY_BAR, Segmented, SkeletonList, Spinner, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 export function HomePage() {
@@ -291,9 +292,9 @@ function CommandCenter({
           </Empty>
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
-            {tasks.map((t) => (
-              <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />
-            ))}
+            <PriorityGrouped tasks={tasks} edge="-mx-3 px-3 sm:-mx-5 sm:px-5">
+              {(t) => <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />}
+            </PriorityGrouped>
           </ul>
         )}
       </Scroll>
@@ -378,7 +379,6 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
         </button>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2 @lg:mt-0 @lg:shrink-0">
           <EditableDue task={task} today={today} layout="split" />
-          <EditablePriority task={task} />
         </div>
       </div>
       {!swipe && (
@@ -453,9 +453,13 @@ function TodoPanel({
           <Empty icon={ListPlus} title={tab === "all" ? "No open tasks" : "Nothing completed yet"} />
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
-            {tasks.map((t) => (
-              <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} />
-            ))}
+            {tab === "all" ? (
+              <PriorityGrouped tasks={tasks} edge="-mx-3 px-3 sm:-mx-5 sm:px-5">
+                {(t) => <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} />}
+              </PriorityGrouped>
+            ) : (
+              tasks.map((t) => <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} />)
+            )}
           </ul>
         )}
       </Scroll>
@@ -505,6 +509,7 @@ function TodoRow({
           <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
         </div>
       )}
+      <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority], a.done && "opacity-40")} aria-hidden />
       <div className="min-w-0 flex-1">
         <button
           onClick={() => onOpen(task)}
@@ -521,13 +526,9 @@ function TodoRow({
                 <CalendarDays size={14} />
                 {task.completedAt ? `Done ${formatWhen(task.completedAt)}` : "Done"}
               </span>
-              <PriorityPill priority={task.priority} />
             </>
           ) : (
-            <>
-              <EditableDue task={task} today={today} layout="joined" />
-              <EditablePriority task={task} />
-            </>
+            <EditableDue task={task} today={today} layout="joined" />
           )}
         </div>
       </div>
