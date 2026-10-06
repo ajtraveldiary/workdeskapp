@@ -8,6 +8,7 @@ import { formatWhen } from "../format";
 import { cx } from "./ui";
 import { EmailStatusTags } from "./EmailStatus";
 import { LabelChips } from "./LabelChips";
+import { SelectAvatar } from "./Avatar";
 
 // Email rows (user request 2026-10-06: tell sender, subject and email text apart at a glance): the sender is
 // small and pastel red (user request 2026-10-06), the subject is the biggest and darkest line, the preview of the email text is small and light
@@ -62,13 +63,8 @@ export function ThreadRow({
       ]}
     >
       {onSelect && (
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={(e) => onSelect(e.target.checked)}
-          aria-label="Select email"
-          className="mt-0.5 size-4 shrink-0 accent-brand-700 pointer-coarse:size-5"
-        />
+        // The sender's picture is the tick box (user request 2026-10-06).
+        <SelectAvatar name={thread.fromName ?? thread.fromEmail ?? "?"} selected={!!selected} onToggle={onSelect} label={`Select email from ${thread.fromName ?? thread.fromEmail ?? "unknown sender"}`} />
       )}
       <div className="min-w-0 flex-1">
         <OpenArea thread={thread} onOpen={onOpen}>

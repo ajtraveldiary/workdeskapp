@@ -362,3 +362,11 @@ dialog::backdrop {
   padding-block: 0.75rem;
   font-size: 0.9375rem;
 }
+
+/* The ticked sender picture in email lists pops in (user request 2026-10-06). */
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+}

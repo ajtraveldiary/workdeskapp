@@ -38,6 +38,7 @@ import { EmailStatusTags } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
 import { EmailBulkBar } from "../components/EmailBulkBar";
+import { SelectAvatar } from "../components/Avatar";
 import { emailLine } from "../components/ThreadRow";
 import { PriorityGrouped } from "../components/PriorityGroups";
 import { TaskDetails } from "../components/TaskDetails";
@@ -672,13 +673,8 @@ function EmailCard({
       ]}
     >
       {onSelect && (
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={(e) => onSelect(e.target.checked)}
-          aria-label={`Select email from ${thread.fromName ?? thread.fromEmail}`}
-          className="mt-1 size-[18px] shrink-0 accent-brand-600 pointer-coarse:size-5"
-        />
+        // The sender's picture is the tick box (user request 2026-10-06).
+        <SelectAvatar name={thread.fromName ?? thread.fromEmail ?? "?"} selected={!!selected} onToggle={onSelect} label={`Select email from ${thread.fromName ?? thread.fromEmail ?? "unknown sender"}`} />
       )}
       <div className="min-w-0 flex-1">
         {/* Tapping the email opens it with its attachments */}

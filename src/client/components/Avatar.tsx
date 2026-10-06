@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { cx } from "./ui";
 
 // Picked from the name so a sender always gets the same colour. Uses in-between hues
@@ -36,5 +37,44 @@ export function Avatar({
     <span style={style} className={cx(cls, "inline-flex items-center justify-center font-semibold", tone)} aria-hidden>
       {initials(name)}
     </span>
+  );
+}
+
+// Email lists (user request 2026-10-06): the sender's picture (initials circle; Gmail doesn't give apps sender
+// photos) takes the place of the tick box. Tapping it turns it into a ticked circle and selects the email;
+// tapping again unticks it. It is a real checkbox for screen readers and keyboards.
+export function SelectAvatar({
+  name,
+  selected,
+  onToggle,
+  label,
+  size = 36,
+}: {
+  name: string;
+  selected: boolean;
+  onToggle: (selected: boolean) => void;
+  label: string;
+  size?: number;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={selected}
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle(!selected);
+      }}
+      className="shrink-0 rounded-full transition-transform active:scale-90"
+    >
+      {selected ? (
+        <span style={{ width: size, height: size }} className="flex animate-[pop_160ms_ease-out] items-center justify-center rounded-full bg-brand-600 text-white">
+          <Check size={Math.round(size * 0.5)} strokeWidth={3} />
+        </span>
+      ) : (
+        <Avatar name={name} size={size} />
+      )}
+    </button>
   );
 }
