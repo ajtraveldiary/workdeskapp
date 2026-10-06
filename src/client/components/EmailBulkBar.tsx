@@ -16,6 +16,7 @@ export function EmailBulkBar({
   onCreateTask,
   className,
   idle,
+  hideUntilSelected,
 }: {
   threads: Thread[];
   selected: Set<string>;
@@ -25,6 +26,9 @@ export function EmailBulkBar({
   // Shown at the right instead of the (unusable) action buttons while nothing is ticked, e.g. the Emails
   // page's filters (cleanup, user request 2026-10-06). Without it the buttons stay, disabled.
   idle?: ReactNode;
+  // The whole bar stays hidden until an email is ticked (Home's Pending Emails card, user request 2026-10-06):
+  // tapping a sender picture selects the first email and the bar appears, with Select all.
+  hideUntilSelected?: boolean;
 }) {
   const bulkTask = useBulkTask();
   const bulkDismiss = useBulkDismiss();
@@ -34,6 +38,7 @@ export function EmailBulkBar({
   if (threads.length === 0 && !idle) return null;
 
   const picked = threads.filter((t) => selected.has(t.id));
+  if (hideUntilSelected && picked.length === 0) return null;
   const pending = picked.filter((t) => t.state === "needs_decision");
   const others = picked.filter((t) => t.state !== "needs_decision");
   // Show only the actions this list can use; they stay disabled until something fitting is ticked.

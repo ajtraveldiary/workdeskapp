@@ -574,7 +574,8 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
         </div>
       </div>
       {/* One toolbar for the list instead of buttons on every email (user request 2026-10-06). */}
-      {!waiting && <EmailBulkBar threads={threads} selected={selected} onSelectedChange={setSelected} onCreateTask={onCreateTask} className="px-3 pt-2.5 sm:px-5" />}
+      {/* Hidden until an email is ticked (user request 2026-10-06). */}
+      {!waiting && <EmailBulkBar threads={threads} selected={selected} onSelectedChange={setSelected} onCreateTask={onCreateTask} hideUntilSelected className="px-3 pt-2.5 sm:px-5" />}
       <Scroll>
         {error && !isFetching ? (
           <div className="px-5 py-10 text-center text-sm">
