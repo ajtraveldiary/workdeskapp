@@ -1,15 +1,20 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import {
+  AlarmClock,
   ArrowRight,
   CalendarDays,
+  Check,
+  Eye,
   CircleCheck,
   ExternalLink,
   FileText,
   ListChecks,
   ListPlus,
   Mail,
+  Pencil,
   Plus,
+  RotateCcw,
   TriangleAlert,
   Undo2,
   X,
@@ -31,7 +36,8 @@ import {
   useThreads,
 } from "../api";
 import { formatWhen } from "../format";
-import { SnoozeMenu } from "../components/ThreadRow";
+import { SnoozeMenu, SnoozeSheet } from "../components/ThreadRow";
+import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../components/SwipeRow";
 import { EmailStatusTags } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
@@ -285,17 +291,39 @@ function useTaskActions(task: Task) {
   const done = task.status === "done";
   const gmailUrl = task.thread ? gmailThreadUrl(task.thread.accountEmail, task.thread.gmailThreadId) : null;
   const toggle = () => (done ? reopen.mutate(task.id) : complete.mutate(task.id));
-  return { done, toggle, busy: complete.isPending || reopen.isPending, gmailUrl, markSeen: () => task.thread && seen.mutate(task.thread.id) };
+  const toggleAsync = () => (done ? reopen.mutateAsync(task.id) : complete.mutateAsync(task.id));
+  return { done, toggle, toggleAsync, busy: complete.isPending || reopen.isPending, gmailUrl, markSeen: () => task.thread && seen.mutate(task.thread.id) };
+}
+
+// Phones: swipe right to complete (or reopen), left for Gmail / seen / edit.
+function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t: Task) => void): { leading: SwipeAction; trailing: SwipeAction[] } {
+  return {
+    leading: a.done
+      ? { label: "Reopen", icon: RotateCcw, tone: "neutral", onClick: a.toggleAsync }
+      : { label: "Done", icon: Check, tone: "low", onClick: () => a.toggleAsync().then(() => showUndo({ message: "Task completed", undo: { kind: "reopen", id: task.id } })) },
+    trailing: [
+      { label: "Gmail", icon: ExternalLink, tone: "info", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
+      { label: "Seen", icon: Eye, tone: "brand", onClick: a.markSeen, hidden: !task.thread?.hasNewActivity || a.done },
+      { label: "Edit", icon: Pencil, tone: "neutral", onClick: () => onEdit(task) },
+    ],
+  };
 }
 
 function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit: (t: Task) => void }) {
   const categories = useCategories().data ?? [];
   const a = useTaskActions(task);
+  const swipe = useSwipeMode();
   return (
-    <li className="-mx-3 flex items-start gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:-mx-5 sm:px-5 sm:py-4">
-      <div className="pt-0.5">
-        <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
-      </div>
+    <SwipeRow
+      className="-mx-3 sm:-mx-5"
+      contentClassName="flex items-start gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-4"
+      {...taskSwipe(task, a, onEdit)}
+    >
+      {!swipe && (
+        <div className="pt-0.5">
+          <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
+        </div>
+      )}
       <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <div className="min-w-0 flex-1 @lg:flex @lg:items-center @lg:gap-4">
         <button onClick={() => onEdit(task)} className="group/title block w-full min-w-0 text-left @lg:w-auto @lg:flex-1">
@@ -308,15 +336,17 @@ function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit
           <EditablePriority task={task} />
         </div>
       </div>
-      <Menu
-        items={[
-          { label: "Edit", onClick: () => onEdit(task) },
-          { label: a.done ? "Reopen" : "Mark complete", onClick: a.toggle },
-          { label: "Open email in Gmail", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
-          { label: "Mark reply as seen", onClick: a.markSeen, hidden: !task.thread?.hasNewActivity },
-        ]}
-      />
-    </li>
+      {!swipe && (
+        <Menu
+          items={[
+            { label: "Edit", onClick: () => onEdit(task) },
+            { label: a.done ? "Reopen" : "Mark complete", onClick: a.toggle },
+            { label: "Open email in Gmail", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
+            { label: "Mark reply as seen", onClick: a.markSeen, hidden: !task.thread?.hasNewActivity },
+          ]}
+        />
+      )}
+    </SwipeRow>
   );
 }
 
@@ -421,12 +451,19 @@ function TodoRow({
   const a = useTaskActions(task);
   const category = categories.find((c) => c.id === task.categoryId)?.name;
   const context = category ?? (task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Recurring report" : "Manual task");
+  const swipe = useSwipeMode();
 
   return (
-    <li className="-mx-3 flex gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:-mx-5 sm:px-5 sm:py-4">
-      <div className="pt-0.5">
-        <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
-      </div>
+    <SwipeRow
+      className="-mx-3 sm:-mx-5"
+      contentClassName="flex gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-4"
+      {...taskSwipe(task, a, onEdit)}
+    >
+      {!swipe && (
+        <div className="pt-0.5">
+          <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <button
           onClick={() => onOpen(task)}
@@ -453,14 +490,16 @@ function TodoRow({
           )}
         </div>
       </div>
-      <Menu
-        items={[
-          { label: "Edit", onClick: () => onEdit(task) },
-          { label: a.done ? "Reopen" : "Mark complete", onClick: a.toggle },
-          { label: "Open email in Gmail", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
-        ]}
-      />
-    </li>
+      {!swipe && (
+        <Menu
+          items={[
+            { label: "Edit", onClick: () => onEdit(task) },
+            { label: a.done ? "Reopen" : "Mark complete", onClick: a.toggle },
+            { label: "Open email in Gmail", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
+          ]}
+        />
+      )}
+    </SwipeRow>
   );
 }
 
@@ -618,8 +657,34 @@ function EmailCard({
   const restore = useRestore();
   const gmailUrl = gmailThreadUrl(thread.accountEmail, thread.gmailThreadId);
   const inQueue = thread.state === "needs_decision";
+  // Phones: swipe right to make a task (or restore), left for Gmail / snooze / dismiss; the button bar goes away.
+  const swipe = useSwipeMode();
+  const navigate = useNavigate();
+  const [snoozing, setSnoozing] = useState(false);
   return (
-    <li className={cx("-mx-3 flex gap-3 px-3 py-3 transition-colors sm:-mx-5 sm:px-5 sm:py-4", selected ? "bg-tint" : "has-[:is(button,a):hover]:bg-slate-50/80")}>
+    <SwipeRow
+      className="-mx-3 sm:-mx-5"
+      contentClassName={cx("flex gap-3 px-3 py-3 transition-colors sm:px-5 sm:py-4", selected ? "bg-tint" : "has-[:is(button,a):hover]:bg-slate-50/80")}
+      leading={
+        inQueue
+          ? { label: "Task", icon: ListPlus, tone: "brand", onClick: () => onCreateTask(thread) }
+          : thread.state === "task"
+            ? null
+            : { label: "Restore", icon: Undo2, tone: "brand", onClick: () => restore.mutateAsync(thread.id) }
+      }
+      trailing={[
+        { label: "Gmail", icon: ExternalLink, tone: "info", href: gmailUrl ?? undefined, hidden: !gmailUrl },
+        { label: "View task", icon: ListChecks, tone: "brand", onClick: () => navigate(`/search?q=${encodeURIComponent(thread.subject)}`), hidden: thread.state !== "task" },
+        { label: "Snooze", icon: AlarmClock, tone: "snooze", onClick: () => setSnoozing(true), hidden: !inQueue },
+        {
+          label: "Dismiss",
+          icon: X,
+          tone: "neutral",
+          hidden: !inQueue,
+          onClick: () => dismiss.mutateAsync(thread.id).then(() => showUndo({ message: "Email dismissed", undo: { kind: "restore", id: thread.id } })),
+        },
+      ]}
+    >
       {onSelect && (
         <input
           type="checkbox"
@@ -649,6 +714,7 @@ function EmailCard({
         )}
         <p className="mt-1 line-clamp-1 text-[13px] leading-relaxed text-slate-500 sm:line-clamp-2">{thread.snippet}</p>
         </button>
+        {!swipe && (
         <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-2.5">
           {inQueue ? (
             <>
@@ -675,7 +741,9 @@ function EmailCard({
             </a>
           )}
         </div>
+        )}
       </div>
-    </li>
+      <SnoozeSheet id={snoozing ? thread.id : null} onClose={() => setSnoozing(false)} />
+    </SwipeRow>
   );
 }

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AlarmClock, ExternalLink, ListPlus, Undo2, X } from "lucide-react";
+import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
 import type { Category, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useDismiss, useRestore, useSetThreadCategory, useSnooze } from "../api";
 import { formatDateTime, formatWhen } from "../format";
-import { Button, cx } from "./ui";
+import { Button, Modal, cx } from "./ui";
 import { EmailStatusTags } from "./EmailStatus";
 import { LabelChips } from "./LabelChips";
 
@@ -29,9 +30,30 @@ export function ThreadRow({
   const setCategory = useSetThreadCategory();
   const gmailUrl = gmailThreadUrl(thread.accountEmail, thread.gmailThreadId);
   const inQueue = thread.state === "needs_decision";
+  // Phones: swipe right to make a task (or restore), left for Gmail / snooze / dismiss; the button bar goes away.
+  const swipe = useSwipeMode();
+  const [snoozing, setSnoozing] = useState(false);
 
   return (
-    <li className={cx("flex gap-3 px-4 py-3 transition-colors", selected ? "bg-brand-50/60" : "has-[:is(button,a):hover]:bg-slate-50/80")}>
+    <SwipeRow
+      contentClassName={cx("flex gap-3 py-3 transition-colors", swipe ? "px-3" : "px-4", selected ? "bg-brand-50/60" : "has-[:is(button,a):hover]:bg-slate-50/80")}
+      leading={
+        inQueue
+          ? { label: "Task", icon: ListPlus, tone: "brand", onClick: () => onCreateTask(thread) }
+          : { label: "Restore", icon: Undo2, tone: "brand", onClick: () => restore.mutateAsync(thread.id) }
+      }
+      trailing={[
+        { label: "Gmail", icon: ExternalLink, tone: "info", href: gmailUrl ?? undefined, hidden: !gmailUrl },
+        { label: "Snooze", icon: AlarmClock, tone: "snooze", onClick: () => setSnoozing(true), hidden: !inQueue },
+        {
+          label: "Dismiss",
+          icon: X,
+          tone: "neutral",
+          hidden: !inQueue,
+          onClick: () => dismiss.mutateAsync(thread.id).then(() => showUndo({ message: "Email dismissed", undo: { kind: "restore", id: thread.id } })),
+        },
+      ]}
+    >
       {onSelect && (
         <input
           type="checkbox"
@@ -56,8 +78,8 @@ export function ThreadRow({
         <p className="line-clamp-1 text-sm text-slate-500">{thread.snippet}</p>
         </OpenArea>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {inQueue && (
+        <div className={cx("flex flex-wrap items-center gap-2", swipe ? "mt-1.5 empty:hidden" : "mt-2")}>
+          {inQueue && !swipe && (
             <>
               <Button size="sm" variant="primary" onClick={() => onCreateTask(thread)}>
                 <ListPlus size={15} /> Create task
@@ -70,13 +92,13 @@ export function ThreadRow({
           )}
           {!inQueue && <EmailStatusTags thread={thread} />}
           {thread.state === "snoozed" && thread.snoozedUntil && <span className="text-xs text-slate-500">until {formatDateTime(thread.snoozedUntil)}</span>}
-          {!inQueue && (
+          {!inQueue && !swipe && (
             <Button size="sm" onClick={() => restore.mutate(thread.id)} disabled={restore.isPending}>
               <Undo2 size={15} /> <span className="sm:hidden">Restore</span>
               <span className="hidden sm:inline">Return to queue</span>
             </Button>
           )}
-          {gmailUrl ? (
+          {swipe ? null : gmailUrl ? (
             <a
               href={gmailUrl}
               target="_blank"
@@ -103,7 +125,8 @@ export function ThreadRow({
           </select>
         </div>
       </div>
-    </li>
+      <SnoozeSheet id={snoozing ? thread.id : null} onClose={() => setSnoozing(false)} />
+    </SwipeRow>
   );
 }
 
@@ -132,6 +155,37 @@ function snoozeOptions() {
     { label: "Monday, 9 AM", until: at(toMonday, 9) },
     { label: "In a week", until: at(7, 9) },
   ];
+}
+
+export function SnoozeSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
+  const [custom, setCustom] = useState("");
+  const snooze = useSnooze();
+  const pick = (until: Date) => {
+    if (!id) return;
+    // The promise (not mutate's onSuccess) so the undo still shows after the row has left the list.
+    snooze
+      .mutateAsync({ id, until })
+      .then(() => showUndo({ message: `Snoozed until ${formatDateTime(until.toISOString())}`, undo: { kind: "restore", id } }))
+      .catch(() => showUndo({ message: "Couldn't snooze. Try again." }));
+    onClose();
+  };
+  return (
+    <Modal open={!!id} onClose={onClose} title="Snooze until">
+      <div className="-mx-2 -mt-2">
+        {snoozeOptions().map((o) => (
+          <button key={o.label} onClick={() => pick(o.until)} className="block w-full rounded-lg px-3 py-2.5 text-left text-sm hover:bg-slate-50 active:bg-slate-100">
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-2 border-t border-line pt-3">
+        <input type="datetime-local" value={custom} onChange={(e) => setCustom(e.target.value)} aria-label="Snooze until" className="h-9 min-w-0 flex-1 rounded-lg border border-line px-2 text-sm" />
+        <Button size="sm" variant="primary" disabled={!custom} onClick={() => pick(new Date(custom))}>
+          Snooze
+        </Button>
+      </div>
+    </Modal>
+  );
 }
 
 export function SnoozeMenu({ id, icon, compact }: { id: string; icon?: ReactNode; compact?: boolean }) {

@@ -19,6 +19,7 @@ import {
 import { ApiError, logout, useMe, useSummary, useSync } from "./api";
 import { formatWhen } from "./format";
 import { Avatar } from "./components/Avatar";
+import { UndoBar } from "./components/SwipeRow";
 import { TONE, cx, type Tone } from "./components/ui";
 import { HomePage } from "./pages/Home";
 import { InboxPage } from "./pages/Inbox";
@@ -75,6 +76,7 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-canvas-soft md:flex">
       <FirstSync />
+      <UndoBar />
       {/* Labelled icon rail */}
       <aside className="sticky top-0 hidden h-dvh w-[104px] shrink-0 flex-col border-r border-line bg-white md:flex">
         <Link to="/" className="flex h-20 items-center justify-center border-b border-line" title="WorkDesk">

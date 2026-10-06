@@ -1,9 +1,10 @@
-import { Check, ExternalLink, FileText, Mail, RotateCcw } from "lucide-react";
+import { Check, Eye, ExternalLink, FileText, Mail, Pencil, RotateCcw } from "lucide-react";
 import type { Category, Task } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
 import { daysBetween, formatDateTime, formatDay, formatTime } from "../format";
 import { Badge, PriorityPill, cx } from "./ui";
+import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
 
 export function TaskRow({
   task,
@@ -23,9 +24,29 @@ export function TaskRow({
   const overdue = !done && task.dueDate !== null && task.dueDate < today;
   const category = categories.find((c) => c.id === task.categoryId);
   const gmailUrl = task.thread && gmailThreadUrl(task.thread.accountEmail, task.thread.gmailThreadId);
+  // Phones: swipe right to complete (or reopen), left for Gmail / seen / edit; the side buttons go away.
+  const swipe = useSwipeMode();
 
   return (
-    <li className="flex items-start gap-3 px-4 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80">
+    <SwipeRow
+      contentClassName={cx("flex items-start gap-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80", swipe ? "px-3" : "px-4")}
+      leading={
+        done
+          ? { label: "Reopen", icon: RotateCcw, tone: "neutral", onClick: () => reopen.mutateAsync(task.id) }
+          : {
+              label: "Done",
+              icon: Check,
+              tone: "low",
+              onClick: () => complete.mutateAsync(task.id).then(() => showUndo({ message: "Task completed", undo: { kind: "reopen", id: task.id } })),
+            }
+      }
+      trailing={[
+        { label: "Gmail", icon: ExternalLink, tone: "info", href: gmailUrl || undefined, hidden: !gmailUrl },
+        { label: "Seen", icon: Eye, tone: "brand", onClick: () => seen.mutate(task.thread!.id), hidden: !task.thread?.hasNewActivity || done },
+        { label: "Edit", icon: Pencil, tone: "neutral", onClick: () => onEdit(task) },
+      ]}
+    >
+      {!swipe && (
       <button
         onClick={() => (done ? reopen.mutate(task.id) : complete.mutate(task.id))}
         disabled={complete.isPending || reopen.isPending}
@@ -38,6 +59,7 @@ export function TaskRow({
       >
         <Check size={12} strokeWidth={3} />
       </button>
+      )}
 
       <div className="min-w-0 flex-1">
         <button onClick={() => onEdit(task)} className="group/title text-left">
@@ -84,7 +106,7 @@ export function TaskRow({
         )}
       </div>
 
-      {gmailUrl && (
+      {gmailUrl && !swipe && (
         <a
           href={gmailUrl}
           target="_blank"
@@ -95,7 +117,7 @@ export function TaskRow({
           <ExternalLink size={16} />
         </a>
       )}
-      {done && (
+      {done && !swipe && (
         <button
           onClick={() => reopen.mutate(task.id)}
           title="Reopen"
@@ -104,6 +126,6 @@ export function TaskRow({
           <RotateCcw size={16} />
         </button>
       )}
-    </li>
+    </SwipeRow>
   );
 }
