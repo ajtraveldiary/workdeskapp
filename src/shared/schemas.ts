@@ -106,4 +106,6 @@ export const threadLabelsInput = z.object({
 export const taskLabelSettingsInput = z.object({
   taskLabelId: z.string().regex(/^Label_[\w-]+$/).nullable(),
   doneLabelId: z.string().regex(/^Label_[\w-]+$/).nullable(),
+  // Labels whose emails go straight to completed tasks (left out = unchanged).
+  autoDoneLabelIds: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).optional(),
 });

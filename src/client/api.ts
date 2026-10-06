@@ -159,7 +159,7 @@ export function useLabelActions() {
 }
 
 // Settings > Mail: the task label and the done label.
-type TaskLabelSettings = { taskLabelId: string | null; doneLabelId: string | null };
+type TaskLabelSettings = { taskLabelId: string | null; doneLabelId: string | null; autoDoneLabelIds: string[] };
 export const useTaskLabelSettings = () =>
   useQuery({ queryKey: ["task-label-settings"], queryFn: () => api<TaskLabelSettings>("/labels/task-settings") });
 

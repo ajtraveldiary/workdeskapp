@@ -13,12 +13,21 @@ import { accessTokenFor } from "./gmailAuth";
 import { canMarkRead, listMessages, setThreadLabels } from "./gmail";
 import { applyLabelOps, type LabelOp } from "./sync";
 
-export type TaskLabelSettings = { taskLabelId: string | null; doneLabelId: string | null };
+// autoDoneLabelIds: more labels whose emails go straight to completed tasks (Settings tick boxes); unlike the
+// done label, WorkDesk never adds or removes them in Gmail.
+export type TaskLabelSettings = { taskLabelId: string | null; doneLabelId: string | null; autoDoneLabelIds: string[] };
 
 export async function getTaskLabels(db: DB, userId: string): Promise<TaskLabelSettings> {
-  const [u] = await db.select({ taskLabelId: users.taskLabelId, doneLabelId: users.doneLabelId }).from(users).where(eq(users.id, userId));
-  return u ?? { taskLabelId: null, doneLabelId: null };
+  const [u] = await db
+    .select({ taskLabelId: users.taskLabelId, doneLabelId: users.doneLabelId, autoDoneLabelIds: users.autoDoneLabelIds })
+    .from(users)
+    .where(eq(users.id, userId));
+  return u ?? { taskLabelId: null, doneLabelId: null, autoDoneLabelIds: [] };
 }
+
+// Every label that makes an email's task completed.
+const completingLabels = (s: TaskLabelSettings) => [...new Set([s.doneLabelId, ...s.autoDoneLabelIds].filter((x): x is string => !!x))];
+export const watchedLabels = (s: TaskLabelSettings) => [...new Set([s.taskLabelId, ...completingLabels(s)].filter((x): x is string => !!x))];
 
 const textArray = (ids: string[]) => sql`${`{${ids.join(",")}}`}::text[]`;
 
@@ -26,7 +35,8 @@ const textArray = (ids: string[]) => sql`${`{${ids.join(",")}}`}::text[]`;
 // Returns the conversations whose tasks it completed, so their labels can be tidied in Gmail.
 export async function applyLabelRules(db: DB, userId: string, onlyGmailThreadIds?: string[]) {
   const s = await getTaskLabels(db, userId);
-  const watch = [s.taskLabelId, s.doneLabelId].filter((x): x is string => !!x);
+  const watch = watchedLabels(s);
+  const completing = completingLabels(s);
   const result = { created: 0, completed: 0, completedThreadIds: [] as string[] };
   if (watch.length === 0 || (onlyGmailThreadIds && onlyGmailThreadIds.length === 0)) return result;
 
@@ -53,7 +63,7 @@ export async function applyLabelRules(db: DB, userId: string, onlyGmailThreadIds
   const intoTasks: string[] = [];
   for (const t of threads) {
     const mine = existing.filter((x) => x.threadId === t.id);
-    const done = !!s.doneLabelId && t.labelIds.includes(s.doneLabelId);
+    const done = completing.some((id) => t.labelIds.includes(id));
     const open = !!s.taskLabelId && t.labelIds.includes(s.taskLabelId);
     if (done) {
       if (mine.length === 0) newTasks.push({ userId, title: t.subject, threadId: t.id, status: "done", completedAt: now });
@@ -226,4 +236,9 @@ export async function clearMissingTaskLabels(db: DB, userId: string) {
       where id = ${userId} and ${sql.raw(col)} is not null
         and ${sql.raw(col)} not in (select gmail_label_id from gmail_labels where user_id = ${userId})`);
   }
+  await db.execute(sql`
+    update users set auto_done_label_ids = coalesce(
+      (select array_agg(l) from unnest(auto_done_label_ids) l where l in (select gmail_label_id from gmail_labels where user_id = ${userId})),
+      '{}')
+    where id = ${userId} and cardinality(auto_done_label_ids) > 0`);
 }

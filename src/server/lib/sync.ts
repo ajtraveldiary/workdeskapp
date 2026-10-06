@@ -5,7 +5,7 @@ import type { Env } from "../env";
 import { requireEnv, timezone } from "../env";
 import { todayIn } from "./dates";
 import { ensureReportPeriods } from "./reports";
-import { clearMissingTaskLabels, getTaskLabels, labelTaskEmails, runLabelRules } from "./taskLabels";
+import { clearMissingTaskLabels, getTaskLabels, labelTaskEmails, runLabelRules, watchedLabels } from "./taskLabels";
 import { decryptSecret } from "./crypto";
 import {
   GmailError,
@@ -452,7 +452,7 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
   }
 
   const taskLabels = await getTaskLabels(db, account.userId);
-  const watched = [taskLabels.taskLabelId, taskLabels.doneLabelId].filter((x): x is string => !!x);
+  const watched = watchedLabels(taskLabels);
   await applySnapshots(db, account.userId, account.id, snaps, watched);
   // Emails that now carry the task/done label become tasks (and the reverse labels are tidied).
   if (watched.length) await runLabelRules(db, env, account.userId, [...new Set([...snaps.map((x) => x.gmailThreadId), ...labelOps.map((o) => o.threadId)])]);

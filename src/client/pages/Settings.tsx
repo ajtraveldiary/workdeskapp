@@ -353,9 +353,24 @@ function TaskLabels() {
   const list = labels?.labels ?? [];
   const nameOf = (id: string | null) => list.find((l) => l.id === id)?.name ?? "";
 
+  const apply = (next: NonNullable<typeof settings>, added: boolean, made = "task") => {
+    setNotice(null);
+    save.mutate(next, {
+      onSuccess: (r) => {
+        const parts = [
+          r.created && `${r.created} ${made}${r.created === 1 ? "" : "s"} created`,
+          r.completed && `${r.completed} completed`,
+          r.queued && `${r.queued} more being fetched from Gmail (they'll appear after the next syncs)`,
+          r.labelled && `${r.labelled} ${r.labelled === 1 ? "email" : "emails"} labelled in Gmail`,
+          r.toLabel && `${r.toLabel} more will be labelled over the next syncs`,
+        ].filter(Boolean);
+        setNotice(added ? (parts.length ? `Done: ${parts.join(" · ")}.` : "Saved. No emails had this label yet.") : "Saved.");
+      },
+    });
+  };
+
   const change = (which: "taskLabelId" | "doneLabelId", id: string | null) => {
     if (!settings) return;
-    const next = { ...settings, [which]: id };
     if (id) {
       const what =
         which === "taskLabelId"
@@ -363,19 +378,20 @@ function TaskLabels() {
           : `Every email labelled "${nameOf(id)}" in Gmail will become a completed task, and every email whose task is completed (already, or later) will get this label in Gmail.`;
       if (!confirm(`${what}\n\nEmails not in WorkDesk yet are fetched over the next few syncs. Continue?`)) return;
     }
-    setNotice(null);
-    save.mutate(next, {
-      onSuccess: (r) => {
-        const parts = [
-          r.created && `${r.created} ${r.created === 1 ? "task" : "tasks"} created`,
-          r.completed && `${r.completed} completed`,
-          r.queued && `${r.queued} more being fetched from Gmail (they'll appear after the next syncs)`,
-          r.labelled && `${r.labelled} ${r.labelled === 1 ? "email" : "emails"} labelled in Gmail`,
-          r.toLabel && `${r.toLabel} more will be labelled over the next syncs`,
-        ].filter(Boolean);
-        setNotice(id ? (parts.length ? `Done: ${parts.join(" · ")}.` : "Saved. No emails had this label yet.") : "Saved.");
-      },
-    });
+    // A label chosen as the done label no longer needs its tick below.
+    const autoDoneLabelIds = which === "doneLabelId" && id ? settings.autoDoneLabelIds.filter((x) => x !== id) : settings.autoDoneLabelIds;
+    apply({ ...settings, autoDoneLabelIds, [which]: id }, !!id);
+  };
+
+  // Tick boxes: labels whose emails go straight to completed tasks (user request 2026-10-06).
+  const toggleStraight = (id: string, on: boolean) => {
+    if (!settings) return;
+    if (on) {
+      const gmail = settings.doneLabelId ? ` They also get "${nameOf(settings.doneLabelId)}" in Gmail.` : "";
+      if (!confirm(`Every email labelled "${nameOf(id)}" in Gmail (already, or later) will become a completed task in WorkDesk, without going through Pending or your to-do list.${gmail}\n\nEmails not in WorkDesk yet are fetched over the next few syncs. Continue?`)) return;
+    }
+    const autoDoneLabelIds = on ? [...settings.autoDoneLabelIds, id] : settings.autoDoneLabelIds.filter((x) => x !== id);
+    apply({ ...settings, autoDoneLabelIds }, on, "completed task");
   };
 
   const picker = (which: "taskLabelId" | "doneLabelId", label: string, help: string) => {
@@ -426,6 +442,35 @@ function TaskLabels() {
         {picker("taskLabelId", "Label for emails that become tasks", "Its emails are tasks in WorkDesk.")}
         {picker("doneLabelId", "Label for emails whose task is completed", "Replaces the task label when the task is done.")}
       </div>
+      {list.length > 0 && (
+        <fieldset className="mt-4">
+          <legend className="block text-sm font-medium text-ink">Labels that go straight to completed tasks</legend>
+          <span className="mt-0.5 block text-xs text-slate-500">
+            Emails with a ticked label become completed tasks right away, without going through Pending or your to-do list.
+          </span>
+          <div className="mt-1.5 grid gap-x-3 sm:grid-cols-2">
+            {list.map((l) => {
+              const isTask = l.id === settings?.taskLabelId;
+              const isDone = l.id === settings?.doneLabelId;
+              const checked = isDone || !!settings?.autoDoneLabelIds.includes(l.id);
+              return (
+                <label key={l.id} className={cx("flex min-h-11 items-center gap-2.5 rounded-lg px-1.5", isTask || isDone ? "opacity-60" : "has-[:enabled]:cursor-pointer has-[:enabled]:hover:bg-slate-50")}>
+                  <input
+                    type="checkbox"
+                    className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5"
+                    checked={checked}
+                    disabled={!settings || !labels?.canEdit || save.isPending || isTask || isDone}
+                    onChange={(e) => toggleStraight(l.id, e.target.checked)}
+                  />
+                  <LabelChip label={l} className="max-w-full" />
+                  {isTask && <span className="text-xs text-slate-500">task label</span>}
+                  {isDone && <span className="text-xs text-slate-500">completed label</span>}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
       {save.isPending && <p className="mt-2 text-xs text-slate-500">Applying… this can take a moment for a busy label.</p>}
       {notice && <p className="mt-2 rounded-lg bg-low-soft px-3 py-2 text-[0.8125rem] text-low-ink">{notice}</p>}
       <div className="mt-2">

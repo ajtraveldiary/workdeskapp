@@ -63,20 +63,27 @@ export const labelRoutes = new Hono<AppEnv>()
   .get("/task-settings", async (c) => c.json(await getTaskLabels(c.get("db"), c.get("userId"))))
 
   // Choosing a label (or a different one) turns every email that has it into a task: open for the task
-  // label, completed for the done label. Emails not yet in WorkDesk are fetched over the next syncs.
+  // label, completed for the done label and the ticked "straight to completed" labels. Emails not yet in
+  // WorkDesk are fetched over the next syncs.
   .put("/task-settings", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
     const input = taskLabelSettingsInput.parse(await c.req.json());
     if (input.taskLabelId && input.taskLabelId === input.doneLabelId) throw new HTTPException(400, { message: "Choose two different labels" });
+    // The done label already completes tasks, and the task label can't also mean completed.
+    if (input.autoDoneLabelIds) input.autoDoneLabelIds = [...new Set(input.autoDoneLabelIds)].filter((id) => id !== input.doneLabelId);
+    if (input.taskLabelId && input.autoDoneLabelIds?.includes(input.taskLabelId))
+      throw new HTTPException(400, { message: "The task label can't also go straight to completed tasks" });
     const known = new Set((await listLocal(db, userId)).map((l) => l.id));
-    for (const id of [input.taskLabelId, input.doneLabelId]) if (id && !known.has(id)) throw new HTTPException(400, { message: "Unknown label" });
+    for (const id of [input.taskLabelId, input.doneLabelId, ...(input.autoDoneLabelIds ?? [])]) if (id && !known.has(id)) throw new HTTPException(400, { message: "Unknown label" });
     const before = await getTaskLabels(db, userId);
     await db.update(users).set(input).where(eq(users.id, userId));
 
     const result = { created: 0, completed: 0, queued: 0, labelled: 0, toLabel: 0 };
-    for (const id of [input.taskLabelId, input.doneLabelId]) {
-      if (!id || id === before.taskLabelId || id === before.doneLabelId) continue; // only newly chosen labels import
+    const had = new Set([before.taskLabelId, before.doneLabelId, ...before.autoDoneLabelIds]);
+    for (const id of [input.taskLabelId, input.doneLabelId, ...(input.autoDoneLabelIds ?? [])]) {
+      if (!id || had.has(id)) continue; // only newly chosen labels import
+      had.add(id);
       const r = await importLabel(db, c.env, userId, id);
       result.created += r.created;
       result.completed += r.completed;
@@ -87,7 +94,9 @@ export const labelRoutes = new Hono<AppEnv>()
     result.labelled = l.labelled;
     result.toLabel = l.remaining;
     const names = Object.fromEntries((await listLocal(db, userId)).map((l) => [l.id, l.name]));
-    const summary = `Task label: ${input.taskLabelId ? names[input.taskLabelId] : "none"} · Done label: ${input.doneLabelId ? names[input.doneLabelId] : "none"}`;
+    const after = await getTaskLabels(db, userId);
+    const straight = after.autoDoneLabelIds.map((id) => names[id] ?? id).join(", ");
+    const summary = `Task label: ${after.taskLabelId ? names[after.taskLabelId] : "none"} · Done label: ${after.doneLabelId ? names[after.doneLabelId] : "none"}${straight ? ` · Straight to completed: ${straight}` : ""}`;
     await db.insert(events).values({ userId, entityType: "email", action: "settings.task_labels", summary, detail: { subject: summary } });
     return c.json(result);
   })

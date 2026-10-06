@@ -41,7 +41,7 @@ async function fakeFetch(input: string | URL | Request, init?: RequestInit) {
     return json({});
   }
   if (path === "/profile") return json({ emailAddress: "me@example.gov", historyId: "100" });
-  if (path === "/labels") return json({ labels: [{ id: "Label_task", name: "WD/Task", type: "user" }, { id: "Label_done", name: "WD/Done", type: "user" }] });
+  if (path === "/labels") return json({ labels: [{ id: "Label_task", name: "WD/Task", type: "user" }, { id: "Label_done", name: "WD/Done", type: "user" }, { id: "Label_fin", name: "Finished", type: "user" }] });
   if (path === "/history") return json({ history: [], historyId: "200" });
   if (path === "/messages") {
     const label = url.searchParams.get("labelIds");
@@ -165,5 +165,28 @@ describe("task labels", () => {
     expect(modifies.map((m) => [m.threadId, m.body.addLabelIds])).toEqual([["t1", ["Label_task"]], ["t2", ["Label_done"]]]);
     expect(mailbox.find((m) => m.threadId === "t3")!.labelIds).toEqual(["INBOX"]);
     expect(await labelTaskEmails(db, env, userId)).toEqual({ labelled: 0, remaining: 0 }); // nothing left to do
+  });
+
+  it("a ticked label sends its emails straight to completed tasks, now and as they arrive", async () => {
+    // t3 is outside the inbox, so WorkDesk hasn't downloaded it yet.
+    mailbox = [msg("m1", "t1", 1000, ["INBOX", "Label_fin"]), msg("m2", "t2", 2000, ["INBOX"]), msg("m3", "t3", 3000, ["Label_fin"])];
+    await syncAccount(db, env, await account());
+    await choose("Label_task", "Label_done");
+    await db.update(schema.users).set({ autoDoneLabelIds: ["Label_fin"] }).where(eq(schema.users.id, userId));
+    expect((await importLabel(db, env, userId, "Label_fin")).queued).toBe(1);
+
+    const t1 = (await threadByGmail("t1"))!;
+    expect((await tasksOf(t1.id)).map((t) => t.status)).toEqual(["done"]);
+    expect(t1.state).toBe("task"); // out of Pending
+    expect(await tasksOf((await threadByGmail("t2"))!.id)).toEqual([]);
+
+    // The next sync fetches it and completes it too.
+    await syncAccount(db, env, await account());
+    expect((await tasksOf((await threadByGmail("t3"))!.id)).map((t) => t.status)).toEqual(["done"]);
+
+    // Both get the completed label in Gmail; WorkDesk leaves "Finished" itself alone.
+    await labelTaskEmails(db, env, userId);
+    expect(mailbox.find((m) => m.threadId === "t1")!.labelIds).toEqual(["INBOX", "Label_fin", "Label_done"]);
+    expect(mailbox.find((m) => m.threadId === "t3")!.labelIds).toEqual(["Label_fin", "Label_done"]);
   });
 });

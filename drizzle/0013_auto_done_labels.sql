@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "auto_done_label_ids" text[] DEFAULT '{}'::text[] NOT NULL;

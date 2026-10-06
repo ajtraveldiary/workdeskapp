@@ -27,6 +27,8 @@ export const users = pgTable("users", {
   // Choosing one also turns every email that already has it into a task (open / completed).
   taskLabelId: text("task_label_id"),
   doneLabelId: text("done_label_id"),
+  // More labels whose emails become completed tasks straight away, like the done label (user request 2026-10-06).
+  autoDoneLabelIds: text("auto_done_label_ids").array().notNull().default(sql`'{}'::text[]`),
   // Shown on the home screen profile card, e.g. "Clerk, District Hospital".
   title: text("title"),
   picture: text("picture"),
