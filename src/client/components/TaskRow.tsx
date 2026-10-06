@@ -29,7 +29,7 @@ export function TaskRow({
 
   return (
     <SwipeRow
-      contentClassName={cx("flex items-start gap-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80", swipe ? "px-3" : "px-4")}
+      contentClassName={cx("row-click flex items-start gap-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80", swipe ? "px-3" : "px-4")}
       leading={
         done
           ? { label: "Reopen", icon: RotateCcw, tone: "neutral", onClick: () => reopen.mutateAsync(task.id) }
@@ -66,7 +66,7 @@ export function TaskRow({
       <div className="min-w-0 flex-1">
         <button
           onClick={() => (onOpen ? onOpen(task) : onEdit(task))}
-          className="group/title text-left"
+          className="row-link group/title text-left"
           aria-label={onOpen ? (task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`) : undefined}
         >
           <span className={cx("text-subhead leading-snug font-medium [overflow-wrap:anywhere]", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>

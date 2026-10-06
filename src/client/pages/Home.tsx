@@ -343,13 +343,13 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName="flex items-start gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2"
+      contentClassName="row-click flex items-start gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2"
       {...taskSwipe(task, a, onEdit)}
     >
       <span className={cx("w-[3px] shrink-0 self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <button
         onClick={() => onOpen(task)}
-        className="line-clamp-3 min-w-0 flex-1 text-left text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
+        className="row-link line-clamp-3 min-w-0 flex-1 text-left text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
         aria-label={`Show details: ${task.title}`}
       >
         {task.report && <CalendarClock size={14} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
@@ -476,7 +476,7 @@ function TodoRow({
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName="flex gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-4"
+      contentClassName="row-click flex gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-4"
       {...taskSwipe(task, a, onEdit)}
     >
       {!swipe && (
@@ -488,7 +488,7 @@ function TodoRow({
       <div className="min-w-0 flex-1">
         <button
           onClick={() => onOpen(task)}
-          className="group/title block max-w-full text-left"
+          className="row-link group/title block max-w-full text-left"
           aria-label={task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`}
         >
           <span className={cx("line-clamp-2 text-subhead leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
@@ -653,7 +653,7 @@ function EmailCard({
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName={cx("flex gap-3 px-3 py-2 transition-colors sm:px-5 sm:py-3", selected ? "bg-tint" : "has-[:is(button,a):hover]:bg-slate-50/80")}
+      contentClassName={cx("row-click flex gap-3 px-3 py-2 transition-colors sm:px-5 sm:py-3", selected ? "bg-tint" : "has-[:is(button,a):hover]:bg-slate-50/80")}
       leading={
         inQueue
           ? { label: "Task", icon: ListPlus, tone: "brand", onClick: () => onCreateTask(thread) }
@@ -679,7 +679,7 @@ function EmailCard({
       )}
       <div className="min-w-0 flex-1">
         {/* Tapping the email opens it with its attachments */}
-        <button onClick={() => onOpen(thread)} className="group/title block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
+        <button onClick={() => onOpen(thread)} className="row-link group/title block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
         <div className="flex items-baseline gap-2">
           {thread.unread && <span className="size-2 shrink-0 -translate-y-px rounded-full bg-brand-600" title="Unread in Gmail" />}
           <span className={emailLine.sender(thread.unread)}>

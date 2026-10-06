@@ -32,6 +32,7 @@ Single-user Gmail → task dashboard. React + Vite + Tailwind v4 (src/client), H
 ## Interaction states (every clickable element)
 - Base CSS gives everything clickable a hand pointer, disabled controls a not-allowed pointer, 150ms transitions, and turns motion off for `prefers-reduced-motion`.
 - Each control also needs visible states: hover (mouse only; Tailwind `hover:` already skips touch), pressed (`active:scale-[0.97]` for buttons/tabs, `active:scale-90` for icon buttons), selected/current (`aria-selected`, `aria-current`, `aria-expanded:` styles), disabled (`disabled:opacity-50`; use `enabled:hover:` so disabled controls don't react).
+- Whole cards/rows are tappable (user request 2026-10-06): mark the row `row-click` and the button that opens the item `row-link` (styles.css stretches its tap area over the row; other controls in the row stay on top with their own action). Used by task rows (Tasks page, To-do card, Due Today), email rows and reminder rows.
 - List rows highlight only while one of their controls is hovered (`has-[:is(button,a):hover]:bg-slate-50/80`), and a title turns blue only when the title itself, which opens the item, is hovered (`group/title`).
 
 ## Conventions

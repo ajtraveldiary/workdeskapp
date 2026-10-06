@@ -370,3 +370,28 @@ dialog::backdrop {
     opacity: 0.4;
   }
 }
+
+/*
+  Whole-card tap (user request 2026-10-06): in a row marked .row-click, the button marked .row-link (the one
+  that opens the item) stretches its tap area over the whole row; the row's other controls (tick circle,
+  menu, sender picture, due-date chip…) sit above it and keep their own action.
+*/
+.row-click {
+  position: relative;
+}
+.row-click .row-link {
+  position: static;
+}
+.row-click .row-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  transform: none;
+  z-index: 0;
+}
+.row-click :is(button, a[href], input, select, [role="checkbox"], [role="button"]):not(.row-link) {
+  position: relative;
+  z-index: 1;
+}

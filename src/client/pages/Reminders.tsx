@@ -132,8 +132,8 @@ function ReminderRow({ report, today, onEdit }: { report: Report; today: string;
   const details = [repeatText(report), report.dueTime && formatTime(report.dueTime), report.leadDays > 0 && `remind ${remindLabel(report.leadDays)}`].filter(Boolean).join(" · ");
 
   return (
-    <li className={cx("flex items-start gap-3 px-4 py-3 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5", !report.active && "opacity-60")}>
-      <button onClick={onEdit} className="group/title min-w-0 flex-1 text-left">
+    <li className={cx("row-click flex items-start gap-3 px-4 py-3 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5", !report.active && "opacity-60")}>
+      <button onClick={onEdit} className="row-link group/title min-w-0 flex-1 text-left">
         <p className="text-subhead font-medium text-ink group-hover/title:text-brand-700">{report.name}</p>
         <p className="text-footnote text-slate-500">{details}</p>
         <p className="mt-0.5 text-footnote text-slate-500">

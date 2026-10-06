@@ -45,7 +45,7 @@ export function ThreadRow({
 
   return (
     <SwipeRow
-      contentClassName={cx("flex py-2 transition-colors sm:py-2.5", swipe ? "gap-2.5 px-3" : "gap-3 px-4", selected ? "bg-brand-50/60" : "has-[:is(button,a):hover]:bg-slate-50/80")}
+      contentClassName={cx("row-click flex py-2 transition-colors sm:py-2.5", swipe ? "gap-2.5 px-3" : "gap-3 px-4", selected ? "bg-brand-50/60" : "has-[:is(button,a):hover]:bg-slate-50/80")}
       leading={
         inQueue
           ? { label: "Task", icon: ListPlus, tone: "brand", onClick: () => onCreateTask(thread) }
@@ -99,7 +99,7 @@ export function ThreadRow({
 function OpenArea({ thread, onOpen, children }: { thread: Thread; onOpen?: (t: Thread) => void; children: ReactNode }) {
   if (!onOpen) return <>{children}</>;
   return (
-    <button onClick={() => onOpen(thread)} className="group/title block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
+    <button onClick={() => onOpen(thread)} className="row-link group/title block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
       {children}
     </button>
   );
