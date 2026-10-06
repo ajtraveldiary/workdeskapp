@@ -2,7 +2,8 @@
 // On phones and tablets the email comes first and the attachment preview follows it further down the same
 // scroll (user request 2026-10-06). Content comes from Gmail on demand and is never stored in WorkDesk's database.
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
-import { ChevronDown, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Paperclip, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ChevronDown, ChevronLeft, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Maximize2, Paperclip, X } from "lucide-react";
 import type { EmailAttachment, EmailMessageContent, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { attachmentUrl, useDismiss, useEmailContent, useMarkRead } from "../api";
@@ -61,7 +62,8 @@ export function EmailViewer({ thread, onClose, onCreateTask }: { thread: Thread 
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // Only its own close: React passes the attachment viewer's close event up through the portal too.
+      onClose={(e) => e.target === e.currentTarget && onClose()}
       aria-label={thread?.subject ?? "Email"}
       tabIndex={-1}
       className="sheet m-0 outline-none h-dvh max-h-none w-full max-w-none bg-white p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:m-auto sm:p-0 sm:h-[min(100dvh-2rem,60rem)] sm:w-[min(100vw-2rem,84rem)] sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl"
@@ -437,6 +439,7 @@ function HtmlBody({ html, cids }: { html: string; cids: Record<string, string> }
 
 // inline: part of the email's scroll (narrow screens) instead of a panel that scrolls on its own.
 function Preview({ threadId, selected, empty, inline }: { threadId: string; selected: Selected | null; empty: boolean; inline?: boolean }) {
+  const [viewing, setViewing] = useState(false);
   if (!selected) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-sm text-slate-500">
@@ -449,18 +452,20 @@ function Preview({ threadId, selected, empty, inline }: { threadId: string; sele
   const url = attachmentUrl(threadId, message.id, a.partId);
   return (
     <>
+      <AttachmentViewer open={viewing} onClose={() => setViewing(false)} attachment={a} url={url} downloadUrl={attachmentUrl(threadId, message.id, a.partId, true)} />
       <div className="flex items-center gap-2 border-b border-line bg-white px-4 py-2.5">
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink" title={a.filename}>
           {a.filename}
         </span>
+        {/* Open shows the file full-screen inside WorkDesk, with a Back button; Download saves it without leaving
+            the app (phones: the share sheet). Both used to navigate away, which left the home-screen app with no
+            way back (2026-10-06). */}
         {(isPdf(a) || isImage(a)) && (
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[0.8125rem] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
-            <ExternalLink size={15} /> Open
-          </a>
+          <Button size="sm" onClick={() => setViewing(true)}>
+            <Maximize2 size={14} /> Open
+          </Button>
         )}
-        <a href={attachmentUrl(threadId, message.id, a.partId, true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[0.8125rem] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
-          <Download size={15} /> Download
-        </a>
+        <SaveButton url={url} downloadUrl={attachmentUrl(threadId, message.id, a.partId, true)} attachment={a} />
       </div>
       <div className={inline ? "p-3" : "scroll-thin min-h-0 flex-1 overflow-y-auto p-4"}>
         {isPdf(a) ? (
@@ -477,5 +482,92 @@ function Preview({ threadId, selected, empty, inline }: { threadId: string; sele
         )}
       </div>
     </>
+  );
+}
+
+// Saves an attachment without leaving the app: phones get the share sheet (Save to Files, WhatsApp, Mail…);
+// computers, and phones that can't share files, download it.
+async function saveAttachment(url: string, downloadUrl: string, a: EmailAttachment) {
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+  if (touch && typeof navigator.canShare === "function") {
+    try {
+      // The preview already loaded `url`, so this usually comes from the browser's cache straight away.
+      const blob = await (await fetch(url, { credentials: "same-origin" })).blob();
+      const file = new window.File([blob], a.filename, { type: blob.type || a.mimeType });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] });
+        return;
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return; // the person closed the share sheet
+    }
+  }
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = a.filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function SaveButton({ url, downloadUrl, attachment }: { url: string; downloadUrl: string; attachment: EmailAttachment }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button size="sm" disabled={busy} onClick={() => { setBusy(true); void saveAttachment(url, downloadUrl, attachment).finally(() => setBusy(false)); }}>
+      <Download size={15} /> Download
+    </Button>
+  );
+}
+
+// A PDF or image full-screen inside WorkDesk, with Back to return to the email (Esc also closes it). Rendered
+// in its own top-layer dialog through a portal, so the email sheet's pull-to-close doesn't react to it.
+function AttachmentViewer({ open, onClose, attachment: a, url, downloadUrl }: { open: boolean; onClose: () => void; attachment: EmailAttachment; url: string; downloadUrl: string }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) {
+      d.showModal();
+      d.focus();
+    }
+    if (!open && d.open) d.close();
+  }, [open]);
+  return createPortal(
+    <dialog
+      ref={ref}
+      onClose={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+      tabIndex={-1}
+      aria-label={a.filename}
+      className="m-0 h-dvh max-h-none w-full max-w-none bg-slate-100 p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] outline-none"
+    >
+      {open && (
+        <div className="flex h-full flex-col">
+          <div className="flex items-center gap-2 border-b border-line bg-white px-2 py-1.5 sm:px-4">
+            <button onClick={onClose} className="inline-flex h-9 shrink-0 items-center gap-0.5 rounded-lg pr-2 text-sm font-medium text-brand-700 hover:bg-slate-50 active:scale-95">
+              <ChevronLeft size={20} /> Back
+            </button>
+            <span className="min-w-0 flex-1 truncate text-center text-sm font-medium text-ink" title={a.filename}>
+              {a.filename}
+            </span>
+            <SaveButton url={url} downloadUrl={downloadUrl} attachment={a} />
+          </div>
+          <div className="scroll-thin min-h-0 flex-1 overflow-auto p-3 sm:p-6">
+            <div className="mx-auto max-w-4xl">
+              {isPdf(a) ? (
+                <Suspense fallback={<Loading label="Loading PDF…" />}>
+                  <PdfPreview url={url} />
+                </Suspense>
+              ) : (
+                <img src={url} alt={a.filename} className="mx-auto max-w-full rounded-md border border-line bg-white" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </dialog>,
+    document.body,
   );
 }

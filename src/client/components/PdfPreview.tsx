@@ -61,7 +61,7 @@ export default function PdfPreview({ url }: { url: string }) {
       {state === "loading" && <Loading label="Loading PDF…" />}
       {state === "error" && (
         <p className="py-10 text-center text-sm text-urgent-ink">
-          This PDF couldn't be shown here. Use Download or Open to view it.
+          This PDF couldn&apos;t be shown here. Use Download to save it and open it in another app.
         </p>
       )}
       <div ref={pagesRef} />
