@@ -3,7 +3,7 @@
 // scroll (user request 2026-10-06). Content comes from Gmail on demand and is never stored in WorkDesk's database.
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronLeft, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Maximize2, Paperclip, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Maximize2, Paperclip, Share, X } from "lucide-react";
 import type { EmailAttachment, EmailMessageContent, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { attachmentUrl, useDismiss, useEmailContent, useMarkRead } from "../api";
@@ -12,7 +12,8 @@ import { Avatar } from "./Avatar";
 import { EmailStatusTags } from "./EmailStatus";
 import { LabelChips, LabelPicker } from "./LabelChips";
 import { SnoozeMenu } from "./ThreadRow";
-import { Button, Loading, cx } from "./ui";
+import { Button, Loading, Spinner, cx } from "./ui";
+import { showUndo } from "./SwipeRow";
 
 const PdfPreview = lazy(() => import("./PdfPreview"));
 
@@ -163,6 +164,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
   const messages = useMemo(() => [...(data?.messages ?? [])].reverse(), [data]);
   const files = useMemo(() => messages.flatMap((m) => m.attachments.filter((a) => !a.inline).map((a) => ({ message: m, attachment: a }))), [messages]);
   const [selected, setSelected] = useState<Selected | null>(null);
+  const share = useEmailShare(thread, messages, files);
   useEffect(() => {
     if (!selected && files.length) setSelected(files.find((f) => isPdf(f.attachment)) ?? files.find((f) => isImage(f.attachment)) ?? files[0]!);
   }, [files, selected]);
@@ -185,6 +187,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
           <ChevronDown size={26} strokeWidth={2} />
         </button>
         <div className="ml-auto flex items-center gap-1 pr-1">
+          <ShareButton share={share} className="size-10 rounded-full" />
           <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} />
           {gmailUrl && (
             <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-10 items-center justify-center rounded-full text-slate-500 active:scale-90 active:bg-slate-100" aria-label="Open in Gmail">
@@ -220,6 +223,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
           )}
           {/* On phones these live in the top bar above. */}
           <div className="contents max-sm:hidden">
+            <ShareButton share={share} className="size-9 rounded-lg hover:bg-slate-100" />
             <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} />
             {gmailUrl && (
               <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:size-9" title="Open in Gmail" aria-label="Open in Gmail">
@@ -569,5 +573,93 @@ function AttachmentViewer({ open, onClose, attachment: a, url, downloadUrl }: { 
       )}
     </dialog>,
     document.body,
+  );
+}
+
+// --- Share (user request 2026-10-06) ---
+// The phone's share sheet with the email's attachments and its text as the message, so in WhatsApp the files
+// arrive with the email as their caption. iOS only opens the sheet straight from the tap, so on touch devices
+// the attachments are fetched as soon as the email opens and handed over instantly when Share is tapped.
+
+const SHARE_MAX_BYTES = 25 * 1024 * 1024; // larger attachment sets are shared as text only
+const CAPTION_CHARS = 900; // WhatsApp captions are limited; long emails are cut with "…"
+
+function htmlToText(html: string) {
+  const marked = html.replace(/<(br|\/p|\/div|\/tr|\/li|\/h[1-6])[^>]*>/gi, "\n");
+  return new DOMParser().parseFromString(marked, "text/html").body.textContent ?? "";
+}
+
+function shareText(thread: Thread, m: EmailMessageContent | undefined, attachmentNames: string[]) {
+  const from = m ? (m.fromName && m.fromEmail ? `${m.fromName} <${m.fromEmail}>` : (m.fromName ?? m.fromEmail ?? "")) : (thread.fromName ?? thread.fromEmail ?? "");
+  let body = (m ? (m.text ?? (m.html ? htmlToText(m.html) : "")) : thread.snippet).replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (body.length > CAPTION_CHARS) body = `${body.slice(0, CAPTION_CHARS).trimEnd()}…`;
+  return [
+    `*${thread.subject}*`,
+    `From: ${from}`,
+    `Date: ${formatDateTime(m?.date ?? thread.lastMessageAt)}`,
+    "",
+    body,
+    ...(attachmentNames.length ? ["", `Attachments: ${attachmentNames.join(", ")}`] : []),
+  ].join("\n");
+}
+
+type EmailShare = { ready: boolean; preparing: boolean; go: () => void };
+
+function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: Selected[]): EmailShare {
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+  const [prepared, setPrepared] = useState<globalThis.File[] | null>(null);
+  const loaded = messages.length > 0;
+  const total = files.reduce((n, f) => n + f.attachment.size, 0);
+  const wantFiles = canShare && touch && files.length > 0 && total <= SHARE_MAX_BYTES && typeof navigator.canShare === "function";
+
+  useEffect(() => {
+    if (!wantFiles) return;
+    let cancelled = false;
+    setPrepared(null);
+    Promise.all(
+      files.map(async ({ message, attachment: a }) => {
+        const blob = await (await fetch(attachmentUrl(thread.id, message.id, a.partId), { credentials: "same-origin" })).blob();
+        return new window.File([blob], a.filename, { type: blob.type || a.mimeType });
+      }),
+    )
+      .then((list) => !cancelled && setPrepared(navigator.canShare({ files: list }) ? list : []))
+      .catch(() => !cancelled && setPrepared([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [wantFiles, files, thread.id]);
+
+  const preparing = wantFiles && prepared === null;
+  const go = () => {
+    const sharedFiles = wantFiles && prepared && prepared.length ? prepared : [];
+    // Newest message's text; file names are listed only when the files themselves can't go with it.
+    const text = shareText(thread, messages[0], sharedFiles.length ? [] : files.map((f) => f.attachment.filename));
+    if (canShare) {
+      navigator
+        .share(sharedFiles.length ? { files: sharedFiles, text } : { title: thread.subject, text })
+        .catch((e: Error) => e.name !== "AbortError" && showUndo({ message: "Couldn't open the share menu. Try again." }));
+      return;
+    }
+    // No share menu (some computers): copy the email instead.
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => showUndo({ message: "Email copied. Paste it anywhere." }))
+      .catch(() => showUndo({ message: "Couldn't copy the email." }));
+  };
+  return { ready: loaded && !preparing, preparing: loaded && preparing, go };
+}
+
+function ShareButton({ share, className }: { share: EmailShare; className: string }) {
+  return (
+    <button
+      onClick={share.go}
+      disabled={!share.ready}
+      className={cx("inline-flex items-center justify-center text-slate-500 hover:text-ink active:scale-90 active:bg-slate-100 disabled:opacity-50", className)}
+      aria-label={share.preparing ? "Preparing attachments to share" : "Share email"}
+      title={share.preparing ? "Preparing attachments…" : "Share"}
+    >
+      {share.preparing ? <Spinner size={18} /> : <Share size={19} />}
+    </button>
   );
 }
