@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { CheckCircle2, CircleDot, Mail, RotateCcw } from "lucide-react";
+import { Link } from "react-router";
+import { CheckCircle2, ChevronLeft, CircleDot, Mail, RotateCcw } from "lucide-react";
 import type { AuditEvent } from "../../shared/types";
 import { useHistory, useRestore } from "../api";
 import { formatDateTime } from "../format";
@@ -16,6 +17,10 @@ export function HistoryPage() {
 
   return (
     <>
+      {/* Phones reach History from Settings, so offer the way back. */}
+      <Link to="/settings" className="-ml-1 mb-1 inline-flex items-center gap-0.5 text-sm font-medium text-brand-700 active:scale-[0.97] md:hidden">
+        <ChevronLeft size={18} /> Settings
+      </Link>
       <PageHeader title="History" subtitle="A record of every decision: tasks created, completed and reopened; emails dismissed, snoozed and restored." actions={<RefreshButton keys={[["history"]]} label="Refresh history" />} />
       <Tabs<Filter>
         value={type}

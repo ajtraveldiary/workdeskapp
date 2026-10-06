@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Check, EyeOff, ListChecks, Pencil, RefreshCw, ShieldCheck, Tag, Trash2, X } from "lucide-react";
+import { Link } from "react-router";
+import { Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Pencil, RefreshCw, ShieldCheck, Tag, Trash2, X } from "lucide-react";
 import { useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useTaskLabelSettings } from "../api";
 import { LABEL_COLORS, type LabelColor } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
@@ -15,6 +16,21 @@ export function SettingsPage() {
     <>
       <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["labels"], ["task-label-settings"]]} label="Refresh settings" />} />
       <div className="space-y-6">
+        {/* Phones: History moved here from the bottom bar (user request 2026-10-06); wider screens keep it in the side rail. */}
+        <Link
+          to="/history"
+          className="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3 shadow-sm active:scale-[0.99] md:hidden"
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+            <HistoryIcon size={20} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium text-ink">History</span>
+            <span className="block truncate text-[0.8125rem] text-slate-500">Every task and email decision, with undo</span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-slate-400" />
+        </Link>
+
         <Card className="p-5">
           <h2 className="font-semibold text-slate-900">Gmail connection</h2>
           {me?.demo ? (
