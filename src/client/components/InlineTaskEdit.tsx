@@ -17,8 +17,8 @@ export function dueTone(task: Task, today: string): Tone {
   return "info";
 }
 
-// Every update sends the task's full details plus the one change: the task API resets fields it isn't
-// sent to their defaults (e.g. changing only the priority would clear the due date).
+// Every update sends the task's full details plus the one change. (Written when the task API reset fields
+// it wasn't sent; the API now changes only what it receives, so this is simply belt and braces.)
 function fullInput(task: Task, change: Partial<Pick<Task, "dueDate" | "dueTime" | "priority">>) {
   return {
     title: task.title,

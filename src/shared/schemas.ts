@@ -14,7 +14,18 @@ export const taskInput = z.object({
 });
 export type TaskInput = z.input<typeof taskInput>;
 
-export const taskPatch = taskInput.partial();
+// Updates change only the fields they include. (taskInput.partial() would still apply taskInput's
+// defaults, so a priority-only update used to wipe the due date, time, notes and category.)
+export const taskPatch = z
+  .object({
+    title: taskInput.shape.title,
+    notes: z.string().max(10_000),
+    dueDate: day.nullable(),
+    dueTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM").nullable(),
+    priority,
+    categoryId: z.uuid().nullable(),
+  })
+  .partial();
 
 export const snoozeInput = z.object({ until: z.iso.datetime({ offset: true }) });
 export const threadPatch = z.object({ categoryId: z.uuid().nullable() });
@@ -36,7 +47,24 @@ export const reportInput = z.object({
   active: z.boolean().default(true),
 });
 export type ReportInput = z.input<typeof reportInput>;
-export const reportPatch = reportInput.partial();
+// Updates change only the fields they include (reportInput.partial() would apply reportInput's defaults,
+// so pausing a report used to reset its notes, year start, lead time, priority, category and responsible).
+export const reportPatch = z
+  .object({
+    name: reportInput.shape.name,
+    notes: z.string().max(5_000),
+    frequency: reportInput.shape.frequency,
+    dueDay: reportInput.shape.dueDay,
+    dueMonthOffset: reportInput.shape.dueMonthOffset,
+    yearStartMonth: z.number().int().min(1).max(12),
+    leadDays: z.number().int().min(0).max(90),
+    priority,
+    categoryId: z.uuid().nullable(),
+    responsible: z.string().trim().max(80).nullable(),
+    firstPeriodStart: day,
+    active: z.boolean(),
+  })
+  .partial();
 
 // "Hide from Pending" entries: an exact address, or "@domain" for a whole domain. Accepts pasted forms
 // like "Name <a@b.gov>", "mailto:a@b.gov" or a bare "b.gov". Returns null when it isn't either.
@@ -70,7 +98,8 @@ export const labelInput = z.object({
   name: z.string().trim().min(1, "Name is required").max(225),
   color: labelColor.default(null),
 });
-export const labelPatch = labelInput.partial();
+// Only the fields sent change (labelInput.partial() would turn a missing colour into "no colour").
+export const labelPatch = z.object({ name: labelInput.shape.name, color: labelColor }).partial();
 export const threadLabelsInput = z.object({
   add: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).default([]),
   remove: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).default([]),

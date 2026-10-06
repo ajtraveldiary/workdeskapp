@@ -147,7 +147,11 @@ export const taskRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const input = taskPatch.parse(await c.req.json());
     const t = await loadTask(db, userId, c.req.param("id"));
-    await db.update(tasks).set({ ...input, updatedAt: new Date() }).where(eq(tasks.id, t.id));
+    // Only the fields sent are changed. Removing the due date also removes its time.
+    await db
+      .update(tasks)
+      .set({ ...input, ...(input.dueDate === null ? { dueTime: null } : {}), updatedAt: new Date() })
+      .where(eq(tasks.id, t.id));
     if (input.dueDate !== undefined && input.dueDate !== t.dueDate) {
       await logEvent(db, {
         userId,
