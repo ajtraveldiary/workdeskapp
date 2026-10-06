@@ -11,11 +11,14 @@ export function TaskRow({
   today,
   categories,
   onEdit,
+  onOpen,
 }: {
   task: Task;
   today: string;
   categories: Category[];
   onEdit: (t: Task) => void;
+  // When given, tapping the title opens the task's email (or its details) and editing gets its own button.
+  onOpen?: (t: Task) => void;
 }) {
   const complete = useCompleteTask();
   const reopen = useReopenTask();
@@ -62,7 +65,11 @@ export function TaskRow({
       )}
 
       <div className="min-w-0 flex-1">
-        <button onClick={() => onEdit(task)} className="group/title text-left">
+        <button
+          onClick={() => (onOpen ? onOpen(task) : onEdit(task))}
+          className="group/title text-left"
+          aria-label={onOpen ? (task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`) : undefined}
+        >
           <span className={cx("text-[0.8125rem] leading-snug font-medium sm:text-sm", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>
         </button>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
@@ -106,6 +113,16 @@ export function TaskRow({
         )}
       </div>
 
+      {onOpen && !swipe && (
+        <button
+          onClick={() => onEdit(task)}
+          title="Edit task"
+          aria-label="Edit task"
+          className="shrink-0 rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:scale-90 pointer-coarse:p-2"
+        >
+          <Pencil size={16} />
+        </button>
+      )}
       {gmailUrl && !swipe && (
         <a
           href={gmailUrl}

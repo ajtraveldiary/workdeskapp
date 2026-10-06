@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { Plus } from "lucide-react";
-import type { TaskView } from "../../shared/types";
-import { useCategories, useTasks } from "../api";
+import type { Task, TaskView } from "../../shared/types";
+import { useCategories, useTasks, useThread } from "../api";
+import { EmailViewer } from "../components/EmailViewer";
+import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { Button, Card, Empty, PageHeader, SearchInput, Tabs, inputClass } from "../components/ui";
@@ -27,6 +29,11 @@ export function TasksPage() {
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
   const categories = useCategories().data ?? [];
   const { data, error, isFetching } = useTasks({ view, q, category });
+  // Tapping a task opens the email it came from, or (for tasks without one) its details.
+  const [emailId, setEmailId] = useState<string | null>(null);
+  const [details, setDetails] = useState<Task | null>(null);
+  const email = useThread(emailId).data ?? null;
+  const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
 
   return (
     <>
@@ -76,12 +83,28 @@ export function TasksPage() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {data.tasks.map((t) => (
-              <TaskRow key={t.id} task={t} today={data.today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} />
+              <TaskRow key={t.id} task={t} today={data.today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
             ))}
           </ul>
         )}
       </Card>
 
+      <EmailViewer
+        thread={emailId ? email : null}
+        onClose={() => setEmailId(null)}
+        onCreateTask={(thread) => {
+          setEmailId(null);
+          setDialog({ kind: "fromThread", thread });
+        }}
+      />
+      <TaskDetails
+        task={details}
+        onClose={() => setDetails(null)}
+        onEdit={(t) => {
+          setDetails(null);
+          setDialog({ kind: "edit", task: t });
+        }}
+      />
       <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
     </>
   );
