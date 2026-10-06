@@ -149,14 +149,21 @@ export function CalendarPage() {
               if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) goMonth(dx < 0 ? 1 : -1);
             }}
           >
-            {days.map((day, i) => {
+            {/* Phones: drop a last week that belongs wholly to next month. */}
+            {(phone && days.slice(35).every((d) => d.slice(0, 7) !== month.slice(0, 7)) ? days.slice(0, 35) : days).map((day, i) => {
               const tasks = byDay.get(day) ?? [];
               const inMonth = day.slice(0, 7) === month.slice(0, 7);
-              const isToday = day === today;
+              // Phones: other months' days are only faded numbers (no dots, no today/selected marks), like phone
+              // calendar apps (2026-10-06: they made September and October look broken). Tapping one goes there.
+              const quiet = phone && !inMonth;
+              const isToday = day === today && !quiet;
               return (
                 <button
                   key={day}
-                  onClick={() => setSelected(day)}
+                  onClick={() => {
+                    if (quiet) setMonth(monthStart(day));
+                    setSelected(day);
+                  }}
                   aria-label={day}
                   aria-pressed={day === selected}
                   className={cx(
@@ -172,14 +179,14 @@ export function CalendarPage() {
                     className={cx(
                       "flex size-7 items-center justify-center rounded-full text-sm tabular-nums sm:self-start",
                       isToday ? "bg-brand-600 font-semibold text-white" : inMonth ? "text-ink" : "text-slate-300 sm:text-slate-400",
-                      day === selected && !isToday && "ring-2 ring-brand-500 max-sm:font-semibold max-sm:text-brand-700 sm:ring-0",
+                      day === selected && !quiet && !isToday && "ring-2 ring-brand-500 max-sm:font-semibold max-sm:text-brand-700 sm:ring-0",
                       day === selected && isToday && "ring-2 ring-brand-200 sm:ring-0",
                     )}
                   >
                     {Number(day.slice(8))}
                   </span>
                   {/* Dots on phones, titled chips on wider screens */}
-                  <span className="flex gap-0.5 sm:hidden">
+                  <span className={cx("flex gap-0.5 sm:hidden", quiet && "hidden")}>
                     {tasks.slice(0, 3).map((t) => (
                       <span key={t.id} className={cx("size-1.5 rounded-full", t.status === "done" ? "bg-slate-300" : PRIORITY_BAR[t.priority])} />
                     ))}
