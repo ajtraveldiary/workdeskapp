@@ -78,7 +78,7 @@ export function TasksPage() {
             {view === "completed" ? (
               data.tasks.map((t) => <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />)
             ) : (
-              <PriorityGrouped tasks={data.tasks} edge="px-3 md:px-4">
+              <PriorityGrouped tasks={data.tasks}>
                 {(t) => <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />}
               </PriorityGrouped>
             )}

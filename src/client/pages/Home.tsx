@@ -292,7 +292,7 @@ function CommandCenter({
           </Empty>
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
-            <PriorityGrouped tasks={tasks} edge="-mx-3 px-3 sm:-mx-5 sm:px-5">
+            <PriorityGrouped tasks={tasks}>
               {(t) => <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />}
             </PriorityGrouped>
           </ul>
@@ -454,7 +454,7 @@ function TodoPanel({
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
             {tab === "all" ? (
-              <PriorityGrouped tasks={tasks} edge="-mx-3 px-3 sm:-mx-5 sm:px-5">
+              <PriorityGrouped tasks={tasks}>
                 {(t) => <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} />}
               </PriorityGrouped>
             ) : (
