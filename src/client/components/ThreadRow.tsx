@@ -110,9 +110,12 @@ export function ThreadRow({
           ) : (
             <span className="hidden px-1 text-xs text-slate-400 sm:inline">Demo email</span>
           )}
-          <div className="ml-auto">
-            <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} compact />
-          </div>
+          {/* Phones change labels from the email viewer's top bar instead (user request 2026-10-06). */}
+          {!swipe && (
+            <div className="ml-auto">
+              <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} compact />
+            </div>
+          )}
         </div>
       </div>
       <SnoozeSheet id={snoozing ? thread.id : null} onClose={() => setSnoozing(false)} />
