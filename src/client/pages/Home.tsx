@@ -50,8 +50,6 @@ import { RefreshButton } from "../components/RefreshButton";
 export function HomePage() {
   const { data: summary, error } = useSummary();
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
-  // Phones show one panel at a time (switcher below the stats); wider screens show all three.
-  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("today");
 
   if (error) return <p className="p-8 text-urgent-ink">{error.message}</p>;
   if (!summary) return <p className="p-8 text-sm text-slate-500">Loading…</p>;
@@ -79,46 +77,30 @@ export function HomePage() {
         />
       </div>
 
-      <div className="flex items-center gap-2 md:hidden">
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <Segmented<MobilePanel>
-            value={mobilePanel}
-            onChange={setMobilePanel}
-            options={[
-              { value: "today", label: "Today", count: counts.dueToday + counts.overdue, tone: counts.overdue ? "urgent" : "high" },
-              { value: "todo", label: "To-do", count: counts.openTasks },
-              { value: "emails", label: "Emails", count: counts.pendingEmails, tone: "brand" },
-            ]}
-          />
-        </div>
-        {/* Phones: the Today panel has no tabs row, so its refresh lives here (only one button fits beside
-            the switcher) and New task is a floating button */}
-        {mobilePanel === "today" && <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Command Center" />}
-      </div>
-      {mobilePanel === "today" && (
-        <button
-          onClick={() => setDialog({ kind: "new" })}
-          aria-label="New task"
-          title="New task"
-          className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex size-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 active:scale-90 md:hidden"
-        >
-          <Plus size={24} />
-        </button>
-      )}
+      {/* Phones show only the Today list (user request 2026-10-06): no panel switcher. To-do and Pending emails
+          are the Tasks and Emails tabs of the bottom bar; refresh is the sync button in the top bar. */}
+      <button
+        onClick={() => setDialog({ kind: "new" })}
+        aria-label="New task"
+        title="New task"
+        className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex size-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 active:scale-90 md:hidden"
+      >
+        <Plus size={24} />
+      </button>
 
       <div className="grid min-h-0 grid-cols-1 gap-3 md:gap-5 lg:grid-cols-2 xl:flex-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <CommandCenter summary={summary} onNew={() => setDialog({ kind: "new" })} onEdit={editTask} hiddenOnPhone={mobilePanel !== "today"} />
+        <CommandCenter summary={summary} onNew={() => setDialog({ kind: "new" })} onEdit={editTask} />
         <TodoPanel
           open={counts.openTasks}
           completed={counts.completedTotal}
           onEdit={editTask}
           onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
-          hiddenOnPhone={mobilePanel !== "todo"}
+          hiddenOnPhone
         />
       </div>
       </div>
 
-      <div className={cx("mt-3 min-h-0 md:mt-5 xl:mt-0", mobilePanel !== "emails" && "max-md:hidden")}>
+      <div className="mt-3 min-h-0 max-md:hidden md:mt-5 xl:mt-0">
         <EmailsPanel onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} />
       </div>
     </div>
@@ -128,7 +110,6 @@ export function HomePage() {
   );
 }
 
-type MobilePanel = "today" | "todo" | "emails";
 
 // --- Stat cards ---
 
