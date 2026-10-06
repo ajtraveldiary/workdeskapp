@@ -176,8 +176,8 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
               <Button size="sm" variant="primary" onClick={() => onCreateTask(thread)}>
                 <ListPlus size={15} /> Create task
               </Button>
-              <Button size="sm" onClick={() => dismiss.mutate(thread.id, { onSuccess: onClose })} disabled={dismiss.isPending} title="Remove from the queue. Gmail is not changed.">
-                <X size={15} /> Dismiss
+              <Button size="sm" variant="danger" onClick={() => dismiss.mutate(thread.id, { onSuccess: onClose })} disabled={dismiss.isPending} title="Remove from Pending. Gmail is not changed.">
+                <X size={15} /> Remove
               </Button>
             </>
           )}

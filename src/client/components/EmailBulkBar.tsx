@@ -62,7 +62,7 @@ export function EmailBulkBar({
   const dismiss = () =>
     bulkDismiss.mutate(pending.map((t) => t.id), {
       onSuccess: (r) => {
-        showUndo({ message: `${plural(r.dismissed, "email")} dismissed` });
+        showUndo({ message: `${plural(r.dismissed, "email")} removed` });
         clear();
       },
     });
@@ -102,8 +102,9 @@ export function EmailBulkBar({
             <ListPlus size={15} /> <span className="max-sm:hidden">Create task</span>
             <span className="sm:hidden">Task</span>
           </Button>
-          <Button size="sm" disabled={!pending.length || busy} onClick={dismiss} title="Remove from the queue. Gmail is not changed.">
-            <X size={15} /> Dismiss
+          {/* "Remove" in warning red (user request 2026-10-06; was "Dismiss"). Gmail is not changed. */}
+          <Button size="sm" variant="danger" disabled={!pending.length || busy} onClick={dismiss} title="Remove from Pending. Gmail is not changed.">
+            <X size={15} /> Remove
           </Button>
         </>
       )}

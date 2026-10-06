@@ -665,11 +665,11 @@ function EmailCard({
         { label: "Gmail", icon: ExternalLink, tone: "info", href: gmailUrl ?? undefined, hidden: !gmailUrl },
         { label: "View task", icon: ListChecks, tone: "brand", onClick: () => navigate(`/search?q=${encodeURIComponent(thread.subject)}`), hidden: thread.state !== "task" },
         {
-          label: "Dismiss",
+          label: "Remove", // red, like iPhone's swipe-to-delete (user request 2026-10-06; was "Dismiss")
           icon: X,
-          tone: "neutral",
+          tone: "urgent",
           hidden: !inQueue,
-          onClick: () => dismiss.mutateAsync(thread.id).then(() => showUndo({ message: "Email dismissed", undo: { kind: "restore", id: thread.id } })),
+          onClick: () => dismiss.mutateAsync(thread.id).then(() => showUndo({ message: "Email removed", undo: { kind: "restore", id: thread.id } })),
         },
       ]}
     >
