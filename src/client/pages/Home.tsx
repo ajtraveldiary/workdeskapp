@@ -89,7 +89,7 @@ export function HomePage() {
       </button>
 
       <div className="grid min-h-0 grid-cols-1 gap-3 md:gap-5 lg:grid-cols-2 xl:flex-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <CommandCenter summary={summary} onNew={() => setDialog({ kind: "new" })} onEdit={editTask} />
+        <CommandCenter summary={summary} onNew={() => setDialog({ kind: "new" })} onEdit={editTask} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} />
         <TodoPanel
           open={counts.openTasks}
           completed={counts.completedTotal}
@@ -215,14 +215,21 @@ function CommandCenter({
   summary,
   onNew,
   onEdit,
+  onCreateTask,
   hiddenOnPhone,
 }: {
   summary: NonNullable<ReturnType<typeof useSummary>["data"]>;
   onNew: () => void;
   onEdit: (t: Task) => void;
+  onCreateTask: (t: Thread) => void;
   hiddenOnPhone?: boolean;
 }) {
   const { counts, today } = summary;
+  // Phones: tapping a task opens the email it came from, or (for tasks without one) its details.
+  const [emailId, setEmailId] = useState<string | null>(null);
+  const [details, setDetails] = useState<Task | null>(null);
+  const email = useThread(emailId).data ?? null;
+  const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
   const [tab, setTab] = useState<CommandTab>(counts.dueToday || !counts.overdue ? "today" : "overdue");
   const view: TaskView = tab;
   // Phones have no tabs (user request 2026-10-06): one list, overdue first, then today. Wider screens use
@@ -285,11 +292,27 @@ function CommandCenter({
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
             {tasks.map((t) => (
-              <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} />
+              <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={phone ? openTask : undefined} />
             ))}
           </ul>
         )}
       </Scroll>
+      <EmailViewer
+        thread={emailId ? email : null}
+        onClose={() => setEmailId(null)}
+        onCreateTask={(thread) => {
+          setEmailId(null);
+          onCreateTask(thread);
+        }}
+      />
+      <TaskDetails
+        task={details}
+        onClose={() => setDetails(null)}
+        onEdit={(t) => {
+          setDetails(null);
+          onEdit(t);
+        }}
+      />
     </Panel>
   );
 }
@@ -327,7 +350,8 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
   };
 }
 
-function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit: (t: Task) => void }) {
+// onOpen (phones): tapping the title opens the task's email or details instead of the editor.
+function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string; onEdit: (t: Task) => void; onOpen?: (t: Task) => void }) {
   const categories = useCategories().data ?? [];
   const a = useTaskActions(task);
   const swipe = useSwipeMode();
@@ -344,7 +368,11 @@ function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit
       )}
       <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <div className="min-w-0 flex-1 @lg:flex @lg:items-center @lg:gap-4">
-        <button onClick={() => onEdit(task)} className="group/title block w-full min-w-0 text-left @lg:w-auto @lg:flex-1">
+        <button
+          onClick={() => (onOpen ? onOpen(task) : onEdit(task))}
+          aria-label={onOpen ? (task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`) : undefined}
+          className="group/title block w-full min-w-0 text-left @lg:w-auto @lg:flex-1"
+        >
           <span className={cx("line-clamp-2 text-[0.8125rem] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
           <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[0.8125rem]">{subtitleFor(task, categories)}</span>
           {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[0.6875rem] font-medium text-brand-800">New reply</span>}
