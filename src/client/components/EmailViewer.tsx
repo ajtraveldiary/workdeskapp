@@ -1,13 +1,15 @@
-// Full-screen email viewer: the conversation on one side, the selected attachment (PDF or image) on the other.
+// Full-screen email viewer: the conversation on one side, the selected attachment on the other (PDF, image,
+// Excel/OpenOffice/CSV sheet, Word .docx, or a Google Docs/Sheets/Slides/Drive link in the email).
 // On phones and tablets the email comes first and the attachment preview follows it further down the same
 // scroll (user request 2026-10-06). Content comes from Gmail on demand and is never stored in WorkDesk's database.
-import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronLeft, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Maximize2, Paperclip, Share, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, Download, ExternalLink, File, FileSpreadsheet, FileText, Image as ImageIcon, ListPlus, Maximize2, Paperclip, Presentation, Share, X } from "lucide-react";
 import type { EmailAttachment, EmailMessageContent, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { attachmentUrl, useDismiss, useEmailContent, useMarkRead, useSnippets } from "../api";
 import { htmlToText, stripSnippetsFromHtml } from "../snippets";
+import { DRIVE_KIND_LABEL, driveLinks, type DriveLink } from "../driveLinks";
 import { stripSnippets } from "../../shared/snippets";
 import { formatDateTime } from "../format";
 import { Avatar } from "./Avatar";
@@ -18,12 +20,25 @@ import { Button, Loading, Spinner, cx } from "./ui";
 import { showUndo } from "./SwipeRow";
 
 const PdfPreview = lazy(() => import("./PdfPreview"));
+// Office previews (user request 2026-10-06), fetched only when such a file is opened.
+const SheetPreview = lazy(() => import("./SheetPreview"));
+const DocxPreview = lazy(() => import("./DocxPreview"));
 
 const VIEWABLE_IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
+const ext = (a: EmailAttachment) => a.filename.toLowerCase().split(".").pop() ?? "";
 const isPdf = (a: EmailAttachment) => a.mimeType === "application/pdf" || a.filename.toLowerCase().endsWith(".pdf");
 const isImage = (a: EmailAttachment) => VIEWABLE_IMAGE.test(a.mimeType);
+const isSheet = (a: EmailAttachment) => ["xlsx", "xlsm", "xls", "ods", "csv"].includes(ext(a)) || /spreadsheet|ms-excel|text\/csv/.test(a.mimeType);
+const isDocx = (a: EmailAttachment) => ext(a) === "docx" || a.mimeType.includes("wordprocessingml");
+const isOldDoc = (a: EmailAttachment) => ext(a) === "doc" || a.mimeType === "application/msword";
+const canPreview = (a: EmailAttachment) => isPdf(a) || isImage(a) || isSheet(a) || isDocx(a);
 
-type Selected = { message: EmailMessageContent; attachment: EmailAttachment };
+// What the preview shows: an attachment, or a Google file linked in the email.
+type FileSel = { message: EmailMessageContent; attachment: EmailAttachment; link?: undefined };
+type LinkSel = { message: EmailMessageContent; link: DriveLink; attachment?: undefined };
+type Selected = FileSel | LinkSel;
+const selKey = (x: Selected) => `${x.message.id}:${x.link ? `drive:${x.link.id}` : x.attachment.partId}`;
+const selName = (x: Selected) => (x.link ? x.link.name : x.attachment.filename);
 
 // Wide enough for the side-by-side layout (Tailwind's lg).
 const WIDE = "(min-width: 1024px)";
@@ -164,12 +179,19 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
 
   // Newest message first; the preview starts on the newest PDF (or image) in the conversation.
   const messages = useMemo(() => [...(data?.messages ?? [])].reverse(), [data]);
-  const files = useMemo(() => messages.flatMap((m) => m.attachments.filter((a) => !a.inline).map((a) => ({ message: m, attachment: a }))), [messages]);
+  const files = useMemo<FileSel[]>(() => messages.flatMap((m) => m.attachments.filter((a) => !a.inline).map((a) => ({ message: m, attachment: a }))), [messages]);
+  // Google Docs/Sheets/Slides/Drive files linked in the emails, once each (a reply quotes the same link again).
+  const links = useMemo<LinkSel[]>(() => {
+    const seen = new Set<string>();
+    return messages.flatMap((m) => driveLinks(m.html).filter((l) => !seen.has(l.id) && !!seen.add(l.id)).map((link) => ({ message: m, link })));
+  }, [messages]);
+  const items = useMemo<Selected[]>(() => [...files, ...links], [files, links]);
   const [selected, setSelected] = useState<Selected | null>(null);
   const share = useEmailShare(thread, messages, files);
   useEffect(() => {
-    if (!selected && files.length) setSelected(files.find((f) => isPdf(f.attachment)) ?? files.find((f) => isImage(f.attachment)) ?? files[0]!);
-  }, [files, selected]);
+    if (!selected && items.length)
+      setSelected(files.find((f) => isPdf(f.attachment)) ?? files.find((f) => isImage(f.attachment)) ?? files.find((f) => canPreview(f.attachment)) ?? items[0]!);
+  }, [files, items, selected]);
 
   // Narrow screens: tapping an attachment shows it in the preview below the email and scrolls there.
   const wide = useWide();
@@ -268,7 +290,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
           ) : (
             <div className="space-y-4">
               {messages.map((m, i) => (
-                <MessageBlock key={m.id} threadId={thread.id} message={m} initiallyOpen={i === 0} selected={selected} onOpenFile={open} />
+                <MessageBlock key={m.id} threadId={thread.id} message={m} links={links.filter((l) => l.message.id === m.id).map((l) => l.link)} initiallyOpen={i === 0} selected={selected} onOpenFile={open} />
               ))}
             </div>
           )}
@@ -276,13 +298,13 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
           {/* Phones and tablets: the attachment follows the email; scroll down to it */}
           {!wide && selected && !error && (
             <section ref={inlineRef} className="mt-4 scroll-mt-2 overflow-hidden rounded-xl border border-line bg-canvas-soft" aria-label="Attachment preview">
-              {files.length > 1 && (
+              {items.length > 1 && (
                 <div className="no-scrollbar flex gap-2 overflow-x-auto border-b border-line bg-white px-3 py-2">
-                  {files.map((f) => {
-                    const active = f.message.id === selected.message.id && f.attachment.partId === selected.attachment.partId;
+                  {items.map((f) => {
+                    const active = selKey(f) === selKey(selected);
                     return (
                       <button
-                        key={`${f.message.id}:${f.attachment.partId}`}
+                        key={selKey(f)}
                         onClick={() => setSelected(f)}
                         aria-pressed={active}
                         className={cx(
@@ -290,7 +312,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
                           active ? "border-brand-500 bg-tint text-brand-700" : "border-line text-slate-600",
                         )}
                       >
-                        {f.attachment.filename}
+                        {selName(f)}
                       </button>
                     );
                   })}
@@ -304,7 +326,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
         {/* Right (wide screens): the selected attachment */}
         {wide && (
           <aside className="flex min-h-0 flex-col border-l border-line bg-canvas-soft" aria-label="Attachment preview">
-            <Preview threadId={thread.id} selected={selected} empty={!isPending && files.length === 0} />
+            <Preview threadId={thread.id} selected={selected} empty={!isPending && items.length === 0} />
           </aside>
         )}
       </div>
@@ -315,12 +337,14 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
 function MessageBlock({
   threadId,
   message,
+  links,
   initiallyOpen,
   selected,
   onOpenFile,
 }: {
   threadId: string;
   message: EmailMessageContent;
+  links: DriveLink[];
   initiallyOpen: boolean;
   selected: Selected | null;
   onOpenFile: (f: Selected) => void;
@@ -361,7 +385,7 @@ function MessageBlock({
           </p>
           {!open && <p className="mt-1 line-clamp-1 text-[0.8125rem] text-slate-500">{(message.text ?? "").slice(0, 160) || "(Tap to show)"}</p>}
         </div>
-        {files.length > 0 && <Paperclip size={15} className="mt-1 shrink-0 text-slate-400" aria-label={`${files.length} attachments`} />}
+        {files.length + links.length > 0 && <Paperclip size={15} className="mt-1 shrink-0 text-slate-400" aria-label={`${files.length + links.length} attachments`} />}
       </button>
 
       {open && (
@@ -377,30 +401,32 @@ function MessageBlock({
             </button>
           )}
 
-          {files.length > 0 && (
+          {files.length + links.length > 0 && (
             <div className="mt-5">
               <h3 className="mb-2 flex items-center gap-1.5 text-[0.8125rem] font-semibold text-slate-600">
-                <Paperclip size={14} /> Attachments ({files.length})
+                <Paperclip size={14} /> Attachments ({files.length + links.length})
               </h3>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {files.map((a) => {
-                  const active = selected?.message.id === message.id && selected.attachment.partId === a.partId;
-                  const Icon = isPdf(a) ? FileText : isImage(a) ? ImageIcon : File;
+                  const item: FileSel = { message, attachment: a };
+                  const [Icon, color] = isPdf(a)
+                    ? [FileText, "bg-urgent"]
+                    : isImage(a)
+                      ? [ImageIcon, "bg-info"]
+                      : isSheet(a)
+                        ? [FileSpreadsheet, "bg-low"]
+                        : isDocx(a) || isOldDoc(a)
+                          ? [FileText, "bg-info"]
+                          : [File, "bg-slate-400"];
                   return (
-                    <button
-                      key={a.partId}
-                      onClick={() => onOpenFile({ message, attachment: a })}
-                      className={cx(
-                        "flex min-h-24 flex-col items-start gap-2 rounded-lg border p-3 text-left transition hover:shadow-sm active:scale-[0.98]",
-                        active ? "border-brand-500 bg-tint ring-1 ring-brand-500" : "border-line bg-white hover:border-slate-300",
-                      )}
-                    >
-                      <span className={cx("flex size-9 items-center justify-center rounded-md text-white", isPdf(a) ? "bg-urgent" : isImage(a) ? "bg-info" : "bg-slate-400")}>
-                        <Icon size={18} />
-                      </span>
-                      <span className="line-clamp-2 text-[0.8125rem] leading-snug font-medium break-all text-ink">{a.filename}</span>
-                      <span className="text-xs text-slate-500">{formatSize(a.size)}</span>
-                    </button>
+                    <FileCard key={a.partId} active={!!selected && selKey(selected) === selKey(item)} onOpen={() => onOpenFile(item)} icon={<Icon size={18} />} color={color} name={a.filename} detail={formatSize(a.size)} />
+                  );
+                })}
+                {links.map((link) => {
+                  const item: LinkSel = { message, link };
+                  const [Icon, color] = link.kind === "spreadsheets" ? [FileSpreadsheet, "bg-low"] : link.kind === "presentation" ? [Presentation, "bg-medium"] : link.kind === "document" ? [FileText, "bg-info"] : [File, "bg-slate-400"];
+                  return (
+                    <FileCard key={`drive:${link.id}`} active={!!selected && selKey(selected) === selKey(item)} onOpen={() => onOpenFile(item)} icon={<Icon size={18} />} color={color} name={link.name} detail={DRIVE_KIND_LABEL[link.kind]} />
                   );
                 })}
               </div>
@@ -409,6 +435,22 @@ function MessageBlock({
         </div>
       )}
     </article>
+  );
+}
+
+function FileCard({ active, onOpen, icon, color, name, detail }: { active: boolean; onOpen: () => void; icon: ReactNode; color: string; name: string; detail: string }) {
+  return (
+    <button
+      onClick={onOpen}
+      className={cx(
+        "flex min-h-24 flex-col items-start gap-2 rounded-lg border p-3 text-left transition hover:shadow-sm active:scale-[0.98]",
+        active ? "border-brand-500 bg-tint ring-1 ring-brand-500" : "border-line bg-white hover:border-slate-300",
+      )}
+    >
+      <span className={cx("flex size-9 items-center justify-center rounded-md text-white", color)}>{icon}</span>
+      <span className="line-clamp-2 text-[0.8125rem] leading-snug font-medium break-all text-ink">{name}</span>
+      <span className="text-xs text-slate-500">{detail}</span>
+    </button>
   );
 }
 
@@ -472,11 +514,35 @@ function Preview({ threadId, selected, empty, inline }: { threadId: string; sele
       </div>
     );
   }
+  if (selected.link) {
+    const { link } = selected;
+    const google = <GoogleButton link={link} />;
+    return (
+      <>
+        <AttachmentViewer open={viewing} onClose={() => setViewing(false)} title={link.name} actions={google} fill>
+          <DriveFrame link={link} className="h-full" />
+        </AttachmentViewer>
+        <div className="flex items-center gap-2 border-b border-line bg-white px-4 py-2.5">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{link.name}</span>
+          <Button size="sm" onClick={() => setViewing(true)}>
+            <Maximize2 size={14} /> Open
+          </Button>
+          {google}
+        </div>
+        <div className={inline ? "p-3" : "flex min-h-0 flex-1 flex-col p-4"}>
+          <DriveFrame link={link} className={inline ? "h-[70vh]" : "min-h-0 flex-1"} />
+        </div>
+      </>
+    );
+  }
   const { message, attachment: a } = selected;
   const url = attachmentUrl(threadId, message.id, a.partId);
+  const save = <SaveButton url={url} downloadUrl={attachmentUrl(threadId, message.id, a.partId, true)} attachment={a} />;
   return (
     <>
-      <AttachmentViewer open={viewing} onClose={() => setViewing(false)} attachment={a} url={url} downloadUrl={attachmentUrl(threadId, message.id, a.partId, true)} />
+      <AttachmentViewer open={viewing} onClose={() => setViewing(false)} title={a.filename} actions={save} wide={isSheet(a)}>
+        <FileBody attachment={a} url={url} />
+      </AttachmentViewer>
       <div className="flex items-center gap-2 border-b border-line bg-white px-4 py-2.5">
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink" title={a.filename}>
           {a.filename}
@@ -484,28 +550,79 @@ function Preview({ threadId, selected, empty, inline }: { threadId: string; sele
         {/* Open shows the file full-screen inside WorkDesk, with a Back button; Download saves it without leaving
             the app (phones: the share sheet). Both used to navigate away, which left the home-screen app with no
             way back (2026-10-06). */}
-        {(isPdf(a) || isImage(a)) && (
+        {canPreview(a) && (
           <Button size="sm" onClick={() => setViewing(true)}>
             <Maximize2 size={14} /> Open
           </Button>
         )}
-        <SaveButton url={url} downloadUrl={attachmentUrl(threadId, message.id, a.partId, true)} attachment={a} />
+        {save}
       </div>
       <div className={inline ? "p-3" : "scroll-thin min-h-0 flex-1 overflow-y-auto p-4"}>
-        {isPdf(a) ? (
-          <Suspense fallback={<Loading label="Loading PDF…" />}>
-            <PdfPreview url={url} />
-          </Suspense>
-        ) : isImage(a) ? (
-          <img src={url} alt={a.filename} className="mx-auto max-w-full rounded-md border border-line bg-white" />
-        ) : (
-          <div className="py-16 text-center text-sm text-slate-500">
-            <File size={32} className="mx-auto mb-2 text-slate-300" />
-            No preview for this file type. Download it to open.
-          </div>
-        )}
+        <FileBody attachment={a} url={url} />
       </div>
     </>
+  );
+}
+
+// The attachment itself: PDF pages, the picture, the spreadsheet as a table or the Word document as text.
+function FileBody({ attachment: a, url }: { attachment: EmailAttachment; url: string }) {
+  if (isPdf(a))
+    return (
+      <Suspense fallback={<Loading label="Loading PDF…" />}>
+        <PdfPreview url={url} />
+      </Suspense>
+    );
+  if (isImage(a)) return <img src={url} alt={a.filename} className="mx-auto max-w-full rounded-md border border-line bg-white" />;
+  if (isSheet(a))
+    return (
+      <Suspense fallback={<Loading label="Loading spreadsheet…" />}>
+        <SheetPreview url={url} />
+      </Suspense>
+    );
+  if (isDocx(a))
+    return (
+      <Suspense fallback={<Loading label="Loading document…" />}>
+        <DocxPreview url={url} />
+      </Suspense>
+    );
+  return (
+    <div className="py-16 text-center text-sm text-slate-500">
+      <File size={32} className="mx-auto mb-2 text-slate-300" />
+      {isOldDoc(a) ? "Older Word files (.doc) can't be previewed. Download it to open." : "No preview for this file type. Download it to open."}
+    </div>
+  );
+}
+
+// A Google file from a link in the email, shown with Google's own preview page. It shows what the signed-in
+// Google account may see; when the browser keeps Google's sign-in out of other sites (iPhone Safari does),
+// private files only open in Google itself, hence the note and the Google button.
+function DriveFrame({ link, className }: { link: DriveLink; className: string }) {
+  return (
+    <div className={cx("flex flex-col", className)}>
+      <p className="mb-2 text-xs text-slate-500">
+        Shows a sign-in page or nothing? Use <span className="font-medium text-slate-600">Google</span> above to open it there.
+      </p>
+      <iframe
+        src={link.previewUrl}
+        title={link.name}
+        referrerPolicy="no-referrer"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms"
+        className="block min-h-80 w-full flex-1 rounded-md border border-line bg-white"
+      />
+    </div>
+  );
+}
+
+function GoogleButton({ link }: { link: DriveLink }) {
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-[0.8125rem] font-medium text-ink hover:bg-slate-50 active:scale-[0.97] pointer-coarse:h-9"
+    >
+      <ExternalLink size={14} /> Google
+    </a>
   );
 }
 
@@ -543,9 +660,26 @@ function SaveButton({ url, downloadUrl, attachment }: { url: string; downloadUrl
   );
 }
 
-// A PDF or image full-screen inside WorkDesk, with Back to return to the email (Esc also closes it). Rendered
+// An attachment full-screen inside WorkDesk, with Back to return to the email (Esc also closes it). Rendered
 // in its own top-layer dialog through a portal, so the email sheet's pull-to-close doesn't react to it.
-function AttachmentViewer({ open, onClose, attachment: a, url, downloadUrl }: { open: boolean; onClose: () => void; attachment: EmailAttachment; url: string; downloadUrl: string }) {
+// wide: spreadsheets use the whole width; fill: the content (a Google preview) fills the screen itself.
+function AttachmentViewer({
+  open,
+  onClose,
+  title,
+  actions,
+  wide,
+  fill,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  actions: ReactNode;
+  wide?: boolean;
+  fill?: boolean;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -564,7 +698,7 @@ function AttachmentViewer({ open, onClose, attachment: a, url, downloadUrl }: { 
         onClose();
       }}
       tabIndex={-1}
-      aria-label={a.filename}
+      aria-label={title}
       className="m-0 h-dvh max-h-none w-full max-w-none bg-slate-100 p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] outline-none"
     >
       {open && (
@@ -573,22 +707,18 @@ function AttachmentViewer({ open, onClose, attachment: a, url, downloadUrl }: { 
             <button onClick={onClose} className="inline-flex h-9 shrink-0 items-center gap-0.5 rounded-lg pr-2 text-sm font-medium text-brand-700 hover:bg-slate-50 active:scale-95">
               <ChevronLeft size={20} /> Back
             </button>
-            <span className="min-w-0 flex-1 truncate text-center text-sm font-medium text-ink" title={a.filename}>
-              {a.filename}
+            <span className="min-w-0 flex-1 truncate text-center text-sm font-medium text-ink" title={title}>
+              {title}
             </span>
-            <SaveButton url={url} downloadUrl={downloadUrl} attachment={a} />
+            {actions}
           </div>
-          <div className="scroll-thin min-h-0 flex-1 overflow-auto p-3 sm:p-6">
-            <div className="mx-auto max-w-4xl">
-              {isPdf(a) ? (
-                <Suspense fallback={<Loading label="Loading PDF…" />}>
-                  <PdfPreview url={url} />
-                </Suspense>
-              ) : (
-                <img src={url} alt={a.filename} className="mx-auto max-w-full rounded-md border border-line bg-white" />
-              )}
+          {fill ? (
+            <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-6">{children}</div>
+          ) : (
+            <div className="scroll-thin min-h-0 flex-1 overflow-auto p-3 sm:p-6">
+              <div className={wide ? "" : "mx-auto max-w-4xl"}>{children}</div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </dialog>,
@@ -617,7 +747,7 @@ function shareText(thread: Thread, m: EmailMessageContent | undefined, attachmen
 
 type EmailShare = { ready: boolean; preparing: boolean; go: () => void };
 
-function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: Selected[]): EmailShare {
+function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: FileSel[]): EmailShare {
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
   const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   const [prepared, setPrepared] = useState<globalThis.File[] | null>(null);
