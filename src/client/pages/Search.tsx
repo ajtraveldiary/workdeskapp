@@ -8,7 +8,7 @@ import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { ThreadRow } from "../components/ThreadRow";
 import { EmailViewer } from "../components/EmailViewer";
-import { Card, Empty, PageHeader } from "../components/ui";
+import { Card, Empty, PageHeader, SkeletonList } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 export function SearchPage() {
@@ -54,7 +54,9 @@ export function SearchPage() {
           <section>
             <h2 className="mb-2 text-sm font-medium text-slate-600">Tasks ({taskList.length})</h2>
             <Card>
-              {taskList.length === 0 ? (
+              {tasks.isPending ? (
+                <SkeletonList rows={3} />
+              ) : taskList.length === 0 ? (
                 <Empty title="No matching tasks" />
               ) : (
                 <ul className="divide-y divide-line">
@@ -68,7 +70,9 @@ export function SearchPage() {
           <section>
             <h2 className="mb-2 text-sm font-medium text-slate-600">Emails ({emailList.length})</h2>
             <Card>
-              {emailList.length === 0 ? (
+              {threads.isPending ? (
+                <SkeletonList rows={3} />
+              ) : emailList.length === 0 ? (
                 <Empty title="No matching emails" />
               ) : (
                 <ul className="divide-y divide-line">

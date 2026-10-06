@@ -20,7 +20,7 @@ import { ApiError, logout, useMe, useSummary, useSync } from "./api";
 import { formatWhen } from "./format";
 import { Avatar } from "./components/Avatar";
 import { UndoBar } from "./components/SwipeRow";
-import { TONE, cx, type Tone } from "./components/ui";
+import { Splash, TONE, cx, type Tone } from "./components/ui";
 import { HomePage } from "./pages/Home";
 import { InboxPage } from "./pages/Inbox";
 import { TasksPage } from "./pages/Tasks";
@@ -33,7 +33,7 @@ import { LoginPage } from "./pages/Login";
 
 export function App() {
   const me = useMe();
-  if (me.isPending) return <div className="p-8 text-sm text-slate-500">Loading…</div>;
+  if (me.isPending) return <Splash />;
   if (me.error instanceof ApiError && me.error.status === 401) return <LoginPage />;
   if (me.error) return <div className="p-8 text-sm text-urgent-ink">Could not reach WorkDesk: {me.error.message}</div>;
 

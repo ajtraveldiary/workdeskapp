@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getDocument, GlobalWorkerOptions, type PDFDocumentLoadingTask } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { Loading } from "./ui";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -57,7 +58,7 @@ export default function PdfPreview({ url }: { url: string }) {
 
   return (
     <div>
-      {state === "loading" && <p className="py-10 text-center text-sm text-slate-500">Loading PDF…</p>}
+      {state === "loading" && <Loading label="Loading PDF…" />}
       {state === "error" && (
         <p className="py-10 text-center text-sm text-urgent-ink">
           This PDF couldn't be shown here. Use Download or Open to view it.

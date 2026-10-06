@@ -7,7 +7,7 @@ import { EmailViewer } from "../components/EmailViewer";
 import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
-import { Button, Card, Empty, PageHeader, SearchInput, Tabs } from "../components/ui";
+import { Button, Card, Empty, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 import { LabelFilter } from "../components/LabelChips";
 
@@ -71,7 +71,9 @@ export function TasksPage() {
 
       {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>
-        {!data || data.tasks.length === 0 ? (
+        {!data && !error ? (
+          <SkeletonList />
+        ) : !data || data.tasks.length === 0 ? (
           <Empty title={EMPTY[view]} />
         ) : (
           <ul className="divide-y divide-slate-100">

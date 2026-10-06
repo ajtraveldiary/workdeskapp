@@ -5,7 +5,7 @@ import { useBulkDismiss, useThreads } from "../api";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { ThreadRow } from "../components/ThreadRow";
 import { EmailViewer } from "../components/EmailViewer";
-import { Button, Card, Empty, PageHeader, SearchInput, Tabs } from "../components/ui";
+import { Button, Card, Empty, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 import { LabelFilter } from "../components/LabelChips";
 
@@ -99,7 +99,9 @@ export function InboxPage() {
 
       {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>
-        {threads.length === 0 ? (
+        {!data && !error ? (
+          <SkeletonList />
+        ) : threads.length === 0 ? (
           <Empty title={inQueue ? "Nothing waiting for a decision" : "No emails here"}>
             {inQueue ? "New email from Gmail appears here until you decide what to do with it." : undefined}
           </Empty>

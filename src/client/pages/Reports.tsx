@@ -5,7 +5,7 @@ import { FREQUENCY_LABEL, monthIndex, periodsFrom, ruleText, shortLabel, type Pe
 import { useDeleteReport, useReports, useSetPeriodStatus, useUpdateReport } from "../api";
 import { addDays, formatDateTime, formatDay } from "../format";
 import { ReportDialog, type ReportDialogMode } from "../components/ReportDialog";
-import { Badge, Button, Card, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
+import { Badge, Button, Card, Loading, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -33,7 +33,7 @@ export function ReportsPage() {
   const [dialog, setDialog] = useState<ReportDialogMode | null>(null);
 
   if (error) return <p className="text-urgent-ink">{error.message}</p>;
-  if (!data) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!data) return <Loading className="py-24" />;
   const { reports, today } = data;
 
   const pending = reports.flatMap((r) => r.periods.filter((p) => p.status === "pending").map((p) => ({ report: r, period: p })));

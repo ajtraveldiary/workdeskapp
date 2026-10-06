@@ -6,7 +6,7 @@ import type { Label } from "../../shared/types";
 import { LabelChip } from "../components/LabelChips";
 import { normalizeSenderPattern } from "../../shared/schemas";
 import { formatDateTime } from "../format";
-import { Button, Card, ErrorNote, PageHeader, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Loading, PageHeader, cx, inputClass } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 export function SettingsPage() {
@@ -185,7 +185,7 @@ function GmailLabels() {
       )}
 
       {labels.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-500">{data ? "No labels in Gmail yet." : "Loading…"}</p>
+        data ? <p className="mt-3 text-sm text-slate-500">No labels in Gmail yet.</p> : <Loading className="py-6" />
       ) : (
         <ul className="mt-3 divide-y divide-slate-100 rounded-md border border-slate-200">
           {labels.map((l) =>

@@ -3,7 +3,7 @@ import { Check, Tag } from "lucide-react";
 import { Link } from "react-router";
 import type { Label, Thread } from "../../shared/types";
 import { useLabels, useSetThreadLabels } from "../api";
-import { Button, cx, inputClass } from "./ui";
+import { Button, Loading, Spinner, cx, inputClass } from "./ui";
 
 // Gmail labels on an email, in their Gmail colours. Nested labels ("Parent/Child") show their full path.
 export function LabelChip({ label, className }: { label: Label; className?: string }) {
@@ -39,7 +39,7 @@ export function LabelChips({ ids, max = 3, className }: { ids: string[] | undefi
 // form and kept in WorkDesk only.
 export function LabelField({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
   const labels = useLabels().data?.labels;
-  if (!labels) return <p className="text-sm text-slate-500">Loading labels…</p>;
+  if (!labels) return <p className="flex items-center gap-2 text-sm text-slate-500"><Spinner size={16} /> Loading labels…</p>;
   if (labels.length === 0)
     return (
       <p className="text-sm text-slate-500">
@@ -112,7 +112,7 @@ export function LabelPicker({ thread, selected, onChange, compact }: { thread: P
         <div className="absolute right-0 z-30 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white p-1 shadow-xl">
           <p className="px-3 pt-2 pb-1 text-xs text-slate-500">Labels on this email (changes Gmail too)</p>
           {!data ? (
-            <p className="px-3 py-3 text-sm text-slate-500">Loading…</p>
+            <Loading className="py-4" />
           ) : !data.canEdit ? (
             <p className="px-3 py-3 text-sm text-slate-600">
               <a href="/api/auth/google" className="font-medium text-brand-700 underline">Sign in again</a> to let WorkDesk change labels.

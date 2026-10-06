@@ -173,6 +173,19 @@ dialog::backdrop {
   }
 }
 
+/* Loading placeholders (user request 2026-10-06): grey bars with a light sweep, like mobile apps. */
+@layer components {
+  .skeleton {
+    border-radius: 4px;
+    background: linear-gradient(90deg, #eceef1 25%, #f7f8fa 45%, #eceef1 65%) 0 0 / 300% 100%;
+    animation: skeleton-sweep 1.4s ease-in-out infinite;
+  }
+}
+@keyframes skeleton-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

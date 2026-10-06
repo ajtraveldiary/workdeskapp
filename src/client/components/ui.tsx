@@ -297,3 +297,53 @@ export function CheckCircle({ checked, onToggle, label, disabled }: { checked: b
     </button>
   );
 }
+
+// Loading states (user request 2026-10-06): a spinner for short waits, shimmering placeholder rows for lists,
+// and the logo splash while the app starts (same look as the splash in index.html, styled there).
+export function Spinner({ size = 22, className }: { size?: number; className?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" className={cx("shrink-0 animate-spin text-brand-600", className)}>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.18" strokeWidth="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function Loading({ label = "Loading…", className }: { label?: string; className?: string }) {
+  return (
+    <div role="status" className={cx("flex justify-center py-12", className)}>
+      <Spinner />
+      <span className="sr-only">{label}</span>
+    </div>
+  );
+}
+
+const SKELETON_WIDTHS = ["78%", "62%", "86%", "54%", "70%"];
+
+export function SkeletonList({ rows = 5, className }: { rows?: number; className?: string }) {
+  return (
+    <div role="status" className={cx("divide-y divide-line px-3 sm:px-5", className)}>
+      <span className="sr-only">Loading…</span>
+      {SKELETON_WIDTHS.slice(0, rows).map((w) => (
+        <div key={w} aria-hidden="true" className="flex items-center gap-3 py-3.5">
+          <span className="skeleton size-5 shrink-0 rounded-full" />
+          <span className="min-w-0 flex-1 space-y-2">
+            <span className="skeleton block h-3" style={{ width: w }} />
+            <span className="skeleton block h-2.5 w-1/3" />
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Splash() {
+  return (
+    <div className="wd-splash" role="status" aria-label="Loading WorkDesk">
+      <span className="wd-splash-logo">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 16.5l5 5 11-11" /></svg>
+      </span>
+      <span className="wd-splash-spin" aria-hidden="true" />
+    </div>
+  );
+}

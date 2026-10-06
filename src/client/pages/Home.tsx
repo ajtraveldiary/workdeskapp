@@ -43,7 +43,7 @@ import { EmailViewer } from "../components/EmailViewer";
 import { TaskDetails } from "../components/TaskDetails";
 import { EditableDue, EditablePriority, dueTone } from "../components/InlineTaskEdit";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
-import { Button, CheckCircle, Menu, PRIORITY_BAR, PriorityPill, Segmented, TONE, cx, type Tone } from "../components/ui";
+import { Button, CheckCircle, Loading as PageLoading, Menu, PRIORITY_BAR, PriorityPill, Segmented, SkeletonList, Spinner, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 export function HomePage() {
@@ -51,7 +51,7 @@ export function HomePage() {
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
 
   if (error) return <p className="p-8 text-urgent-ink">{error.message}</p>;
-  if (!summary) return <p className="p-8 text-sm text-slate-500">Loading…</p>;
+  if (!summary) return <PageLoading className="py-24" />;
   const { counts } = summary;
   const editTask = (task: Task) => setDialog({ kind: "edit", task });
 
@@ -190,7 +190,7 @@ function Empty({ icon: Icon, title, children }: { icon: LucideIcon; title: strin
   );
 }
 
-const Loading = () => <p className="px-5 py-10 text-center text-sm text-slate-400">Loading…</p>;
+const Loading = () => <SkeletonList />;
 
 // --- Today / Command Center ---
 
@@ -660,7 +660,7 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
             {!pending && threads.length >= limit && (
               <li className="py-3 text-center">
                 <Button size="sm" onClick={() => setLimit((n) => n + ALL_PAGE)} disabled={isFetching}>
-                  {isFetching ? "Loading…" : "Show more"}
+                  {isFetching ? <><Spinner size={14} /> Loading…</> : "Show more"}
                 </Button>
               </li>
             )}

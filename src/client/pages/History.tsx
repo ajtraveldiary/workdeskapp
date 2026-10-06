@@ -3,7 +3,7 @@ import { CheckCircle2, CircleDot, Mail, RotateCcw } from "lucide-react";
 import type { AuditEvent } from "../../shared/types";
 import { useHistory, useRestore } from "../api";
 import { formatDateTime } from "../format";
-import { Button, Card, Empty, PageHeader, SearchInput, Tabs } from "../components/ui";
+import { Button, Card, Empty, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 type Filter = "" | "email" | "task";
@@ -31,7 +31,9 @@ export function HistoryPage() {
       </div>
       {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>
-        {!data || data.events.length === 0 ? (
+        {!data && !error ? (
+          <SkeletonList />
+        ) : !data || data.events.length === 0 ? (
           <Empty title="Nothing recorded yet" />
         ) : (
           <ul className="divide-y divide-slate-100">

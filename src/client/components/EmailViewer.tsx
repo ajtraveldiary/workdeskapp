@@ -11,7 +11,7 @@ import { Avatar } from "./Avatar";
 import { EmailStatusTags } from "./EmailStatus";
 import { LabelChips, LabelPicker } from "./LabelChips";
 import { SnoozeMenu } from "./ThreadRow";
-import { Button, cx } from "./ui";
+import { Button, Loading, cx } from "./ui";
 
 const PdfPreview = lazy(() => import("./PdfPreview"));
 
@@ -148,7 +148,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
         {/* Left: the conversation and its attachments */}
         <section className="scroll-thin min-h-0 overflow-y-auto px-4 py-4 sm:px-5" aria-label="Email">
           {isPending ? (
-            <p className="py-16 text-center text-sm text-slate-500">Loading email…</p>
+            <Loading label="Loading email…" className="py-16" />
           ) : error ? (
             <div className="py-16 text-center text-sm">
               <p className="text-urgent-ink">Couldn't load this email: {error.message}</p>
@@ -368,7 +368,7 @@ function Preview({ threadId, selected, empty, inline }: { threadId: string; sele
       </div>
       <div className={inline ? "p-3" : "scroll-thin min-h-0 flex-1 overflow-y-auto p-4"}>
         {isPdf(a) ? (
-          <Suspense fallback={<p className="py-10 text-center text-sm text-slate-500">Loading PDF…</p>}>
+          <Suspense fallback={<Loading label="Loading PDF…" />}>
             <PdfPreview url={url} />
           </Suspense>
         ) : isImage(a) ? (
