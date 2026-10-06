@@ -127,8 +127,10 @@ export function CalendarPage() {
         }
       />
 
-      <div className="grid gap-3 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <Card className="overflow-hidden">
+      {/* grid-cols-1 (minmax(0, 1fr)): one long line in the day's list must never widen the page (2026-10-06:
+          on phones a long email line pushed the month grid off screen). */}
+      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <Card className="min-w-0 overflow-hidden">
           <div className="grid grid-cols-7 bg-canvas-soft text-center text-xs font-medium text-slate-500 sm:border-b sm:border-line">
             {WEEKDAYS.map((d) => (
               <div key={d} className="py-1.5 sm:py-2">
@@ -223,7 +225,7 @@ export function CalendarPage() {
           </div>
         </Card>
 
-        <Card className="self-start">
+        <Card className="min-w-0 self-start">
           <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5 sm:px-4 sm:py-3">
             <h2 className="font-medium text-ink">{selected === today ? (phone ? `${selectedLabel} · Today` : `Today · ${selectedLabel}`) : selectedLabel}</h2>
             <Button size="sm" variant="primary" onClick={() => setDialog({ kind: "new", dueDate: selected })}>

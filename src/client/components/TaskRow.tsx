@@ -69,7 +69,7 @@ export function TaskRow({
           className="group/title text-left"
           aria-label={onOpen ? (task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`) : undefined}
         >
-          <span className={cx("text-[0.9375rem] leading-snug font-medium", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>
+          <span className={cx("text-[0.9375rem] leading-snug font-medium [overflow-wrap:anywhere]", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>
         </button>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
           {task.dueDate && !done && (
