@@ -14,7 +14,7 @@ type StateTab = EmailState | "all";
 
 export function InboxPage() {
   const [params, setParams] = useSearchParams();
-  // Snooze was removed (user request 2026-10-06): an old ?state=snoozed link shows Needs decision.
+  // Snooze was removed (user request 2026-10-06): an old ?state=snoozed link shows Pending.
   const asked = params.get("state") as StateTab | null;
   const state: StateTab = !asked || asked === "snoozed" ? "needs_decision" : asked;
   const [q, setQ] = useState(params.get("q") ?? "");
@@ -49,7 +49,7 @@ export function InboxPage() {
         value={state}
         onChange={setState}
         options={[
-          { value: "needs_decision", label: "Needs decision", count: counts.needs_decision },
+          { value: "needs_decision", label: "Pending", count: counts.needs_decision }, // renamed from "Needs decision" (user request 2026-10-06)
           { value: "task", label: "Converted to task" },
           { value: "dismissed", label: "Dismissed" },
           { value: "all", label: "All" },
