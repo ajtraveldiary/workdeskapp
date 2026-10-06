@@ -119,7 +119,7 @@ export function CalendarPage() {
                       <span
                         key={t.id}
                         className={cx(
-                          "truncate rounded border-l-2 px-1.5 py-0.5 text-[11px]",
+                          "truncate rounded border-l-2 px-1.5 py-0.5 text-[0.6875rem]",
                           t.status === "done" ? "border-slate-300 bg-slate-50 text-slate-400 line-through" : CHIP[t.priority],
                         )}
                       >
@@ -127,7 +127,7 @@ export function CalendarPage() {
                         {t.title}
                       </span>
                     ))}
-                    {tasks.length > 3 && <span className="px-1 text-[11px] text-slate-500">+{tasks.length - 3} more</span>}
+                    {tasks.length > 3 && <span className="px-1 text-[0.6875rem] text-slate-500">+{tasks.length - 3} more</span>}
                   </span>
                 </button>
               );

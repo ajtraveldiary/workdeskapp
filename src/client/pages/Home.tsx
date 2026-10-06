@@ -132,7 +132,7 @@ function StatCard({ to, icon: Icon, value, label, note, tone }: { to: string; ic
             {value === null ? "—" : String(value).padStart(2, "0")}
           </span>
         </div>
-        <div className="mt-1 line-clamp-2 text-[11px] leading-tight font-medium text-ink sm:text-[13px] sm:leading-snug">{label}</div>
+        <div className="mt-1 line-clamp-2 text-[0.6875rem] leading-tight font-medium text-ink sm:text-[0.8125rem] sm:leading-snug">{label}</div>
         <div className="hidden truncate text-xs text-slate-500 sm:block">{note}</div>
       </div>
     </Link>
@@ -327,9 +327,9 @@ function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit
       <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <div className="min-w-0 flex-1 @lg:flex @lg:items-center @lg:gap-4">
         <button onClick={() => onEdit(task)} className="group/title block w-full min-w-0 text-left @lg:w-auto @lg:flex-1">
-          <span className={cx("line-clamp-2 text-[13px] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
-          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[13px]">{subtitleFor(task, categories)}</span>
-          {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800">New reply</span>}
+          <span className={cx("line-clamp-2 text-[0.8125rem] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
+          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[0.8125rem]">{subtitleFor(task, categories)}</span>
+          {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[0.6875rem] font-medium text-brand-800">New reply</span>}
         </button>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2 @lg:mt-0 @lg:shrink-0">
           <EditableDue task={task} today={today} layout="split" />
@@ -470,13 +470,13 @@ function TodoRow({
           className="group/title block max-w-full text-left"
           aria-label={task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`}
         >
-          <span className={cx("line-clamp-2 text-[13px] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
-          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[13px]">{context}</span>
+          <span className={cx("line-clamp-2 text-[0.8125rem] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
+          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[0.8125rem]">{context}</span>
         </button>
         <div className="mt-1.5 flex items-center justify-between gap-2 sm:mt-2">
           {a.done ? (
             <>
-              <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap sm:text-[13px]", TONE[dueTone(task, today)].soft)}>
+              <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap sm:text-[0.8125rem]", TONE[dueTone(task, today)].soft)}>
                 <CalendarDays size={14} />
                 {task.completedAt ? `Done ${formatWhen(task.completedAt)}` : "Done"}
               </span>
@@ -712,7 +712,7 @@ function EmailCard({
             <LabelChips ids={thread.labelIds} />
           </div>
         )}
-        <p className="mt-1 line-clamp-1 text-[13px] leading-relaxed text-slate-500 sm:line-clamp-2">{thread.snippet}</p>
+        <p className="mt-1 line-clamp-1 text-[0.8125rem] leading-relaxed text-slate-500 sm:line-clamp-2">{thread.snippet}</p>
         </button>
         {!swipe && (
         <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-2.5">
@@ -727,7 +727,7 @@ function EmailCard({
               </Button>
             </>
           ) : thread.state === "task" ? (
-            <Link to={`/search?q=${encodeURIComponent(thread.subject)}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
+            <Link to={`/search?q=${encodeURIComponent(thread.subject)}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[0.8125rem] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
               <ListChecks size={15} /> View task
             </Link>
           ) : (

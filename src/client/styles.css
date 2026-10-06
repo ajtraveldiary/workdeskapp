@@ -114,6 +114,21 @@ dialog::backdrop {
   }
 }
 
+/*
+  Phones: everything 10% smaller so more fits on screen (user feedback 2026-10-06). Text and spacing are in
+  rem, so the root size scales them; icons have pixel sizes, so they're zoomed. Tap areas (44px) and form
+  text (16px, stops iOS zooming) are pixel values on purpose and stay as they are. Same breakpoint as the
+  bottom navigation. Write new text sizes in rem (text-[0.8125rem], not text-[13px]) so they scale too.
+*/
+@media (max-width: 767.98px) {
+  html {
+    font-size: 90%;
+  }
+  svg.lucide {
+    zoom: 0.9;
+  }
+}
+
 /* Sideways-scrolling rows (tabs on phones) without a visible scrollbar */
 .no-scrollbar {
   scrollbar-width: none;

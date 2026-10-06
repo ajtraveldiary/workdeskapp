@@ -88,7 +88,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
       <header className="flex flex-wrap items-start gap-3 border-b border-line px-4 py-3 sm:px-5">
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="line-clamp-2 text-lg leading-snug font-semibold text-ink">{thread.subject}</h2>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-slate-500">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem] text-slate-500">
             <span className="font-medium text-slate-700">{thread.fromName ?? thread.fromEmail}</span>
             <span>· {formatDateTime(thread.lastMessageAt)}</span>
             {thread.messageCount > 1 && <span>· {thread.messageCount} messages</span>}
@@ -121,7 +121,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
       </header>
 
       {needsSignIn && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-snooze-soft px-4 py-2 text-[13px] text-snooze-ink sm:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-snooze-soft px-4 py-2 text-[0.8125rem] text-snooze-ink sm:px-5">
           To also mark emails read in Gmail, WorkDesk needs one more permission.
           <a href="/api/auth/google" className="font-medium underline">
             Sign in again to allow it
@@ -140,7 +140,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
               <div className="mt-3 flex justify-center gap-2">
                 <Button size="sm" onClick={() => refetch()}>Try again</Button>
                 {gmailUrl && (
-                  <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-[13px] font-medium pointer-coarse:h-9">
+                  <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-lg border border-line px-3 text-[0.8125rem] font-medium pointer-coarse:h-9">
                     Open in Gmail
                   </a>
                 )}
@@ -208,7 +208,7 @@ function MessageBlock({
             {message.fromEmail}
             {message.to && ` → ${message.to}`}
           </p>
-          {!open && <p className="mt-1 line-clamp-1 text-[13px] text-slate-500">{(message.text ?? "").slice(0, 160) || "(Tap to show)"}</p>}
+          {!open && <p className="mt-1 line-clamp-1 text-[0.8125rem] text-slate-500">{(message.text ?? "").slice(0, 160) || "(Tap to show)"}</p>}
         </div>
         {files.length > 0 && <Paperclip size={15} className="mt-1 shrink-0 text-slate-400" aria-label={`${files.length} attachments`} />}
       </button>
@@ -223,7 +223,7 @@ function MessageBlock({
 
           {files.length > 0 && (
             <div className="mt-5">
-              <h3 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-slate-600">
+              <h3 className="mb-2 flex items-center gap-1.5 text-[0.8125rem] font-semibold text-slate-600">
                 <Paperclip size={14} /> Attachments ({files.length})
               </h3>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -242,7 +242,7 @@ function MessageBlock({
                       <span className={cx("flex size-9 items-center justify-center rounded-md text-white", isPdf(a) ? "bg-urgent" : isImage(a) ? "bg-info" : "bg-slate-400")}>
                         <Icon size={18} />
                       </span>
-                      <span className="line-clamp-2 text-[13px] leading-snug font-medium break-all text-ink">{a.filename}</span>
+                      <span className="line-clamp-2 text-[0.8125rem] leading-snug font-medium break-all text-ink">{a.filename}</span>
                       <span className="text-xs text-slate-500">{formatSize(a.size)}</span>
                     </button>
                   );
@@ -293,7 +293,7 @@ function HtmlBody({ html, cids }: { html: string; cids: Record<string, string> }
   return (
     <div>
       {hasRemote && !remote && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-snooze-soft px-3 py-2 text-[13px] text-snooze-ink">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-snooze-soft px-3 py-2 text-[0.8125rem] text-snooze-ink">
           Pictures from the internet are hidden to protect your privacy.
           <button onClick={() => setRemote(true)} className="font-medium underline">
             Show pictures
@@ -323,11 +323,11 @@ function Preview({ threadId, selected, empty }: { threadId: string; selected: Se
           {a.filename}
         </span>
         {(isPdf(a) || isImage(a)) && (
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
+          <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[0.8125rem] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
             <ExternalLink size={15} /> Open
           </a>
         )}
-        <a href={attachmentUrl(threadId, message.id, a.partId, true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
+        <a href={attachmentUrl(threadId, message.id, a.partId, true)} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[0.8125rem] font-medium text-slate-700 hover:border-slate-300 pointer-coarse:h-9">
           <Download size={15} /> Download
         </a>
       </div>
@@ -403,7 +403,7 @@ function LabelPicker({ thread, selected, onChange }: { thread: Thread; selected:
             </ul>
           )}
           {setLabels.error && <p className="px-3 py-2 text-xs text-urgent-ink">{setLabels.error.message}</p>}
-          <Link to="/settings#mail" className="mt-1 block border-t border-line px-3 py-2 text-[13px] font-medium text-brand-700 hover:bg-slate-50">
+          <Link to="/settings#mail" className="mt-1 block border-t border-line px-3 py-2 text-[0.8125rem] font-medium text-brand-700 hover:bg-slate-50">
             Manage labels
           </Link>
         </div>

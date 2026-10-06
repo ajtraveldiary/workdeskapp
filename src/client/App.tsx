@@ -107,7 +107,7 @@ function Shell({ children }: { children: ReactNode }) {
             to={n.to}
             end={n.to === "/"}
             className={({ isActive }) =>
-              cx("relative flex flex-col items-center gap-0.5 py-2 text-[10px] active:scale-95", isActive ? "font-medium text-brand-700" : "text-slate-500 hover:text-ink")
+              cx("relative flex flex-col items-center gap-0.5 py-2 text-[0.625rem] active:scale-95", isActive ? "font-medium text-brand-700" : "text-slate-500 hover:text-ink")
             }
           >
             <n.icon size={20} strokeWidth={1.7} />
@@ -127,7 +127,7 @@ function RailLink({ item, count }: { item: NavItem; count?: number }) {
       end={item.to === "/"}
       className={({ isActive }) =>
         cx(
-          "group relative flex flex-col items-center gap-1 border-l-[3px] py-3.5 text-[13px] transition active:bg-slate-100",
+          "group relative flex flex-col items-center gap-1 border-l-[3px] py-3.5 text-[0.8125rem] transition active:bg-slate-100",
           isActive ? "border-brand-600 bg-tint font-medium text-brand-700" : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-ink",
         )
       }
@@ -145,7 +145,7 @@ function CountDot({ n, className, urgent }: { n: number; className?: string; urg
   return (
     <span
       className={cx(
-        "absolute min-w-[18px] rounded-full px-1 text-center text-[10px] leading-[18px] font-medium text-white tabular-nums",
+        "absolute min-w-[18px] rounded-full px-1 text-center text-[0.625rem] leading-[18px] font-medium text-white tabular-nums",
         urgent ? "bg-urgent" : "bg-brand-600",
         className,
       )}
@@ -181,11 +181,11 @@ function TopBar() {
           <span>
             <span className="block text-lg leading-tight font-semibold text-ink md:text-2xl">
               WorkDesk
-              <span className="ml-1.5 align-baseline text-[11px] font-normal text-slate-400 md:text-xs" title="Version">
+              <span className="ml-1.5 align-baseline text-[0.6875rem] font-normal text-slate-400 md:text-xs" title="Version">
                 v{__APP_VERSION__}
               </span>
             </span>
-            <span className="hidden text-[13px] text-slate-500 lg:block">Every email accounted for. Every task tracked.</span>
+            <span className="hidden text-[0.8125rem] text-slate-500 lg:block">Every email accounted for. Every task tracked.</span>
           </span>
         </Link>
 

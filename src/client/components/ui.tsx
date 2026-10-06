@@ -16,7 +16,7 @@ export function Button({ variant = "secondary", size = "md", className, ...rest 
       {...rest}
       className={cx(
         "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap transition enabled:active:scale-[0.97] disabled:opacity-50 [&_svg]:shrink-0",
-        size === "sm" ? "h-8 px-3 text-[13px] pointer-coarse:h-9" : "h-10 px-4 text-sm pointer-coarse:h-9",
+        size === "sm" ? "h-8 px-3 text-[0.8125rem] pointer-coarse:h-9" : "h-10 px-4 text-sm pointer-coarse:h-9",
         variant === "primary" && "bg-brand-600 text-white shadow-sm enabled:hover:bg-brand-700 enabled:hover:shadow-md",
         variant === "secondary" && "border border-line bg-white text-slate-700 enabled:hover:border-slate-300 enabled:hover:bg-slate-50 enabled:hover:text-ink",
         variant === "ghost" && "text-slate-600 enabled:hover:bg-slate-100 enabled:hover:text-slate-900",
@@ -59,7 +59,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <header className="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-5">
       <div>
-        <h1 className="text-lg font-medium text-ink sm:text-[22px]">{title}</h1>
+        <h1 className="text-lg font-medium text-ink sm:text-[1.375rem]">{title}</h1>
         {subtitle && <p className="mt-1 hidden text-sm text-slate-500 sm:block">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -191,7 +191,7 @@ export function Segmented<T extends string>({
           aria-selected={value === o.value}
           onClick={() => onChange(o.value)}
           className={cx(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] whitespace-nowrap transition active:scale-[0.97]",
+            "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[0.8125rem] whitespace-nowrap transition active:scale-[0.97]",
             value === o.value
               ? "border-brand-200 bg-tint font-medium text-brand-800"
               : "border-line bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-ink",

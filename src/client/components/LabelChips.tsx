@@ -8,7 +8,7 @@ export function LabelChip({ label, className }: { label: Label; className?: stri
     <span
       title={label.name}
       style={label.backgroundColor ? { backgroundColor: label.backgroundColor, color: label.textColor ?? "#000" } : undefined}
-      className={cx("inline-flex max-w-36 items-center truncate rounded px-1.5 py-px text-[11px] leading-4 font-medium", !label.backgroundColor && "bg-slate-200 text-slate-700", className)}
+      className={cx("inline-flex max-w-36 items-center truncate rounded px-1.5 py-px text-[0.6875rem] leading-4 font-medium", !label.backgroundColor && "bg-slate-200 text-slate-700", className)}
     >
       {label.name}
     </span>
@@ -24,7 +24,7 @@ export function LabelChips({ ids, max = 3, className }: { ids: string[]; max?: n
       {shown.slice(0, max).map((l) => (
         <LabelChip key={l.id} label={l} />
       ))}
-      {shown.length > max && <span className="text-[11px] text-slate-500">+{shown.length - max}</span>}
+      {shown.length > max && <span className="text-[0.6875rem] text-slate-500">+{shown.length - max}</span>}
     </span>
   );
 }

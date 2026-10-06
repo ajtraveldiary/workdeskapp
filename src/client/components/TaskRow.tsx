@@ -63,7 +63,7 @@ export function TaskRow({
 
       <div className="min-w-0 flex-1">
         <button onClick={() => onEdit(task)} className="group/title text-left">
-          <span className={cx("text-[13px] leading-snug font-medium sm:text-sm", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>
+          <span className={cx("text-[0.8125rem] leading-snug font-medium sm:text-sm", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>
         </button>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
           {task.dueDate && !done && (

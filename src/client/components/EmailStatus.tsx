@@ -24,7 +24,7 @@ export function EmailStatusTags({ thread, className }: { thread: Thread; classNa
   return (
     <span className={cx("inline-flex flex-wrap items-center gap-1.5", className)}>
       {emailTags(thread).map((tag) => (
-        <span key={tag.label} title={tag.title} className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap", TONE[tag.tone].soft)}>
+        <span key={tag.label} title={tag.title} className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium whitespace-nowrap", TONE[tag.tone].soft)}>
           <span className={cx("size-1.5 rounded-full", TONE[tag.tone].dot)} aria-hidden />
           {tag.label}
         </span>

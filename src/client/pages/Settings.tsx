@@ -212,7 +212,7 @@ function GmailLabels() {
       </div>
       <p className="mt-1 text-sm text-slate-600">Your labels from Gmail, shown on emails across WorkDesk. Changes here are made in Gmail itself.</p>
       {!canEdit && data && (
-        <p className="mt-2 rounded-lg bg-snooze-soft px-3 py-2 text-[13px] text-snooze-ink">
+        <p className="mt-2 rounded-lg bg-snooze-soft px-3 py-2 text-[0.8125rem] text-snooze-ink">
           To add, edit or remove labels from WorkDesk,{" "}
           <a href="/api/auth/google" className="font-medium underline">
             sign in again
@@ -432,7 +432,7 @@ function TaskLabels() {
         label to an email later (in Gmail or here) does the same.
       </p>
       {labels && !labels.canEdit && (
-        <p className="mt-2 rounded-lg bg-snooze-soft px-3 py-2 text-[13px] text-snooze-ink">
+        <p className="mt-2 rounded-lg bg-snooze-soft px-3 py-2 text-[0.8125rem] text-snooze-ink">
           <a href="/api/auth/google" className="font-medium underline">
             Sign in again
           </a>{" "}
@@ -444,7 +444,7 @@ function TaskLabels() {
         {picker("doneLabelId", "Label for emails whose task is completed", "Replaces the task label when the task is done.")}
       </div>
       {save.isPending && <p className="mt-2 text-xs text-slate-500">Applying… this can take a moment for a busy label.</p>}
-      {notice && <p className="mt-2 rounded-lg bg-low-soft px-3 py-2 text-[13px] text-low-ink">{notice}</p>}
+      {notice && <p className="mt-2 rounded-lg bg-low-soft px-3 py-2 text-[0.8125rem] text-low-ink">{notice}</p>}
       <div className="mt-2">
         <ErrorNote error={save.error} />
       </div>

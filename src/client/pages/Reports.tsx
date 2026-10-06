@@ -80,7 +80,7 @@ export function ReportsPage() {
           </div>
 
           <Card>
-            <h2 className="border-b border-line px-5 py-3.5 text-[17px] font-semibold text-ink">Due next</h2>
+            <h2 className="border-b border-line px-5 py-3.5 text-[1.0625rem] font-semibold text-ink">Due next</h2>
             {dueNext.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-slate-500">Nothing due in the next 30 days.</p>
             ) : (
@@ -109,7 +109,7 @@ function Tile({ icon: Icon, value, label, tone }: { icon: LucideIcon; value: num
       </span>
       <div className="min-w-0">
         <div className={cx("text-lg leading-none font-semibold tabular-nums sm:text-2xl", tone === "urgent" ? "text-urgent-ink" : "text-ink")}>{String(value).padStart(2, "0")}</div>
-        <div className="mt-1 text-[11px] leading-tight font-medium text-ink sm:text-[13px] sm:leading-snug">{label}</div>
+        <div className="mt-1 text-[0.6875rem] leading-tight font-medium text-ink sm:text-[0.8125rem] sm:leading-snug">{label}</div>
       </div>
     </div>
   );
@@ -125,7 +125,7 @@ function DueRow({ report, period, today }: { report: Report; period: ReportPerio
         <p className="truncate font-medium text-ink">
           {report.name} <span className="font-normal text-slate-500">· {period.label}</span>
         </p>
-        <p className="truncate text-[13px] text-slate-500">
+        <p className="truncate text-[0.8125rem] text-slate-500">
           {FREQUENCY_LABEL[report.frequency]}
           {report.responsible && ` · ${report.responsible}`}
         </p>
@@ -153,8 +153,8 @@ function ReportingCalendar({ reports, today, onEdit }: { reports: Report[]; toda
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
         <div>
-          <h2 className="text-[17px] font-semibold text-ink">Reporting calendar</h2>
-          <p className="text-[13px] text-slate-500">Each period appears in the month it is due. Click one to update it.</p>
+          <h2 className="text-[1.0625rem] font-semibold text-ink">Reporting calendar</h2>
+          <p className="text-[0.8125rem] text-slate-500">Each period appears in the month it is due. Click one to update it.</p>
         </div>
         <div className="flex items-center gap-1">
           {shift !== 0 && (
@@ -179,7 +179,7 @@ function ReportingCalendar({ reports, today, onEdit }: { reports: Report[]; toda
               {months.map((m) => (
                 <th key={m} className={cx("px-1 py-2.5 text-center font-medium", m === thisMonth && "bg-tint text-brand-700")}>
                   {MONTH_SHORT[m % 12]}
-                  {(m % 12 === 0 || m === first) && <span className="block text-[10px] font-normal text-slate-400">{Math.floor(m / 12)}</span>}
+                  {(m % 12 === 0 || m === first) && <span className="block text-[0.625rem] font-normal text-slate-400">{Math.floor(m / 12)}</span>}
                 </th>
               ))}
             </tr>
@@ -270,7 +270,7 @@ function CalendarRow({
                 <span
                   key={p.periodStart}
                   title={`${p.label}: due ${formatDay(p.dueDate, today)}. The task will be created on ${formatDay(addDays(p.dueDate, -report.leadDays), today)}.`}
-                  className="rounded-md border border-dashed border-slate-300 px-2 py-0.5 text-[11px] whitespace-nowrap text-slate-500"
+                  className="rounded-md border border-dashed border-slate-300 px-2 py-0.5 text-[0.6875rem] whitespace-nowrap text-slate-500"
                 >
                   {shortLabel(report, monthIndex(p.periodStart))}
                 </span>
@@ -329,7 +329,7 @@ function PeriodPill({ report, period, today }: { report: Report; period: ReportP
         onClick={(e) => toggle(e.currentTarget)}
         aria-expanded={open}
         title={`${period.label}: ${s.label.toLowerCase()}`}
-        className={cx("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap transition hover:brightness-95 hover:ring-1 hover:ring-current/30 active:scale-90 aria-expanded:ring-2 aria-expanded:ring-brand-500 pointer-coarse:py-1", TONE[s.tone].soft)}
+        className={cx("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[0.6875rem] font-medium whitespace-nowrap transition hover:brightness-95 hover:ring-1 hover:ring-current/30 active:scale-90 aria-expanded:ring-2 aria-expanded:ring-brand-500 pointer-coarse:py-1", TONE[s.tone].soft)}
       >
         {submitted ? <Check size={11} strokeWidth={3} /> : <span className={cx("size-1.5 rounded-full", TONE[s.tone].dot)} />}
         {shortLabel(report, monthIndex(period.periodStart))}
@@ -358,7 +358,7 @@ function PeriodPill({ report, period, today }: { report: Report; period: ReportP
           >
             {submitted ? "Mark not submitted" : (<><Check size={15} /> Mark submitted</>)}
           </Button>
-          <p className="mt-2 text-[11px] text-slate-500">Its task is completed or reopened to match.</p>
+          <p className="mt-2 text-[0.6875rem] text-slate-500">Its task is completed or reopened to match.</p>
         </PopoverCard>
       )}
     </div>
