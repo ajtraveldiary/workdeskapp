@@ -74,7 +74,10 @@ dialog::backdrop {
   }
 }
 
-:focus-visible {
+/* Keyboard focus ring. Not on pop-ups themselves (dialogs, or anything focused only by code with
+   tabindex="-1"): they take the focus when they open, and the ring showed as a blue frame on iPhone
+   (2026-10-06). Their buttons still get the ring when reached with Tab. */
+:focus-visible:not(dialog, [tabindex="-1"]) {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
 }

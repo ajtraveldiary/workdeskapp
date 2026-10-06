@@ -69,6 +69,7 @@ export function EmailViewer({ thread, onClose, onCreateTask }: { thread: Thread 
       // Undo where a pull-to-close left the sheet.
       d.style.transition = "";
       d.style.transform = "";
+      d.setAttribute("autofocus", ""); // the browser focuses the sheet itself, never its first button
       d.showModal();
       // Focus the sheet itself, not its first button, so no focus ring shows on open; Tab still reaches the buttons.
       d.focus();
@@ -617,6 +618,7 @@ function AttachmentViewer({
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) {
+      d.setAttribute("autofocus", "");
       d.showModal();
       d.focus();
     }

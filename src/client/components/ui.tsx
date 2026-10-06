@@ -137,6 +137,8 @@ export function Modal({ open, onClose, title, children, closeOnBackdrop }: { ope
     if (open && !d.open) {
       d.style.transition = "";
       d.style.transform = ""; // where a pull-to-close left it
+      // With autofocus on the dialog itself the browser focuses the box, never the ✕ (no ring on it).
+      d.setAttribute("autofocus", "");
       d.showModal();
       // The browser focuses the first button (the ✕), which then shows a focus ring on phones (2026-10-06).
       // Focus the box itself instead, unless a field took the focus; Tab still reaches the buttons.
@@ -274,7 +276,10 @@ function ActionSheet({ onClose, title, children }: { onClose: () => void; title?
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
-    if (d && !d.open) d.showModal();
+    if (d && !d.open) {
+      d.setAttribute("autofocus", ""); // focus the sheet, not its first button
+      d.showModal();
+    }
     return () => d?.close();
   }, []);
   usePullToClose(ref, onClose, true);
