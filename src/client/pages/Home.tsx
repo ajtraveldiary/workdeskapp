@@ -588,7 +588,7 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
           <Loading />
         ) : threads.length === 0 ? (
           <Empty icon={Mail} title={pending ? "Every email accounted for" : "No emails yet"}>
-            {pending ? "New Gmail messages land here until you make them a task or dismiss them." : "Emails appear here after the first sync."}
+            {pending ? "New Gmail messages land here until you make them a task or remove them." : "Emails appear here after the first sync."}
           </Empty>
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">

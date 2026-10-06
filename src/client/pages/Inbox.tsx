@@ -44,7 +44,7 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task or dismiss it. Deciding never changes Gmail; opening an email marks it read there." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
+      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task or remove it. Deciding never changes Gmail; opening an email marks it read there." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
 
       <Tabs<StateTab>
         value={state}
@@ -52,7 +52,7 @@ export function InboxPage() {
         options={[
           { value: "needs_decision", label: "Pending", count: counts.needs_decision }, // renamed from "Needs decision" (user request 2026-10-06)
           { value: "task", label: "Converted to task" },
-          { value: "dismissed", label: "Dismissed" },
+          { value: "dismissed", label: "Removed" }, // was "Dismissed" (user request 2026-10-06)
           { value: "all", label: "All" },
         ]}
       />

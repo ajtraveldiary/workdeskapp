@@ -21,7 +21,7 @@ export function HistoryPage() {
       <Link to="/settings" className="-ml-1 mb-1 inline-flex items-center gap-0.5 text-sm font-medium text-brand-700 active:scale-[0.97] md:hidden">
         <ChevronLeft size={18} /> Settings
       </Link>
-      <PageHeader title="History" subtitle="A record of every decision: tasks created, completed and reopened; emails dismissed and restored." actions={<RefreshButton keys={[["history"]]} label="Refresh history" />} />
+      <PageHeader title="History" subtitle="A record of every decision: tasks created, completed and reopened; emails removed and restored." actions={<RefreshButton keys={[["history"]]} label="Refresh history" />} />
       <Tabs<Filter>
         value={type}
         onChange={setType}
@@ -48,7 +48,8 @@ export function HistoryPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-subhead font-medium text-slate-900">{e.detail?.title ?? e.detail?.subject ?? "—"}</p>
                   <p className="text-sm text-slate-600">
-                    {e.summary}
+                    {/* Older entries were written as "Dismissed…"; they read "Removed…" now (user request 2026-10-06). */}
+                    {e.summary.replace(/^Dismissed/, "Removed")}
                     <span className="text-slate-400"> · {formatDateTime(e.createdAt)}</span>
                   </p>
                 </div>

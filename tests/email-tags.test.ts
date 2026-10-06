@@ -32,7 +32,7 @@ describe("emailTags", () => {
 
   it("shows only the email's state when it has no task", () => {
     expect(labels({ state: "needs_decision" })).toEqual(["brand:Needs decision"]);
-    expect(labels({ state: "dismissed" })).toEqual(["neutral:Dismissed"]);
+    expect(labels({ state: "dismissed" })).toEqual(["neutral:Removed"]);
   });
 
   it("marks pending emails from hidden senders", () => {

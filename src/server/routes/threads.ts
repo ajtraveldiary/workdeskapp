@@ -276,7 +276,7 @@ export const threadRoutes = new Hono<AppEnv>()
   })
 
   .post("/:id/dismiss", async (c) => {
-    await setState(c.get("db"), c.get("userId"), c.req.param("id"), { state: "dismissed" }, "email.dismissed", "Dismissed from queue");
+    await setState(c.get("db"), c.get("userId"), c.req.param("id"), { state: "dismissed" }, "email.dismissed", "Removed from Pending");
     return c.json({ ok: true });
   })
 
@@ -296,7 +296,7 @@ export const threadRoutes = new Hono<AppEnv>()
           entityType: "email" as const,
           entityId: t.id,
           action: "email.dismissed",
-          summary: "Dismissed from queue (bulk)",
+          summary: "Removed from Pending (bulk)",
           detail: { subject: t.subject },
         })),
       );

@@ -56,7 +56,7 @@ export function SettingsPage() {
           <p className="mt-3 flex gap-2 text-sm text-slate-600">
             <ShieldCheck size={18} className="shrink-0 text-brand-700" />
             WorkDesk reads your Gmail. It changes Gmail only when you ask: marking an email read when you open it here,
-            and managing your own labels (below and in the email viewer). Dismissing an email or completing a task only
+            and managing your own labels (below and in the email viewer). Removing an email or completing a task only
             changes WorkDesk; nothing is ever deleted, archived or sent.
           </p>
         </Card>
