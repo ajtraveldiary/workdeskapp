@@ -15,7 +15,7 @@ import { formatDateTime } from "../format";
 import { Avatar } from "./Avatar";
 import { EmailStatusTags } from "./EmailStatus";
 import { LabelChips, LabelPicker } from "./LabelChips";
-import { Button, Loading, Spinner, cx } from "./ui";
+import { Button, Loading, Modal, Spinner, cx } from "./ui";
 import { showUndo } from "./SwipeRow";
 import { usePullToClose } from "./sheet";
 
@@ -137,6 +137,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
 
   return (
     <div className="flex h-full flex-col">
+      <ShareChooser share={share} />
       {/* Phones: app-style top bar (user request 2026-10-06): close on the left, a grab handle for pulling the
           sheet down, and the label and Gmail buttons on the right. Wider screens keep them in the header below. */}
       <div className="relative flex items-center px-1.5 pt-2 sm:hidden">
@@ -708,7 +709,17 @@ function fileType(a: EmailAttachment) {
 
 type Prepared = { files: globalThis.File[]; left: string[] };
 
-type EmailShare = { ready: boolean; preparing: boolean; go: () => void };
+type EmailShare = {
+  ready: boolean;
+  preparing: boolean;
+  go: () => void;
+  // Several attachments: Share first asks which ones to send (user request 2026-10-06).
+  choosing: boolean;
+  files: globalThis.File[];
+  left: string[];
+  closeChooser: () => void;
+  send: (chosen: globalThis.File[]) => void;
+};
 
 function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: FileSel[]): EmailShare {
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
@@ -755,11 +766,16 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: F
   }, [wantFiles, files, thread.id]);
 
   const preparing = wantFiles && prepared === null;
-  const go = () => {
-    const sharedFiles = wantFiles && prepared ? prepared.files : [];
-    // Newest message's text; files that can't go with it are listed by name.
-    const names = sharedFiles.length ? (prepared?.left ?? []) : files.map((f) => f.attachment.filename);
-    const text = shareText(thread, messages[0], names, hidden, sharedFiles.length ? "Not attached" : "Attachments");
+  const [choosing, setChoosing] = useState(false);
+  const shareable = wantFiles && prepared ? prepared.files : [];
+  // Opens the phone's share sheet. iOS only allows that straight from a tap, which is why the files are
+  // fetched in advance: both the Share button and the chooser's Share call this directly from the tap.
+  const send = (sharedFiles: globalThis.File[], chosen: boolean) => {
+    setChoosing(false);
+    // Newest message's text; files that can't go with it are listed by name. Files the user left out in the
+    // chooser are not named.
+    const names = sharedFiles.length || chosen ? (prepared?.left ?? []) : files.map((f) => f.attachment.filename);
+    const text = shareText(thread, messages[0], names, hidden, sharedFiles.length || chosen ? "Not attached" : "Attachments");
     if (canShare) {
       navigator
         .share(sharedFiles.length ? { files: sharedFiles, text } : { title: thread.subject, text })
@@ -772,8 +788,93 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: F
       .then(() => showUndo({ message: "Email copied. Paste it anywhere." }))
       .catch(() => showUndo({ message: "Couldn't copy the email." }));
   };
+  // Two or more files that can be shared: ask which ones first; otherwise share straight away.
+  const go = () => (shareable.length > 1 ? setChoosing(true) : send(shareable, false));
   const listReady = snippets.isSuccess || snippets.isError; // a failed list shouldn't block sharing for good
-  return { ready: loaded && !preparing && listReady, preparing: loaded && (preparing || !listReady), go };
+  return {
+    ready: loaded && !preparing && listReady,
+    preparing: loaded && (preparing || !listReady),
+    go,
+    choosing,
+    files: shareable,
+    left: prepared?.left ?? [],
+    closeChooser: () => setChoosing(false),
+    send: (chosen) => send(chosen, true),
+  };
+}
+
+// Which attachments to share (user request 2026-10-06): all ticked to start with; a phone sheet like the
+// other pop-ups. Files that can't be shared (too large, or refused by the phone) are listed, greyed out.
+function ShareChooser({ share }: { share: EmailShare }) {
+  return (
+    <Modal open={share.choosing} onClose={share.closeChooser} title="Share attachments" closeOnBackdrop>
+      {share.choosing && <ShareChooserBody share={share} />}
+    </Modal>
+  );
+}
+
+function ShareChooserBody({ share }: { share: EmailShare }) {
+  const [picked, setPicked] = useState<Set<globalThis.File>>(() => new Set(share.files));
+  const all = picked.size === share.files.length;
+  const toggle = (f: globalThis.File) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(f)) next.delete(f);
+      else next.add(f);
+      return next;
+    });
+  const chosen = share.files.filter((f) => picked.has(f));
+  const size = chosen.reduce((n, f) => n + f.size, 0);
+  return (
+    <div className="space-y-3">
+      <label className="flex items-center gap-2.5 text-sm text-slate-600">
+        <input
+          type="checkbox"
+          checked={all}
+          ref={(el) => {
+            if (el) el.indeterminate = picked.size > 0 && !all;
+          }}
+          onChange={(e) => setPicked(new Set(e.target.checked ? share.files : []))}
+          className="size-4 accent-brand-700 pointer-coarse:size-5"
+        />
+        Select all
+      </label>
+      <ul className="divide-y divide-line rounded-lg border border-line">
+        {share.files.map((f) => {
+          const Icon = /\.pdf$/i.test(f.name) ? FileText : f.type.startsWith("image/") ? ImageIcon : /\.(xlsx?|xlsm|ods|csv)$/i.test(f.name) ? FileSpreadsheet : File;
+          return (
+            <li key={f.name + f.size}>
+              <label className="flex items-center gap-3 px-3 py-2.5">
+                <input type="checkbox" checked={picked.has(f)} onChange={() => toggle(f)} className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" />
+                <Icon size={18} className="shrink-0 text-slate-500" />
+                <span className="min-w-0 flex-1 truncate text-[0.9375rem] text-ink">{f.name}</span>
+                <span className="shrink-0 text-xs text-slate-500 tabular-nums">{formatSize(f.size)}</span>
+              </label>
+            </li>
+          );
+        })}
+        {share.left.map((name) => (
+          <li key={`left:${name}`} className="flex items-center gap-3 px-3 py-2.5 opacity-60">
+            <input type="checkbox" disabled className="size-4 shrink-0 pointer-coarse:size-5" aria-label={`${name} can't be shared`} />
+            <File size={18} className="shrink-0 text-slate-400" />
+            <span className="min-w-0 flex-1 truncate text-[0.9375rem] text-slate-500">{name}</span>
+            <span className="shrink-0 text-xs text-slate-500">Can't share</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-slate-500">
+        The email text goes with them. {chosen.length ? `${chosen.length} of ${share.files.length} files, ${formatSize(size)}.` : "No files: only the text is shared."}
+      </p>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={share.closeChooser}>
+          Cancel
+        </Button>
+        <Button type="button" variant="primary" onClick={() => share.send(chosen)}>
+          <Share size={15} /> {chosen.length ? `Share ${chosen.length === 1 ? "1 file" : `${chosen.length} files`}` : "Share text only"}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function ShareButton({ share, className }: { share: EmailShare; className: string }) {
