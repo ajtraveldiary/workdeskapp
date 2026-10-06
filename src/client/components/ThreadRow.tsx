@@ -31,7 +31,7 @@ export function ThreadRow({
   const inQueue = thread.state === "needs_decision";
 
   return (
-    <li className={cx("flex gap-3 px-4 py-3", selected && "bg-brand-50/60")}>
+    <li className={cx("flex gap-3 px-4 py-3 transition-colors", selected ? "bg-brand-50/60" : "has-[:is(button,a):hover]:bg-slate-50/80")}>
       {onSelect && (
         <input
           type="checkbox"
@@ -51,7 +51,7 @@ export function ThreadRow({
           {thread.messageCount > 1 && <span className="text-xs text-slate-400">{thread.messageCount}</span>}
           <span className="ml-auto shrink-0 text-xs text-slate-500 tabular-nums">{formatWhen(thread.lastMessageAt)}</span>
         </div>
-        <p className={cx("truncate", thread.unread ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{thread.subject}</p>
+        <p className={cx("truncate transition-colors group-hover/title:text-brand-700", thread.unread ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{thread.subject}</p>
         <LabelChips ids={thread.labelIds} className="mt-1" />
         <p className="line-clamp-1 text-sm text-slate-500">{thread.snippet}</p>
         </OpenArea>
@@ -110,7 +110,7 @@ export function ThreadRow({
 function OpenArea({ thread, onOpen, children }: { thread: Thread; onOpen?: (t: Thread) => void; children: ReactNode }) {
   if (!onOpen) return <>{children}</>;
   return (
-    <button onClick={() => onOpen(thread)} className="block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
+    <button onClick={() => onOpen(thread)} className="group/title block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
       {children}
     </button>
   );

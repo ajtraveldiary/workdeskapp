@@ -329,7 +329,7 @@ function PeriodPill({ report, period, today }: { report: Report; period: ReportP
         onClick={(e) => toggle(e.currentTarget)}
         aria-expanded={open}
         title={`${period.label}: ${s.label.toLowerCase()}`}
-        className={cx("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap pointer-coarse:py-1", TONE[s.tone].soft)}
+        className={cx("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium whitespace-nowrap transition hover:brightness-95 hover:ring-1 hover:ring-current/30 active:scale-90 aria-expanded:ring-2 aria-expanded:ring-brand-500 pointer-coarse:py-1", TONE[s.tone].soft)}
       >
         {submitted ? <Check size={11} strokeWidth={3} /> : <span className={cx("size-1.5 rounded-full", TONE[s.tone].dot)} />}
         {shortLabel(report, monthIndex(period.periodStart))}

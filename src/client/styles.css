@@ -121,3 +121,49 @@ dialog::backdrop {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/*
+  Interaction states for everything clickable (on top of each component's own hover/active styles):
+  a hand pointer on clickable things and "not allowed" on disabled ones, smooth transitions for colour,
+  shadow and size changes, and no motion for people who ask their device to reduce it.
+  Hover styles only apply on devices that can hover (Tailwind's hover: variant), so nothing sticks on touch.
+*/
+@layer base {
+  :where(
+      button,
+      a[href],
+      [role="button"],
+      [role="tab"],
+      [role="radio"],
+      select,
+      summary,
+      label:has(> input[type="checkbox"]),
+      input[type="checkbox"],
+      input[type="radio"],
+      input[type="date"],
+      input[type="time"],
+      input[type="month"],
+      input[type="datetime-local"]
+    ) {
+    cursor: pointer;
+  }
+  :where(button, select, input, textarea):disabled,
+  :where([aria-disabled="true"]) {
+    cursor: not-allowed;
+  }
+  :where(button, a[href], [role="tab"], [role="radio"], select, input, textarea) {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform, filter, text-decoration-color;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

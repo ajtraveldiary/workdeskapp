@@ -93,7 +93,7 @@ export function CalendarPage() {
                   key={day}
                   onClick={() => setSelected(day)}
                   className={cx(
-                    "flex min-h-20 flex-col items-stretch gap-1 border-line p-1.5 text-left transition-colors sm:min-h-28",
+                    "flex min-h-20 flex-col items-stretch gap-1 border-line p-1.5 text-left transition-colors active:bg-brand-50 sm:min-h-28",
                     i % 7 !== 6 && "border-r",
                     i < 35 && "border-b",
                     !inMonth && "bg-slate-50/70",

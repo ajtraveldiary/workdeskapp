@@ -105,7 +105,7 @@ function Shell({ children }: { children: ReactNode }) {
             to={n.to}
             end={n.to === "/"}
             className={({ isActive }) =>
-              cx("relative flex flex-col items-center gap-0.5 py-2 text-[10px]", isActive ? "font-medium text-brand-700" : "text-slate-500")
+              cx("relative flex flex-col items-center gap-0.5 py-2 text-[10px] active:scale-95", isActive ? "font-medium text-brand-700" : "text-slate-500 hover:text-ink")
             }
           >
             <n.icon size={20} strokeWidth={1.7} />
@@ -125,12 +125,12 @@ function RailLink({ item, count }: { item: NavItem; count?: number }) {
       end={item.to === "/"}
       className={({ isActive }) =>
         cx(
-          "relative flex flex-col items-center gap-1 border-l-[3px] py-3.5 text-[13px] transition-colors",
+          "group relative flex flex-col items-center gap-1 border-l-[3px] py-3.5 text-[13px] transition active:bg-slate-100",
           isActive ? "border-brand-600 bg-tint font-medium text-brand-700" : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-ink",
         )
       }
     >
-      <span className="relative">
+      <span className="relative transition-transform group-hover:scale-110 group-active:scale-95">
         <item.icon size={24} strokeWidth={1.6} />
         {!!count && <CountDot n={count} className="-top-1.5 -right-3" />}
       </span>
@@ -200,7 +200,7 @@ function TopBar() {
         </form>
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0 pointer-coarse:gap-2">
-          <Link to="/search" className="rounded-lg p-2 text-slate-600 sm:hidden pointer-coarse:p-2" aria-label="Search">
+          <Link to="/search" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 active:scale-90 sm:hidden pointer-coarse:p-2" aria-label="Search">
             <Search size={20} />
           </Link>
           <SyncButton />
@@ -229,7 +229,7 @@ function SyncButton() {
       disabled={sync.isPending}
       title={status}
       aria-label={status}
-      className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-60 pointer-coarse:p-2"
+      className="relative rounded-lg p-2 text-slate-600 enabled:hover:bg-slate-100 enabled:hover:text-ink enabled:active:scale-90 disabled:opacity-60 pointer-coarse:p-2"
     >
       <span className="relative inline-flex">
         <Mail size={21} strokeWidth={1.8} className={cx(sync.isPending && "text-brand-600")} />
@@ -274,7 +274,7 @@ function Notifications() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 pointer-coarse:p-2" aria-label={`Notifications (${alertCount})`} aria-expanded={open}>
+      <button onClick={() => setOpen((o) => !o)} className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100 hover:text-ink active:scale-90 aria-expanded:bg-slate-100 pointer-coarse:p-2" aria-label={`Notifications (${alertCount})`} aria-expanded={open}>
         <Bell size={21} strokeWidth={1.8} />
         {alertCount > 0 && <CountDot n={alertCount} urgent className="-top-0.5 -right-0.5" />}
       </button>
@@ -316,7 +316,7 @@ function UserMenu() {
   const name = me?.name ?? me?.email ?? "";
   return (
     <div className="relative ml-1" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-2.5 rounded-xl py-1 pr-1 pl-1 hover:bg-slate-100 md:pr-2" aria-expanded={open} aria-label="Account menu">
+      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-2.5 rounded-xl py-1 pr-1 pl-1 hover:bg-slate-100 active:scale-[0.97] aria-expanded:bg-slate-100 md:pr-2" aria-expanded={open} aria-label="Account menu">
         <Avatar name={name} src={me?.picture} size={40} />
         <span className="hidden max-w-36 truncate text-sm font-medium text-ink md:block">{name}</span>
         <ChevronDown size={16} className="hidden text-slate-500 md:block" />

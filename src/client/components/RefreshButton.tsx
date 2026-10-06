@@ -36,7 +36,7 @@ export function RefreshButton({ keys, sync, label = "Refresh" }: { keys: QueryKe
       disabled={busy}
       title={title}
       aria-label={title}
-      className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-slate-600 hover:border-slate-300 hover:text-ink disabled:opacity-70 pointer-coarse:size-9"
+      className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-line bg-white text-slate-600 enabled:hover:border-slate-300 enabled:hover:bg-slate-50 enabled:hover:text-ink enabled:active:scale-90 disabled:opacity-70 pointer-coarse:size-9"
     >
       <RefreshCw size={16} className={cx(spinning && "animate-spin text-brand-600")} />
     </button>

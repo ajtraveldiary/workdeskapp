@@ -17,6 +17,11 @@ Single-user Gmail → task dashboard. React + Vite + Tailwind v4 (src/client), H
 - Leave at least 8px between neighbouring tap targets on touch; never put an action or needed information only behind hover (tooltips are extras); give pressed feedback (base `:active` style); keep form text 16px on touch (base CSS) so iOS doesn't zoom.
 - Check new screens on the phone preset (375px wide, touch emulation) as well as desktop.
 
+## Interaction states (every clickable element)
+- Base CSS gives everything clickable a hand pointer, disabled controls a not-allowed pointer, 150ms transitions, and turns motion off for `prefers-reduced-motion`.
+- Each control also needs visible states: hover (mouse only; Tailwind `hover:` already skips touch), pressed (`active:scale-[0.97]` for buttons/tabs, `active:scale-90` for icon buttons), selected/current (`aria-selected`, `aria-current`, `aria-expanded:` styles), disabled (`disabled:opacity-50`; use `enabled:hover:` so disabled controls don't react).
+- List rows highlight only while one of their controls is hovered (`has-[:is(button,a):hover]:bg-slate-50/80`), and a title turns blue only when the title itself, which opens the item, is hovered (`group/title`).
+
 ## Conventions
 - Schema change: edit `src/server/db/schema.ts`, then `npm run db:generate` (commit the SQL in `drizzle/`).
 - Neon HTTP driver: no interactive transactions; prefer bulk inserts/upserts. Keep Worker requests well under the subrequest limit (each DB query and Gmail call is one).

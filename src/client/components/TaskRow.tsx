@@ -25,14 +25,14 @@ export function TaskRow({
   const gmailUrl = task.thread && gmailThreadUrl(task.thread.accountEmail, task.thread.gmailThreadId);
 
   return (
-    <li className="flex items-start gap-3 px-4 py-3">
+    <li className="flex items-start gap-3 px-4 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80">
       <button
         onClick={() => (done ? reopen.mutate(task.id) : complete.mutate(task.id))}
         disabled={complete.isPending || reopen.isPending}
         aria-label={done ? "Reopen task" : "Mark task complete"}
         title={done ? "Reopen" : "Mark complete"}
         className={cx(
-          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2 pointer-coarse:size-6",
+          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90 pointer-coarse:size-6",
           done ? "border-low bg-low text-white" : "border-slate-300 text-transparent hover:border-low hover:text-low",
         )}
       >
@@ -40,8 +40,8 @@ export function TaskRow({
       </button>
 
       <div className="min-w-0 flex-1">
-        <button onClick={() => onEdit(task)} className="text-left">
-          <span className={cx("text-[13px] leading-snug font-medium sm:text-sm", done ? "text-slate-500 line-through" : "text-slate-900")}>{task.title}</span>
+        <button onClick={() => onEdit(task)} className="group/title text-left">
+          <span className={cx("text-[13px] leading-snug font-medium sm:text-sm", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>
         </button>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
           {task.dueDate && !done && (

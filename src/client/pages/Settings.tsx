@@ -355,7 +355,7 @@ function ColorPicker({ value, onChange, allowNone = true }: { value: LabelColor 
             title={c.name}
             onClick={() => onChange({ backgroundColor: c.backgroundColor, textColor: c.textColor })}
             style={{ backgroundColor: c.backgroundColor, color: c.textColor }}
-            className={cx("flex size-6 items-center justify-center rounded-full pointer-coarse:size-8", on && "ring-2 ring-brand-600 ring-offset-1")}
+            className={cx("flex size-6 items-center justify-center rounded-full transition hover:scale-110 active:scale-90 pointer-coarse:size-8", on && "ring-2 ring-brand-600 ring-offset-1")}
           >
             {on && <Check size={12} strokeWidth={3} />}
           </button>

@@ -115,7 +115,7 @@ function StatCard({ to, icon: Icon, value, label, note, tone }: { to: string; ic
   return (
     <Link
       to={to}
-      className="flex min-w-0 flex-col items-start gap-1.5 rounded-xl border border-line bg-white p-2.5 transition-shadow hover:shadow-[0_8px_24px_-14px_rgb(31_33_48/0.35)] sm:flex-row sm:items-center sm:gap-2.5 sm:px-3 sm:py-3"
+      className="flex min-w-0 flex-col items-start gap-1.5 rounded-xl border border-line bg-white p-2.5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_8px_24px_-14px_rgb(31_33_48/0.35)] active:translate-y-0 active:scale-[0.98] sm:flex-row sm:items-center sm:gap-2.5 sm:px-3 sm:py-3"
     >
       <span className={cx("flex size-7 shrink-0 items-center justify-center rounded-md shadow-sm sm:size-10 sm:rounded-lg", TONE[tone].solid)}>
         <Icon strokeWidth={1.8} className="size-4 sm:size-5" />
@@ -168,8 +168,8 @@ function TabsRow({ children, mobileActions }: { children: ReactNode; mobileActio
 }
 
 const ViewAll = ({ to }: { to: string }) => (
-  <Link to={to} className="mt-1 flex shrink-0 items-center gap-1 text-sm text-slate-600 hover:text-brand-700">
-    View all <ArrowRight size={15} />
+  <Link to={to} className="group/va mt-1 flex shrink-0 items-center gap-1 text-sm text-slate-600 hover:text-brand-700">
+    View all <ArrowRight size={15} className="transition-transform group-hover/va:translate-x-0.5" />
   </Link>
 );
 
@@ -318,14 +318,14 @@ function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit
   const categories = useCategories().data ?? [];
   const a = useTaskActions(task);
   return (
-    <li className="flex items-start gap-3 py-3 sm:py-4">
+    <li className="-mx-3 flex items-start gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:-mx-5 sm:px-5 sm:py-4">
       <div className="pt-0.5">
         <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
       </div>
       <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <div className="min-w-0 flex-1 @lg:flex @lg:items-center @lg:gap-4">
-        <button onClick={() => onEdit(task)} className="block w-full min-w-0 text-left @lg:w-auto @lg:flex-1">
-          <span className={cx("line-clamp-2 text-[13px] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</span>
+        <button onClick={() => onEdit(task)} className="group/title block w-full min-w-0 text-left @lg:w-auto @lg:flex-1">
+          <span className={cx("line-clamp-2 text-[13px] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
           <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[13px]">{subtitleFor(task, categories)}</span>
           {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800">New reply</span>}
         </button>
@@ -449,17 +449,17 @@ function TodoRow({
   const context = category ?? (task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Recurring report" : "Manual task");
 
   return (
-    <li className="flex gap-3 py-3 sm:py-4">
+    <li className="-mx-3 flex gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:-mx-5 sm:px-5 sm:py-4">
       <div className="pt-0.5">
         <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
       </div>
       <div className="min-w-0 flex-1">
         <button
           onClick={() => onOpen(task)}
-          className="block max-w-full text-left"
+          className="group/title block max-w-full text-left"
           aria-label={task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`}
         >
-          <span className={cx("line-clamp-2 text-[13px] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</span>
+          <span className={cx("line-clamp-2 text-[13px] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
           <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[13px]">{context}</span>
         </button>
         <div className="mt-1.5 flex items-center justify-between gap-2 sm:mt-2">
@@ -640,7 +640,7 @@ function EmailCard({
   const gmailUrl = gmailThreadUrl(thread.accountEmail, thread.gmailThreadId);
   const inQueue = thread.state === "needs_decision";
   return (
-    <li className={cx("-mx-3 flex gap-3 px-3 py-3 sm:-mx-5 sm:px-5 sm:py-4", selected && "bg-tint")}>
+    <li className={cx("-mx-3 flex gap-3 px-3 py-3 transition-colors sm:-mx-5 sm:px-5 sm:py-4", selected ? "bg-tint" : "has-[:is(button,a):hover]:bg-slate-50/80")}>
       {onSelect && (
         <input
           type="checkbox"
@@ -652,7 +652,7 @@ function EmailCard({
       )}
       <div className="min-w-0 flex-1">
         {/* Tapping the email opens it with its attachments */}
-        <button onClick={() => onOpen(thread)} className="block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
+        <button onClick={() => onOpen(thread)} className="group/title block w-full text-left" aria-label={`Open email: ${thread.subject}`}>
         <div className="flex items-baseline gap-2">
           {thread.unread && <span className="size-2 shrink-0 -translate-y-px rounded-full bg-brand-600" title="Unread in Gmail" />}
           <span className={cx("truncate text-sm", thread.unread ? "font-semibold text-ink" : "font-medium text-slate-800")}>
@@ -661,7 +661,7 @@ function EmailCard({
           {thread.messageCount > 1 && <span className="text-xs text-slate-400">({thread.messageCount})</span>}
           <span className="ml-auto shrink-0 text-xs text-slate-500">{formatWhen(thread.lastMessageAt)}</span>
         </div>
-        <p className="mt-0.5 truncate text-sm text-ink">{thread.subject}</p>
+        <p className="mt-0.5 truncate text-sm text-ink transition-colors group-hover/title:text-brand-700">{thread.subject}</p>
         {(showStatus || thread.labelIds.length > 0) && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {showStatus && <EmailStatusTags thread={thread} />}

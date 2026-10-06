@@ -235,7 +235,7 @@ function MessageBlock({
                       key={a.partId}
                       onClick={() => onOpenFile({ message, attachment: a })}
                       className={cx(
-                        "flex min-h-24 flex-col items-start gap-2 rounded-lg border p-3 text-left transition-colors",
+                        "flex min-h-24 flex-col items-start gap-2 rounded-lg border p-3 text-left transition hover:shadow-sm active:scale-[0.98]",
                         active ? "border-brand-500 bg-tint ring-1 ring-brand-500" : "border-line bg-white hover:border-slate-300",
                       )}
                     >

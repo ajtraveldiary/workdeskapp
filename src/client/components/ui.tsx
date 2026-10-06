@@ -15,12 +15,12 @@ export function Button({ variant = "secondary", size = "md", className, ...rest 
     <button
       {...rest}
       className={cx(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
+        "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium whitespace-nowrap transition enabled:active:scale-[0.97] disabled:opacity-50 [&_svg]:shrink-0",
         size === "sm" ? "h-8 px-3 text-[13px] pointer-coarse:h-9" : "h-10 px-4 text-sm pointer-coarse:h-9",
-        variant === "primary" && "bg-brand-600 text-white hover:bg-brand-700",
-        variant === "secondary" && "border border-line bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50",
-        variant === "ghost" && "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-        variant === "danger" && "border border-urgent/40 bg-white text-urgent-ink hover:bg-urgent-soft",
+        variant === "primary" && "bg-brand-600 text-white shadow-sm enabled:hover:bg-brand-700 enabled:hover:shadow-md",
+        variant === "secondary" && "border border-line bg-white text-slate-700 enabled:hover:border-slate-300 enabled:hover:bg-slate-50 enabled:hover:text-ink",
+        variant === "ghost" && "text-slate-600 enabled:hover:bg-slate-100 enabled:hover:text-slate-900",
+        variant === "danger" && "border border-urgent/40 bg-white text-urgent-ink enabled:hover:bg-urgent-soft",
         className,
       )}
     />
@@ -95,7 +95,7 @@ export function Tabs<T extends string>({
             aria-selected={value === o.value}
             onClick={() => onChange(o.value)}
             className={cx(
-              "-mb-px flex items-center gap-1.5 border-b-2 px-1 pb-2.5 text-sm whitespace-nowrap",
+              "-mb-px flex items-center gap-1.5 border-b-2 px-1 pb-2.5 text-sm whitespace-nowrap active:scale-[0.97]",
               value === o.value ? "border-brand-600 font-medium text-ink" : "border-transparent text-slate-500 hover:text-ink",
             )}
           >
@@ -117,7 +117,7 @@ export function SearchInput({ value, onChange, placeholder }: { value: string; o
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="h-10 w-full rounded-lg border border-line bg-white px-3.5 text-sm placeholder:text-slate-400 focus:border-brand-200 pointer-coarse:h-9 sm:w-72"
+      className="h-10 w-full rounded-lg border border-line bg-white px-3.5 text-sm outline-none placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 pointer-coarse:h-9 sm:w-72"
     />
   );
 }
@@ -140,7 +140,7 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
         <div className="p-5">
           <div className="mb-4 flex items-start justify-between gap-4">
             <h2 className="text-lg font-medium text-ink">{title}</h2>
-            <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100 pointer-coarse:p-2" aria-label="Close">
+            <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-ink active:scale-90 pointer-coarse:p-2" aria-label="Close">
               <X size={18} />
             </button>
           </div>
@@ -151,7 +151,8 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
   );
 }
 
-export const inputClass = "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm focus:border-brand-200 pointer-coarse:h-9";
+export const inputClass =
+  "h-10 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50 disabled:opacity-60 pointer-coarse:h-9";
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -190,10 +191,10 @@ export function Segmented<T extends string>({
           aria-selected={value === o.value}
           onClick={() => onChange(o.value)}
           className={cx(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] whitespace-nowrap transition-colors",
+            "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] whitespace-nowrap transition active:scale-[0.97]",
             value === o.value
               ? "border-brand-200 bg-tint font-medium text-brand-800"
-              : "border-line bg-white text-slate-600 hover:border-slate-300 hover:text-ink",
+              : "border-line bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-ink",
           )}
         >
           {o.tone && <span className={cx("size-2 rounded-full", TONE[o.tone].dot)} aria-hidden />}
@@ -247,7 +248,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:p-2"
+        className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-ink active:scale-90 aria-expanded:bg-slate-100 aria-expanded:text-ink pointer-coarse:p-2"
         aria-label={label}
         aria-expanded={open}
       >
@@ -288,7 +289,7 @@ export function CheckCircle({ checked, onToggle, label, disabled }: { checked: b
       aria-label={label}
       title={label}
       className={cx(
-        "flex size-[22px] shrink-0 items-center justify-center rounded-md border-2 transition-colors pointer-coarse:size-6",
+        "flex size-[22px] shrink-0 items-center justify-center rounded-md border-2 transition active:scale-90 pointer-coarse:size-6",
         checked ? "border-low bg-low text-white" : "border-slate-300 text-transparent hover:border-low hover:text-low",
       )}
     >
