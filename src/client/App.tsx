@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import {
   CalendarClock,
@@ -20,7 +20,7 @@ import { ApiError, logout, useMe, useSummary, useSync } from "./api";
 import { formatWhen } from "./format";
 import { Avatar } from "./components/Avatar";
 import { UndoBar } from "./components/SwipeRow";
-import { Splash, TONE, cx, type Tone } from "./components/ui";
+import { PopPanel, Spinner, Splash, TONE, cx, type Tone } from "./components/ui";
 import { HomePage } from "./pages/Home";
 import { InboxPage } from "./pages/Inbox";
 import { TasksPage } from "./pages/Tasks";
@@ -82,10 +82,12 @@ function Shell({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   return (
-    // Phones (under 768px) are laid out like an app (2026-10-06: "doesn't behave like a mobile app, elements
-    // not fixed in position"): the screen itself never scrolls, bounces or slides sideways; the top bar and
-    // the tab bar stay put and only the page area between them scrolls. Computers scroll the page as before.
-    <div className="flex h-dvh flex-col overflow-hidden bg-canvas-soft md:h-auto md:min-h-dvh md:flex-row md:overflow-visible">
+    // Phones (under 768px), and WorkDesk opened from the home screen on any device, are laid out like an app
+    // (2026-10-06: "doesn't behave like a mobile app, elements not fixed in position"; "every UI element should
+    // act like a mobile app"): the screen itself never scrolls, bounces or slides sideways; the top bar and the
+    // tab bar stay put and only the page area between them scrolls. See .app-shell in styles.css. Computers in
+    // a browser scroll the page as before.
+    <div className="app-shell bg-canvas-soft md:flex">
       <FirstSync />
       <UndoBar />
       {/* Labelled icon rail */}
@@ -107,17 +109,15 @@ function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar />
-        <main
-          ref={mainRef}
-          className="min-h-0 flex-1 pb-[calc(var(--tabbar-h)+1rem+env(safe-area-inset-bottom))] max-md:overflow-x-clip max-md:overflow-y-auto max-md:overscroll-contain md:pb-0"
-        >
+        <main ref={mainRef} className="app-main relative min-h-0 flex-1 pb-[calc(var(--tabbar-h)+1rem+env(safe-area-inset-bottom))] md:pb-0">
+          <PullToRefresh scroller={mainRef} />
           {children}
         </main>
       </div>
 
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
           corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
+      <nav className="tabbar fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
         {NAV.filter((n) => n.to !== "/history").map((n) => (
           <NavLink
             key={n.to}
@@ -133,6 +133,90 @@ function Shell({ children }: { children: ReactNode }) {
           </NavLink>
         ))}
       </nav>
+    </div>
+  );
+}
+
+// Pull the page down from the top to refresh, like apps (user request 2026-10-06): fetches new Gmail and
+// reloads what's on screen (the same as the top bar's sync button). Touch screens in app layout only.
+function PullToRefresh({ scroller }: { scroller: RefObject<HTMLElement | null> }) {
+  const sync = useSync();
+  const syncRef = useRef(sync);
+  syncRef.current = sync;
+  const [pull, setPull] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const TRIGGER = 70;
+
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    let state: "idle" | "maybe" | "drag" = "idle";
+    let startX = 0;
+    let startY = 0;
+    let dist = 0;
+    const appLayout = () => getComputedStyle(el).overflowY === "auto" && window.matchMedia("(pointer: coarse)").matches;
+    const start = (e: TouchEvent) => {
+      if (busyRef.current || e.touches.length !== 1 || el.scrollTop > 0 || !appLayout()) return;
+      startX = e.touches[0]!.clientX;
+      startY = e.touches[0]!.clientY;
+      dist = 0;
+      state = "maybe";
+    };
+    const move = (e: TouchEvent) => {
+      if (state === "idle") return;
+      const x = e.touches[0]!.clientX - startX;
+      const y = e.touches[0]!.clientY - startY;
+      if (state === "maybe") {
+        // Sideways swipes (list rows, calendar months) and upward scrolls are left alone.
+        if ((Math.abs(x) > 8 && Math.abs(x) > Math.abs(y)) || y < -4 || el.scrollTop > 0) return void (state = "idle");
+        if (y < 8) return;
+        state = "drag";
+      }
+      e.preventDefault();
+      dist = Math.min(120, Math.max(0, y - 8) * 0.5);
+      setPull(dist);
+    };
+    const end = () => {
+      if (state !== "drag") return void (state = "idle");
+      state = "idle";
+      setPull(0);
+      if (dist < TRIGGER * 0.75) return;
+      busyRef.current = true;
+      setBusy(true);
+      syncRef.current.mutate(undefined, {
+        onSettled: () => {
+          busyRef.current = false;
+          setBusy(false);
+        },
+      });
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, [scroller]);
+
+  if (!pull && !busy) return null;
+  const ready = pull >= TRIGGER * 0.75;
+  return (
+    <div className="pointer-events-none sticky top-0 z-30 h-0" aria-live="polite">
+      <div
+        className="mx-auto flex size-9 items-center justify-center rounded-full border border-line bg-white text-brand-600 shadow-md"
+        style={{ transform: `translateY(${busy ? 12 : pull - 28}px)`, transition: pull ? "none" : "transform 200ms" }}
+      >
+        {busy ? (
+          <Spinner size={18} />
+        ) : (
+          <RefreshCw size={18} strokeWidth={2} style={{ transform: `rotate(${pull * 3}deg)`, opacity: ready ? 1 : 0.5 }} />
+        )}
+      </div>
     </div>
   );
 }
@@ -298,7 +382,7 @@ function Notifications() {
         {alertCount > 0 && <CountDot n={alertCount} urgent className="-top-0.5 -right-0.5" />}
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white shadow-xl">
+        <PopPanel onClose={() => setOpen(false)} className="absolute right-0 z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white shadow-xl">
           <div className="border-b border-line px-4 py-3 text-sm font-medium text-ink">Notifications</div>
           {items.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-slate-500">You're all caught up.</p>
@@ -323,7 +407,7 @@ function Notifications() {
               ))}
             </ul>
           )}
-        </div>
+        </PopPanel>
       )}
     </div>
   );
@@ -341,7 +425,7 @@ function UserMenu() {
         <ChevronDown size={16} className="hidden text-slate-500 md:block" />
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-60 rounded-xl border border-line bg-white p-1 shadow-xl">
+        <PopPanel onClose={() => setOpen(false)} title="Account" className="absolute right-0 z-30 mt-2 w-60 rounded-xl border border-line bg-white p-1 shadow-xl">
           <div className="px-3 py-2.5">
             <div className="truncate text-sm font-medium text-ink">{name}</div>
             <div className="truncate text-xs text-slate-500">{me?.demo ? "Demo mode · sample emails" : (me?.account?.email ?? me?.email)}</div>
@@ -358,7 +442,7 @@ function UserMenu() {
               <LogOut size={16} /> Sign out
             </button>
           )}
-        </div>
+        </PopPanel>
       )}
     </div>
   );

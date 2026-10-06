@@ -9,7 +9,7 @@ import { useBulkDismiss, useBulkRestore, useBulkSnooze, useBulkTask } from "../a
 import { formatDateTime } from "../format";
 import { showUndo } from "./SwipeRow";
 import { snoozeOptions } from "./ThreadRow";
-import { Button, cx } from "./ui";
+import { Button, PopPanel, cx } from "./ui";
 
 export function EmailBulkBar({
   threads,
@@ -150,7 +150,7 @@ function BulkSnooze({ ids, disabled, onDone }: { ids: string[]; disabled: boolea
         <AlarmClock size={15} /> <span className="max-sm:hidden">Snooze</span>
       </Button>
       {open && (
-        <div className="absolute left-0 z-30 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-lg">
+        <PopPanel onClose={() => setOpen(false)} title="Snooze until" className="absolute left-0 z-30 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-lg">
           {snoozeOptions().map((o) => (
             <button key={o.label} onClick={() => pick(o.until)} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 active:bg-slate-100">
               {o.label}
@@ -162,7 +162,7 @@ function BulkSnooze({ ids, disabled, onDone }: { ids: string[]; disabled: boolea
               Set
             </Button>
           </div>
-        </div>
+        </PopPanel>
       )}
     </div>
   );

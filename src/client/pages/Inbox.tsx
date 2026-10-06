@@ -72,7 +72,7 @@ export function InboxPage() {
         selected={selected}
         onSelectedChange={setSelected}
         onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
-        className="sticky top-0 z-10 -mx-3 mb-2 bg-canvas-soft/95 px-4 py-1.5 backdrop-blur sm:-mx-4 sm:px-5 md:top-20 md:-mx-6 md:px-7 lg:-mx-8 lg:px-9"
+        className="app-sticky sticky top-0 z-10 -mx-3 mb-2 bg-canvas-soft/95 px-4 py-1.5 backdrop-blur sm:-mx-4 sm:px-5 md:top-20 md:-mx-6 md:px-7 lg:-mx-8 lg:px-9"
       />
       {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>

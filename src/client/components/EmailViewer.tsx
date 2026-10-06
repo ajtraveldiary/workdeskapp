@@ -18,6 +18,7 @@ import { LabelChips, LabelPicker } from "./LabelChips";
 import { SnoozeMenu } from "./ThreadRow";
 import { Button, Loading, Spinner, cx } from "./ui";
 import { showUndo } from "./SwipeRow";
+import { usePullToClose } from "./sheet";
 
 const PdfPreview = lazy(() => import("./PdfPreview"));
 // Office previews (user request 2026-10-06), fetched only when such a file is opened.
@@ -89,73 +90,6 @@ export function EmailViewer({ thread, onClose, onCreateTask }: { thread: Thread 
       {thread && <ViewerBody key={thread.id} thread={thread} onClose={onClose} onCreateTask={onCreateTask} />}
     </dialog>
   );
-}
-
-// Phones: pull the viewer down to close it, like an app sheet (user request 2026-10-06). The pull starts on the
-// top bar and header, or on the email while it is scrolled to the top (not inside an email's own HTML frame).
-const PHONE = "(max-width: 639.98px)";
-function usePullToClose(ref: RefObject<HTMLDialogElement | null>, onClose: () => void, open: boolean) {
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !open || !window.matchMedia(PHONE).matches) return;
-    let state: "idle" | "maybe" | "drag" = "idle";
-    let startX = 0;
-    let startY = 0;
-    let startT = 0;
-    let dy = 0;
-    const place = (y: number, animate: boolean) => {
-      el.style.transition = animate ? "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "none";
-      el.style.transform = y ? `translateY(${y}px)` : "";
-    };
-    const start = (e: TouchEvent) => {
-      const scroller = (e.target as Element).closest?.("[data-sheet-scroll]");
-      if (e.touches.length !== 1 || (scroller && scroller.scrollTop > 0)) return;
-      startX = e.touches[0]!.clientX;
-      startY = e.touches[0]!.clientY;
-      startT = e.timeStamp;
-      dy = 0;
-      state = "maybe";
-    };
-    const move = (e: TouchEvent) => {
-      if (state === "idle") return;
-      const x = e.touches[0]!.clientX - startX;
-      const y = e.touches[0]!.clientY - startY;
-      if (state === "maybe") {
-        // Sideways swipes and upward scrolls are left alone.
-        if ((Math.abs(x) > 8 && Math.abs(x) > Math.abs(y)) || y < -4) return void (state = "idle");
-        if (y < 8) return;
-        state = "drag";
-      }
-      e.preventDefault();
-      dy = Math.max(0, y);
-      place(dy, false);
-    };
-    const end = (e: TouchEvent) => {
-      if (state !== "drag") return void (state = "idle");
-      state = "idle";
-      const speed = dy / Math.max(1, e.timeStamp - startT);
-      if (dy > 140 || (dy > 50 && speed > 0.6)) {
-        place(el.offsetHeight, true);
-        setTimeout(() => closeRef.current(), 200);
-      } else place(0, true);
-    };
-    const cancel = () => {
-      if (state === "drag") place(0, true);
-      state = "idle";
-    };
-    el.addEventListener("touchstart", start, { passive: true });
-    el.addEventListener("touchmove", move, { passive: false });
-    el.addEventListener("touchend", end);
-    el.addEventListener("touchcancel", cancel);
-    return () => {
-      el.removeEventListener("touchstart", start);
-      el.removeEventListener("touchmove", move);
-      el.removeEventListener("touchend", end);
-      el.removeEventListener("touchcancel", cancel);
-    };
-  }, [ref, open]);
 }
 
 function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose: () => void; onCreateTask: (t: Thread) => void }) {
@@ -393,7 +327,7 @@ function MessageBlock({
           {message.html ? (
             <HtmlBody html={showOriginal ? message.html : clean.html!} cids={cids} />
           ) : (
-            <div className="text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">{(showOriginal ? message.text : clean.text) || "(No text in this message)"}</div>
+            <div className="select-text text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">{(showOriginal ? message.text : clean.text) || "(No text in this message)"}</div>
           )}
           {clean.removed > 0 && (
             <button onClick={() => setShowHidden((v) => !v)} className="mt-2 text-xs font-medium text-slate-500 hover:text-brand-700 hover:underline">

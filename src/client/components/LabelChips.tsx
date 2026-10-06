@@ -3,7 +3,7 @@ import { Check, Tag } from "lucide-react";
 import { Link } from "react-router";
 import type { Label, Thread } from "../../shared/types";
 import { useLabels, useSetThreadLabels } from "../api";
-import { Button, Loading, Spinner, cx, inputClass } from "./ui";
+import { Button, Loading, PopPanel, Spinner, cx, inputClass } from "./ui";
 
 // Gmail labels on an email, in their Gmail colours. Nested labels ("Parent/Child") show their full path.
 export function LabelChip({ label, className }: { label: Label; className?: string }) {
@@ -109,7 +109,7 @@ export function LabelPicker({ thread, selected, onChange, compact }: { thread: P
         <Tag size={15} /> <span className={compact ? "sr-only" : "hidden sm:inline"}>Labels</span>
       </Button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white p-1 shadow-xl">
+        <PopPanel onClose={() => setOpen(false)} title="Labels" className="absolute right-0 z-30 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white p-1 shadow-xl">
           <p className="px-3 pt-2 pb-1 text-xs text-slate-500">Labels on this email (changes Gmail too)</p>
           {!data ? (
             <Loading className="py-4" />
@@ -140,7 +140,7 @@ export function LabelPicker({ thread, selected, onChange, compact }: { thread: P
           <Link to="/settings#mail" className="mt-1 block border-t border-line px-3 py-2 text-[0.8125rem] font-medium text-brand-700 hover:bg-slate-50">
             Manage labels
           </Link>
-        </div>
+        </PopPanel>
       )}
     </div>
   );

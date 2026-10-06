@@ -148,14 +148,6 @@ dialog::backdrop {
   html {
     font-size: 90%;
   }
-  /* App-style screen (see Shell in App.tsx): the page never scrolls, rubber-bands or drifts sideways;
-     only the page area inside scrolls. */
-  html,
-  body {
-    height: 100%;
-    overflow: hidden;
-    overscroll-behavior: none;
-  }
   svg.lucide {
     zoom: 0.9;
   }
@@ -226,4 +218,69 @@ dialog::backdrop {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/*
+  App-style screen (user requests 2026-10-06) on phones, and whenever WorkDesk is opened from the home screen
+  (any size, e.g. iPad): the page itself never scrolls, rubber-bands, slides sideways or pinch-zooms; the top bar
+  and tab bar stay put and only <main> scrolls (Shell in App.tsx). Static text isn't selectable and holding
+  things doesn't pop up the link/image menu, like app screens; typed text, email text and notes still are.
+  Pinch-zoom stays available in the full-screen attachment viewer (it sits outside .app-shell).
+  Unlayered on purpose, so these beat the md: utilities on the same elements.
+*/
+.app-shell {
+  min-height: 100dvh;
+}
+@media (max-width: 767.98px), (display-mode: standalone) {
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+    touch-action: pan-x pan-y;
+  }
+  .app-main {
+    overflow-x: clip;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+  .app-sticky {
+    top: 0;
+  }
+}
+@media (min-width: 768px) and (display-mode: standalone) {
+  .app-shell {
+    flex-direction: row;
+  }
+}
+@media (pointer: coarse) and (max-width: 767.98px), (display-mode: standalone) {
+  .app-shell,
+  .action-sheet {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  :where(.app-shell, .action-sheet) :is(input, textarea, [contenteditable], .select-text) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+/* While typing on a phone the keyboard takes the bottom of the screen: the tab bar and the + button step
+   aside, as in apps, instead of riding up above the keyboard. */
+@media (max-width: 767.98px) {
+  body:has(:is(input:not([type="checkbox"], [type="radio"], [type="button"], [type="submit"]), textarea):focus) :is(.tabbar, .fab) {
+    display: none;
+  }
+}
+/* Menu rows in phone action sheets get app-sized rows (the same menus are compact drop-downs elsewhere). */
+.action-sheet :is(button, a).w-full:not(.sheet-cancel),
+.action-sheet a.block {
+  padding-block: 0.75rem;
+  font-size: 0.9375rem;
 }

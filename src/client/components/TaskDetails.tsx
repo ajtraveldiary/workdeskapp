@@ -69,7 +69,7 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
           </Row>
         )}
         <Row icon={StickyNote} label="Notes">
-          {task.notes ? <span className="whitespace-pre-wrap">{task.notes}</span> : <span className="text-slate-500">No notes</span>}
+          {task.notes ? <span className="select-text whitespace-pre-wrap">{task.notes}</span> : <span className="text-slate-500">No notes</span>}
         </Row>
       </dl>
 

@@ -5,7 +5,7 @@ import type { Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useDismiss, useRestore, useSnooze } from "../api";
 import { formatDateTime, formatWhen } from "../format";
-import { Button, Modal, cx } from "./ui";
+import { Button, Modal, PopPanel, cx } from "./ui";
 import { EmailStatusTags } from "./EmailStatus";
 import { LabelChips } from "./LabelChips";
 
@@ -176,7 +176,7 @@ export function SnoozeMenu({ id, icon, compact }: { id: string; icon?: ReactNode
         {!compact && " Snooze"}
       </Button>
       {open && (
-        <div className="absolute left-0 z-20 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-lg">
+        <PopPanel onClose={() => setOpen(false)} title="Snooze until" className="absolute left-0 z-20 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-lg">
           {snoozeOptions().map((o) => (
             <button key={o.label} onClick={() => pick(o.until)} className="block w-full rounded px-3 py-1.5 text-left text-sm hover:bg-slate-100 pointer-coarse:py-2.5">
               {o.label}
@@ -193,7 +193,7 @@ export function SnoozeMenu({ id, icon, compact }: { id: string; icon?: ReactNode
               Snooze until then
             </Button>
           </div>
-        </div>
+        </PopPanel>
       )}
     </div>
   );

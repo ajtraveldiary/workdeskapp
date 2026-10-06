@@ -86,7 +86,7 @@ function SheetTable({ book, index }: { book: WorkBook; index: number }) {
   return (
     <>
       <div className="scroll-thin max-h-[75vh] overflow-auto rounded-md border border-line bg-white">
-        <table className="border-collapse text-xs text-ink">
+        <table className="select-text border-collapse text-xs text-ink">
           <thead>
             <tr>
               <th className="sticky top-0 left-0 z-20 border-r border-b border-line bg-slate-100" />

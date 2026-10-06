@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { usePhone, usePullToClose } from "./sheet";
 import { Check, MoreVertical, X } from "lucide-react";
 
 export function cx(...c: (string | false | null | undefined)[]) {
@@ -124,22 +125,32 @@ export function SearchInput({ value, onChange, placeholder }: { value: string; o
   );
 }
 
+// Pop-up forms. Phones get an app-style sheet from the bottom with a grab handle that can be pulled down to
+// close (user request 2026-10-06: every part of the app should act like a mobile app).
 export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
+    if (open && !d.open) {
+      d.style.transition = "";
+      d.style.transform = ""; // where a pull-to-close left it
+      d.showModal();
+    }
     if (!open && d.open) d.close();
   }, [open]);
+  usePullToClose(ref, onClose, open);
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-white p-0 shadow-xl"
+      // Only its own close: menus opened inside it are dialogs too.
+      onClose={(e) => e.target === e.currentTarget && onClose()}
+      data-sheet-scroll
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-white p-0 shadow-xl sheet max-sm:mx-0 max-sm:mt-auto max-sm:mb-0 max-sm:max-h-[92dvh] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[env(safe-area-inset-bottom)]"
     >
       {open && (
-        <div className="p-5">
+        <div className="p-5 max-sm:px-4 max-sm:pt-2">
+          <span aria-hidden="true" className="mx-auto mb-2 block h-1 w-9 rounded-full bg-slate-300 sm:hidden" />
           <div className="mb-4 flex items-start justify-between gap-4">
             <h2 className="text-lg font-medium text-ink">{title}</h2>
             <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-ink active:scale-90 pointer-coarse:p-2" aria-label="Close">
@@ -236,6 +247,52 @@ export const PRIORITY_BAR = {
 export type MenuItem = { label: string; onClick?: () => void; href?: string; hidden?: boolean };
 
 // Kebab menu. Closes on outside click or Escape.
+// A drop-down panel (menus, snooze times, labels, notifications). On phones it opens as an action sheet from
+// the bottom of the screen, like iPhone apps, with Cancel; elsewhere it is the usual drop-down (className).
+// It is a dialog inside the trigger's container, so the container's tap-outside check still sees it as inside.
+export function PopPanel({ onClose, className, title, children }: { onClose: () => void; className: string; title?: string; children: ReactNode }) {
+  const phone = usePhone();
+  if (!phone) return <div className={className}>{children}</div>;
+  return (
+    <ActionSheet onClose={onClose} title={title}>
+      {children}
+    </ActionSheet>
+  );
+}
+
+function ActionSheet({ onClose, title, children }: { onClose: () => void; title?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (d && !d.open) d.showModal();
+    return () => d?.close();
+  }, []);
+  usePullToClose(ref, onClose, true);
+  return (
+    <dialog
+      ref={ref}
+      aria-label={title ?? "Options"}
+      onClose={(e) => {
+        e.stopPropagation(); // not the email viewer or form it was opened from
+        // A late close event from React's development double-mount arrives after it reopened: ignore it.
+        if (!e.currentTarget.open) onClose();
+      }}
+      // A tap on the dimmed area above the sheet closes it.
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      className="sheet action-sheet m-0 mt-auto max-h-[80dvh] w-full max-w-none overflow-y-auto rounded-t-2xl bg-white p-0 pb-[env(safe-area-inset-bottom)] text-base outline-none"
+    >
+      <div className="px-2 pt-2 pb-2">
+        <span aria-hidden="true" className="mx-auto mb-1.5 block h-1 w-9 rounded-full bg-slate-300" />
+        {title && <p className="px-3 pt-1 pb-2 text-center text-[0.8125rem] font-medium text-slate-500">{title}</p>}
+        {children}
+        <button onClick={onClose} className="sheet-cancel mt-2 block w-full rounded-xl bg-slate-100 py-3 text-center text-[0.9375rem] font-medium text-ink active:bg-slate-200">
+          Cancel
+        </button>
+      </div>
+    </dialog>
+  );
+}
+
 export function Menu({ items, label = "More actions", trigger }: { items: MenuItem[]; label?: string; trigger?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -262,7 +319,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
         {trigger ?? <MoreVertical size={18} />}
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-line bg-white p-1 shadow-lg">
+        <PopPanel onClose={() => setOpen(false)} className="absolute right-0 z-30 mt-1 w-52 rounded-xl border border-line bg-white p-1 shadow-lg">
           {shown.map((it) =>
             it.href ? (
               <a key={it.label} href={it.href} target="_blank" rel="noreferrer" onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
@@ -281,7 +338,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
               </button>
             ),
           )}
-        </div>
+        </PopPanel>
       )}
     </div>
   );
