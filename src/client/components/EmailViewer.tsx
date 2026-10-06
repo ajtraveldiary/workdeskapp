@@ -626,7 +626,9 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: S
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
   const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   const [prepared, setPrepared] = useState<globalThis.File[] | null>(null);
-  const hidden = (useSnippets().data ?? []).map((x) => x.text);
+  // The caption never includes Settings > Mail > Hidden text, so Share waits until that list is on the device.
+  const snippets = useSnippets();
+  const hidden = (snippets.data ?? []).map((x) => x.text);
   const loaded = messages.length > 0;
   const total = files.reduce((n, f) => n + f.attachment.size, 0);
   const wantFiles = canShare && touch && files.length > 0 && total <= SHARE_MAX_BYTES && typeof navigator.canShare === "function";
@@ -665,7 +667,8 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: S
       .then(() => showUndo({ message: "Email copied. Paste it anywhere." }))
       .catch(() => showUndo({ message: "Couldn't copy the email." }));
   };
-  return { ready: loaded && !preparing, preparing: loaded && preparing, go };
+  const listReady = snippets.isSuccess || snippets.isError; // a failed list shouldn't block sharing for good
+  return { ready: loaded && !preparing && listReady, preparing: loaded && (preparing || !listReady), go };
 }
 
 function ShareButton({ share, className }: { share: EmailShare; className: string }) {
