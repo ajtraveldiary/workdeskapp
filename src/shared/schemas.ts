@@ -31,7 +31,6 @@ export const taskPatch = z
   })
   .partial();
 
-export const snoozeInput = z.object({ until: z.iso.datetime({ offset: true }) });
 export const bulkIds = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
 
 // Reminders (stored as reports): the fields of a standard add-reminder screen.

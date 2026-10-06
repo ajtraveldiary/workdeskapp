@@ -150,18 +150,13 @@ export async function applySnapshots(db: DB, userId: string, accountId: string |
   if (log.length) await db.insert(events).values(log);
 }
 
-// Snoozed emails whose time has come go back into the queue.
+// Snooze was removed from WorkDesk (user request 2026-10-06): any email still snoozed goes back into the
+// queue (Needs decision), whatever time it was snoozed until, with a History entry. New snoozes can't be made.
 export async function wakeSnoozed(db: DB, userId?: string) {
   const woken = await db
     .update(emailThreads)
     .set({ state: "needs_decision", snoozedUntil: null, stateChangedAt: new Date() })
-    .where(
-      and(
-        eq(emailThreads.state, "snoozed"),
-        lte(emailThreads.snoozedUntil, new Date()),
-        userId ? eq(emailThreads.userId, userId) : undefined,
-      ),
-    )
+    .where(and(eq(emailThreads.state, "snoozed"), userId ? eq(emailThreads.userId, userId) : undefined))
     .returning({ id: emailThreads.id, userId: emailThreads.userId, subject: emailThreads.subject });
   if (woken.length) {
     await db.insert(events).values(
@@ -170,7 +165,7 @@ export async function wakeSnoozed(db: DB, userId?: string) {
         entityType: "email" as const,
         entityId: t.id,
         action: "email.unsnoozed",
-        summary: "Snooze ended; returned to queue",
+        summary: "Snooze removed from WorkDesk; returned to queue",
         detail: { subject: t.subject },
       })),
     );

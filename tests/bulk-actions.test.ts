@@ -1,4 +1,4 @@
-// List toolbars (user request 2026-10-06): tick several emails, then make them tasks, snooze or restore them
+// List toolbars (user request 2026-10-06): tick several emails, then make them tasks, dismiss or restore them
 // in one go. Gmail is never changed by these (no Google here: demo user).
 import { beforeEach, describe, expect, it } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
@@ -7,8 +7,11 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
+import { eq } from "drizzle-orm";
+import { wakeSnoozed } from "../src/server/lib/sync";
 
 let app: ReturnType<typeof createApp>;
+let db: DB;
 const call = async (method: string, path: string, body?: unknown) => {
   const res = await app.request(`/api${path}`, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined }, {});
   const text = await res.text();
@@ -20,7 +23,7 @@ const stateOf = async (id: string) => ((await call("GET", "/threads?state=all"))
 beforeEach(async () => {
   const d = drizzle({ client: new PGlite(), schema });
   await migrate(d, { migrationsFolder: "drizzle" });
-  const db = d as unknown as DB;
+  db = d as unknown as DB;
   app = createApp({ getDb: () => db, allowDemo: true });
 });
 
@@ -35,13 +38,25 @@ describe("bulk email actions", () => {
     expect((await call("POST", "/threads/bulk-task", { ids: [a!.id] })).json).toEqual({ created: 0 });
   });
 
-  it("snoozes ticked emails, then restores them to Pending", async () => {
+  it("dismisses ticked emails, then restores them to Pending", async () => {
     const [a, b] = await pending();
-    const until = new Date(Date.now() + 86400_000).toISOString();
-    expect((await call("POST", "/threads/bulk-snooze", { ids: [a!.id, b!.id], until })).json).toEqual({ snoozed: 2 });
-    expect(await stateOf(b!.id)).toBe("snoozed");
-    expect((await call("POST", "/threads/bulk-snooze", { ids: [a!.id], until: new Date(Date.now() - 1000).toISOString() })).status).toBe(400);
+    expect((await call("POST", "/threads/bulk-dismiss", { ids: [a!.id, b!.id] })).json).toEqual({ dismissed: 2 });
+    expect(await stateOf(b!.id)).toBe("dismissed");
     expect((await call("POST", "/threads/bulk-restore", { ids: [a!.id, b!.id] })).json).toEqual({ restored: 2 });
     expect(await stateOf(a!.id)).toBe("needs_decision");
+  });
+
+  // Snooze was removed from the app (user request 2026-10-06).
+  it("can no longer snooze, and emails left snoozed go back to Pending", async () => {
+    const [a] = await pending();
+    const until = new Date(Date.now() + 86400_000).toISOString();
+    expect((await call("POST", "/threads/bulk-snooze", { ids: [a!.id], until })).status).toBe(404);
+    expect((await call("POST", `/threads/${a!.id}/snooze`, { until })).status).toBe(404);
+    // One snoozed before the change, until next week: it's back in the queue on the next look.
+    await db.update(schema.emailThreads).set({ state: "snoozed", snoozedUntil: new Date(Date.now() + 7 * 86400_000) }).where(eq(schema.emailThreads.id, a!.id));
+    await wakeSnoozed(db);
+    expect(await stateOf(a!.id)).toBe("needs_decision");
+    const history = (await call("GET", "/history")).json;
+    expect(JSON.stringify(history)).toContain("Snooze removed from WorkDesk");
   });
 });

@@ -116,7 +116,7 @@ export function SwipeRow({
       return x < -trailW ? -trailW + (x + trailW) * 0.25 : x;
     };
     const onStart = (e: TouchEvent) => {
-      // Dialogs opened from a row (snooze picker) sit inside it in the page; touches there aren't swipes.
+      // Dialogs opened from a row sit inside it in the page; touches there aren't swipes.
       mode = "v";
       if (e.touches.length !== 1 || busy.current || (e.target as Element).closest?.("dialog")) return;
       const t = e.touches[0]!;

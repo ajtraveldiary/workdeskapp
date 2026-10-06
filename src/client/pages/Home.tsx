@@ -1,7 +1,6 @@
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import {
-  AlarmClock,
   CalendarClock,
   ArrowRight,
   CalendarDays,
@@ -34,7 +33,6 @@ import {
   useThreads,
 } from "../api";
 import { formatDay, formatTime, formatWhen } from "../format";
-import { SnoozeSheet } from "../components/ThreadRow";
 import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../components/SwipeRow";
 import { EmailStatusTags } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
@@ -586,7 +584,7 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
           <Loading />
         ) : threads.length === 0 ? (
           <Empty icon={Mail} title={pending ? "Every email accounted for" : "No emails yet"}>
-            {pending ? "New Gmail messages land here until you make them a task, snooze them, or dismiss them." : "Emails appear here after the first sync."}
+            {pending ? "New Gmail messages land here until you make them a task or dismiss them." : "Emails appear here after the first sync."}
           </Empty>
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
@@ -645,10 +643,9 @@ function EmailCard({
   const restore = useRestore();
   const gmailUrl = gmailThreadUrl(thread.accountEmail, thread.gmailThreadId);
   const inQueue = thread.state === "needs_decision";
-  // Phones: swipe right to make a task (or restore), left for Gmail / snooze / dismiss; the button bar goes away.
+  // Phones: swipe right to make a task (or restore), left for Gmail / dismiss; the button bar goes away.
   const swipe = useSwipeMode();
   const navigate = useNavigate();
-  const [snoozing, setSnoozing] = useState(false);
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
@@ -663,7 +660,6 @@ function EmailCard({
       trailing={[
         { label: "Gmail", icon: ExternalLink, tone: "info", href: gmailUrl ?? undefined, hidden: !gmailUrl },
         { label: "View task", icon: ListChecks, tone: "brand", onClick: () => navigate(`/search?q=${encodeURIComponent(thread.subject)}`), hidden: thread.state !== "task" },
-        { label: "Snooze", icon: AlarmClock, tone: "snooze", onClick: () => setSnoozing(true), hidden: !inQueue },
         {
           label: "Dismiss",
           icon: X,
@@ -703,7 +699,6 @@ function EmailCard({
         </button>
         {/* Actions live in the card's toolbar (EmailBulkBar), not on every email (user request 2026-10-06). */}
       </div>
-      <SnoozeSheet id={snoozing ? thread.id : null} onClose={() => setSnoozing(false)} />
     </SwipeRow>
   );
 }

@@ -14,7 +14,9 @@ type StateTab = EmailState | "all";
 
 export function InboxPage() {
   const [params, setParams] = useSearchParams();
-  const state = (params.get("state") as StateTab) ?? "needs_decision";
+  // Snooze was removed (user request 2026-10-06): an old ?state=snoozed link shows Needs decision.
+  const asked = params.get("state") as StateTab | null;
+  const state: StateTab = !asked || asked === "snoozed" ? "needs_decision" : asked;
   const [q, setQ] = useState(params.get("q") ?? "");
   const [unread, setUnread] = useState(false);
   const [label, setLabel] = useState("");
@@ -41,14 +43,13 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task, snooze it, or dismiss it. Deciding never changes Gmail; opening an email marks it read there." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
+      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task or dismiss it. Deciding never changes Gmail; opening an email marks it read there." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
 
       <Tabs<StateTab>
         value={state}
         onChange={setState}
         options={[
           { value: "needs_decision", label: "Needs decision", count: counts.needs_decision },
-          { value: "snoozed", label: "Snoozed", count: counts.snoozed },
           { value: "task", label: "Converted to task" },
           { value: "dismissed", label: "Dismissed" },
           { value: "all", label: "All" },

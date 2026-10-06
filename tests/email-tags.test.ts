@@ -32,7 +32,6 @@ describe("emailTags", () => {
 
   it("shows only the email's state when it has no task", () => {
     expect(labels({ state: "needs_decision" })).toEqual(["brand:Needs decision"]);
-    expect(labels({ state: "snoozed" })).toEqual(["snooze:Snoozed"]);
     expect(labels({ state: "dismissed" })).toEqual(["neutral:Dismissed"]);
   });
 

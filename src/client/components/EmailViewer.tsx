@@ -15,7 +15,6 @@ import { formatDateTime } from "../format";
 import { Avatar } from "./Avatar";
 import { EmailStatusTags } from "./EmailStatus";
 import { LabelChips, LabelPicker } from "./LabelChips";
-import { SnoozeMenu } from "./ThreadRow";
 import { Button, Loading, Spinner, cx } from "./ui";
 import { showUndo } from "./SwipeRow";
 import { usePullToClose } from "./sheet";
@@ -173,7 +172,6 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
               <Button size="sm" variant="primary" onClick={() => onCreateTask(thread)}>
                 <ListPlus size={15} /> Create task
               </Button>
-              <SnoozeMenu id={thread.id} />
               <Button size="sm" onClick={() => dismiss.mutate(thread.id, { onSuccess: onClose })} disabled={dismiss.isPending} title="Remove from the queue. Gmail is not changed.">
                 <X size={15} /> Dismiss
               </Button>

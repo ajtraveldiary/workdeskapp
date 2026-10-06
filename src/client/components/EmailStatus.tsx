@@ -1,11 +1,11 @@
 import type { Thread } from "../../shared/types";
-import { formatDateTime, formatWhen } from "../format";
+import { formatWhen } from "../format";
 import { TONE, cx, type Tone } from "./ui";
 
 type Tag = { tone: Tone; label: string; title?: string };
 
 // Up to two tags: what happened to the email's task (if it has one), and where the email itself stands.
-// An email with no task shows only its state ("Needs decision", "Snoozed", "Dismissed").
+// An email with no task shows only its state ("Needs decision", "Dismissed"). Snooze was removed (2026-10-06).
 export function emailTags(thread: Thread): Tag[] {
   const tags: Tag[] = [];
   const t = thread.task;
@@ -14,8 +14,6 @@ export function emailTags(thread: Thread): Tag[] {
 
   if (thread.state === "needs_decision")
     tags.push(thread.muted ? { tone: "neutral", label: "Hidden from Pending", title: "Sender is hidden in Settings > Mail" } : { tone: "brand", label: "Needs decision" });
-  else if (thread.state === "snoozed")
-    tags.push({ tone: "snooze", label: "Snoozed", title: thread.snoozedUntil ? `Until ${formatDateTime(thread.snoozedUntil)}` : undefined });
   else if (thread.state === "dismissed") tags.push({ tone: "neutral", label: "Dismissed", title: `Dismissed ${formatWhen(thread.stateChangedAt)}` });
   return tags;
 }

@@ -1,15 +1,12 @@
 // One toolbar per email list instead of the same buttons on every email (user request 2026-10-06): tick
-// emails, then Create task / Snooze / Dismiss (pending ones) or Restore (the others). One selected email
+// emails, then Create task / Dismiss (pending ones) or Restore (the others). One selected email
 // opens the usual task form; several become tasks straight away, titled with their subjects.
-import { useEffect, useRef, useState } from "react";
-import { AlarmClock, ExternalLink, ListPlus, Undo2, X } from "lucide-react";
+import { ExternalLink, ListPlus, Undo2, X } from "lucide-react";
 import type { Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
-import { useBulkDismiss, useBulkRestore, useBulkSnooze, useBulkTask } from "../api";
-import { formatDateTime } from "../format";
+import { useBulkDismiss, useBulkRestore, useBulkTask } from "../api";
 import { showUndo } from "./SwipeRow";
-import { snoozeOptions } from "./ThreadRow";
-import { Button, PopPanel, cx } from "./ui";
+import { Button, cx } from "./ui";
 
 export function EmailBulkBar({
   threads,
@@ -87,7 +84,6 @@ export function EmailBulkBar({
             <ListPlus size={15} /> <span className="max-sm:hidden">Create task</span>
             <span className="sm:hidden">Task</span>
           </Button>
-          <BulkSnooze ids={pending.map((t) => t.id)} disabled={!pending.length || busy} onDone={clear} />
           <Button size="sm" disabled={!pending.length || busy} onClick={dismiss} title="Remove from the queue. Gmail is not changed.">
             <X size={15} /> Dismiss
           </Button>
@@ -114,56 +110,3 @@ export function EmailBulkBar({
   );
 }
 
-function BulkSnooze({ ids, disabled, onDone }: { ids: string[]; disabled: boolean; onDone: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [custom, setCustom] = useState("");
-  const snooze = useBulkSnooze();
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent | TouchEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", close);
-    document.addEventListener("touchstart", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("touchstart", close);
-    };
-  }, [open]);
-
-  const pick = (until: Date) => {
-    setOpen(false);
-    snooze.mutate(
-      { ids, until },
-      {
-        onSuccess: (r) => {
-          showUndo({ message: `${r.snoozed} snoozed until ${formatDateTime(until.toISOString())}` });
-          onDone();
-        },
-        onError: () => showUndo({ message: "Couldn't snooze. Try again." }),
-      },
-    );
-  };
-
-  return (
-    <div className="relative" ref={ref}>
-      <Button size="sm" disabled={disabled || snooze.isPending} onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Snooze">
-        <AlarmClock size={15} /> <span className="max-sm:hidden">Snooze</span>
-      </Button>
-      {open && (
-        <PopPanel onClose={() => setOpen(false)} title="Snooze until" className="absolute left-0 z-30 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-lg">
-          {snoozeOptions().map((o) => (
-            <button key={o.label} onClick={() => pick(o.until)} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 active:bg-slate-100">
-              {o.label}
-            </button>
-          ))}
-          <div className="mt-1 flex gap-1.5 border-t border-line p-1.5 pt-2">
-            <input type="datetime-local" value={custom} onChange={(e) => setCustom(e.target.value)} aria-label="Snooze until" className="h-8 min-w-0 flex-1 rounded-lg border border-line px-2 text-sm" />
-            <Button size="sm" variant="primary" disabled={!custom} onClick={() => pick(new Date(custom))}>
-              Set
-            </Button>
-          </div>
-        </PopPanel>
-      )}
-    </div>
-  );
-}

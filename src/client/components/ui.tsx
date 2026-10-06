@@ -247,7 +247,7 @@ export const PRIORITY_BAR = {
 export type MenuItem = { label: string; onClick?: () => void; href?: string; hidden?: boolean };
 
 // Kebab menu. Closes on outside click or Escape.
-// A drop-down panel (menus, snooze times, labels, notifications). On phones it opens as an action sheet from
+// A drop-down panel (menus, labels, notifications, account). On phones it opens as an action sheet from
 // the bottom of the screen, like iPhone apps, with Cancel; elsewhere it is the usual drop-down (className).
 // It is a dialog inside the trigger's container, so the container's tap-outside check still sees it as inside.
 export function PopPanel({ onClose, className, title, children }: { onClose: () => void; className: string; title?: string; children: ReactNode }) {

@@ -11,7 +11,7 @@ import { isMuted, notMuted } from "../lib/muted";
 import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, getAttachment, getMessageFull, getThreadFull, markThreadRead } from "../lib/gmail";
 import { decodeBase64Url, demoContent, demoPdf, findPart, parseMessage } from "../lib/emailContent";
-import { bulkIds, snoozeInput, taskInput } from "../../shared/schemas";
+import { bulkIds, taskInput } from "../../shared/schemas";
 import { events } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
@@ -336,26 +336,6 @@ export const threadRoutes = new Hono<AppEnv>()
     return c.json({ created: created.length });
   })
 
-  .post("/bulk-snooze", async (c) => {
-    const db = c.get("db");
-    const userId = c.get("userId");
-    const body = await c.req.json();
-    const { ids } = bulkIds.parse(body);
-    const when = new Date(snoozeInput.parse(body).until);
-    if (when.getTime() <= Date.now()) throw new HTTPException(400, { message: "Snooze time must be in the future" });
-    const done = await db
-      .update(emailThreads)
-      .set({ state: "snoozed", snoozedUntil: when, stateChangedAt: new Date(), updatedAt: new Date() })
-      .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.id, ids), eq(emailThreads.state, "needs_decision")))
-      .returning({ id: emailThreads.id, subject: emailThreads.subject });
-    if (done.length) {
-      await db.insert(events).values(
-        done.map((t) => ({ userId, entityType: "email" as const, entityId: t.id, action: "email.snoozed", summary: `Snoozed until ${when.toISOString()} (bulk)`, detail: { subject: t.subject } })),
-      );
-    }
-    return c.json({ snoozed: done.length });
-  })
-
   .post("/bulk-restore", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
@@ -375,21 +355,6 @@ export const threadRoutes = new Hono<AppEnv>()
 
   .post("/:id/restore", async (c) => {
     await setState(c.get("db"), c.get("userId"), c.req.param("id"), { state: "needs_decision" }, "email.restored", "Returned to queue");
-    return c.json({ ok: true });
-  })
-
-  .post("/:id/snooze", async (c) => {
-    const { until } = snoozeInput.parse(await c.req.json());
-    const when = new Date(until);
-    if (when.getTime() <= Date.now()) throw new HTTPException(400, { message: "Snooze time must be in the future" });
-    await setState(
-      c.get("db"),
-      c.get("userId"),
-      c.req.param("id"),
-      { state: "snoozed", snoozedUntil: when },
-      "email.snoozed",
-      `Snoozed until ${when.toISOString()}`,
-    );
     return c.json({ ok: true });
   })
 
