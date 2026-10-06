@@ -607,8 +607,10 @@ const CAPTION_CHARS = 900; // WhatsApp captions are limited; long emails are cut
 
 function shareText(thread: Thread, m: EmailMessageContent | undefined, attachmentNames: string[], hidden: string[]) {
   // Bold subject and the message only: no From or Date lines (user request 2026-10-06).
-  let body = (m ? (m.text ?? (m.html ? htmlToText(m.html) : "")) : thread.snippet).replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  body = stripSnippets(body, hidden).text; // Settings > Mail > Hidden text
+  // From the HTML version when there is one, with Settings > Mail > Hidden text removed exactly as the reader
+  // does (2026-10-06: the plain-text copy's *bold* marks and joined lines kept a hidden signature in shares).
+  const raw = m ? (m.html ? htmlToText(stripSnippetsFromHtml(m.html, hidden).html) : (m.text ?? "")) : thread.snippet;
+  let body = stripSnippets(raw, hidden).text.replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (body.length > CAPTION_CHARS) body = `${body.slice(0, CAPTION_CHARS).trimEnd()}…`;
   return [`*${thread.subject}*`, "", body, ...(attachmentNames.length ? ["", `Attachments: ${attachmentNames.join(", ")}`] : [])].join("\n");
 }
