@@ -9,7 +9,6 @@ import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { Button, Card, Empty, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
-import { LabelFilter } from "../components/LabelChips";
 
 const EMPTY: Record<TaskView, string> = {
   today: "Nothing due today",
@@ -26,9 +25,8 @@ export function TasksPage() {
   const [params, setParams] = useSearchParams();
   const view = (params.get("view") as TaskView) ?? "all";
   const [q, setQ] = useState("");
-  const [label, setLabel] = useState("");
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
-  const { data, error, isFetching } = useTasks({ view, q, label });
+  const { data, error, isFetching } = useTasks({ view, q });
   // Tapping a task opens the email it came from, or (for tasks without one) its details.
   const [emailId, setEmailId] = useState<string | null>(null);
   const [details, setDetails] = useState<Task | null>(null);
@@ -65,7 +63,6 @@ export function TasksPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchInput value={q} onChange={setQ} placeholder="Search tasks…" />
-        <LabelFilter value={label} onChange={setLabel} />
         {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
       </div>
 

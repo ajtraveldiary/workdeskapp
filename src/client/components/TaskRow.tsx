@@ -5,7 +5,6 @@ import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
 import { daysBetween, formatDateTime, formatDay, formatTime } from "../format";
 import { Badge, PriorityPill, cx } from "./ui";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
-import { LabelChips } from "./LabelChips";
 
 export function TaskRow({
   task,
@@ -78,7 +77,6 @@ export function TaskRow({
             </Badge>
           )}
           <PriorityPill priority={task.priority} />
-          <LabelChips ids={task.labelIds} />
           {done && task.completedAt && <span>Completed {formatDateTime(task.completedAt)}</span>}
           {task.report && (
             <span className="inline-flex min-w-0 items-center gap-1">

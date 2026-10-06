@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { Priority, Task, Thread } from "../../shared/types";
 import { useCreateTask, useCreateTaskFromThread, useMe, useUpdateTask } from "../api";
-import { LabelChips, LabelField, LabelPicker } from "./LabelChips";
 import { addDays } from "../format";
 import { Button, ErrorNote, Field, Modal, inputClass } from "./ui";
 
@@ -25,17 +24,14 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
     mode.kind === "edit"
       ? mode.task
       : mode.kind === "fromThread"
-        ? { title: mode.thread.subject, notes: "", dueDate: null, dueTime: null, priority: "normal" as Priority, labelIds: mode.thread.labelIds }
-        : { title: "", notes: "", dueDate: mode.dueDate ?? null, dueTime: null, priority: "normal" as Priority, labelIds: [] as string[] };
-  // A task from an email uses the email's Gmail labels (changed in Gmail straight away); any other task
-  // keeps its own labels in WorkDesk, saved with the form.
-  const emailId = mode.kind === "fromThread" ? mode.thread.id : mode.kind === "edit" ? (mode.task.thread?.id ?? null) : null;
+        ? { title: mode.thread.subject, notes: "", dueDate: null, dueTime: null, priority: "normal" as Priority }
+        : { title: "", notes: "", dueDate: mode.dueDate ?? null, dueTime: null, priority: "normal" as Priority };
+  // Tasks have no labels (user request 2026-10-06); emails keep theirs.
 
   const [title, setTitle] = useState(initial.title);
   const [dueDate, setDueDate] = useState(initial.dueDate ?? "");
   const [dueTime, setDueTime] = useState(initial.dueTime ?? "");
   const [priority, setPriority] = useState<Priority>(initial.priority);
-  const [labelIds, setLabelIds] = useState<string[]>(initial.labelIds ?? []);
   const [notes, setNotes] = useState(initial.notes);
 
   const create = useCreateTask();
@@ -46,7 +42,7 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, ...(emailId ? {} : { labelIds }) };
+    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority };
     if (mode.kind === "edit") await update.mutateAsync({ id: mode.task.id, input });
     else if (mode.kind === "fromThread") await fromThread.mutateAsync({ threadId: mode.thread.id, input });
     else await create.mutateAsync(input);
@@ -103,20 +99,6 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
           </button>
         )}
       </div>
-      {emailId ? (
-        <div>
-          <span className="mb-1 block text-sm font-medium text-slate-700">Labels</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <LabelChips ids={labelIds} max={8} />
-            <LabelPicker thread={{ id: emailId }} selected={labelIds} onChange={setLabelIds} />
-          </div>
-          <p className="mt-1 text-xs text-slate-500">The email's Gmail labels; changes apply in Gmail straight away.</p>
-        </div>
-      ) : (
-        <Field label="Labels">
-          <LabelField value={labelIds} onChange={setLabelIds} />
-        </Field>
-      )}
       <Field label="Notes">
         <textarea
           className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"

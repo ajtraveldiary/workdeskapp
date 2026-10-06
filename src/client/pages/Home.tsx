@@ -379,7 +379,6 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2 @lg:mt-0 @lg:shrink-0">
           <EditableDue task={task} today={today} layout="split" />
           <EditablePriority task={task} />
-          <LabelChips ids={task.labelIds} max={2} />
         </div>
       </div>
       {!swipe && (

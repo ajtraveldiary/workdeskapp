@@ -1,10 +1,9 @@
 // Read-only view of a task, with what was entered when it was created. Used for tasks that didn't come
 // from an email (made by hand, or by a reminder).
-import { CalendarDays, Check, Clock, CalendarClock, Pencil, RotateCcw, StickyNote, Tag } from "lucide-react";
+import { CalendarDays, Check, Clock, CalendarClock, Pencil, RotateCcw, StickyNote } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Task } from "../../shared/types";
 import { useCompleteTask, useMe, useReopenTask } from "../api";
-import { LabelChips } from "./LabelChips";
 import { formatDateTime, formatDay, formatTime } from "../format";
 import { Badge, Button, Modal, PriorityPill } from "./ui";
 
@@ -48,9 +47,6 @@ function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; o
           ) : (
             <span className="text-slate-500">No due date</span>
           )}
-        </Row>
-        <Row icon={Tag} label="Labels">
-          {task.labelIds?.length ? <LabelChips ids={task.labelIds} max={8} /> : <span className="text-slate-500">None</span>}
         </Row>
         {task.report && (
           <Row icon={CalendarClock} label="Reminder">
