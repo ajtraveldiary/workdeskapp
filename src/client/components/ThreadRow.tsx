@@ -36,7 +36,7 @@ export function ThreadRow({
 
   return (
     <SwipeRow
-      contentClassName={cx("flex gap-3 py-3 transition-colors", swipe ? "px-3" : "px-4", selected ? "bg-brand-50/60" : "has-[:is(button,a):hover]:bg-slate-50/80")}
+      contentClassName={cx("flex py-2 transition-colors sm:py-2.5", swipe ? "gap-2.5 px-3" : "gap-3 px-4", selected ? "bg-brand-50/60" : "has-[:is(button,a):hover]:bg-slate-50/80")}
       leading={
         inQueue
           ? { label: "Task", icon: ListPlus, tone: "brand", onClick: () => onCreateTask(thread) }
@@ -60,7 +60,7 @@ export function ThreadRow({
           checked={selected}
           onChange={(e) => onSelect(e.target.checked)}
           aria-label="Select email"
-          className="mt-1 size-4 shrink-0 accent-brand-700 pointer-coarse:size-5"
+          className="mt-0.5 size-4 shrink-0 accent-brand-700 pointer-coarse:size-5"
         />
       )}
       <div className="min-w-0 flex-1">
@@ -74,8 +74,11 @@ export function ThreadRow({
           <span className="ml-auto shrink-0 text-xs text-slate-500 tabular-nums">{formatWhen(thread.lastMessageAt)}</span>
         </div>
         <p className={cx("truncate transition-colors group-hover/title:text-brand-700", thread.unread ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{thread.subject}</p>
-        <LabelChips ids={labelIds} className="mt-1" />
-        <p className="line-clamp-1 text-sm text-slate-500">{thread.snippet}</p>
+        {/* Compact (user request 2026-10-06): labels share the preview line. */}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <LabelChips ids={labelIds} max={2} className="shrink-0 flex-nowrap" />
+          <p className="min-w-0 truncate text-sm text-slate-500">{thread.snippet}</p>
+        </div>
         </OpenArea>
 
         <div className={cx("flex flex-wrap items-center gap-2", swipe ? "mt-1.5 empty:hidden" : "mt-2")}>

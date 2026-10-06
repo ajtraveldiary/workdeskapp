@@ -696,7 +696,7 @@ function EmailCard({
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName={cx("flex gap-3 px-3 py-3 transition-colors sm:px-5 sm:py-4", selected ? "bg-tint" : "has-[:is(button,a):hover]:bg-slate-50/80")}
+      contentClassName={cx("flex gap-3 px-3 py-2 transition-colors sm:px-5 sm:py-3", selected ? "bg-tint" : "has-[:is(button,a):hover]:bg-slate-50/80")}
       leading={
         inQueue
           ? { label: "Task", icon: ListPlus, tone: "brand", onClick: () => onCreateTask(thread) }
@@ -738,16 +738,15 @@ function EmailCard({
           <span className="ml-auto shrink-0 text-xs text-slate-500">{formatWhen(thread.lastMessageAt)}</span>
         </div>
         <p className="mt-0.5 truncate text-sm text-ink transition-colors group-hover/title:text-brand-700">{thread.subject}</p>
-        {(showStatus || thread.labelIds.length > 0) && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {showStatus && <EmailStatusTags thread={thread} />}
-            <LabelChips ids={thread.labelIds} />
-          </div>
-        )}
-        <p className="mt-1 line-clamp-1 text-[0.8125rem] leading-relaxed text-slate-500 sm:line-clamp-2">{thread.snippet}</p>
+        {/* Compact (user request 2026-10-06): status and labels share the preview line. */}
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+          {showStatus && <EmailStatusTags thread={thread} />}
+          <LabelChips ids={thread.labelIds} max={2} className="shrink-0 flex-nowrap" />
+          <p className="min-w-0 truncate text-[0.8125rem] text-slate-500">{thread.snippet}</p>
+        </div>
         </button>
         {!swipe && (
-        <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-2.5">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           {inQueue ? (
             <>
               <Button size="sm" onClick={() => onCreateTask(thread)}>

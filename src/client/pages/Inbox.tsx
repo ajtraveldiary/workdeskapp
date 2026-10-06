@@ -55,19 +55,16 @@ export function InboxPage() {
         ]}
       />
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      {/* Compact (user request 2026-10-06): filters and Select all share a row. */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
         <SearchInput value={q} onChange={setQ} placeholder="Search sender, subject…" />
         <LabelFilter value={label} onChange={setLabel} />
-        <label className="flex items-center gap-2 px-1 text-sm text-slate-600">
-          <input type="checkbox" checked={unread} onChange={(e) => setUnread(e.target.checked)} className="accent-brand-700 pointer-coarse:size-5" />
-          Unread only
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" checked={unread} onChange={(e) => setUnread(e.target.checked)} className="size-4 accent-brand-700 pointer-coarse:size-5" />
+          Unread
         </label>
-        {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
-      </div>
-
-      {inQueue && threads.length > 0 && (
-        <div className="mb-2 flex flex-wrap items-center gap-3 px-1 text-sm">
-          <label className="flex items-center gap-2 text-slate-600">
+        {inQueue && threads.length > 0 && (
+          <label className="flex items-center gap-2 text-sm text-slate-600">
             <input
               type="checkbox"
               className="size-4 accent-brand-700 pointer-coarse:size-5"
@@ -76,17 +73,14 @@ export function InboxPage() {
             />
             {selected.size ? `${selected.size} selected` : "Select all"}
           </label>
-          {selected.size > 0 && (
-            <Button
-              size="sm"
-              disabled={bulkDismiss.isPending}
-              onClick={() => bulkDismiss.mutate([...selected], { onSuccess: () => setSelected(new Set()) })}
-            >
-              Dismiss selected
-            </Button>
-          )}
-        </div>
-      )}
+        )}
+        {inQueue && selected.size > 0 && (
+          <Button size="sm" disabled={bulkDismiss.isPending} onClick={() => bulkDismiss.mutate([...selected], { onSuccess: () => setSelected(new Set()) })}>
+            Dismiss selected
+          </Button>
+        )}
+        {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
+      </div>
 
       {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>
