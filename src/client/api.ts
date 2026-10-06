@@ -168,7 +168,7 @@ export function useSetTaskLabelSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: TaskLabelSettings) =>
-      api<{ created: number; completed: number; queued: number }>("/labels/task-settings", { method: "PUT", body: input }),
+      api<{ created: number; completed: number; queued: number; labelled: number; toLabel: number }>("/labels/task-settings", { method: "PUT", body: input }),
     onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "labels" }),
   });
 }

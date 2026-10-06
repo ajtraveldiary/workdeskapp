@@ -5,7 +5,7 @@
 //    after every sync, and when labels are changed in the email viewer.
 //  - WorkDesk -> Gmail (reconcileThreadLabels): when an email's task is created, completed or reopened, its
 //    labels are set to match (task label while any task is open, done label once all are done).
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { DB } from "../db";
 import { emailThreads, events, gmailAccounts, tasks, users } from "../db/schema";
 import type { Env } from "../env";
@@ -88,10 +88,11 @@ export async function applyLabelRules(db: DB, userId: string, onlyGmailThreadIds
 
 // WorkDesk -> Gmail. Sets each conversation's task/done labels to match its tasks. Gmail is changed only
 // when something differs; WorkDesk's copy of the labels is updated only if Gmail accepted the change.
+// Returns how many conversations were relabelled.
 export async function reconcileThreadLabels(db: DB, env: Env, userId: string, threadIds: string[]) {
-  if (threadIds.length === 0) return;
+  if (threadIds.length === 0) return 0;
   const s = await getTaskLabels(db, userId);
-  if (!s.taskLabelId && !s.doneLabelId) return;
+  if (!s.taskLabelId && !s.doneLabelId) return 0;
 
   const threads = await db
     .select({ id: emailThreads.id, gmailThreadId: emailThreads.gmailThreadId, accountId: emailThreads.accountId, labelIds: emailThreads.labelIds })
@@ -108,6 +109,7 @@ export async function reconcileThreadLabels(db: DB, env: Env, userId: string, th
   };
 
   const ops: LabelOp[] = [];
+  let changed = 0;
   for (const t of threads) {
     const mine = linked.filter((x) => x.threadId === t.id);
     if (mine.length === 0) continue;
@@ -135,8 +137,43 @@ export async function reconcileThreadLabels(db: DB, env: Env, userId: string, th
     }
     for (const id of add) ops.push({ threadId: t.gmailThreadId, labelId: id, add: true });
     for (const id of remove) ops.push({ threadId: t.gmailThreadId, labelId: id, add: false });
+    changed++;
   }
   await applyLabelOps(db, userId, ops);
+  return changed;
+}
+
+// Catch-up (user request 2026-10-06: every email in tasks and completed tasks carries the chosen label in Gmail):
+// finds conversations whose task/done labels don't match their tasks yet (tasks made before a label was chosen,
+// or a Gmail call that failed) and fixes a batch of them. Runs after each sync and when the labels are chosen;
+// the batch keeps one run within the Worker's request limits, and later runs continue with the rest.
+export async function labelTaskEmails(db: DB, env: Env, userId: string, limit = 20) {
+  const s = await getTaskLabels(db, userId);
+  if (!s.taskLabelId && !s.doneLabelId) return { labelled: 0, remaining: 0 };
+  const rows = await db
+    .select({ threadId: emailThreads.id, labelIds: emailThreads.labelIds, status: tasks.status })
+    .from(tasks)
+    .innerJoin(emailThreads, eq(tasks.threadId, emailThreads.id))
+    .where(and(eq(tasks.userId, userId), isNotNull(tasks.threadId)));
+
+  const byThread = new Map<string, { labelIds: string[]; anyOpen: boolean }>();
+  for (const r of rows) {
+    const t = byThread.get(r.threadId) ?? { labelIds: r.labelIds, anyOpen: false };
+    t.anyOpen ||= r.status === "open";
+    byThread.set(r.threadId, t);
+  }
+  const has = (t: { labelIds: string[] }, id: string | null) => !!id && t.labelIds.includes(id);
+  const todo = [...byThread]
+    .filter(([, t]) =>
+      t.anyOpen
+        ? (s.taskLabelId && !has(t, s.taskLabelId)) || has(t, s.doneLabelId)
+        : (s.doneLabelId && !has(t, s.doneLabelId)) || has(t, s.taskLabelId),
+    )
+    .map(([id]) => id);
+  // A random batch, so a conversation Gmail keeps refusing can't hold up the others.
+  const batch = todo.sort(() => Math.random() - 0.5).slice(0, limit);
+  const labelled = await reconcileThreadLabels(db, env, userId, batch);
+  return { labelled, remaining: todo.length - batch.length };
 }
 
 // After a sync or a label change: Gmail -> WorkDesk, then tidy the labels of tasks it completed.

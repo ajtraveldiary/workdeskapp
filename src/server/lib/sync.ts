@@ -5,7 +5,7 @@ import type { Env } from "../env";
 import { requireEnv, timezone } from "../env";
 import { todayIn } from "./dates";
 import { ensureReportPeriods } from "./reports";
-import { clearMissingTaskLabels, getTaskLabels, runLabelRules } from "./taskLabels";
+import { clearMissingTaskLabels, getTaskLabels, labelTaskEmails, runLabelRules } from "./taskLabels";
 import { decryptSecret } from "./crypto";
 import {
   GmailError,
@@ -489,6 +489,7 @@ export async function syncUser(db: DB, env: Env, userId: string): Promise<SyncRe
       const r = await syncAccount(db, env, a);
       total.fetched += r.fetched;
       total.remaining += r.remaining;
+      await labelTaskEmails(db, env, userId).catch(() => undefined);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await db.update(gmailAccounts).set({ lastSyncError: msg.slice(0, 500) }).where(eq(gmailAccounts.id, a.id));
@@ -507,6 +508,8 @@ export async function scheduledSync(db: DB, env: Env) {
     if (!a.refreshTokenEnc) continue;
     try {
       await syncAccount(db, env, a);
+      // Label task emails in Gmail that aren't labelled yet (best effort).
+      await labelTaskEmails(db, env, a.userId).catch(() => undefined);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await db.update(gmailAccounts).set({ lastSyncError: msg.slice(0, 500) }).where(eq(gmailAccounts.id, a.id));

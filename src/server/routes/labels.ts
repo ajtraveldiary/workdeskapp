@@ -10,7 +10,7 @@ import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, createLabel, deleteLabel, setThreadLabels, updateLabel } from "../lib/gmail";
 import { applyLabelOps, refreshLabels } from "../lib/sync";
 import { labelInput, labelPatch, taskLabelSettingsInput, threadLabelsInput } from "../../shared/schemas";
-import { clearMissingTaskLabels, getTaskLabels, importLabel, runLabelRules } from "../lib/taskLabels";
+import { clearMissingTaskLabels, getTaskLabels, importLabel, labelTaskEmails, runLabelRules } from "../lib/taskLabels";
 import { LABEL_COLORS } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
 
@@ -74,7 +74,7 @@ export const labelRoutes = new Hono<AppEnv>()
     const before = await getTaskLabels(db, userId);
     await db.update(users).set(input).where(eq(users.id, userId));
 
-    const result = { created: 0, completed: 0, queued: 0 };
+    const result = { created: 0, completed: 0, queued: 0, labelled: 0, toLabel: 0 };
     for (const id of [input.taskLabelId, input.doneLabelId]) {
       if (!id || id === before.taskLabelId || id === before.doneLabelId) continue; // only newly chosen labels import
       const r = await importLabel(db, c.env, userId, id);
@@ -82,6 +82,10 @@ export const labelRoutes = new Hono<AppEnv>()
       result.completed += r.completed;
       result.queued += r.queued;
     }
+    // WorkDesk -> Gmail: label the emails that are already tasks or completed tasks; syncs continue with the rest.
+    const l = await labelTaskEmails(db, c.env, userId, 25).catch(() => ({ labelled: 0, remaining: 0 }));
+    result.labelled = l.labelled;
+    result.toLabel = l.remaining;
     const names = Object.fromEntries((await listLocal(db, userId)).map((l) => [l.id, l.name]));
     const summary = `Task label: ${input.taskLabelId ? names[input.taskLabelId] : "none"} · Done label: ${input.doneLabelId ? names[input.doneLabelId] : "none"}`;
     await db.insert(events).values({ userId, entityType: "email", action: "settings.task_labels", summary, detail: { subject: summary } });

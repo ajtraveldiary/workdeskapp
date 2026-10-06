@@ -359,8 +359,8 @@ function TaskLabels() {
     if (id) {
       const what =
         which === "taskLabelId"
-          ? `Every email labelled "${nameOf(id)}" in Gmail will become a task, and emails you turn into tasks will get this label.`
-          : `Every email labelled "${nameOf(id)}" in Gmail will become a completed task, and emails whose task you complete will get this label.`;
+          ? `Every email labelled "${nameOf(id)}" in Gmail will become a task, and every email that is a task (already, or later) will get this label in Gmail.`
+          : `Every email labelled "${nameOf(id)}" in Gmail will become a completed task, and every email whose task is completed (already, or later) will get this label in Gmail.`;
       if (!confirm(`${what}\n\nEmails not in WorkDesk yet are fetched over the next few syncs. Continue?`)) return;
     }
     setNotice(null);
@@ -370,6 +370,8 @@ function TaskLabels() {
           r.created && `${r.created} ${r.created === 1 ? "task" : "tasks"} created`,
           r.completed && `${r.completed} completed`,
           r.queued && `${r.queued} more being fetched from Gmail (they'll appear after the next syncs)`,
+          r.labelled && `${r.labelled} ${r.labelled === 1 ? "email" : "emails"} labelled in Gmail`,
+          r.toLabel && `${r.toLabel} more will be labelled over the next syncs`,
         ].filter(Boolean);
         setNotice(id ? (parts.length ? `Done: ${parts.join(" · ")}.` : "Saved. No emails had this label yet.") : "Saved.");
       },
@@ -407,8 +409,10 @@ function TaskLabels() {
         <ListChecks size={15} className="text-slate-500" /> Tasks and Gmail labels
       </h3>
       <p className="mt-1 text-sm text-slate-600">
-        Keep Gmail and your tasks in step. Choosing a label also brings in every email that already has it, and adding the
-        label to an email later (in Gmail or here) does the same.
+        Keep Gmail and your tasks in step. Every email that is a task gets the first label in Gmail, and every email
+        whose task is completed gets the second, including tasks you made before choosing the labels. Choosing a
+        label also brings in every email that already has it, and adding the label to an email later (in Gmail or
+        here) does the same.
       </p>
       {labels && !labels.canEdit && (
         <p className="mt-2 rounded-lg bg-snooze-soft px-3 py-2 text-[0.8125rem] text-snooze-ink">

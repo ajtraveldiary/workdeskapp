@@ -7,8 +7,8 @@ import { eq } from "drizzle-orm";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { encryptSecret } from "../src/server/lib/crypto";
-import { syncAccount } from "../src/server/lib/sync";
-import { importLabel, reconcileThreadLabels } from "../src/server/lib/taskLabels";
+import { syncAccount, syncUser } from "../src/server/lib/sync";
+import { importLabel, labelTaskEmails, reconcileThreadLabels } from "../src/server/lib/taskLabels";
 import type { Env } from "../src/server/env";
 
 const KEY = Buffer.from(new Uint8Array(32).fill(5)).toString("base64");
@@ -24,6 +24,7 @@ const msg = (id: string, threadId: string, t: number, labels: string[]) => ({
 });
 
 let mailbox: ReturnType<typeof msg>[];
+const failModify = new Set<string>(); // threads whose next label change Gmail refuses
 let modifies: { threadId: string; body: { addLabelIds: string[]; removeLabelIds: string[] } }[];
 
 async function fakeFetch(input: string | URL | Request, init?: RequestInit) {
@@ -33,6 +34,7 @@ async function fakeFetch(input: string | URL | Request, init?: RequestInit) {
   const path = url.pathname.replace("/gmail/v1/users/me", "");
   const modify = path.match(/^\/threads\/([\w-]+)\/modify$/);
   if (modify && init?.method === "POST") {
+    if (failModify.delete(modify[1]!)) return json({ error: "backend error" }, 500);
     const body = JSON.parse(String(init.body));
     modifies.push({ threadId: modify[1]!, body });
     for (const m of mailbox.filter((m) => m.threadId === modify[1])) m.labelIds = [...m.labelIds.filter((l) => !body.removeLabelIds.includes(l)), ...body.addLabelIds];
@@ -74,6 +76,7 @@ beforeEach(async () => {
     .returning();
   accountId = acc!.id;
   modifies = [];
+  failModify.clear();
   vi.stubGlobal("fetch", vi.fn(fakeFetch));
 });
 
@@ -141,5 +144,26 @@ describe("task labels", () => {
       { addLabelIds: ["Label_task"], removeLabelIds: ["Label_done"] },
     ]);
     expect((await threadByGmail("t1"))!.labelIds).toEqual(["Label_task"]);
+  });
+
+  it("emails that were already tasks get labelled once labels are chosen, and a failed one is retried by the next sync", async () => {
+    mailbox = [msg("m1", "t1", 1000, ["INBOX"]), msg("m2", "t2", 2000, ["INBOX"]), msg("m3", "t3", 3000, ["INBOX"])];
+    await syncAccount(db, env, await account());
+    const [t1, t2] = [(await threadByGmail("t1"))!, (await threadByGmail("t2"))!];
+    // Tasks made before any label was chosen: t1 open, t2 completed; t3 is not a task.
+    await db.insert(schema.tasks).values([
+      { userId, title: "Open one", threadId: t1.id },
+      { userId, title: "Done one", threadId: t2.id, status: "done", completedAt: new Date() },
+    ]);
+    await choose("Label_task", "Label_done");
+
+    failModify.add("t2");
+    expect(await labelTaskEmails(db, env, userId)).toEqual({ labelled: 1, remaining: 0 });
+    expect(modifies.map((m) => [m.threadId, m.body.addLabelIds])).toEqual([["t1", ["Label_task"]]]);
+
+    await syncUser(db, env, userId); // the next sync picks up the one Gmail refused
+    expect(modifies.map((m) => [m.threadId, m.body.addLabelIds])).toEqual([["t1", ["Label_task"]], ["t2", ["Label_done"]]]);
+    expect(mailbox.find((m) => m.threadId === "t3")!.labelIds).toEqual(["INBOX"]);
+    expect(await labelTaskEmails(db, env, userId)).toEqual({ labelled: 0, remaining: 0 }); // nothing left to do
   });
 });
