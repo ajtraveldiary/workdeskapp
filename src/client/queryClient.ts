@@ -1,4 +1,5 @@
-import { QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import { reportDbIssue } from "./dbStatus";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 
 // Hybrid storage: what the dashboard has loaded is kept in this browser's localStorage, so screens open
@@ -8,6 +9,9 @@ const STALE = 5 * 60_000;
 export const CACHE_MAX_AGE = 24 * 60 * 60_000;
 
 export const queryClient = new QueryClient({
+  // A database problem in any request opens the "database paused / error" pop-up (App.tsx).
+  queryCache: new QueryCache({ onError: reportDbIssue }),
+  mutationCache: new MutationCache({ onError: reportDbIssue }),
   defaultOptions: {
     queries: {
       staleTime: STALE,

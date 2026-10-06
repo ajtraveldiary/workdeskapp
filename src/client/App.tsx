@@ -17,6 +17,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ApiError, logout, useMe, useSummary, useSync } from "./api";
+import { isDbIssue } from "./dbStatus";
+import { DatabaseIssueDialog, DatabaseIssuePage } from "./components/DatabaseIssue";
 import { formatWhen } from "./format";
 import { Avatar } from "./components/Avatar";
 import { UndoBar } from "./components/SwipeRow";
@@ -35,10 +37,13 @@ export function App() {
   const me = useMe();
   if (me.isPending) return <Splash />;
   if (me.error instanceof ApiError && me.error.status === 401) return <LoginPage />;
+  // Database paused (Neon usage limit) or down: say so, with the way to check it (user request 2026-10-06).
+  if (isDbIssue(me.error)) return <DatabaseIssuePage issue={me.error} onRetry={() => void me.refetch()} />;
   if (me.error) return <div className="p-8 text-sm text-urgent-ink">Could not reach WorkDesk: {me.error.message}</div>;
 
   return (
     <Shell>
+      <DatabaseIssueDialog />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/inbox" element={<Page><InboxPage /></Page>} />

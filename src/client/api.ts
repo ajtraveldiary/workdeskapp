@@ -7,6 +7,9 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    // Set for database problems ("database_paused" / "database_error"), with the database's own message.
+    readonly code?: string,
+    readonly detail?: string,
   ) {
     super(message);
   }
@@ -20,7 +23,10 @@ async function api<T>(path: string, init?: { method?: string; body?: unknown }):
     credentials: "same-origin",
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError((data as { error?: string }).error ?? `Request failed (${res.status})`, res.status);
+  if (!res.ok) {
+    const d = data as { error?: string; code?: string; detail?: string };
+    throw new ApiError(d.error ?? `Request failed (${res.status})`, res.status, d.code, d.detail);
+  }
   return data as T;
 }
 

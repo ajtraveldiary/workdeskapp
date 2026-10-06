@@ -11,6 +11,7 @@ import { encryptSecret, randomToken, signPayload, verifyPayload } from "./lib/cr
 import { authUrl, exchangeCode, idTokenClaims } from "./lib/gmail";
 import { ensureUser, seedDemoMailbox, seedDemoReports } from "./lib/users";
 import { todayIn } from "./lib/dates";
+import { DB_ERROR_MESSAGE, classifyDbError } from "./lib/dbErrors";
 import { threadRoutes } from "./routes/threads";
 import { taskRoutes } from "./routes/tasks";
 import { miscRoutes } from "./routes/misc";
@@ -41,6 +42,9 @@ export function createApp(opts: Options) {
     if (err instanceof ZodError) return c.json({ error: "Invalid request", issues: err.issues }, 400);
     if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
     console.error(err);
+    // Database down or paused (Neon usage limit): a clear message and a code the app shows a pop-up for.
+    const db = classifyDbError(err);
+    if (db) return c.json({ error: DB_ERROR_MESSAGE[db.code], code: db.code, detail: db.detail }, 503);
     return c.json({ error: err.message || "Server error" }, 500);
   });
 
