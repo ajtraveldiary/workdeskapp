@@ -665,45 +665,90 @@ function AttachmentViewer({
 // arrive with the email as their caption. iOS only opens the sheet straight from the tap, so on touch devices
 // the attachments are fetched as soon as the email opens and handed over instantly when Share is tapped.
 
-const SHARE_MAX_BYTES = 25 * 1024 * 1024; // larger attachment sets are shared as text only
+const SHARE_MAX_BYTES = 25 * 1024 * 1024; // files beyond this total are listed by name instead of attached
 const CAPTION_CHARS = 900; // WhatsApp captions are limited; long emails are cut with "…"
 
 
-function shareText(thread: Thread, m: EmailMessageContent | undefined, attachmentNames: string[], hidden: string[]) {
+function shareText(thread: Thread, m: EmailMessageContent | undefined, attachmentNames: string[], hidden: string[], label = "Attachments") {
   // Bold subject and the message only: no From or Date lines (user request 2026-10-06).
   // From the HTML version when there is one, with Settings > Mail > Hidden text removed exactly as the reader
   // does (2026-10-06: the plain-text copy's *bold* marks and joined lines kept a hidden signature in shares).
   const raw = m ? (m.html ? htmlToText(stripSnippetsFromHtml(m.html, hidden).html) : (m.text ?? "")) : thread.snippet;
   let body = stripSnippets(raw, hidden).text.replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   if (body.length > CAPTION_CHARS) body = `${body.slice(0, CAPTION_CHARS).trimEnd()}…`;
-  return [`*${thread.subject}*`, "", body, ...(attachmentNames.length ? ["", `Attachments: ${attachmentNames.join(", ")}`] : [])].join("\n");
+  return [`*${thread.subject}*`, "", body, ...(attachmentNames.length ? ["", `${label}: ${attachmentNames.join(", ")}`] : [])].join("\n");
 }
+
+// The real file type, so the share sheet and WhatsApp see a PDF, photo, Excel or Word file (2026-10-06: WorkDesk
+// serves files it can't preview as "application/octet-stream", and Gmail itself often labels Office files so,
+// which can make the phone refuse to share them). Taken from the file name first, then from Gmail.
+const TYPE_BY_EXT: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel",
+  csv: "text/csv",
+  ods: "application/vnd.oasis.opendocument.spreadsheet",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  doc: "application/msword",
+  odt: "application/vnd.oasis.opendocument.text",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ppt: "application/vnd.ms-powerpoint",
+  txt: "text/plain",
+  zip: "application/zip",
+};
+function fileType(a: EmailAttachment) {
+  return TYPE_BY_EXT[ext(a)] ?? (a.mimeType || "application/octet-stream");
+}
+
+type Prepared = { files: globalThis.File[]; left: string[] };
 
 type EmailShare = { ready: boolean; preparing: boolean; go: () => void };
 
 function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: FileSel[]): EmailShare {
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
   const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
-  const [prepared, setPrepared] = useState<globalThis.File[] | null>(null);
+  const [prepared, setPrepared] = useState<Prepared | null>(null);
   // The caption never includes Settings > Mail > Hidden text, so Share waits until that list is on the device.
   const snippets = useSnippets();
   const hidden = (snippets.data ?? []).map((x) => x.text);
   const loaded = messages.length > 0;
-  const total = files.reduce((n, f) => n + f.attachment.size, 0);
-  const wantFiles = canShare && touch && files.length > 0 && total <= SHARE_MAX_BYTES && typeof navigator.canShare === "function";
+  const wantFiles = canShare && touch && files.length > 0 && typeof navigator.canShare === "function";
 
+  // All attachments go in one share (user request 2026-10-06: PDF, photos, Excel and Word together), up to
+  // 25 MB in all. A file the phone won't share, or one past the 25 MB, is left out and named in the text
+  // instead of dropping every file.
   useEffect(() => {
     if (!wantFiles) return;
     let cancelled = false;
     setPrepared(null);
+    let room = SHARE_MAX_BYTES;
+    const fits = files.filter((f) => (f.attachment.size <= room ? ((room -= f.attachment.size), true) : false));
+    const tooBig = files.filter((f) => !fits.includes(f)).map((f) => f.attachment.filename);
     Promise.all(
-      files.map(async ({ message, attachment: a }) => {
-        const blob = await (await fetch(attachmentUrl(thread.id, message.id, a.partId), { credentials: "same-origin" })).blob();
-        return new window.File([blob], a.filename, { type: blob.type || a.mimeType });
+      fits.map(async ({ message, attachment: a }) => {
+        try {
+          const res = await fetch(attachmentUrl(thread.id, message.id, a.partId), { credentials: "same-origin" });
+          if (!res.ok) return { name: a.filename, file: null };
+          const file = new window.File([await res.blob()], a.filename, { type: fileType(a) });
+          return { name: a.filename, file: navigator.canShare({ files: [file] }) ? file : null };
+        } catch {
+          return { name: a.filename, file: null };
+        }
       }),
-    )
-      .then((list) => !cancelled && setPrepared(navigator.canShare({ files: list }) ? list : []))
-      .catch(() => !cancelled && setPrepared([]));
+    ).then((list) => {
+      if (cancelled) return;
+      const ok = list.flatMap((x) => (x.file ? [x.file] : []));
+      const left = [...list.filter((x) => !x.file).map((x) => x.name), ...tooBig];
+      // The set as a whole must be shareable too; if not, it's the text with every name.
+      if (ok.length && !navigator.canShare({ files: ok })) setPrepared({ files: [], left: files.map((f) => f.attachment.filename) });
+      else setPrepared({ files: ok, left });
+    });
     return () => {
       cancelled = true;
     };
@@ -711,9 +756,10 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: F
 
   const preparing = wantFiles && prepared === null;
   const go = () => {
-    const sharedFiles = wantFiles && prepared && prepared.length ? prepared : [];
-    // Newest message's text; file names are listed only when the files themselves can't go with it.
-    const text = shareText(thread, messages[0], sharedFiles.length ? [] : files.map((f) => f.attachment.filename), hidden);
+    const sharedFiles = wantFiles && prepared ? prepared.files : [];
+    // Newest message's text; files that can't go with it are listed by name.
+    const names = sharedFiles.length ? (prepared?.left ?? []) : files.map((f) => f.attachment.filename);
+    const text = shareText(thread, messages[0], names, hidden, sharedFiles.length ? "Not attached" : "Attachments");
     if (canShare) {
       navigator
         .share(sharedFiles.length ? { files: sharedFiles, text } : { title: thread.subject, text })
