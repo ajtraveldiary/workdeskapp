@@ -59,7 +59,7 @@ export function HomePage() {
   return (
     <>
     {/* Wide screens: stat cards + task panels on the left, Pending Emails full height on the right. The compact
-        Command Center is the narrower task panel and Pending Emails gets more room (user request 2026-10-06). */}
+        Due Today card is the narrower task panel and Pending Emails gets more room (user request 2026-10-06). */}
     <div className="px-3 py-3 sm:px-4 sm:py-5 md:px-6 lg:px-8 xl:grid xl:h-[calc(100dvh-5rem-1px)] xl:min-h-[680px] xl:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)] xl:gap-5">
       <div className="flex min-h-0 flex-col gap-3 md:gap-5">
       {/* Phones: one compact row of four; small tablets: 2x2; wide: one row */}
@@ -195,7 +195,7 @@ function Empty({ icon: Icon, title, children }: { icon: LucideIcon; title: strin
 
 const Loading = () => <SkeletonList />;
 
-// --- Today / Command Center ---
+// --- Due Today (was "Today / Command Center"; renamed by user request 2026-10-06) ---
 
 type CommandTab = "today" | "overdue" | "upcoming" | "reports";
 
@@ -243,11 +243,11 @@ function CommandCenter({
   return (
     <Panel hiddenOnPhone={hiddenOnPhone}>
       <PanelHeader
-        title="Today / Command Center"
+        title="Due Today"
         subtitle={new Date(`${today}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}
         action={
           <div className="flex shrink-0 items-center gap-2">
-            <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Command Center" />
+            <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Due Today" />
           </div>
         }
       />
@@ -255,7 +255,7 @@ function CommandCenter({
       <TabsRow
         mobileActions={
           <>
-          <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Command Center" />
+          <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Due Today" />
           </>
         }
       >
@@ -341,8 +341,8 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
   };
 }
 
-// Today / Command Center rows (user request 2026-10-06): one compact line, a link to the task or reminder;
-// tapping opens its details card. No sender, tick circle or menu (phones still swipe to complete or edit).
+// Due Today rows (user request 2026-10-06): a compact link to the task or reminder, its title wrapping to at
+// most three lines; tapping opens its details card. No sender, tick circle or menu (phones still swipe).
 function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string; onEdit: (t: Task) => void; onOpen: (t: Task) => void }) {
   const a = useTaskActions(task);
   const late = !!task.dueDate && task.dueDate < today;
@@ -350,19 +350,19 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName="flex items-center gap-2.5 px-3 py-2 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5"
+      contentClassName="flex items-start gap-2.5 px-3 py-2 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5"
       {...taskSwipe(task, a, onEdit)}
     >
-      <span className={cx("h-4 w-[3px] shrink-0 rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
+      <span className={cx("w-[3px] shrink-0 self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <button
         onClick={() => onOpen(task)}
-        className="min-w-0 flex-1 truncate text-left text-[0.8125rem] font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
+        className="line-clamp-3 min-w-0 flex-1 text-left text-[0.8125rem] leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
         aria-label={`Show details: ${task.title}`}
       >
         {task.report && <CalendarClock size={13} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
         {task.title}
       </button>
-      {when && <span className={cx("shrink-0 text-xs tabular-nums", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
+      {when && <span className={cx("shrink-0 pt-px text-xs tabular-nums", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
     </SwipeRow>
   );
 }
