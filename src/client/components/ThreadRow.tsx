@@ -71,7 +71,7 @@ export function ThreadRow({
           {thread.messageCount > 1 && <span className="text-xs text-slate-400">{thread.messageCount}</span>}
           <span className="ml-auto shrink-0 text-xs text-slate-500 tabular-nums">{formatWhen(thread.lastMessageAt)}</span>
         </div>
-        <p className={cx("truncate transition-colors group-hover/title:text-brand-700", thread.unread ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{thread.subject}</p>
+        <p className={cx("truncate text-[0.9375rem] transition-colors group-hover/title:text-brand-700", thread.unread ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{thread.subject}</p>
         {/* Compact (user request 2026-10-06): labels share the preview line. */}
         <div className="flex min-w-0 items-center gap-1.5">
           <LabelChips ids={labelIds} max={2} className="shrink-0 flex-nowrap" />

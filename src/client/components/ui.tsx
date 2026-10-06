@@ -57,12 +57,14 @@ export function Card({ children, className }: { children: ReactNode; className?:
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <header className="mb-3 flex flex-wrap items-end justify-between gap-3 sm:mb-5">
-      <div>
-        <h1 className="text-lg font-medium text-ink sm:text-[1.375rem]">{title}</h1>
-        {subtitle && <p className="mt-1 hidden text-sm text-slate-500 sm:block">{subtitle}</p>}
+    // Title on the left, buttons on the right of the same line (never wrapping under a long subtitle); the
+    // title's line is as tall as the buttons so both share one centre line (alignment pass 2026-10-06).
+    <header className="mb-3 flex items-start justify-between gap-3 sm:mb-5">
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-lg leading-9 font-semibold text-ink sm:text-[1.375rem] sm:leading-10">{title}</h1>
+        {subtitle && <p className="hidden text-sm text-slate-500 sm:block">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {actions && <div className="flex h-9 shrink-0 items-center gap-2 sm:h-10">{actions}</div>}
     </header>
   );
 }
@@ -294,11 +296,11 @@ export function CheckCircle({ checked, onToggle, label, disabled }: { checked: b
       aria-label={label}
       title={label}
       className={cx(
-        "flex size-[22px] shrink-0 items-center justify-center rounded-md border-2 transition active:scale-90 pointer-coarse:size-6",
+        "flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90 pointer-coarse:size-6",
         checked ? "border-low bg-low text-white" : "border-slate-300 text-transparent hover:border-low hover:text-low",
       )}
     >
-      <Check size={13} strokeWidth={3} />
+      <Check size={12} strokeWidth={3} />
     </button>
   );
 }

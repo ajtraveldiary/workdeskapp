@@ -112,15 +112,15 @@ function DueRow({ report, period, today }: { report: Report; period: ReportPerio
       {/* A tick circle like tasks, instead of a "Done" button on every row (user request 2026-10-06). */}
       <CheckCircle checked={false} onToggle={() => setStatus.mutate({ id: period.id, submitted: true })} disabled={setStatus.isPending} label={`Mark done: ${report.name}`} />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-ink">{report.name}</p>
-        <p className={cx("truncate text-[0.8125rem]", late ? "text-urgent-ink" : "text-slate-500")}>
+        <p className="truncate text-[0.9375rem] font-medium text-ink">{report.name}</p>
+        <p className={cx("flex min-w-0 items-center gap-1.5 truncate text-[0.8125rem]", late ? "text-urgent-ink" : "text-slate-500")}>
+          <span className={cx("size-2 shrink-0 rounded-full", TONE[tone].dot)} aria-hidden />
           {late ? `Overdue · was due ${formatDay(period.dueDate, today)}` : formatDay(period.dueDate, today)}
           {report.dueTime && ` · ${formatTime(report.dueTime)}`}
           {/* Old report periods say which month they cover ("Sep 2026"); newer labels are just the date. */}
           {period.label !== dayLabel(period.dueDate) && <span className="text-slate-400"> · {period.label}</span>}
         </p>
       </div>
-      <span className={cx("size-2 shrink-0 rounded-full", TONE[tone].dot)} aria-hidden />
     </li>
   );
 }
@@ -134,7 +134,7 @@ function ReminderRow({ report, today, onEdit }: { report: Report; today: string;
   return (
     <li className={cx("flex items-start gap-3 px-4 py-3 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5", !report.active && "opacity-60")}>
       <button onClick={onEdit} className="group/title min-w-0 flex-1 text-left">
-        <p className="font-medium text-ink group-hover/title:text-brand-700">{report.name}</p>
+        <p className="text-[0.9375rem] font-medium text-ink group-hover/title:text-brand-700">{report.name}</p>
         <p className="text-[0.8125rem] text-slate-500">{details}</p>
         <p className="mt-0.5 text-[0.8125rem] text-slate-500">
           {!report.active ? <Badge>Paused</Badge> : next ? <>Next: <span className="font-medium text-ink">{formatDay(next, today)}</span></> : "No more dates"}

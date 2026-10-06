@@ -151,28 +151,29 @@ function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: st
   return (
     // Wraps on narrow screens so the buttons drop below the title instead of squeezing it.
     // Hidden on phones: the switcher above names the panel and the buttons sit on the tabs row (TabsRow).
-    <div className="flex flex-wrap items-start justify-between gap-3 px-3 pt-3 max-md:hidden sm:px-5 sm:pt-5">
-      <div className="min-w-0 flex-1 basis-52">
-        <h2 className="text-lg font-semibold text-ink sm:text-xl">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+    <div className="flex items-start justify-between gap-2 px-3 pt-3 max-md:hidden sm:px-5 sm:pt-5">
+      <div className="min-w-0 flex-1">
+        <h2 className="truncate text-lg leading-9 font-semibold text-ink">{title}</h2>
+        {subtitle && <p className="truncate text-sm text-slate-500">{subtitle}</p>}
       </div>
-      {action}
+      <div className="flex h-9 shrink-0 items-center">{action}</div>
     </div>
   );
 }
 
 // A panel's tabs, plus (on phones only) the panel's buttons on the same row.
-function TabsRow({ children, mobileActions }: { children: ReactNode; mobileActions: ReactNode }) {
+function TabsRow({ children, mobileActions, end }: { children: ReactNode; mobileActions: ReactNode; end?: ReactNode }) {
   return (
     <div className="mt-3 flex items-center gap-2 px-3 sm:mt-4 sm:px-5">
       <div className="min-w-0 flex-1 overflow-hidden">{children}</div>
       <div className="flex shrink-0 items-center gap-2 md:hidden">{mobileActions}</div>
+      {end && <div className="flex shrink-0 items-center max-md:hidden">{end}</div>}
     </div>
   );
 }
 
 const ViewAll = ({ to }: { to: string }) => (
-  <Link to={to} className="group/va mt-1 flex shrink-0 items-center gap-1 text-sm text-slate-600 hover:text-brand-700">
+  <Link to={to} className="group/va flex shrink-0 items-center gap-1 text-sm text-slate-600 hover:text-brand-700">
     View all <ArrowRight size={15} className="transition-transform group-hover/va:translate-x-0.5" />
   </Link>
 );
@@ -390,16 +391,16 @@ function TodoPanel({
         title="To-do Tasks"
         action={
           <div className="flex shrink-0 items-center gap-2">
-            <ViewAll to="/tasks" />
             <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh to-do list" />
             {/* New task lives on the To-do card (user request 2026-10-06). */}
-            <Button variant="primary" onClick={onNew}>
+            <Button size="sm" variant="primary" onClick={onNew}>
               <Plus size={17} /> New task
             </Button>
           </div>
         }
       />
       <TabsRow
+        end={<ViewAll to="/tasks" />}
         mobileActions={
           <>
           <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh to-do list" />
@@ -410,6 +411,7 @@ function TodoPanel({
         }
       >
         <Segmented
+          oneRow
           value={tab}
           onChange={setTab}
           options={[
@@ -488,7 +490,7 @@ function TodoRow({
           className="group/title block max-w-full text-left"
           aria-label={task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`}
         >
-          <span className={cx("line-clamp-2 text-[0.8125rem] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
+          <span className={cx("line-clamp-2 text-[0.9375rem] leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
           <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[0.8125rem]">{context}</span>
         </button>
         <div className="mt-1.5 flex items-center justify-between gap-2 sm:mt-2">
@@ -551,10 +553,10 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
 
   return (
     <Panel>
-      {/* Web: the title and the Pending / All emails switch share one line, with View all and refresh at the
-          end (user request 2026-10-06). This card only shows on tablet and wider screens. */}
+      {/* Web: the title and the Pending / All emails switch share one line, with refresh at the end (user request
+          2026-10-06); View all sits at the foot of the card. This card only shows on tablet and wider screens. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 pt-3 sm:px-5 sm:pt-5">
-        <h2 className="text-lg font-semibold whitespace-nowrap text-ink sm:text-xl">{pending ? "Pending Emails" : "All Emails"}</h2>
+        <h2 className="text-lg leading-9 font-semibold whitespace-nowrap text-ink">{pending ? "Pending Emails" : "All Emails"}</h2>
         <Segmented<EmailTab>
           value={tab}
           onChange={(v) => {
@@ -566,8 +568,7 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
             { value: "all", label: "All emails", count: total },
           ]}
         />
-        <div className="ml-auto flex shrink-0 items-center gap-3">
-          <ViewAll to={pending ? "/inbox" : "/inbox?state=all"} />
+        <div className="ml-auto flex shrink-0 items-center">
           <RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />
         </div>
       </div>
@@ -610,6 +611,9 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
           </ul>
         )}
       </Scroll>
+      <div className="flex justify-end border-t border-line px-3 py-2.5 sm:px-5">
+        <ViewAll to={pending ? "/inbox" : "/inbox?state=all"} />
+      </div>
       <EmailViewer
         thread={viewing}
         onClose={() => setViewing(null)}
@@ -689,7 +693,7 @@ function EmailCard({
           {thread.messageCount > 1 && <span className="text-xs text-slate-400">({thread.messageCount})</span>}
           <span className="ml-auto shrink-0 text-xs text-slate-500">{formatWhen(thread.lastMessageAt)}</span>
         </div>
-        <p className="mt-0.5 truncate text-sm text-ink transition-colors group-hover/title:text-brand-700">{thread.subject}</p>
+        <p className="mt-0.5 truncate text-[0.9375rem] text-ink transition-colors group-hover/title:text-brand-700">{thread.subject}</p>
         {/* Compact (user request 2026-10-06): status and labels share the preview line. */}
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
           {showStatus && <EmailStatusTags thread={thread} />}

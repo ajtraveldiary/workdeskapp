@@ -56,7 +56,8 @@ export function App() {
 }
 
 function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
-  return <div className={cx("mx-auto w-full px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:px-8", wide ? "max-w-7xl" : "max-w-5xl")}>{children}</div>;
+  // Left-aligned like Home, so page titles line up with the top bar on every screen (alignment pass 2026-10-06).
+  return <div className={cx("w-full px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:px-8", wide ? "max-w-7xl" : "max-w-5xl")}>{children}</div>;
 }
 
 type NavItem = { to: string; label: string; icon: LucideIcon };
