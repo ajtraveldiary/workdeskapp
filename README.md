@@ -86,7 +86,7 @@ src/
     app.ts         Hono API, Google sign-in, session cookie
     worker.ts      Cloudflare entry (fetch + cron)
     dev.ts         Local Node entry
-    db/schema.ts   Drizzle schema: users, gmail_accounts, email_threads, tasks, categories, events
+    db/schema.ts   Drizzle schema: users, gmail_accounts, email_threads, tasks, gmail_labels, events
     lib/gmail.ts   Gmail client: GET requests to an allowlist of read endpoints, a fixed mark-read call, and guarded label changes
     lib/sync.ts    Incremental sync via Gmail history, in batches
     lib/threadRules.ts  What a new message does to a dismissed, snoozed, or converted email

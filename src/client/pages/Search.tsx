@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { Search } from "lucide-react";
 import type { Task, Thread } from "../../shared/types";
-import { useCategories, useTasks, useThread, useThreads } from "../api";
+import { useTasks, useThread, useThreads } from "../api";
 import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
@@ -23,7 +23,6 @@ export function SearchPage() {
   const [details, setDetails] = useState<Task | null>(null);
   const taskEmail = useThread(emailId).data ?? null;
   const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
-  const categories = useCategories().data ?? [];
   const threads = useThreads({ state: "all", q }, !!q);
   const tasks = useTasks({ view: "any", q }, !!q);
 
@@ -60,7 +59,7 @@ export function SearchPage() {
               ) : (
                 <ul className="divide-y divide-line">
                   {taskList.map((t) => (
-                    <TaskRow key={t.id} task={t} today={tasks.data!.today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
+                    <TaskRow key={t.id} task={t} today={tasks.data!.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
                   ))}
                 </ul>
               )}
@@ -74,7 +73,7 @@ export function SearchPage() {
               ) : (
                 <ul className="divide-y divide-line">
                   {emailList.map((t: Thread) => (
-                    <ThreadRow key={t.id} thread={t} categories={categories} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} onOpen={setViewing} />
+                    <ThreadRow key={t.id} thread={t} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} onOpen={setViewing} />
                   ))}
                 </ul>
               )}

@@ -16,7 +16,6 @@ const base: Thread = {
   state: "task",
   snoozedUntil: null,
   hasNewActivity: false,
-  categoryId: null,
   stateChangedAt: "2026-10-05T00:00:00Z",
   task: null,
   muted: false,

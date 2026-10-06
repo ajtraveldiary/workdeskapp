@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import type { EmailState, Thread } from "../../shared/types";
-import { useBulkDismiss, useCategories, useThreads } from "../api";
+import { useBulkDismiss, useThreads } from "../api";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { ThreadRow } from "../components/ThreadRow";
 import { EmailViewer } from "../components/EmailViewer";
-import { Button, Card, Empty, PageHeader, SearchInput, Tabs, inputClass } from "../components/ui";
+import { Button, Card, Empty, PageHeader, SearchInput, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
+import { LabelFilter } from "../components/LabelChips";
 
 type StateTab = EmailState | "all";
 
@@ -15,12 +16,11 @@ export function InboxPage() {
   const state = (params.get("state") as StateTab) ?? "needs_decision";
   const [q, setQ] = useState(params.get("q") ?? "");
   const [unread, setUnread] = useState(false);
-  const [category, setCategory] = useState("");
+  const [label, setLabel] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
   const [viewing, setViewing] = useState<Thread | null>(null);
-  const categories = useCategories().data ?? [];
-  const { data, error, isFetching } = useThreads({ state, q, unread, category });
+  const { data, error, isFetching } = useThreads({ state, q, unread, label });
   const bulkDismiss = useBulkDismiss();
 
   const threads = data?.threads ?? [];
@@ -57,14 +57,7 @@ export function InboxPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchInput value={q} onChange={setQ} placeholder="Search sender, subject…" />
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${inputClass} w-auto! min-w-0 max-w-52 sm:max-w-none`} aria-label="Category filter">
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <LabelFilter value={label} onChange={setLabel} />
         <label className="flex items-center gap-2 px-1 text-sm text-slate-600">
           <input type="checkbox" checked={unread} onChange={(e) => setUnread(e.target.checked)} className="accent-brand-700 pointer-coarse:size-5" />
           Unread only
@@ -116,7 +109,7 @@ export function InboxPage() {
               <ThreadRow
                 key={t.id}
                 thread={t}
-                categories={categories}
+               
                 selected={selected.has(t.id)}
                 onSelect={inQueue ? (on) => toggle(t.id, on) : undefined}
                 onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}

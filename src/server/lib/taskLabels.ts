@@ -31,7 +31,7 @@ export async function applyLabelRules(db: DB, userId: string, onlyGmailThreadIds
   if (watch.length === 0 || (onlyGmailThreadIds && onlyGmailThreadIds.length === 0)) return result;
 
   const threads = await db
-    .select({ id: emailThreads.id, subject: emailThreads.subject, labelIds: emailThreads.labelIds, state: emailThreads.state, categoryId: emailThreads.categoryId })
+    .select({ id: emailThreads.id, subject: emailThreads.subject, labelIds: emailThreads.labelIds, state: emailThreads.state })
     .from(emailThreads)
     .where(
       and(
@@ -56,10 +56,10 @@ export async function applyLabelRules(db: DB, userId: string, onlyGmailThreadIds
     const done = !!s.doneLabelId && t.labelIds.includes(s.doneLabelId);
     const open = !!s.taskLabelId && t.labelIds.includes(s.taskLabelId);
     if (done) {
-      if (mine.length === 0) newTasks.push({ userId, title: t.subject, threadId: t.id, categoryId: t.categoryId, status: "done", completedAt: now });
+      if (mine.length === 0) newTasks.push({ userId, title: t.subject, threadId: t.id, status: "done", completedAt: now });
       for (const x of mine.filter((x) => x.status === "open")) toComplete.push({ id: x.id, title: x.title, threadId: t.id });
     } else if (open && mine.length === 0) {
-      newTasks.push({ userId, title: t.subject, threadId: t.id, categoryId: t.categoryId });
+      newTasks.push({ userId, title: t.subject, threadId: t.id });
     }
     if ((done || open) && t.state !== "task") intoTasks.push(t.id);
   }

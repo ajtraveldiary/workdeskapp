@@ -2,6 +2,8 @@ import { z } from "zod";
 import { LABEL_COLORS } from "./labelColors";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
+// The user's own Gmail labels only (system labels like INBOX are never accepted).
+const userLabelIds = z.array(z.string().regex(/^Label_[\w-]+$/)).max(50);
 export const priority = z.enum(["low", "normal", "high", "urgent"]);
 
 export const taskInput = z.object({
@@ -10,12 +12,13 @@ export const taskInput = z.object({
   dueDate: day.nullable().default(null),
   dueTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM").nullable().default(null),
   priority: priority.default("normal"),
-  categoryId: z.uuid().nullable().default(null),
+  // Kept for tasks without an email; a task made from an email uses the email's labels.
+  labelIds: userLabelIds.default([]),
 });
 export type TaskInput = z.input<typeof taskInput>;
 
 // Updates change only the fields they include. (taskInput.partial() would still apply taskInput's
-// defaults, so a priority-only update used to wipe the due date, time, notes and category.)
+// defaults, so a priority-only update used to wipe the due date, time, notes and labels.)
 export const taskPatch = z
   .object({
     title: taskInput.shape.title,
@@ -23,14 +26,12 @@ export const taskPatch = z
     dueDate: day.nullable(),
     dueTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM").nullable(),
     priority,
-    categoryId: z.uuid().nullable(),
+    labelIds: userLabelIds,
   })
   .partial();
 
 export const snoozeInput = z.object({ until: z.iso.datetime({ offset: true }) });
-export const threadPatch = z.object({ categoryId: z.uuid().nullable() });
 export const bulkIds = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
-export const categoryInput = z.object({ name: z.string().trim().min(1).max(60) });
 
 export const reportInput = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
@@ -41,14 +42,14 @@ export const reportInput = z.object({
   yearStartMonth: z.number().int().min(1).max(12).default(4),
   leadDays: z.number().int().min(0).max(90).default(7),
   priority: priority.default("high"),
-  categoryId: z.uuid().nullable().default(null),
+  labelIds: userLabelIds.default([]),
   responsible: z.string().trim().max(80).nullable().default(null),
   firstPeriodStart: day,
   active: z.boolean().default(true),
 });
 export type ReportInput = z.input<typeof reportInput>;
 // Updates change only the fields they include (reportInput.partial() would apply reportInput's defaults,
-// so pausing a report used to reset its notes, year start, lead time, priority, category and responsible).
+// so pausing a report used to reset its notes, year start, lead time, priority, labels and responsible).
 export const reportPatch = z
   .object({
     name: reportInput.shape.name,
@@ -59,7 +60,7 @@ export const reportPatch = z
     yearStartMonth: z.number().int().min(1).max(12),
     leadDays: z.number().int().min(0).max(90),
     priority,
-    categoryId: z.uuid().nullable(),
+    labelIds: userLabelIds,
     responsible: z.string().trim().max(80).nullable(),
     firstPeriodStart: day,
     active: z.boolean(),

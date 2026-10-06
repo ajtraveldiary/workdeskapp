@@ -11,7 +11,7 @@ import { isMuted, notMuted } from "../lib/muted";
 import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, getAttachment, getMessageFull, getThreadFull, markThreadRead } from "../lib/gmail";
 import { decodeBase64Url, demoContent, demoPdf, findPart, parseMessage } from "../lib/emailContent";
-import { bulkIds, snoozeInput, taskInput, threadPatch } from "../../shared/schemas";
+import { bulkIds, snoozeInput, taskInput } from "../../shared/schemas";
 import { events } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
@@ -33,7 +33,6 @@ export const threadColumns = {
   state: emailThreads.state,
   snoozedUntil: emailThreads.snoozedUntil,
   hasNewActivity: emailThreads.hasNewActivity,
-  categoryId: emailThreads.categoryId,
   stateChangedAt: emailThreads.stateChangedAt,
   // On the user's "hide from Pending" list (Settings > Mail)
   muted: isMuted,
@@ -130,8 +129,8 @@ export const threadRoutes = new Hono<AppEnv>()
     // Pending skips senders hidden in Settings > Mail; they still appear under All emails.
     if (state === "needs_decision") where.push(notMuted);
     if (c.req.query("unread") === "1") where.push(eq(emailThreads.unread, true));
-    const category = c.req.query("category");
-    if (category) where.push(eq(emailThreads.categoryId, category));
+    const label = c.req.query("label");
+    if (label) where.push(sql`${label} = any(${emailThreads.labelIds})`);
     if (q) {
       const like = `%${q}%`;
       where.push(
@@ -260,7 +259,8 @@ export const threadRoutes = new Hono<AppEnv>()
     const t = await loadThread(db, userId, c.req.param("id"));
     const [task] = await db
       .insert(tasks)
-      .values({ ...input, userId, threadId: t.id, categoryId: input.categoryId ?? t.categoryId })
+      // Its labels are the email's labels (Gmail), so none are stored on the task itself.
+      .values({ ...input, labelIds: [], userId, threadId: t.id })
       .returning();
     await db
       .update(emailThreads)
@@ -328,13 +328,5 @@ export const threadRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const t = await loadThread(db, c.get("userId"), c.req.param("id"));
     await db.update(emailThreads).set({ hasNewActivity: false }).where(eq(emailThreads.id, t.id));
-    return c.json({ ok: true });
-  })
-
-  .patch("/:id", async (c) => {
-    const db = c.get("db");
-    const { categoryId } = threadPatch.parse(await c.req.json());
-    const t = await loadThread(db, c.get("userId"), c.req.param("id"));
-    await db.update(emailThreads).set({ categoryId, updatedAt: new Date() }).where(eq(emailThreads.id, t.id));
     return c.json({ ok: true });
   });

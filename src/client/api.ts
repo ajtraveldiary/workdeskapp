@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, Category, EmailContent, Label, RangeTasks, EmailState, Me, MutedSender, Report, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { AuditEvent, EmailContent, Label, RangeTasks, EmailState, Me, MutedSender, Report, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { ReportInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -38,24 +38,24 @@ export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<Me>("
 
 export const useSummary = () => useQuery({ queryKey: ["summary"], queryFn: () => api<Summary>("/summary") });
 
-export type ThreadFilter = { state: EmailState | "all"; unread?: boolean; q?: string; category?: string; limit?: number };
+export type ThreadFilter = { state: EmailState | "all"; unread?: boolean; q?: string; label?: string; limit?: number };
 export const useThreads = (f: ThreadFilter, enabled = true) =>
   useQuery({
     enabled,
     queryKey: ["threads", f],
     queryFn: () =>
       api<{ threads: Thread[]; counts: Partial<Record<EmailState, number>>; hiddenPending: number }>(
-        `/threads${qs({ state: f.state, unread: f.unread && "1", q: f.q, category: f.category, limit: f.limit ? String(f.limit) : undefined })}`,
+        `/threads${qs({ state: f.state, unread: f.unread && "1", q: f.q, label: f.label, limit: f.limit ? String(f.limit) : undefined })}`,
       ),
     placeholderData: (prev) => prev,
   });
 
-export type TaskFilter = { view: TaskView; q?: string; category?: string };
+export type TaskFilter = { view: TaskView; q?: string; label?: string };
 export const useTasks = (f: TaskFilter, enabled = true) =>
   useQuery({
     enabled,
     queryKey: ["tasks", f],
-    queryFn: () => api<{ tasks: Task[]; today: string }>(`/tasks${qs({ view: f.view, q: f.q, category: f.category })}`),
+    queryFn: () => api<{ tasks: Task[]; today: string }>(`/tasks${qs({ view: f.view, q: f.q, label: f.label })}`),
     placeholderData: (prev) => prev,
   });
 
@@ -73,21 +73,13 @@ export const useHistory = (f: { type?: string; q?: string }) =>
     placeholderData: (prev) => prev,
   });
 
-export const useCategories = () =>
-  useQuery({
-    queryKey: ["categories"],
-    queryFn: () => api<{ categories: Category[] }>("/categories"),
-    select: (d) => d.categories,
-    staleTime: 5 * 60_000,
-  });
-
 // --- Mutations: every one refreshes all lists, since an action can move items between screens ---
 
 function useAction<V>(fn: (v: V) => Promise<unknown>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "categories" }),
+    onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "labels" }),
   });
 }
 
@@ -104,25 +96,12 @@ export const useSnooze = () =>
     api(`/threads/${id}/snooze`, { method: "POST", body: { until: until.toISOString() } }),
   );
 export const useMarkSeen = () => useAction((id: string) => api(`/threads/${id}/seen`, { method: "POST" }));
-export const useSetThreadCategory = () =>
-  useAction(({ id, categoryId }: { id: string; categoryId: string | null }) =>
-    api(`/threads/${id}`, { method: "PATCH", body: { categoryId } }),
-  );
 
 export const useCreateTask = () => useAction((input: TaskInput) => api(`/tasks`, { method: "POST", body: input }));
 export const useUpdateTask = () =>
   useAction(({ id, input }: { id: string; input: Partial<TaskInput> }) => api(`/tasks/${id}`, { method: "PATCH", body: input }));
 export const useCompleteTask = () => useAction((id: string) => api(`/tasks/${id}/complete`, { method: "POST" }));
 export const useReopenTask = () => useAction((id: string) => api(`/tasks/${id}/reopen`, { method: "POST" }));
-
-export function useCategoryActions() {
-  const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ queryKey: ["categories"] });
-  return {
-    add: useMutation({ mutationFn: (name: string) => api(`/categories`, { method: "POST", body: { name } }), onSettled: refresh }),
-    remove: useMutation({ mutationFn: (id: string) => api(`/categories/${id}`, { method: "DELETE" }), onSettled: refresh }),
-  };
-}
 
 // Sync drains Gmail in batches; keep calling until nothing is left.
 export function useSync() {
@@ -167,7 +146,7 @@ type LabelColorValue = { backgroundColor: string; textColor: string } | null;
 // Label changes happen in Gmail; afterwards the label list and every email list refresh.
 export function useLabelActions() {
   const qc = useQueryClient();
-  const refresh = () => Promise.all(["labels", "threads", "summary", "history"].map((k) => qc.invalidateQueries({ queryKey: [k] })));
+  const refresh = () => Promise.all(["labels", "threads", "tasks", "reports", "summary", "history"].map((k) => qc.invalidateQueries({ queryKey: [k] })));
   return {
     reload: useMutation({ mutationFn: () => api<LabelsResponse>("/labels?refresh=1"), onSuccess: (d) => qc.setQueryData(["labels"], d), onSettled: refresh }),
     create: useMutation({ mutationFn: (input: { name: string; color: LabelColorValue }) => api<{ id: string }>("/labels", { method: "POST", body: input }), onSettled: refresh }),
@@ -190,7 +169,7 @@ export function useSetTaskLabelSettings() {
   return useMutation({
     mutationFn: (input: TaskLabelSettings) =>
       api<{ created: number; completed: number; queued: number }>("/labels/task-settings", { method: "PUT", body: input }),
-    onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "categories" }),
+    onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "labels" }),
   });
 }
 
@@ -199,7 +178,8 @@ export function useSetThreadLabels() {
   return useMutation({
     mutationFn: ({ id, add, remove }: { id: string; add: string[]; remove: string[] }) =>
       api(`/threads/${id}/labels`, { method: "PUT", body: { add, remove } }),
-    onSettled: () => Promise.all(["threads", "summary", "history"].map((k) => qc.invalidateQueries({ queryKey: [k] }))),
+    // Tasks from an email show the email's labels, so task lists refresh too.
+    onSettled: () => Promise.all(["threads", "tasks", "summary", "history"].map((k) => qc.invalidateQueries({ queryKey: [k] }))),
   });
 }
 
@@ -239,7 +219,7 @@ export const attachmentUrl = (threadId: string, messageId: string, partId: strin
 export const useReports = () =>
   useQuery({ queryKey: ["reports"], queryFn: () => api<{ reports: Report[]; today: string }>("/reports") });
 
-// Report changes create or complete tasks, so every list refreshes (useAction invalidates all but categories).
+// Report changes create or complete tasks, so every list refreshes (useAction invalidates all but the label list).
 export const useCreateReport = () => useAction((input: ReportInput) => api(`/reports`, { method: "POST", body: input }));
 export const useUpdateReport = () =>
   useAction(({ id, input }: { id: string; input: Partial<ReportInput> }) => api(`/reports/${id}`, { method: "PATCH", body: input }));

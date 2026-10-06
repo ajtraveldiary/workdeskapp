@@ -71,17 +71,6 @@ export const gmailMessages = pgTable(
   (t) => [primaryKey({ columns: [t.accountId, t.gmailMessageId] })],
 );
 
-export const categories = pgTable(
-  "categories",
-  {
-    id: id(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    name: text("name").notNull(),
-    sortOrder: integer("sort_order").notNull().default(0),
-  },
-  (t) => [uniqueIndex("categories_user_name").on(t.userId, t.name)],
-);
-
 // The user's own Gmail labels, as last read from Gmail (demo mode keeps them here only).
 export const gmailLabels = pgTable(
   "gmail_labels",
@@ -131,7 +120,6 @@ export const emailThreads = pgTable(
     snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
     // A new message arrived after the thread was turned into a task.
     hasNewActivity: boolean("has_new_activity").notNull().default(false),
-    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
     // The user's own Gmail labels on this conversation (IDs like "Label_12"); system labels aren't kept.
     labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
     stateChangedAt: timestamp("state_changed_at", { withTimezone: true }).notNull().defaultNow(),
@@ -159,7 +147,9 @@ export const tasks = pgTable(
     dueTime: text("due_time"),
     priority: text("priority", { enum: PRIORITIES }).notNull().default("normal"),
     status: text("status", { enum: ["open", "done"] }).notNull().default("open"),
-    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+    // The user's Gmail labels on a task that has no email (made by hand or for a report), kept in WorkDesk only.
+    // A task from an email uses its email's labels instead (email_threads.label_ids), so this stays empty.
+    labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
     threadId: uuid("thread_id").references(() => emailThreads.id),
     // Set when the task was generated for a recurring report's period.
     reportPeriodId: uuid("report_period_id").references(() => reportPeriods.id, { onDelete: "set null" }),
@@ -190,7 +180,8 @@ export const reports = pgTable("reports", {
   // The period's task appears this many days before it is due.
   leadDays: integer("lead_days").notNull().default(7),
   priority: text("priority", { enum: PRIORITIES }).notNull().default("high"),
-  categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+  // Gmail labels (WorkDesk only) given to each period's task.
+  labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
   responsible: text("responsible"),
   // Start of the first period to track.
   firstPeriodStart: date("first_period_start").notNull(),

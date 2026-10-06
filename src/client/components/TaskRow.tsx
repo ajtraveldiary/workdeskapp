@@ -1,21 +1,20 @@
 import { Check, Eye, ExternalLink, FileText, Mail, Pencil, RotateCcw } from "lucide-react";
-import type { Category, Task } from "../../shared/types";
+import type { Task } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
 import { daysBetween, formatDateTime, formatDay, formatTime } from "../format";
 import { Badge, PriorityPill, cx } from "./ui";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
+import { LabelChips } from "./LabelChips";
 
 export function TaskRow({
   task,
   today,
-  categories,
   onEdit,
   onOpen,
 }: {
   task: Task;
   today: string;
-  categories: Category[];
   onEdit: (t: Task) => void;
   // When given, tapping the title opens the task's email (or its details) and editing gets its own button.
   onOpen?: (t: Task) => void;
@@ -25,7 +24,6 @@ export function TaskRow({
   const seen = useMarkSeen();
   const done = task.status === "done";
   const overdue = !done && task.dueDate !== null && task.dueDate < today;
-  const category = categories.find((c) => c.id === task.categoryId);
   const gmailUrl = task.thread && gmailThreadUrl(task.thread.accountEmail, task.thread.gmailThreadId);
   // Phones: swipe right to complete (or reopen), left for Gmail / seen / edit; the side buttons go away.
   const swipe = useSwipeMode();
@@ -80,7 +78,7 @@ export function TaskRow({
             </Badge>
           )}
           <PriorityPill priority={task.priority} />
-          {category && <Badge>{category.name}</Badge>}
+          <LabelChips ids={task.labelIds} />
           {done && task.completedAt && <span>Completed {formatDateTime(task.completedAt)}</span>}
           {task.report && (
             <span className="inline-flex min-w-0 items-center gap-1">

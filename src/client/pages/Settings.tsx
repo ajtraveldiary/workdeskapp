@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Check, EyeOff, ListChecks, Pencil, RefreshCw, ShieldCheck, Tag, Trash2, X } from "lucide-react";
-import { useCategories, useCategoryActions, useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useTaskLabelSettings } from "../api";
+import { useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useTaskLabelSettings } from "../api";
 import { LABEL_COLORS, type LabelColor } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
 import { LabelChip } from "../components/LabelChips";
@@ -11,18 +11,9 @@ import { RefreshButton } from "../components/RefreshButton";
 
 export function SettingsPage() {
   const me = useMe().data;
-  const categories = useCategories().data ?? [];
-  const { add, remove } = useCategoryActions();
-  const [name, setName] = useState("");
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    add.mutate(name, { onSuccess: () => setName("") });
-  };
-
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["categories"], ["muted-senders"], ["labels"], ["task-label-settings"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["labels"], ["task-label-settings"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         <Card className="p-5">
           <h2 className="font-semibold text-slate-900">Gmail connection</h2>
@@ -55,34 +46,6 @@ export function SettingsPage() {
         </Card>
 
         <MailSettings />
-
-        <Card className="p-5">
-          <h2 className="font-semibold text-slate-900">Categories</h2>
-          <p className="mt-1 text-sm text-slate-600">Sections or responsibilities used to sort emails and tasks.</p>
-          <ul className="mt-3 divide-y divide-slate-100 rounded-md border border-slate-200">
-            {categories.map((c) => (
-              <li key={c.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                {c.name}
-                <button
-                  onClick={() => confirm(`Remove "${c.name}"? Emails and tasks keep working, they just lose this category.`) && remove.mutate(c.id)}
-                  className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-urgent-ink pointer-coarse:p-2"
-                  aria-label={`Remove ${c.name}`}
-                >
-                  <Trash2 size={15} />
-                </button>
-              </li>
-            ))}
-          </ul>
-          <form onSubmit={submit} className="mt-3 flex gap-2">
-            <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="New category" />
-            <Button type="submit" disabled={!name.trim() || add.isPending}>
-              Add
-            </Button>
-          </form>
-          <div className="mt-2">
-            <ErrorNote error={add.error} />
-          </div>
-        </Card>
 
         <p className="text-xs text-slate-500">
           Signed in as {me?.email} · Dates use {me?.timezone}

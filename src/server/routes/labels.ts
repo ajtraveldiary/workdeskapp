@@ -5,7 +5,7 @@ import { HTTPException } from "hono/http-exception";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { emailThreads, events, gmailAccounts, gmailLabels, users } from "../db/schema";
+import { emailThreads, events, gmailAccounts, gmailLabels, reports, tasks, users } from "../db/schema";
 import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, createLabel, deleteLabel, setThreadLabels, updateLabel } from "../lib/gmail";
 import { applyLabelOps, refreshLabels } from "../lib/sync";
@@ -153,6 +153,9 @@ export const labelRoutes = new Hono<AppEnv>()
     if (account?.refreshTokenEnc) await deleteLabel(await accessTokenFor(c.env, account), id).catch(permissionError);
     await db.delete(gmailLabels).where(and(eq(gmailLabels.userId, userId), eq(gmailLabels.gmailLabelId, id)));
     await db.update(emailThreads).set({ labelIds: sql`array_remove(${emailThreads.labelIds}, ${id})` }).where(eq(emailThreads.userId, userId));
+    // Tasks without an email and reports keep labels in WorkDesk; take it off those too.
+    await db.update(tasks).set({ labelIds: sql`array_remove(${tasks.labelIds}, ${id})` }).where(and(eq(tasks.userId, userId), sql`${id} = any(${tasks.labelIds})`));
+    await db.update(reports).set({ labelIds: sql`array_remove(${reports.labelIds}, ${id})` }).where(and(eq(reports.userId, userId), sql`${id} = any(${reports.labelIds})`));
     await db.insert(events).values({ userId, entityType: "email", action: "label.deleted", summary: "Label deleted in Gmail (emails kept)", detail: { subject: current.name } });
     // A deleted label can't stay the task / done label.
     await clearMissingTaskLabels(db, userId);

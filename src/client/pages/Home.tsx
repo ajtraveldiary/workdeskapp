@@ -20,11 +20,10 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { Category, Task, TaskView, Thread } from "../../shared/types";
+import type { Task, TaskView, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import {
   useBulkDismiss,
-  useCategories,
   useCompleteTask,
   useDismiss,
   useMarkSeen,
@@ -317,12 +316,12 @@ function CommandCenter({
   );
 }
 
-function subtitleFor(task: Task, categories: Category[]) {
+function subtitleFor(task: Task) {
   const firstLine = task.notes.split("\n")[0]?.trim();
   if (firstLine) return firstLine;
   if (task.thread) return `${task.thread.fromName ?? task.thread.fromEmail}: ${task.thread.subject}`;
   if (task.report) return `Recurring report · ${task.report.label}`;
-  return categories.find((c) => c.id === task.categoryId)?.name ?? "";
+  return "";
 }
 
 function useTaskActions(task: Task) {
@@ -352,7 +351,6 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
 
 // onOpen: tapping the title opens the task's email or details instead of the editor.
 function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string; onEdit: (t: Task) => void; onOpen?: (t: Task) => void }) {
-  const categories = useCategories().data ?? [];
   const a = useTaskActions(task);
   const swipe = useSwipeMode();
   return (
@@ -374,12 +372,13 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
           className="group/title block w-full min-w-0 text-left @lg:w-auto @lg:flex-1"
         >
           <span className={cx("line-clamp-2 text-[0.8125rem] leading-snug font-semibold sm:text-sm", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
-          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[0.8125rem]">{subtitleFor(task, categories)}</span>
+          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[0.8125rem]">{subtitleFor(task)}</span>
           {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[0.6875rem] font-medium text-brand-800">New reply</span>}
         </button>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2 @lg:mt-0 @lg:shrink-0">
           <EditableDue task={task} today={today} layout="split" />
           <EditablePriority task={task} />
+          <LabelChips ids={task.labelIds} max={2} />
         </div>
       </div>
       {!swipe && (
@@ -418,7 +417,6 @@ function TodoPanel({
   const email = useThread(emailId).data ?? null;
   const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
   const { data } = useTasks({ view: tab });
-  const categories = useCategories().data ?? [];
   const tasks = data?.tasks ?? [];
 
   return (
@@ -456,7 +454,7 @@ function TodoPanel({
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
             {tasks.map((t) => (
-              <TodoRow key={t.id} task={t} today={data!.today} categories={categories} onEdit={onEdit} onOpen={openTask} />
+              <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} />
             ))}
           </ul>
         )}
@@ -484,19 +482,16 @@ function TodoPanel({
 function TodoRow({
   task,
   today,
-  categories,
   onEdit,
   onOpen,
 }: {
   task: Task;
   today: string;
-  categories: Category[];
   onEdit: (t: Task) => void;
   onOpen: (t: Task) => void;
 }) {
   const a = useTaskActions(task);
-  const category = categories.find((c) => c.id === task.categoryId)?.name;
-  const context = category ?? (task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Recurring report" : "Manual task");
+  const context = task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Recurring report" : "Manual task";
   const swipe = useSwipeMode();
 
   return (

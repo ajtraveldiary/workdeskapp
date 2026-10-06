@@ -26,7 +26,6 @@ function fullInput(task: Task, change: Partial<Pick<Task, "dueDate" | "dueTime" 
     dueDate: task.dueDate,
     dueTime: task.dueTime,
     priority: task.priority,
-    categoryId: task.categoryId,
     ...change,
   };
 }

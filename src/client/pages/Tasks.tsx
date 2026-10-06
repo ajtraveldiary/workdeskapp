@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { Plus } from "lucide-react";
 import type { Task, TaskView } from "../../shared/types";
-import { useCategories, useTasks, useThread } from "../api";
+import { useTasks, useThread } from "../api";
 import { EmailViewer } from "../components/EmailViewer";
 import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
-import { Button, Card, Empty, PageHeader, SearchInput, Tabs, inputClass } from "../components/ui";
+import { Button, Card, Empty, PageHeader, SearchInput, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
+import { LabelFilter } from "../components/LabelChips";
 
 const EMPTY: Record<TaskView, string> = {
   today: "Nothing due today",
@@ -25,10 +26,9 @@ export function TasksPage() {
   const [params, setParams] = useSearchParams();
   const view = (params.get("view") as TaskView) ?? "all";
   const [q, setQ] = useState("");
-  const [category, setCategory] = useState("");
+  const [label, setLabel] = useState("");
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
-  const categories = useCategories().data ?? [];
-  const { data, error, isFetching } = useTasks({ view, q, category });
+  const { data, error, isFetching } = useTasks({ view, q, label });
   // Tapping a task opens the email it came from, or (for tasks without one) its details.
   const [emailId, setEmailId] = useState<string | null>(null);
   const [details, setDetails] = useState<Task | null>(null);
@@ -65,14 +65,7 @@ export function TasksPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchInput value={q} onChange={setQ} placeholder="Search tasks…" />
-        <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${inputClass} w-auto! min-w-0 max-w-52 sm:max-w-none`} aria-label="Category filter">
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <LabelFilter value={label} onChange={setLabel} />
         {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
       </div>
 
@@ -83,7 +76,7 @@ export function TasksPage() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {data.tasks.map((t) => (
-              <TaskRow key={t.id} task={t} today={data.today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
+              <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
             ))}
           </ul>
         )}

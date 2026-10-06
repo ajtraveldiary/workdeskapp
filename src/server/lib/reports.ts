@@ -47,7 +47,7 @@ export async function ensureReportPeriods(db: DB, today: string, userId?: string
           notes: r.notes,
           dueDate: p.dueDate,
           priority: r.priority,
-          categoryId: r.categoryId,
+          labelIds: r.labelIds,
           reportPeriodId: p.id,
         };
       }),

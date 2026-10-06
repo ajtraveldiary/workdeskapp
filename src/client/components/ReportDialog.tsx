@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import type { Frequency, Priority, Report } from "../../shared/types";
 import { FREQUENCY_LABEL, defaultFirstPeriod, periodsFrom, ruleText, type ScheduleRule } from "../../shared/reportSchedule";
-import { useCategories, useCreateReport, useMe, useUpdateReport } from "../api";
+import { useCreateReport, useMe, useUpdateReport } from "../api";
+import { LabelField } from "./LabelChips";
 import { addDays, formatDay } from "../format";
 import { Button, ErrorNote, Field, Modal, inputClass } from "./ui";
 
@@ -17,7 +18,6 @@ export function ReportDialog({ mode, onClose }: { mode: ReportDialogMode | null;
 
 function ReportForm({ mode, onDone }: { mode: ReportDialogMode; onDone: () => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
-  const categories = useCategories().data ?? [];
   const r = mode.kind === "edit" ? mode.report : null;
 
   const [name, setName] = useState(r?.name ?? "");
@@ -27,7 +27,7 @@ function ReportForm({ mode, onDone }: { mode: ReportDialogMode; onDone: () => vo
   const [yearStartMonth, setYearStartMonth] = useState(r?.yearStartMonth ?? 4);
   const [leadDays, setLeadDays] = useState(r?.leadDays ?? 7);
   const [priority, setPriority] = useState<Priority>(r?.priority ?? "high");
-  const [categoryId, setCategoryId] = useState(r?.categoryId ?? "");
+  const [labelIds, setLabelIds] = useState<string[]>(r?.labelIds ?? []);
   const [responsible, setResponsible] = useState(r?.responsible ?? "");
   const [notes, setNotes] = useState(r?.notes ?? "");
   // Until the user picks one, the first period follows the rule: the earliest period not yet due.
@@ -52,7 +52,7 @@ function ReportForm({ mode, onDone }: { mode: ReportDialogMode; onDone: () => vo
       yearStartMonth,
       leadDays,
       priority,
-      categoryId: categoryId || null,
+      labelIds,
       responsible: responsible.trim() || null,
       firstPeriodStart,
     };
@@ -134,20 +134,13 @@ function ReportForm({ mode, onDone }: { mode: ReportDialogMode; onDone: () => vo
             <PrioritySelect value={priority} onChange={setPriority} />
           </Field>
         )}
-        <Field label="Category">
-          <select className={inputClass} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">None</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </Field>
         <Field label="Responsible (optional)">
           <input className={inputClass} value={responsible} onChange={(e) => setResponsible(e.target.value)} placeholder="Person or section" />
         </Field>
       </div>
+      <Field label="Labels (given to each period's task)">
+        <LabelField value={labelIds} onChange={setLabelIds} />
+      </Field>
 
       <Field label="Notes (copied into each task)">
         <textarea className="min-h-16 w-full rounded-lg border border-line px-3 py-2 text-sm focus:border-brand-200" value={notes} onChange={(e) => setNotes(e.target.value)} />

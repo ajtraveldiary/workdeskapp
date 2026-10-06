@@ -32,6 +32,7 @@ export function selectTasks(db: DB) {
         fromName: emailThreads.fromName,
         fromEmail: emailThreads.fromEmail,
         hasNewActivity: emailThreads.hasNewActivity,
+        labelIds: emailThreads.labelIds,
       },
       report: {
         reportId: reports.id,
@@ -50,6 +51,8 @@ export function selectTasks(db: DB) {
 type Row = Awaited<ReturnType<ReturnType<typeof selectTasks>["execute"]>>[number];
 
 export function toTask({ task, thread, report }: Row): Task {
+  // A task from an email shows the email's Gmail labels; one without an email has its own.
+  const { labelIds: threadLabels, ...threadInfo } = thread ?? { labelIds: null };
   return {
     id: task.id,
     title: task.title,
@@ -58,10 +61,10 @@ export function toTask({ task, thread, report }: Row): Task {
     dueTime: task.dueTime,
     priority: task.priority,
     status: task.status,
-    categoryId: task.categoryId,
+    labelIds: thread?.id ? (threadLabels ?? []) : task.labelIds,
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
-    thread: thread?.id ? (thread as Task["thread"]) : null,
+    thread: thread?.id ? (threadInfo as Task["thread"]) : null,
     report: report?.periodId ? (report as Task["report"]) : null,
   };
 }
@@ -120,8 +123,9 @@ export const taskRoutes = new Hono<AppEnv>()
     const where: (SQL | undefined)[] = [eq(tasks.userId, c.get("userId")), viewFilter(view, today)];
     const q = c.req.query("q")?.trim();
     if (q) where.push(or(ilike(tasks.title, `%${q}%`), ilike(tasks.notes, `%${q}%`), ilike(emailThreads.subject, `%${q}%`)));
-    const category = c.req.query("category");
-    if (category) where.push(eq(tasks.categoryId, category));
+    // Label filter: the email's labels for tasks from an email, the task's own otherwise.
+    const label = c.req.query("label");
+    if (label) where.push(sql`${label} = any(coalesce(${emailThreads.labelIds}, ${tasks.labelIds}))`);
 
     const rows = await selectTasks(db)
       .where(and(...where))
@@ -147,6 +151,9 @@ export const taskRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const input = taskPatch.parse(await c.req.json());
     const t = await loadTask(db, userId, c.req.param("id"));
+    if (input.labelIds !== undefined && t.threadId) {
+      throw new HTTPException(400, { message: "This task uses its email's labels; change them on the email" });
+    }
     // Only the fields sent are changed. Removing the due date also removes its time.
     await db
       .update(tasks)

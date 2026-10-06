@@ -54,7 +54,7 @@ export const reportRoutes = new Hono<AppEnv>()
       yearStartMonth: r.yearStartMonth,
       leadDays: r.leadDays,
       priority: r.priority,
-      categoryId: r.categoryId,
+      labelIds: r.labelIds,
       responsible: r.responsible,
       firstPeriodStart: r.firstPeriodStart,
       active: r.active,
@@ -97,6 +97,13 @@ export const reportRoutes = new Hono<AppEnv>()
     const merged = { ...r, ...input };
     const set = { ...input, updatedAt: new Date(), ...(input.firstPeriodStart ? { firstPeriodStart: alignedStart(merged, input.firstPeriodStart) } : {}) };
     await db.update(reports).set(set).where(eq(reports.id, r.id));
+    // New labels also go on the report's open tasks (completed ones keep theirs).
+    if (input.labelIds) {
+      await db
+        .update(tasks)
+        .set({ labelIds: input.labelIds, updatedAt: new Date() })
+        .where(and(eq(tasks.status, "open"), inArray(tasks.reportPeriodId, db.select({ id: reportPeriods.id }).from(reportPeriods).where(eq(reportPeriods.reportId, r.id)))));
+    }
     const action = input.active === false && r.active ? "report.paused" : input.active === true && !r.active ? "report.resumed" : "report.updated";
     const summary = action === "report.paused" ? "Paused" : action === "report.resumed" ? "Resumed" : "Report settings changed";
     await db.insert(events).values({ userId, entityType: "report", entityId: r.id, action, summary, detail: { title: merged.name } });

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
-import { categories, emailThreads, events, gmailAccounts, mutedSenders, reportPeriods, tasks, users } from "../db/schema";
+import { emailThreads, events, gmailAccounts, mutedSenders, reportPeriods, tasks, users } from "../db/schema";
 import { timezone } from "../env";
 import { addDays, todayIn } from "../lib/dates";
 import { syncUser, wakeSnoozed } from "../lib/sync";
@@ -10,7 +10,7 @@ import { demoArrival } from "../lib/users";
 import { maintain } from "../lib/maintenance";
 import { notMuted } from "../lib/muted";
 import { canMarkRead } from "../lib/gmail";
-import { categoryInput, mutedSenderInput } from "../../shared/schemas";
+import { mutedSenderInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
 import { openTaskOrder, selectTasks, toTask, viewFilter } from "./tasks";
@@ -144,36 +144,6 @@ export const miscRoutes = new Hono<AppEnv>()
       .orderBy(desc(events.createdAt))
       .limit(100);
     return c.json({ events: rows });
-  })
-
-  .get("/categories", async (c) => {
-    const rows = await c
-      .get("db")
-      .select({ id: categories.id, name: categories.name, sortOrder: categories.sortOrder })
-      .from(categories)
-      .where(eq(categories.userId, c.get("userId")))
-      .orderBy(asc(categories.sortOrder), asc(categories.name));
-    return c.json({ categories: rows });
-  })
-
-  .post("/categories", async (c) => {
-    const { name } = categoryInput.parse(await c.req.json());
-    const [row] = await c
-      .get("db")
-      .insert(categories)
-      .values({ userId: c.get("userId"), name, sortOrder: 100 })
-      .onConflictDoNothing()
-      .returning();
-    if (!row) throw new HTTPException(409, { message: "That category already exists" });
-    return c.json(row, 201);
-  })
-
-  .delete("/categories/:id", async (c) => {
-    await c
-      .get("db")
-      .delete(categories)
-      .where(and(eq(categories.id, c.req.param("id")), eq(categories.userId, c.get("userId"))));
-    return c.json({ ok: true });
   })
 
   // --- Settings > Mail: senders hidden from Pending ---

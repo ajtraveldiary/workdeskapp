@@ -1,17 +1,13 @@
 import { and, eq, lt } from "drizzle-orm";
 import type { DB } from "../db";
-import { categories, reportPeriods, reports, users } from "../db/schema";
+import { reportPeriods, reports, users } from "../db/schema";
 import { applySnapshots, type ThreadSnapshot } from "./sync";
 import { ensureReportPeriods, setPeriodStatus } from "./reports";
-
-// Examples from the plan; editable on the Settings screen.
-const DEFAULT_CATEGORIES = ["Establishment", "Accounts", "NHM", "HMC", "Pharmacy", "General Administration"];
 
 export async function ensureUser(db: DB, email: string, name?: string | null) {
   const [found] = await db.select().from(users).where(eq(users.email, email));
   if (found) return { user: found, created: false };
   const [user] = await db.insert(users).values({ email, name: name ?? null }).returning();
-  await db.insert(categories).values(DEFAULT_CATEGORIES.map((n, i) => ({ userId: user!.id, name: n, sortOrder: i })));
   return { user: user!, created: true };
 }
 

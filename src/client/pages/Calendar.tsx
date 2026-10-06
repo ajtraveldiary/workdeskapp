@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import type { Task } from "../../shared/types";
-import { useCategories, useMe, useRangeTasks, useThread } from "../api";
+import { useMe, useRangeTasks, useThread } from "../api";
 import { EmailViewer } from "../components/EmailViewer";
 import { TaskDetails } from "../components/TaskDetails";
 import { addDays, formatTime } from "../format";
@@ -48,7 +48,6 @@ export function CalendarPage() {
   const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
   const days = gridDays(month);
   const { data } = useRangeTasks(days[0]!, days.at(-1)!);
-  const categories = useCategories().data ?? [];
 
   const byDay = new Map<string, Task[]>();
   for (const t of data?.tasks ?? []) {
@@ -154,7 +153,7 @@ export function CalendarPage() {
           ) : (
             <ul className="divide-y divide-line">
               {selectedTasks.map((t) => (
-                <TaskRow key={t.id} task={t} today={today} categories={categories} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
+                <TaskRow key={t.id} task={t} today={today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
               ))}
             </ul>
           )}

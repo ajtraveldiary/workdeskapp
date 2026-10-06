@@ -1,24 +1,22 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AlarmClock, ExternalLink, ListPlus, Undo2, X } from "lucide-react";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
-import type { Category, Thread } from "../../shared/types";
+import type { Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
-import { useDismiss, useRestore, useSetThreadCategory, useSnooze } from "../api";
+import { useDismiss, useRestore, useSnooze } from "../api";
 import { formatDateTime, formatWhen } from "../format";
 import { Button, Modal, cx } from "./ui";
 import { EmailStatusTags } from "./EmailStatus";
-import { LabelChips } from "./LabelChips";
+import { LabelChips, LabelPicker } from "./LabelChips";
 
 export function ThreadRow({
   thread,
-  categories,
   selected,
   onSelect,
   onCreateTask,
   onOpen,
 }: {
   thread: Thread;
-  categories: Category[];
   selected?: boolean;
   onSelect?: (checked: boolean) => void;
   onCreateTask: (t: Thread) => void;
@@ -27,7 +25,9 @@ export function ThreadRow({
 }) {
   const dismiss = useDismiss();
   const restore = useRestore();
-  const setCategory = useSetThreadCategory();
+  // Labels follow the picker straight away; the list refreshes from the server.
+  const [labelIds, setLabelIds] = useState(thread.labelIds);
+  useEffect(() => setLabelIds(thread.labelIds), [thread.labelIds]);
   const gmailUrl = gmailThreadUrl(thread.accountEmail, thread.gmailThreadId);
   const inQueue = thread.state === "needs_decision";
   // Phones: swipe right to make a task (or restore), left for Gmail / snooze / dismiss; the button bar goes away.
@@ -74,7 +74,7 @@ export function ThreadRow({
           <span className="ml-auto shrink-0 text-xs text-slate-500 tabular-nums">{formatWhen(thread.lastMessageAt)}</span>
         </div>
         <p className={cx("truncate transition-colors group-hover/title:text-brand-700", thread.unread ? "font-semibold text-slate-900" : "font-medium text-slate-800")}>{thread.subject}</p>
-        <LabelChips ids={thread.labelIds} className="mt-1" />
+        <LabelChips ids={labelIds} className="mt-1" />
         <p className="line-clamp-1 text-sm text-slate-500">{thread.snippet}</p>
         </OpenArea>
 
@@ -110,19 +110,9 @@ export function ThreadRow({
           ) : (
             <span className="hidden px-1 text-xs text-slate-400 sm:inline">Demo email</span>
           )}
-          <select
-            value={thread.categoryId ?? ""}
-            onChange={(e) => setCategory.mutate({ id: thread.id, categoryId: e.target.value || null })}
-            aria-label="Category"
-            className="ml-auto h-8 w-24 rounded-md sm:w-auto sm:max-w-40 border border-transparent bg-transparent px-1.5 text-xs text-slate-500 hover:border-slate-200 pointer-coarse:h-9 pointer-coarse:border-line"
-          >
-            <option value="">Category</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          <div className="ml-auto">
+            <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} compact />
+          </div>
         </div>
       </div>
       <SnoozeSheet id={snoozing ? thread.id : null} onClose={() => setSnoozing(false)} />

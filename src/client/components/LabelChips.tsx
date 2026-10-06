@@ -1,6 +1,9 @@
-import type { Label } from "../../shared/types";
-import { useLabels } from "../api";
-import { cx } from "./ui";
+import { useEffect, useRef, useState } from "react";
+import { Check, Tag } from "lucide-react";
+import { Link } from "react-router";
+import type { Label, Thread } from "../../shared/types";
+import { useLabels, useSetThreadLabels } from "../api";
+import { Button, cx, inputClass } from "./ui";
 
 // Gmail labels on an email, in their Gmail colours. Nested labels ("Parent/Child") show their full path.
 export function LabelChip({ label, className }: { label: Label; className?: string }) {
@@ -26,5 +29,118 @@ export function LabelChips({ ids, max = 3, className }: { ids: string[]; max?: n
       ))}
       {shown.length > max && <span className="text-[0.6875rem] text-slate-500">+{shown.length - max}</span>}
     </span>
+  );
+}
+
+// Labels replace the old categories (user request 2026-10-06): they are the user's Gmail labels everywhere.
+
+// Form field for things without an email (tasks made by hand, reports): tap labels on or off; saved with the
+// form and kept in WorkDesk only.
+export function LabelField({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
+  const labels = useLabels().data?.labels;
+  if (!labels) return <p className="text-sm text-slate-500">Loading labels…</p>;
+  if (labels.length === 0)
+    return (
+      <p className="text-sm text-slate-500">
+        No labels yet. <Link to="/settings#mail" className="font-medium text-brand-700 underline">Create labels</Link>
+      </p>
+    );
+  return (
+    <div className="flex flex-wrap gap-2">
+      {labels.map((l) => {
+        const on = value.includes(l.id);
+        return (
+          <button
+            key={l.id}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(on ? value.filter((x) => x !== l.id) : [...value, l.id])}
+            className={cx("inline-flex items-center gap-1 rounded-full border px-1 py-0.5 transition active:scale-[0.97]", on ? "border-brand-500 ring-1 ring-brand-500" : "border-line opacity-70 hover:opacity-100")}
+          >
+            {on && <Check size={12} strokeWidth={3} className="ml-0.5 text-brand-600" />}
+            <LabelChip label={l} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// "All labels" filter for task and email lists.
+export function LabelFilter({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const labels = useLabels().data?.labels ?? [];
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} w-auto! min-w-0 max-w-52 sm:max-w-none`} aria-label="Label filter">
+      <option value="">All labels</option>
+      {labels.map((l) => (
+        <option key={l.id} value={l.id}>
+          {l.name}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+// Add or remove the user's Gmail labels on this conversation (changes Gmail too). Each tap applies at once.
+// Also used on email rows and in the task form for tasks made from an email.
+export function LabelPicker({ thread, selected, onChange, compact }: { thread: Pick<Thread, "id">; selected: string[]; onChange: (ids: string[]) => void; compact?: boolean }) {
+  const { data } = useLabels();
+  const setLabels = useSetThreadLabels();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const toggle = (id: string) => {
+    const on = selected.includes(id);
+    const next = on ? selected.filter((x) => x !== id) : [...selected, id];
+    onChange(next);
+    setLabels.mutate({ id: thread.id, add: on ? [] : [id], remove: on ? [id] : [] }, { onError: () => onChange(selected) });
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button size="sm" type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Labels" aria-label="Labels">
+        <Tag size={15} /> <span className={compact ? "sr-only" : "hidden sm:inline"}>Labels</span>
+      </Button>
+      {open && (
+        <div className="absolute right-0 z-30 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white p-1 shadow-xl">
+          <p className="px-3 pt-2 pb-1 text-xs text-slate-500">Labels on this email (changes Gmail too)</p>
+          {!data ? (
+            <p className="px-3 py-3 text-sm text-slate-500">Loading…</p>
+          ) : !data.canEdit ? (
+            <p className="px-3 py-3 text-sm text-slate-600">
+              <a href="/api/auth/google" className="font-medium text-brand-700 underline">Sign in again</a> to let WorkDesk change labels.
+            </p>
+          ) : data.labels.length === 0 ? (
+            <p className="px-3 py-3 text-sm text-slate-500">No labels yet.</p>
+          ) : (
+            <ul className="scroll-thin max-h-72 overflow-y-auto">
+              {data.labels.map((l) => {
+                const on = selected.includes(l.id);
+                return (
+                  <li key={l.id}>
+                    <button onClick={() => toggle(l.id)} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50" aria-pressed={on}>
+                      <span className={cx("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300")}>
+                        {on && <Check size={11} strokeWidth={3} />}
+                      </span>
+                      <LabelChip label={l} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {setLabels.error && <p className="px-3 py-2 text-xs text-urgent-ink">{setLabels.error.message}</p>}
+          <Link to="/settings#mail" className="mt-1 block border-t border-line px-3 py-2 text-[0.8125rem] font-medium text-brand-700 hover:bg-slate-50">
+            Manage labels
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,9 +1,10 @@
 // Read-only view of a task, with what was entered when it was created. Used for tasks that didn't come
 // from an email (made by hand, or by a recurring report).
-import { CalendarDays, Check, Clock, FileText, FolderOpen, Pencil, RotateCcw, StickyNote } from "lucide-react";
+import { CalendarDays, Check, Clock, FileText, Pencil, RotateCcw, StickyNote, Tag } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Task } from "../../shared/types";
-import { useCategories, useCompleteTask, useMe, useReopenTask } from "../api";
+import { useCompleteTask, useMe, useReopenTask } from "../api";
+import { LabelChips } from "./LabelChips";
 import { formatDateTime, formatDay, formatTime } from "../format";
 import { Badge, Button, Modal, PriorityPill } from "./ui";
 
@@ -17,7 +18,6 @@ export function TaskDetails({ task, onClose, onEdit }: { task: Task | null; onCl
 
 function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; onEdit: (t: Task) => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
-  const category = useCategories().data?.find((c) => c.id === task.categoryId)?.name;
   const complete = useCompleteTask();
   const reopen = useReopenTask();
   const done = task.status === "done";
@@ -49,8 +49,8 @@ function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; o
             <span className="text-slate-500">No due date</span>
           )}
         </Row>
-        <Row icon={FolderOpen} label="Category">
-          {category ?? <span className="text-slate-500">None</span>}
+        <Row icon={Tag} label="Labels">
+          {task.labelIds.length ? <LabelChips ids={task.labelIds} max={8} /> : <span className="text-slate-500">None</span>}
         </Row>
         {task.report && (
           <Row icon={FileText} label="Report">
