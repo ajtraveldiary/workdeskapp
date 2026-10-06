@@ -4,7 +4,6 @@ import {
   ArrowRight,
   CalendarDays,
   CircleCheck,
-  Clock,
   ExternalLink,
   FileText,
   ListChecks,
@@ -31,12 +30,13 @@ import {
   useThread,
   useThreads,
 } from "../api";
-import { formatDay, formatTime, formatWhen } from "../format";
+import { formatWhen } from "../format";
 import { SnoozeMenu } from "../components/ThreadRow";
 import { EmailStatusTags } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
 import { TaskDetails } from "../components/TaskDetails";
+import { EditableDue, EditablePriority, dueTone } from "../components/InlineTaskEdit";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Button, CheckCircle, Menu, PRIORITY_BAR, PriorityPill, Segmented, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
@@ -288,32 +288,6 @@ function useTaskActions(task: Task) {
   return { done, toggle, busy: complete.isPending || reopen.isPending, gmailUrl, markSeen: () => task.thread && seen.mutate(task.thread.id) };
 }
 
-// Overdue = red, today = orange, later = blue, done or undated = neutral.
-function dueTone(task: Task, today: string): Tone {
-  if (task.status === "done" || !task.dueDate) return "neutral";
-  if (task.dueDate < today) return "urgent";
-  if (task.dueDate === today) return "high";
-  return "info";
-}
-
-function DueChips({ task, today }: { task: Task; today: string }) {
-  if (!task.dueDate) return <span className="text-xs text-slate-400">No date</span>;
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-[13px]">
-      <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5", TONE[dueTone(task, today)].soft)}>
-        <CalendarDays size={14} className="shrink-0" />
-        {formatDay(task.dueDate, today)}
-      </span>
-      {task.dueTime && (
-        <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-1.5 py-0.5 text-slate-700">
-          <Clock size={14} className="shrink-0" />
-          {formatTime(task.dueTime)}
-        </span>
-      )}
-    </div>
-  );
-}
-
 function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit: (t: Task) => void }) {
   const categories = useCategories().data ?? [];
   const a = useTaskActions(task);
@@ -330,8 +304,8 @@ function CommandRow({ task, today, onEdit }: { task: Task; today: string; onEdit
           {task.thread?.hasNewActivity && <span className="mt-1 inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-medium text-brand-800">New reply</span>}
         </button>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:mt-2 @lg:mt-0 @lg:shrink-0">
-          <DueChips task={task} today={today} />
-          <PriorityPill priority={task.priority} />
+          <EditableDue task={task} today={today} layout="split" />
+          <EditablePriority task={task} />
         </div>
       </div>
       <Menu
@@ -463,15 +437,20 @@ function TodoRow({
           <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-[13px]">{context}</span>
         </button>
         <div className="mt-1.5 flex items-center justify-between gap-2 sm:mt-2">
-          <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap sm:text-[13px]", TONE[dueTone(task, today)].soft)}>
-            <CalendarDays size={14} />
-            {a.done && task.completedAt
-              ? `Done ${formatWhen(task.completedAt)}`
-              : task.dueDate
-                ? `${formatDay(task.dueDate, today)}${task.dueTime ? `, ${formatTime(task.dueTime)}` : ""}`
-                : "No date"}
-          </span>
-          <PriorityPill priority={task.priority} />
+          {a.done ? (
+            <>
+              <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap sm:text-[13px]", TONE[dueTone(task, today)].soft)}>
+                <CalendarDays size={14} />
+                {task.completedAt ? `Done ${formatWhen(task.completedAt)}` : "Done"}
+              </span>
+              <PriorityPill priority={task.priority} />
+            </>
+          ) : (
+            <>
+              <EditableDue task={task} today={today} layout="joined" />
+              <EditablePriority task={task} />
+            </>
+          )}
         </div>
       </div>
       <Menu
