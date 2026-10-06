@@ -608,15 +608,6 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
           ]}
         />
       </TabsRow>
-      {pending && hidden > 0 && (
-        <p className="mx-3 mt-2 text-xs text-slate-500 sm:mx-5">
-          {hidden} hidden by{" "}
-          <Link to="/settings#mail" className="font-medium text-brand-700 hover:underline">
-            Settings › Mail
-          </Link>{" "}
-          · see All emails
-        </p>
-      )}
       {live.length > 0 && (
         <div className="mx-5 mt-3 flex items-center justify-between gap-2 rounded-lg bg-tint px-3 py-2 text-sm">
           <span className="text-brand-800">{live.length} selected</span>
