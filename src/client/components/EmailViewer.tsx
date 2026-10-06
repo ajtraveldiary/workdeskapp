@@ -716,12 +716,14 @@ type EmailShare = {
   ready: boolean;
   preparing: boolean;
   go: () => void;
-  // Several attachments: Share first asks which ones to send (user request 2026-10-06).
+  // Share always opens a pop-up first (user request 2026-10-06): which attachments, and the message text.
   choosing: boolean;
-  files: globalThis.File[];
-  left: string[];
+  files: globalThis.File[]; // attachments the phone can share
+  left: string[]; // attachments that can't go (too large, refused, or no file sharing here), by name
+  caption: string; // the suggested message: bold subject and the email, hidden text left out
+  canShare: boolean; // false: no share menu (some computers), so the text is copied instead
   closeChooser: () => void;
-  send: (chosen: globalThis.File[]) => void;
+  send: (chosen: globalThis.File[], text: string) => void;
 };
 
 function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: FileSel[]): EmailShare {
@@ -771,14 +773,15 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: F
   const preparing = wantFiles && prepared === null;
   const [choosing, setChoosing] = useState(false);
   const shareable = wantFiles && prepared ? prepared.files : [];
-  // Opens the phone's share sheet. iOS only allows that straight from a tap, which is why the files are
-  // fetched in advance: both the Share button and the chooser's Share call this directly from the tap.
-  const send = (sharedFiles: globalThis.File[], chosen: boolean) => {
+  // Attachments that can't go with the message are named in it: the ones the phone can't share, or all of
+  // them where files can't be shared at all. Files the user simply unticks are not named.
+  const left = wantFiles ? (prepared?.left ?? []) : files.map((f) => f.attachment.filename);
+  const caption = shareText(thread, messages[0], left, hidden, wantFiles ? "Not attached" : "Attachments");
+  // Opens the phone's share sheet with the chosen files and the (edited) message. iOS only allows that
+  // straight from a tap, which is why the files are fetched in advance; the pop-up's Share button calls
+  // this directly from its tap.
+  const send = (sharedFiles: globalThis.File[], text: string) => {
     setChoosing(false);
-    // Newest message's text; files that can't go with it are listed by name. Files the user left out in the
-    // chooser are not named.
-    const names = sharedFiles.length || chosen ? (prepared?.left ?? []) : files.map((f) => f.attachment.filename);
-    const text = shareText(thread, messages[0], names, hidden, sharedFiles.length || chosen ? "Not attached" : "Attachments");
     if (canShare) {
       navigator
         .share(sharedFiles.length ? { files: sharedFiles, text } : { title: thread.subject, text })
@@ -791,8 +794,7 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: F
       .then(() => showUndo({ message: "Email copied. Paste it anywhere." }))
       .catch(() => showUndo({ message: "Couldn't copy the email." }));
   };
-  // Two or more files that can be shared: ask which ones first; otherwise share straight away.
-  const go = () => (shareable.length > 1 ? setChoosing(true) : send(shareable, false));
+  const go = () => setChoosing(true);
   const listReady = snippets.isSuccess || snippets.isError; // a failed list shouldn't block sharing for good
   return {
     ready: loaded && !preparing && listReady,
@@ -800,17 +802,20 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: F
     go,
     choosing,
     files: shareable,
-    left: prepared?.left ?? [],
+    left,
+    caption,
+    canShare,
     closeChooser: () => setChoosing(false),
-    send: (chosen) => send(chosen, true),
+    send,
   };
 }
 
-// Which attachments to share (user request 2026-10-06): all ticked to start with; a phone sheet like the
-// other pop-ups. Files that can't be shared (too large, or refused by the phone) are listed, greyed out.
+// The Share pop-up (user requests 2026-10-06), opened by every Share: tick which attachments go (all to start
+// with; ones that can't be shared are greyed out) and edit the message before the share sheet opens. A form,
+// so a stray tap outside doesn't close it and lose the edits.
 function ShareChooser({ share }: { share: EmailShare }) {
   return (
-    <Modal open={share.choosing} onClose={share.closeChooser} title="Share attachments" closeOnBackdrop>
+    <Modal open={share.choosing} onClose={share.closeChooser} title="Share email">
       {share.choosing && <ShareChooserBody share={share} />}
     </Modal>
   );
@@ -818,6 +823,8 @@ function ShareChooser({ share }: { share: EmailShare }) {
 
 function ShareChooserBody({ share }: { share: EmailShare }) {
   const [picked, setPicked] = useState<Set<globalThis.File>>(() => new Set(share.files));
+  const [text, setText] = useState(share.caption);
+  const hasFiles = share.files.length + share.left.length > 0;
   const all = picked.size === share.files.length;
   const toggle = (f: globalThis.File) =>
     setPicked((prev) => {
@@ -830,6 +837,7 @@ function ShareChooserBody({ share }: { share: EmailShare }) {
   const size = chosen.reduce((n, f) => n + f.size, 0);
   return (
     <div className="space-y-3">
+      {share.files.length > 0 && (
       <label className="flex items-center gap-2.5 text-sm text-slate-600">
         <input
           type="checkbox"
@@ -840,8 +848,10 @@ function ShareChooserBody({ share }: { share: EmailShare }) {
           onChange={(e) => setPicked(new Set(e.target.checked ? share.files : []))}
           className="size-4 accent-brand-700 pointer-coarse:size-5"
         />
-        Select all
+        Select all attachments
       </label>
+      )}
+      {hasFiles && (
       <ul className="divide-y divide-line rounded-lg border border-line">
         {share.files.map((f) => {
           const Icon = /\.pdf$/i.test(f.name) ? FileText : f.type.startsWith("image/") ? ImageIcon : /\.(xlsx?|xlsm|ods|csv)$/i.test(f.name) ? FileSpreadsheet : File;
@@ -865,15 +875,42 @@ function ShareChooserBody({ share }: { share: EmailShare }) {
           </li>
         ))}
       </ul>
-      <p className="text-xs text-slate-500">
-        The email text goes with them. {chosen.length ? `${chosen.length} of ${share.files.length} files, ${formatSize(size)}.` : "No files: only the text is shared."}
-      </p>
+      )}
+      {hasFiles && (
+        <p className="text-xs text-slate-500">
+          {share.files.length === 0
+            ? "Files can't be shared from this device; their names are in the message."
+            : chosen.length
+              ? `${chosen.length} of ${share.files.length} ${share.files.length === 1 ? "file" : "files"}, ${formatSize(size)}.`
+              : "No files: only the message is shared."}
+        </p>
+      )}
+      {/* The message (WhatsApp caption), ready to edit (user request 2026-10-06). */}
+      <label className="block">
+        <span className="mb-1 flex items-center justify-between text-sm font-medium text-slate-700">
+          Message
+          {text !== share.caption && (
+            <button type="button" onClick={() => setText(share.caption)} className="text-footnote font-medium text-brand-700 hover:underline active:scale-[0.97]">
+              Reset
+            </button>
+          )}
+        </span>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          data-sheet-scroll
+          rows={7}
+          className="block max-h-[40dvh] min-h-32 w-full resize-y rounded-lg border border-line px-3 py-2 text-sm leading-relaxed outline-none select-text focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        />
+        <span className="mt-1 block text-xs text-slate-500">Text between *stars* shows in bold in WhatsApp.</span>
+      </label>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={share.closeChooser}>
           Cancel
         </Button>
-        <Button type="button" variant="primary" onClick={() => share.send(chosen)}>
-          <Share size={15} /> {chosen.length ? `Share ${chosen.length === 1 ? "1 file" : `${chosen.length} files`}` : "Share text only"}
+        <Button type="button" variant="primary" disabled={!text.trim() && chosen.length === 0} onClick={() => share.send(chosen, text)}>
+          <Share size={15} />{" "}
+          {!share.canShare ? "Copy message" : chosen.length ? `Share ${chosen.length === 1 ? "1 file" : `${chosen.length} files`}` : "Share message"}
         </Button>
       </div>
     </div>
