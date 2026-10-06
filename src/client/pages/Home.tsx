@@ -560,22 +560,10 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
 
   return (
     <Panel>
-      <PanelHeader
-        title={pending ? "Pending Emails" : "All Emails"}
-        action={
-          <div className="flex shrink-0 items-center gap-3">
-            <ViewAll to={pending ? "/inbox" : "/inbox?state=all"} />
-            <RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />
-          </div>
-        }
-      />
-      <TabsRow
-        mobileActions={
-          <>
-          <RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />
-          </>
-        }
-      >
+      {/* Web: the title and the Pending / All emails switch share one line, with View all and refresh at the
+          end (user request 2026-10-06). This card only shows on tablet and wider screens. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 pt-3 sm:px-5 sm:pt-5">
+        <h2 className="text-lg font-semibold whitespace-nowrap text-ink sm:text-xl">{pending ? "Pending Emails" : "All Emails"}</h2>
         <Segmented<EmailTab>
           value={tab}
           onChange={(v) => {
@@ -587,7 +575,11 @@ function EmailsPanel({ onCreateTask }: { onCreateTask: (t: Thread) => void }) {
             { value: "all", label: "All emails", count: total },
           ]}
         />
-      </TabsRow>
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          <ViewAll to={pending ? "/inbox" : "/inbox?state=all"} />
+          <RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />
+        </div>
+      </div>
       {/* One toolbar for the list instead of buttons on every email (user request 2026-10-06). */}
       {!waiting && <EmailBulkBar threads={threads} selected={selected} onSelectedChange={setSelected} onCreateTask={onCreateTask} className="px-3 pt-2.5 sm:px-5" />}
       <Scroll>
