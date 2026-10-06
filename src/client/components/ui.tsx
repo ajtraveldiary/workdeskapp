@@ -195,6 +195,8 @@ export function Segmented<T extends string>({
           onClick={() => onChange(o.value)}
           className={cx(
             "inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[0.8125rem] whitespace-nowrap transition active:scale-[0.97]",
+            // Phones: one-row tabs share the width evenly so a few of them fit without scrolling.
+            oneRow && "max-sm:flex-1 max-sm:justify-center max-sm:px-2",
             value === o.value
               ? "border-brand-200 bg-tint font-medium text-brand-800"
               : "border-line bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-ink",

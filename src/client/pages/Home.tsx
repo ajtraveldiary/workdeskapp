@@ -232,12 +232,10 @@ function CommandCenter({
   const openTask = (t: Task) => setDetails(t);
   const [tab, setTab] = useState<CommandTab>(counts.dueToday || !counts.overdue ? "today" : "overdue");
   const view: TaskView = tab;
-  // Phones have no tabs (user request 2026-10-06): one list, overdue first, then today. Wider screens use
-  // the tabs; there both calls share the tab's query, so nothing extra is fetched.
+  // Phones get the Today / Overdue / Upcoming tabs too (user request 2026-10-06); Reminders has its own
+  // bottom-bar tab there.
   const phone = usePhoneWidth();
-  const main = useTasks({ view: phone ? "today" : view });
-  const late = useTasks({ view: phone ? "overdue" : view });
-  const data = phone ? (main.data && late.data ? { ...main.data, tasks: [...late.data.tasks, ...main.data.tasks] } : undefined) : main.data;
+  const { data } = useTasks({ view });
   const tasks = data?.tasks ?? [];
 
   return (
@@ -251,13 +249,8 @@ function CommandCenter({
           </div>
         }
       />
-      {!phone && (
       <TabsRow
-        mobileActions={
-          <>
-          <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Due Today" />
-          </>
-        }
+        mobileActions={phone ? null : <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Due Today" />}
       >
         <Segmented<CommandTab>
           oneRow
@@ -267,13 +260,11 @@ function CommandCenter({
             { value: "today", label: "Today", count: counts.dueToday, tone: "high" },
             { value: "overdue", label: "Overdue", count: counts.overdue, tone: "urgent" },
             { value: "upcoming", label: "Upcoming", count: counts.upcoming, tone: "info" },
-            { value: "reports", label: "Reminders", count: counts.reportTasks },
+            ...(phone ? [] : [{ value: "reports" as const, label: "Reminders", count: counts.reportTasks }]),
           ]}
         />
       </TabsRow>
-      )}
-      {/* Phones: no tabs row above, so the list starts at the top of the panel */}
-      <Scroll className="max-md:mt-0 max-md:border-t-0">
+      <Scroll>
         {!data ? (
           <Loading />
         ) : tasks.length === 0 && tab === "reports" ? (
@@ -281,8 +272,8 @@ function CommandCenter({
             Each reminder's task appears here ahead of its date. <Link to="/reminders" className="font-medium text-brand-700 hover:underline">Set up reminders</Link>
           </Empty>
         ) : tasks.length === 0 ? (
-          <Empty icon={CircleCheck} title={phone ? "Nothing due today or overdue" : tab === "today" ? "Nothing due today" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
-            {phone || tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
+          <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
+            {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
           </Empty>
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
