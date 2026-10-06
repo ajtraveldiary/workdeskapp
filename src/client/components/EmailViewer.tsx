@@ -19,6 +19,7 @@ import { Button, Loading, Modal, Spinner, cx } from "./ui";
 import { showUndo } from "./SwipeRow";
 import { usePullToClose } from "./sheet";
 import { MALAYALAM_FONT } from "../fonts";
+import { ADDRESS_LIST_STYLE, collapseAddressLists, plainAddressLines } from "../addressLists";
 
 const PdfPreview = lazy(() => import("./PdfPreview"));
 
@@ -329,7 +330,7 @@ function MessageBlock({
           {message.html ? (
             <HtmlBody html={showOriginal ? message.html : clean.html!} cids={cids} />
           ) : (
-            <div className="select-text text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">{(showOriginal ? message.text : clean.text) || "(No text in this message)"}</div>
+            <PlainBody text={(showOriginal ? message.text : clean.text) || "(No text in this message)"} />
           )}
           {clean.removed > 0 && (
             <button onClick={() => setShowHidden((v) => !v)} className="mt-2 text-xs font-medium text-slate-500 hover:text-brand-700 hover:underline">
@@ -390,6 +391,35 @@ function FileCard({ active, onOpen, icon, color, name, detail }: { active: boole
   );
 }
 
+// Plain-text email; lines listing many addresses fold into one line that opens on a tap (user request 2026-10-06).
+function PlainBody({ text }: { text: string }) {
+  const folded = useMemo(() => plainAddressLines(text), [text]);
+  const lines = text.split("\n");
+  return (
+    <div className="select-text text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">
+      {folded.size === 0
+        ? text
+        : lines.map((line, i) => {
+            const short = folded.get(i);
+            const nl = i < lines.length - 1 ? "\n" : "";
+            if (!short) return line + nl;
+            return (
+              <details key={i} className="group/addr">
+                <summary className="flex cursor-pointer list-none whitespace-nowrap text-slate-500 [&::-webkit-details-marker]:hidden">
+                  <span className="min-w-0 truncate">{short.names}</span>
+                  <span className="shrink-0 pl-1">
+                    {short.more.trim()} <span className="text-brand-600 group-open/addr:hidden">▸</span>
+                    <span className="hidden text-brand-600 group-open/addr:inline">▾</span>
+                  </span>
+                </summary>
+                {line}
+              </details>
+            );
+          })}
+    </div>
+  );
+}
+
 // HTML email in a sandboxed frame: no scripts or forms, links open in a new tab, and pictures from the
 // internet stay blocked until asked for (they can tell the sender you opened the email).
 function HtmlBody({ html, cids }: { html: string; cids: Record<string, string> }) {
@@ -397,11 +427,12 @@ function HtmlBody({ html, cids }: { html: string; cids: Record<string, string> }
   const [remote, setRemote] = useState(false);
   const hasRemote = /<img[^>]+src\s*=\s*["']?https?:|url\(\s*["']?https?:/i.test(html);
   const srcDoc = useMemo(() => {
-    const body = html.replace(/cid:([^"'\s)>]+)/gi, (m, id: string) => cids[id] ?? m);
+    // Long recipient lists (forwarded "To:" lines) fold into one line (user request 2026-10-06).
+    const body = collapseAddressLists(html.replace(/cid:([^"'\s)>]+)/gi, (m, id: string) => cids[id] ?? m));
     const ext = remote ? " https: http:" : "";
     // font-src 'self': WorkDesk's own Noto Sans Malayalam (user request 2026-10-06).
     const csp = `default-src 'none'; img-src 'self' data:${ext}; style-src 'unsafe-inline'${ext}; font-src 'self' data:${ext}`;
-    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><style>${MALAYALAM_FONT}html,body{margin:0;background:#fff}body{font:14px/1.6 "Segoe UI","Noto Sans Malayalam",system-ui,-apple-system,sans-serif;color:#1c1d26;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}</style></head><body>${body}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><style>${MALAYALAM_FONT}${ADDRESS_LIST_STYLE}html,body{margin:0;background:#fff}body{font:14px/1.6 "Segoe UI","Noto Sans Malayalam",system-ui,-apple-system,sans-serif;color:#1c1d26;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap}</style></head><body>${body}</body></html>`;
   }, [html, cids, remote]);
 
   // Grow the frame to fit the email, so the panel scrolls rather than the frame.
