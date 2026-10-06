@@ -6,7 +6,9 @@ import { createPortal } from "react-dom";
 import { ChevronDown, ChevronLeft, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Maximize2, Paperclip, Share, X } from "lucide-react";
 import type { EmailAttachment, EmailMessageContent, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
-import { attachmentUrl, useDismiss, useEmailContent, useMarkRead } from "../api";
+import { attachmentUrl, useDismiss, useEmailContent, useMarkRead, useSnippets } from "../api";
+import { htmlToText, stripSnippetsFromHtml } from "../snippets";
+import { stripSnippets } from "../../shared/snippets";
 import { formatDateTime } from "../format";
 import { Avatar } from "./Avatar";
 import { EmailStatusTags } from "./EmailStatus";
@@ -325,6 +327,19 @@ function MessageBlock({
 }) {
   const [open, setOpen] = useState(initiallyOpen);
   const name = message.fromName ?? message.fromEmail ?? "Unknown sender";
+  // Settings > Mail > Hidden text: saved snippets (signatures, disclaimers) are left out, with a way to show them.
+  const hidden = useSnippets().data;
+  const [showHidden, setShowHidden] = useState(false);
+  const clean = useMemo(() => {
+    const list = (hidden ?? []).map((x) => x.text);
+    if (message.html) {
+      const r = stripSnippetsFromHtml(message.html, list);
+      return { html: r.html, text: null, removed: r.removed };
+    }
+    const r = stripSnippets(message.text ?? "", list);
+    return { html: null, text: r.text, removed: r.removed };
+  }, [message, hidden]);
+  const showOriginal = showHidden || clean.removed === 0;
   const files = message.attachments.filter((a) => !a.inline);
   const cids = useMemo(
     () => Object.fromEntries(message.attachments.filter((a) => a.contentId).map((a) => [a.contentId!, attachmentUrl(threadId, message.id, a.partId)])),
@@ -352,9 +367,14 @@ function MessageBlock({
       {open && (
         <div className="border-t border-line px-4 py-4">
           {message.html ? (
-            <HtmlBody html={message.html} cids={cids} />
+            <HtmlBody html={showOriginal ? message.html : clean.html!} cids={cids} />
           ) : (
-            <div className="text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">{message.text || "(No text in this message)"}</div>
+            <div className="text-sm leading-relaxed break-words whitespace-pre-wrap text-ink">{(showOriginal ? message.text : clean.text) || "(No text in this message)"}</div>
+          )}
+          {clean.removed > 0 && (
+            <button onClick={() => setShowHidden((v) => !v)} className="mt-2 text-xs font-medium text-slate-500 hover:text-brand-700 hover:underline">
+              {showHidden ? "Hide saved text again" : `Show hidden text (${clean.removed})`}
+            </button>
           )}
 
           {files.length > 0 && (
@@ -584,14 +604,11 @@ function AttachmentViewer({ open, onClose, attachment: a, url, downloadUrl }: { 
 const SHARE_MAX_BYTES = 25 * 1024 * 1024; // larger attachment sets are shared as text only
 const CAPTION_CHARS = 900; // WhatsApp captions are limited; long emails are cut with "…"
 
-function htmlToText(html: string) {
-  const marked = html.replace(/<(br|\/p|\/div|\/tr|\/li|\/h[1-6])[^>]*>/gi, "\n");
-  return new DOMParser().parseFromString(marked, "text/html").body.textContent ?? "";
-}
 
-function shareText(thread: Thread, m: EmailMessageContent | undefined, attachmentNames: string[]) {
+function shareText(thread: Thread, m: EmailMessageContent | undefined, attachmentNames: string[], hidden: string[]) {
   const from = m ? (m.fromName && m.fromEmail ? `${m.fromName} <${m.fromEmail}>` : (m.fromName ?? m.fromEmail ?? "")) : (thread.fromName ?? thread.fromEmail ?? "");
   let body = (m ? (m.text ?? (m.html ? htmlToText(m.html) : "")) : thread.snippet).replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  body = stripSnippets(body, hidden).text; // Settings > Mail > Hidden text
   if (body.length > CAPTION_CHARS) body = `${body.slice(0, CAPTION_CHARS).trimEnd()}…`;
   return [
     `*${thread.subject}*`,
@@ -609,6 +626,7 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: S
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
   const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   const [prepared, setPrepared] = useState<globalThis.File[] | null>(null);
+  const hidden = (useSnippets().data ?? []).map((x) => x.text);
   const loaded = messages.length > 0;
   const total = files.reduce((n, f) => n + f.attachment.size, 0);
   const wantFiles = canShare && touch && files.length > 0 && total <= SHARE_MAX_BYTES && typeof navigator.canShare === "function";
@@ -634,7 +652,7 @@ function useEmailShare(thread: Thread, messages: EmailMessageContent[], files: S
   const go = () => {
     const sharedFiles = wantFiles && prepared && prepared.length ? prepared : [];
     // Newest message's text; file names are listed only when the files themselves can't go with it.
-    const text = shareText(thread, messages[0], sharedFiles.length ? [] : files.map((f) => f.attachment.filename));
+    const text = shareText(thread, messages[0], sharedFiles.length ? [] : files.map((f) => f.attachment.filename), hidden);
     if (canShare) {
       navigator
         .share(sharedFiles.length ? { files: sharedFiles, text } : { title: thread.subject, text })

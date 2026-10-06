@@ -76,6 +76,8 @@ export function normalizeSenderPattern(raw: string): string | null {
   return domain && /^@[^\s@<>]+\.[^\s@<>]+$/.test(domain) ? domain : null;
 }
 
+export const snippetInput = z.object({ text: z.string().trim().min(3, "Too short to hide safely").max(2000) });
+
 export const mutedSenderInput = z.object({
   pattern: z
     .string()

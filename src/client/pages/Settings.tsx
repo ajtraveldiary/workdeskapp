@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Pencil, RefreshCw, ShieldCheck, Tag, Trash2, X } from "lucide-react";
-import { useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useTaskLabelSettings } from "../api";
+import { Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
+import { useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useSnippetActions, useSnippets, useTaskLabelSettings } from "../api";
 import { LABEL_COLORS, type LabelColor } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
 import { LabelChip } from "../components/LabelChips";
@@ -14,7 +14,7 @@ export function SettingsPage() {
   const me = useMe().data;
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["labels"], ["task-label-settings"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         {/* Phones: History moved here from the bottom bar (user request 2026-10-06); wider screens keep it in the side rail. */}
         <Link
@@ -150,6 +150,10 @@ function MailSettings() {
       </div>
 
       <div className="mt-6 border-t border-line pt-5">
+        <HiddenText />
+      </div>
+
+      <div className="mt-6 border-t border-line pt-5">
         <TaskLabels />
       </div>
 
@@ -157,6 +161,62 @@ function MailSettings() {
         <GmailLabels />
       </div>
     </Card>
+  );
+}
+
+// Settings > Mail > Hidden text (user request 2026-10-06): repeated text such as signatures and disclaimers,
+// left out of the email reader (with "Show hidden text" under the email) and of shared emails.
+function HiddenText() {
+  const snippets = useSnippets().data ?? [];
+  const { add, remove } = useSnippetActions();
+  const [value, setValue] = useState("");
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (value.trim().length >= 3) add.mutate(value.trim(), { onSuccess: () => setValue("") });
+  };
+  return (
+    <div>
+      <h3 className="flex items-center gap-1.5 text-sm font-medium text-ink">
+        <Scissors size={15} className="text-slate-500" /> Hidden text
+      </h3>
+      <p className="mt-1 text-sm text-slate-600">
+        Text that repeats in many emails, like signatures and "Don't print" footers. It is left out when you read or share an
+        email; "Show hidden text" under the email brings it back. Spacing, line breaks and capitals don't need to match. Gmail
+        isn't changed.
+      </p>
+      {snippets.length > 0 && (
+        <ul className="mt-3 divide-y divide-slate-100 rounded-md border border-slate-200">
+          {snippets.map((x) => (
+            <li key={x.id} className="flex items-start gap-3 px-3 py-2 text-sm">
+              <span className="line-clamp-3 min-w-0 flex-1 whitespace-pre-line text-slate-700">{x.text}</span>
+              <button
+                onClick={() => remove.mutate(x.id)}
+                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-ink pointer-coarse:p-2"
+                aria-label="Stop hiding this text"
+                title="Stop hiding this text"
+              >
+                <X size={15} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form onSubmit={submit} className="mt-3 space-y-2">
+        <textarea
+          className="min-h-20 w-full rounded-lg border border-line px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder={"Paste text to hide, e.g.\nRegards,\nDistrict Medical Office (Health)\nPh: 0471-2471291"}
+          aria-label="Text to hide in emails"
+        />
+        <div className="flex justify-end">
+          <Button type="submit" disabled={value.trim().length < 3 || add.isPending}>
+            Hide this text
+          </Button>
+        </div>
+      </form>
+      <ErrorNote error={add.error} />
+    </div>
   );
 }
 

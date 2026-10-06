@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
-import { emailThreads, events, gmailAccounts, mutedSenders, reportPeriods, tasks, users } from "../db/schema";
+import { emailThreads, events, gmailAccounts, hiddenSnippets, mutedSenders, reportPeriods, tasks, users } from "../db/schema";
 import { timezone } from "../env";
 import { addDays, todayIn } from "../lib/dates";
 import { syncUser, wakeSnoozed } from "../lib/sync";
@@ -10,7 +10,7 @@ import { demoArrival } from "../lib/users";
 import { maintain } from "../lib/maintenance";
 import { notMuted } from "../lib/muted";
 import { canMarkRead } from "../lib/gmail";
-import { mutedSenderInput } from "../../shared/schemas";
+import { mutedSenderInput, snippetInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
 import { openTaskOrder, selectTasks, toTask, viewFilter } from "./tasks";
@@ -187,6 +187,39 @@ export const miscRoutes = new Hono<AppEnv>()
       .returning();
     if (row) {
       await db.insert(events).values({ userId, entityType: "email", action: "settings.sender_shown", summary: "Sender shown in Pending again", detail: { subject: row.pattern } });
+    }
+    return c.json({ ok: true });
+  })
+
+  // Hidden text (Settings > Mail): repeated text left out of the email reader and of shared emails.
+  .get("/snippets", async (c) => {
+    const list = await c
+      .get("db")
+      .select({ id: hiddenSnippets.id, text: hiddenSnippets.text })
+      .from(hiddenSnippets)
+      .where(eq(hiddenSnippets.userId, c.get("userId")))
+      .orderBy(asc(hiddenSnippets.createdAt));
+    return c.json({ snippets: list });
+  })
+
+  .post("/snippets", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { text } = snippetInput.parse(await c.req.json());
+    const [row] = await db.insert(hiddenSnippets).values({ userId, text }).returning({ id: hiddenSnippets.id, text: hiddenSnippets.text });
+    await db.insert(events).values({ userId, entityType: "email", action: "settings.snippet_hidden", summary: "Text hidden in emails", detail: { subject: text.slice(0, 120) } });
+    return c.json(row, 201);
+  })
+
+  .delete("/snippets/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const [row] = await db
+      .delete(hiddenSnippets)
+      .where(and(eq(hiddenSnippets.id, c.req.param("id")), eq(hiddenSnippets.userId, userId)))
+      .returning();
+    if (row) {
+      await db.insert(events).values({ userId, entityType: "email", action: "settings.snippet_shown", summary: "Text shown in emails again", detail: { subject: row.text.slice(0, 120) } });
     }
     return c.json({ ok: true });
   })

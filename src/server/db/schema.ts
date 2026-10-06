@@ -101,6 +101,19 @@ export const mutedSenders = pgTable(
   (t) => [uniqueIndex("muted_senders_user_pattern").on(t.userId, t.pattern)],
 );
 
+// Settings > Mail > Hidden text (user request 2026-10-06): repeated text such as signatures and disclaimers,
+// left out of the email reader and of shared emails. Only WorkDesk's view changes; Gmail is untouched.
+export const hiddenSnippets = pgTable(
+  "hidden_snippets",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    text: text("text").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("hidden_snippets_user").on(t.userId)],
+);
+
 export const EMAIL_STATES = ["needs_decision", "task", "snoozed", "dismissed"] as const;
 export type EmailState = (typeof EMAIL_STATES)[number];
 
