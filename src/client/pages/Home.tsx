@@ -90,8 +90,9 @@ export function HomePage() {
       </button>
 
       <div className="grid min-h-0 grid-cols-1 gap-3 md:gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] xl:flex-1">
-        <CommandCenter summary={summary} onNew={() => setDialog({ kind: "new" })} onEdit={editTask} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} />
+        <CommandCenter summary={summary} onEdit={editTask} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} />
         <TodoPanel
+          onNew={() => setDialog({ kind: "new" })}
           open={counts.openTasks}
           completed={counts.completedTotal}
           onEdit={editTask}
@@ -214,13 +215,11 @@ function usePhoneWidth() {
 
 function CommandCenter({
   summary,
-  onNew,
   onEdit,
   onCreateTask,
   hiddenOnPhone,
 }: {
   summary: NonNullable<ReturnType<typeof useSummary>["data"]>;
-  onNew: () => void;
   onEdit: (t: Task) => void;
   onCreateTask: (t: Thread) => void;
   hiddenOnPhone?: boolean;
@@ -249,9 +248,6 @@ function CommandCenter({
         action={
           <div className="flex shrink-0 items-center gap-2">
             <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Command Center" />
-            <Button variant="primary" onClick={onNew}>
-              <Plus size={17} /> New task
-            </Button>
           </div>
         }
       />
@@ -260,9 +256,6 @@ function CommandCenter({
         mobileActions={
           <>
           <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Command Center" />
-          <Button size="sm" variant="primary" onClick={onNew} aria-label="New task" className="w-9 px-0!">
-            <Plus size={17} />
-          </Button>
           </>
         }
       >
@@ -377,12 +370,14 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
 // --- To-do tasks ---
 
 function TodoPanel({
+  onNew,
   open,
   completed,
   onEdit,
   onCreateTask,
   hiddenOnPhone,
 }: {
+  onNew: () => void;
   open: number;
   completed: number;
   onEdit: (t: Task) => void;
@@ -403,9 +398,13 @@ function TodoPanel({
       <PanelHeader
         title="To-do Tasks"
         action={
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             <ViewAll to="/tasks" />
             <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh to-do list" />
+            {/* New task lives on the To-do card (user request 2026-10-06). */}
+            <Button variant="primary" onClick={onNew}>
+              <Plus size={17} /> New task
+            </Button>
           </div>
         }
       />
@@ -413,6 +412,9 @@ function TodoPanel({
         mobileActions={
           <>
           <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh to-do list" />
+          <Button size="sm" variant="primary" onClick={onNew} aria-label="New task" className="w-9 px-0!">
+            <Plus size={17} />
+          </Button>
           </>
         }
       >
