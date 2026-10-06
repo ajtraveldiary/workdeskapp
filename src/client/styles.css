@@ -120,6 +120,11 @@ dialog::backdrop {
   text (16px, stops iOS zooming) are pixel values on purpose and stay as they are. Same breakpoint as the
   bottom navigation. Write new text sizes in rem (text-[0.8125rem], not text-[13px]) so they scale too.
 */
+/* Height of the phone tab bar above the safe area (standard app size, user request 2026-10-06). */
+:root {
+  --tabbar-h: 56px;
+}
+
 @media (max-width: 767.98px) {
   html {
     font-size: 90%;

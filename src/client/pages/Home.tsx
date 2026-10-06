@@ -82,7 +82,7 @@ export function HomePage() {
         onClick={() => setDialog({ kind: "new" })}
         aria-label="New task"
         title="New task"
-        className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex size-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 active:scale-90 md:hidden"
+        className="fixed right-4 bottom-[calc(var(--tabbar-h)+1rem+env(safe-area-inset-bottom))] z-30 flex size-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 active:scale-90 md:hidden"
       >
         <Plus size={24} />
       </button>

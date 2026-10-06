@@ -96,23 +96,24 @@ function Shell({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
-        <main className="flex-1 pb-20 md:pb-0">{children}</main>
+        <main className="flex-1 pb-[calc(var(--tabbar-h)+1rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
       </div>
 
-      {/* Mobile bottom navigation */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-line bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
+      {/* Mobile bottom navigation: standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
+          corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
+      <nav className="fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-6 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
         {NAV.map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
             end={n.to === "/"}
             className={({ isActive }) =>
-              cx("relative flex flex-col items-center gap-0.5 py-2 text-[0.625rem] active:scale-95", isActive ? "font-medium text-brand-700" : "text-slate-500 hover:text-ink")
+              cx("relative flex flex-col items-center justify-center gap-1 text-[0.8125rem] leading-none active:scale-95", isActive ? "font-medium text-brand-700" : "text-slate-500 hover:text-ink")
             }
           >
-            <n.icon size={20} strokeWidth={1.7} />
+            <n.icon size={26} strokeWidth={1.8} />
             {n.label}
-            {!!badge[n.to] && <CountDot n={badge[n.to]!} className="top-1 left-1/2 ml-1.5" />}
+            {!!badge[n.to] && <CountDot n={badge[n.to]!} className="top-1 left-1/2 ml-2" />}
           </NavLink>
         ))}
       </nav>
@@ -172,7 +173,7 @@ function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-line bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
       <div className="flex h-14 items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-4 md:h-20 md:gap-6 md:px-6 lg:px-8">
         <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2.5">
           <span className="flex size-8 items-center justify-center rounded-lg bg-brand-600 text-white md:hidden">

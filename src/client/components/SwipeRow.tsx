@@ -319,7 +319,7 @@ export function UndoBar() {
   return (
     <div
       role="status"
-      className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-3 rounded-xl bg-ink px-4 py-2.5 text-[0.8125rem] text-white shadow-lg md:inset-x-auto md:right-6 md:bottom-6 md:w-80"
+      className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+0.75rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-3 rounded-xl bg-ink px-4 py-2.5 text-[0.8125rem] text-white shadow-lg md:inset-x-auto md:right-6 md:bottom-6 md:w-80"
     >
       <span className="min-w-0 truncate">{current.message}</span>
       {undo && (
