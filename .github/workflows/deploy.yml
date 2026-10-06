@@ -1,0 +1,59 @@
+# Deploys WorkDesk to Cloudflare on every push to master.
+# Checks run first (typecheck + tests) so a broken change never goes live; database migrations run
+# before the new version is deployed. Secrets needed in GitHub (Settings > Secrets and variables > Actions):
+#   CLOUDFLARE_API_TOKEN   "Edit Cloudflare Workers" API token
+#   CLOUDFLARE_ACCOUNT_ID  Cloudflare account ID
+#   DATABASE_URL           Neon connection string (same as in .env.production)
+# The Worker's runtime secrets (Google, session keys…) stay in Cloudflare and aren't touched here.
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: # "Run workflow" button in GitHub's Actions tab
+
+# One deploy at a time; a newer push waits for the running one instead of racing it.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # full history: the version number beside the title counts commits
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Database migrations
+        # Without the secret the script would quietly migrate a throwaway local database, so stop instead.
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "::error::Add the DATABASE_URL secret in GitHub (Settings > Secrets and variables > Actions)"; exit 1; fi
+          npm run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Build dashboard
+        run: npm run build
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

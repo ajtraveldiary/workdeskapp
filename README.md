@@ -66,6 +66,17 @@ npm run deploy
 ```
 One Worker serves both the dashboard and the API, and a cron trigger syncs Gmail every 10 minutes.
 
+### 5. Automatic deploys from GitHub
+Every push to `master` deploys itself through `.github/workflows/deploy.yml`. It runs the typecheck and tests (a failing check stops the deploy), applies database migrations to Neon, builds the dashboard, and publishes the Worker. Add three secrets once under the GitHub repository's **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | From https://dash.cloudflare.com/profile/api-tokens, using the **Edit Cloudflare Workers** template |
+| `CLOUDFLARE_ACCOUNT_ID` | Your account ID (`npx wrangler whoami` shows it) |
+| `DATABASE_URL` | The Neon connection string from `.env.production` |
+
+You can follow each run in the repository's **Actions** tab, and start one by hand with **Run workflow**. `npm run deploy` still works for a manual deploy from your PC.
+
 ## How it fits together
 
 ```
