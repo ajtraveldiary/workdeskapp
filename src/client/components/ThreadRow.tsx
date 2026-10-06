@@ -11,7 +11,7 @@ import { LabelChips } from "./LabelChips";
 
 // Email rows (user request 2026-10-06: tell sender, subject and email text apart at a glance): the sender is
 // small and pastel red (user request 2026-10-06), the subject is the biggest and darkest line, the preview of the email text is small and light
-// grey. Unread emails get a bolder sender and subject (plus the blue dot). Shared with Home's Pending emails.
+// grey. Unread emails get a bolder sender and subject (plus the unread dot). Shared with Home's Pending emails.
 export const emailLine = {
   sender: (unread: boolean) => cx("truncate text-footnote text-sender", unread ? "font-semibold" : "font-medium"),
   subject: (unread: boolean) =>

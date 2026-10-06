@@ -68,7 +68,7 @@ export function LabelField({ value, onChange }: { value: string[]; onChange: (id
 }
 
 // "All labels" filter for task and email lists.
-// chip: a small rounded filter button (Emails page toolbar, 2026-10-06), blue while a label is chosen. It opens
+// chip: a small rounded filter button (Emails page toolbar, 2026-10-06), tinted while a label is chosen. It opens
 // a menu (an action sheet on phones) rather than the native picker, whose 16px text iOS needs would not fit.
 export function LabelFilter({ value, onChange, chip }: { value: string; onChange: (id: string) => void; chip?: boolean }) {
   const labels = useLabels().data?.labels ?? [];

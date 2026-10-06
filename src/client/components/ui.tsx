@@ -29,7 +29,7 @@ export function Button({ variant = "secondary", size = "md", className, ...rest 
 }
 
 // Colour carries meaning (see styles.css): urgent red > high orange > medium yellow > low green,
-// plus snooze purple, info blue, brand blue (actions) and neutral grey.
+// plus snooze purple, info blue, brand pastel red (actions; was blue) and neutral grey.
 // soft: tinted background + dark text (tags, chips). solid: saturated fill (icon tiles, badges). dot: accent only.
 export type Tone = "urgent" | "high" | "medium" | "low" | "snooze" | "info" | "brand" | "neutral";
 

@@ -8,7 +8,9 @@
     medium  yellow   caution (medium priority, task pending)
     low     green    safe, relaxed (low priority, done, all clear)
     snooze  purple   on hold
-    info    blue     calm, informational (upcoming); blue is also the action colour (brand)
+    info    blue     calm, informational (upcoming)
+  The theme (brand) colour for buttons, links, selection and the logo is pastel red (user request 2026-10-06,
+  replacing blue).
 */
 /* Malayalam in Noto Sans Malayalam on every device (user request 2026-10-06), served by WorkDesk itself
    (public/fonts, SIL Open Font License). Only Malayalam letters use it, so it downloads only when Malayalam
@@ -50,15 +52,17 @@
   --color-info-soft: #e3edff;
   --color-info-ink: #0f4fd6;
 
-  /* Saturated blue: buttons, links, selection, "new" */
-  --color-brand-50: #f3f7ff;
-  --color-brand-100: #e3edff;
-  --color-brand-200: #c4d8ff;
-  --color-brand-500: #4d8cff;
-  --color-brand-600: #1e6bff;
-  --color-brand-700: #1257e6;
-  --color-brand-800: #0f46b8;
-  --color-tint: #f3f7ff;
+  /* Theme colour, pastel red (user request 2026-10-06; was blue): buttons, links, selection, unread dots.
+     The pure pastel #e06666 is for the icon, splash and accents; buttons use a touch deeper (600) so white
+     text stays readable, and red text uses 700/800 (at least 4.5:1 on white). */
+  --color-brand-50: #fdf3f3;
+  --color-brand-100: #fbe3e3;
+  --color-brand-200: #f4c4c4;
+  --color-brand-500: #e88080;
+  --color-brand-600: #d95f5f;
+  --color-brand-700: #b83f3f;
+  --color-brand-800: #953232;
+  --color-tint: #fdf2f2;
 
   /* Apple's text styles (iOS Human Interface Guidelines, default "Large" size: size/line height in pt), user
      request 2026-10-06. Use these names instead of one-off sizes. Phones show everything at 90% (root font
