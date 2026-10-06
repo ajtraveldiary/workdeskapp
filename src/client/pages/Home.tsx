@@ -58,8 +58,9 @@ export function HomePage() {
 
   return (
     <>
-    {/* Wide screens: stat cards + task panels on the left, Pending Emails full height on the right. */}
-    <div className="px-3 py-3 sm:px-4 sm:py-5 md:px-6 lg:px-8 xl:grid xl:h-[calc(100dvh-5rem-1px)] xl:min-h-[680px] xl:grid-cols-[minmax(0,2.35fr)_minmax(0,1.1fr)] xl:gap-5">
+    {/* Wide screens: stat cards + task panels on the left, Pending Emails full height on the right. The compact
+        Command Center is the narrower task panel and Pending Emails gets more room (user request 2026-10-06). */}
+    <div className="px-3 py-3 sm:px-4 sm:py-5 md:px-6 lg:px-8 xl:grid xl:h-[calc(100dvh-5rem-1px)] xl:min-h-[680px] xl:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)] xl:gap-5">
       <div className="flex min-h-0 flex-col gap-3 md:gap-5">
       {/* Phones: one compact row of four; small tablets: 2x2; wide: one row */}
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
@@ -88,7 +89,7 @@ export function HomePage() {
         <Plus size={24} />
       </button>
 
-      <div className="grid min-h-0 grid-cols-1 gap-3 md:gap-5 lg:grid-cols-2 xl:flex-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <div className="grid min-h-0 grid-cols-1 gap-3 md:gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] xl:flex-1">
         <CommandCenter summary={summary} onNew={() => setDialog({ kind: "new" })} onEdit={editTask} onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })} />
         <TodoPanel
           open={counts.openTasks}
@@ -266,6 +267,7 @@ function CommandCenter({
         }
       >
         <Segmented<CommandTab>
+          oneRow
           value={tab}
           onChange={setTab}
           options={[

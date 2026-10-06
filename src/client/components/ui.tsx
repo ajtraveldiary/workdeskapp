@@ -177,13 +177,16 @@ export function Segmented<T extends string>({
   value,
   onChange,
   options,
+  oneRow,
 }: {
   value: T;
   onChange: (v: T) => void;
   options: { value: T; label: string; count?: number; tone?: Tone }[];
+  // Keep one sideways-scrolling row on every screen size (narrow panels) instead of wrapping.
+  oneRow?: boolean;
 }) {
   return (
-    <div role="tablist" className="no-scrollbar -mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+    <div role="tablist" className={cx("no-scrollbar -mx-3 flex gap-1.5 overflow-x-auto px-3", oneRow ? "sm:-mx-5 sm:px-5" : "sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0")}>
       {options.map((o) => (
         <button
           key={o.value}
