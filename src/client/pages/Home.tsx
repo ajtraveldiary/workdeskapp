@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   AlarmClock,
@@ -79,17 +79,32 @@ export function HomePage() {
         />
       </div>
 
-      <div className="md:hidden">
-        <Segmented<MobilePanel>
-          value={mobilePanel}
-          onChange={setMobilePanel}
-          options={[
-            { value: "today", label: "Today", count: counts.dueToday + counts.overdue, tone: counts.overdue ? "urgent" : "high" },
-            { value: "todo", label: "To-do", count: counts.openTasks },
-            { value: "emails", label: "Emails", count: counts.pendingEmails, tone: "brand" },
-          ]}
-        />
+      <div className="flex items-center gap-2 md:hidden">
+        <div className="min-w-0 flex-1 overflow-hidden">
+          <Segmented<MobilePanel>
+            value={mobilePanel}
+            onChange={setMobilePanel}
+            options={[
+              { value: "today", label: "Today", count: counts.dueToday + counts.overdue, tone: counts.overdue ? "urgent" : "high" },
+              { value: "todo", label: "To-do", count: counts.openTasks },
+              { value: "emails", label: "Emails", count: counts.pendingEmails, tone: "brand" },
+            ]}
+          />
+        </div>
+        {/* Phones: the Today panel has no tabs row, so its refresh lives here (only one button fits beside
+            the switcher) and New task is a floating button */}
+        {mobilePanel === "today" && <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Command Center" />}
       </div>
+      {mobilePanel === "today" && (
+        <button
+          onClick={() => setDialog({ kind: "new" })}
+          aria-label="New task"
+          title="New task"
+          className="fixed right-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex size-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 active:scale-90 md:hidden"
+        >
+          <Plus size={24} />
+        </button>
+      )}
 
       <div className="grid min-h-0 grid-cols-1 gap-3 md:gap-5 lg:grid-cols-2 xl:flex-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <CommandCenter summary={summary} onNew={() => setDialog({ kind: "new" })} onEdit={editTask} hiddenOnPhone={mobilePanel !== "today"} />
@@ -179,8 +194,8 @@ const ViewAll = ({ to }: { to: string }) => (
   </Link>
 );
 
-function Scroll({ children }: { children: ReactNode }) {
-  return <div className="scroll-thin mt-3 min-h-0 flex-1 overflow-y-auto border-t border-line sm:mt-4">{children}</div>;
+function Scroll({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cx("scroll-thin mt-3 min-h-0 flex-1 overflow-y-auto border-t border-line sm:mt-4", className)}>{children}</div>;
 }
 
 function Empty({ icon: Icon, title, children }: { icon: LucideIcon; title: string; children?: ReactNode }) {
@@ -201,6 +216,20 @@ const Loading = () => <p className="px-5 py-10 text-center text-sm text-slate-40
 
 type CommandTab = "today" | "overdue" | "upcoming" | "reports";
 
+// Phones (below Tailwind's md, where the bottom navigation shows).
+const PHONE_WIDTH = "(max-width: 767.98px)";
+function usePhoneWidth() {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = window.matchMedia(PHONE_WIDTH);
+      m.addEventListener("change", cb);
+      return () => m.removeEventListener("change", cb);
+    },
+    () => window.matchMedia(PHONE_WIDTH).matches,
+    () => false,
+  );
+}
+
 function CommandCenter({
   summary,
   onNew,
@@ -215,7 +244,12 @@ function CommandCenter({
   const { counts, today } = summary;
   const [tab, setTab] = useState<CommandTab>(counts.dueToday || !counts.overdue ? "today" : "overdue");
   const view: TaskView = tab;
-  const { data } = useTasks({ view });
+  // Phones have no tabs (user request 2026-10-06): one list, overdue first, then today. Wider screens use
+  // the tabs; there both calls share the tab's query, so nothing extra is fetched.
+  const phone = usePhoneWidth();
+  const main = useTasks({ view: phone ? "today" : view });
+  const late = useTasks({ view: phone ? "overdue" : view });
+  const data = phone ? (main.data && late.data ? { ...main.data, tasks: [...late.data.tasks, ...main.data.tasks] } : undefined) : main.data;
   const tasks = data?.tasks ?? [];
 
   return (
@@ -232,6 +266,7 @@ function CommandCenter({
           </div>
         }
       />
+      {!phone && (
       <TabsRow
         mobileActions={
           <>
@@ -253,7 +288,9 @@ function CommandCenter({
           ]}
         />
       </TabsRow>
-      <Scroll>
+      )}
+      {/* Phones: no tabs row above, so the list starts at the top of the panel */}
+      <Scroll className="max-md:mt-0 max-md:border-t-0">
         {!data ? (
           <Loading />
         ) : tasks.length === 0 && tab === "reports" ? (
@@ -261,8 +298,8 @@ function CommandCenter({
             Each report's task appears here ahead of its due date. <Link to="/reports" className="font-medium text-brand-700 hover:underline">Set up reports</Link>
           </Empty>
         ) : tasks.length === 0 ? (
-          <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
-            {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
+          <Empty icon={CircleCheck} title={phone ? "Nothing due today or overdue" : tab === "today" ? "Nothing due today" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
+            {phone || tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
           </Empty>
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
