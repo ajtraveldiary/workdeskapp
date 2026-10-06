@@ -6,7 +6,8 @@ import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { ThreadRow } from "../components/ThreadRow";
 import { EmailBulkBar } from "../components/EmailBulkBar";
 import { EmailViewer } from "../components/EmailViewer";
-import { Button, Card, Empty, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
+import { Search } from "lucide-react";
+import { Button, Card, Empty, PageHeader, SkeletonList, Spinner, Tabs, cx } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 import { LabelFilter } from "../components/LabelChips";
 
@@ -56,15 +57,19 @@ export function InboxPage() {
         ]}
       />
 
-      {/* Compact (user request 2026-10-06): filters and Select all share a row. */}
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <SearchInput value={q} onChange={setQ} placeholder="Search sender, subject…" />
-        <LabelFilter value={label} onChange={setLabel} />
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <input type="checkbox" checked={unread} onChange={(e) => setUnread(e.target.checked)} className="size-4 accent-brand-700 pointer-coarse:size-5" />
-          Unread
-        </label>
-        {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
+      {/* Cleanup (user request 2026-10-06): the search box on its own row, then one row with Select all and the
+          Labels / Unread filter chips; ticking an email swaps the chips for the actions. */}
+      <div className="relative mb-1.5 sm:w-80">
+        <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search sender, subject…"
+          aria-label="Search emails"
+          className="h-9 w-full rounded-lg border border-line bg-white pr-9 pl-9 text-sm outline-none placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+        />
+        {isFetching && <Spinner size={14} className="absolute top-1/2 right-3 -translate-y-1/2" />}
       </div>
 
       {/* One toolbar for the whole list instead of buttons on every email (user request 2026-10-06). */}
@@ -73,6 +78,23 @@ export function InboxPage() {
         selected={selected}
         onSelectedChange={setSelected}
         onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
+        idle={
+          <>
+            <LabelFilter value={label} onChange={setLabel} chip />
+            <button
+              type="button"
+              onClick={() => setUnread((u) => !u)}
+              aria-pressed={unread}
+              className={cx(
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-medium active:scale-[0.97] pointer-coarse:h-9",
+                unread ? "border-brand-200 bg-tint text-brand-800" : "border-line bg-white text-slate-600 hover:border-slate-300",
+              )}
+            >
+              <span className={cx("size-2 rounded-full", unread ? "bg-brand-600" : "border border-slate-400")} aria-hidden />
+              Unread
+            </button>
+          </>
+        }
         className="app-sticky sticky top-0 z-10 -mx-3 mb-2 bg-canvas-soft/95 px-4 py-1.5 backdrop-blur sm:-mx-4 sm:px-5 md:top-20 md:-mx-6 md:px-7 lg:-mx-8 lg:px-9"
       />
       {error && <p className="text-urgent-ink">{error.message}</p>}

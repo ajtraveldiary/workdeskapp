@@ -1,6 +1,7 @@
 // One toolbar per email list instead of the same buttons on every email (user request 2026-10-06): tick
 // emails, then Create task / Dismiss (pending ones) or Restore (the others). One selected email
 // opens the usual task form; several become tasks straight away, titled with their subjects.
+import type { ReactNode } from "react";
 import { ExternalLink, ListPlus, Undo2, X } from "lucide-react";
 import type { Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
@@ -14,18 +15,23 @@ export function EmailBulkBar({
   onSelectedChange,
   onCreateTask,
   className,
+  idle,
 }: {
   threads: Thread[];
   selected: Set<string>;
   onSelectedChange: (s: Set<string>) => void;
   onCreateTask: (t: Thread) => void;
   className?: string;
+  // Shown at the right instead of the (unusable) action buttons while nothing is ticked, e.g. the Emails
+  // page's filters (cleanup, user request 2026-10-06). Without it the buttons stay, disabled.
+  idle?: ReactNode;
 }) {
   const bulkTask = useBulkTask();
   const bulkDismiss = useBulkDismiss();
   const bulkRestore = useBulkRestore();
   const busy = bulkTask.isPending || bulkDismiss.isPending || bulkRestore.isPending;
-  if (threads.length === 0) return null;
+  // With filters in it (idle), the row stays when the list is empty so a filter can be turned off again.
+  if (threads.length === 0 && !idle) return null;
 
   const picked = threads.filter((t) => selected.has(t.id));
   const pending = picked.filter((t) => t.state === "needs_decision");
@@ -65,6 +71,7 @@ export function EmailBulkBar({
 
   return (
     <div className={cx("flex flex-wrap items-center gap-x-2 gap-y-1.5", className)}>
+      {threads.length > 0 && (
       <label className="mr-1 flex items-center gap-2 text-sm text-slate-600">
         <input
           type="checkbox"
@@ -78,7 +85,13 @@ export function EmailBulkBar({
         />
         <span className="tabular-nums">{picked.length ? `${picked.length} selected` : "Select all"}</span>
       </label>
-      {listHasPending && (
+      )}
+      {idle && picked.length === 0 ? (
+        <div className="ml-auto flex min-w-0 items-center gap-2">{idle}</div>
+      ) : (
+        <>
+      {/* With filters (idle), only the actions that fit what's ticked show, so they stay on one row. */}
+      {listHasPending && (!idle || pending.length > 0) && (
         <>
           <Button size="sm" variant="primary" disabled={!pending.length || busy} onClick={createTask}>
             <ListPlus size={15} /> <span className="max-sm:hidden">Create task</span>
@@ -89,7 +102,7 @@ export function EmailBulkBar({
           </Button>
         </>
       )}
-      {listHasOthers && (
+      {listHasOthers && (!idle || others.length > 0) && (
         <Button size="sm" disabled={!others.length || busy} onClick={restore} title="Return to Pending">
           <Undo2 size={15} /> Restore
         </Button>
@@ -105,6 +118,8 @@ export function EmailBulkBar({
         >
           <ExternalLink size={16} />
         </a>
+      )}
+        </>
       )}
     </div>
   );

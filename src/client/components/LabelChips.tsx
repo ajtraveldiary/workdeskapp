@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Tag } from "lucide-react";
+import { Check, ChevronDown, Tag } from "lucide-react";
 import { Link } from "react-router";
 import type { Label, Thread } from "../../shared/types";
 import { useLabels, useSetThreadLabels } from "../api";
@@ -68,8 +68,11 @@ export function LabelField({ value, onChange }: { value: string[]; onChange: (id
 }
 
 // "All labels" filter for task and email lists.
-export function LabelFilter({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+// chip: a small rounded filter button (Emails page toolbar, 2026-10-06), blue while a label is chosen. It opens
+// a menu (an action sheet on phones) rather than the native picker, whose 16px text iOS needs would not fit.
+export function LabelFilter({ value, onChange, chip }: { value: string; onChange: (id: string) => void; chip?: boolean }) {
   const labels = useLabels().data?.labels ?? [];
+  if (chip) return <LabelFilterChip value={value} onChange={onChange} labels={labels} />;
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} className={`${inputClass} w-auto! min-w-0 max-w-52 sm:max-w-none`} aria-label="Label filter">
       <option value="">All labels</option>
@@ -79,6 +82,59 @@ export function LabelFilter({ value, onChange }: { value: string; onChange: (id:
         </option>
       ))}
     </select>
+  );
+}
+
+function LabelFilterChip({ value, onChange, labels }: { value: string; onChange: (id: string) => void; labels: Label[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  const current = labels.find((l) => l.id === value);
+  const pick = (id: string) => {
+    onChange(id);
+    setOpen(false);
+  };
+  const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50";
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={current ? `Label filter: ${current.name}` : "Label filter"}
+        className={cx(
+          "inline-flex h-8 max-w-40 min-w-0 items-center gap-1 rounded-full border pr-2 pl-3 text-[0.8125rem] font-medium active:scale-[0.97] pointer-coarse:h-9",
+          current ? "border-brand-200 bg-tint text-brand-800" : "border-line bg-white text-slate-600 hover:border-slate-300",
+        )}
+      >
+        <span className="truncate">{current ? current.name.split("/").at(-1) : "Labels"}</span>
+        <ChevronDown size={14} className="shrink-0" />
+      </button>
+      {open && (
+        <PopPanel onClose={() => setOpen(false)} title="Show emails with label" className="absolute right-0 z-30 mt-1 w-60 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white p-1 shadow-xl">
+          <ul className="scroll-thin max-h-72 overflow-y-auto">
+            <li>
+              <button onClick={() => pick("")} className={item} aria-pressed={!value}>
+                <Check size={15} className={cx("shrink-0 text-brand-600", value && "invisible")} /> All labels
+              </button>
+            </li>
+            {labels.map((l) => (
+              <li key={l.id}>
+                <button onClick={() => pick(l.id)} className={item} aria-pressed={l.id === value}>
+                  <Check size={15} className={cx("shrink-0 text-brand-600", l.id !== value && "invisible")} />
+                  <LabelChip label={l} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </PopPanel>
+      )}
+    </div>
   );
 }
 
