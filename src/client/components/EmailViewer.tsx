@@ -606,18 +606,11 @@ const CAPTION_CHARS = 900; // WhatsApp captions are limited; long emails are cut
 
 
 function shareText(thread: Thread, m: EmailMessageContent | undefined, attachmentNames: string[], hidden: string[]) {
-  const from = m ? (m.fromName && m.fromEmail ? `${m.fromName} <${m.fromEmail}>` : (m.fromName ?? m.fromEmail ?? "")) : (thread.fromName ?? thread.fromEmail ?? "");
+  // Bold subject and the message only: no From or Date lines (user request 2026-10-06).
   let body = (m ? (m.text ?? (m.html ? htmlToText(m.html) : "")) : thread.snippet).replace(/\r/g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   body = stripSnippets(body, hidden).text; // Settings > Mail > Hidden text
   if (body.length > CAPTION_CHARS) body = `${body.slice(0, CAPTION_CHARS).trimEnd()}…`;
-  return [
-    `*${thread.subject}*`,
-    `From: ${from}`,
-    `Date: ${formatDateTime(m?.date ?? thread.lastMessageAt)}`,
-    "",
-    body,
-    ...(attachmentNames.length ? ["", `Attachments: ${attachmentNames.join(", ")}`] : []),
-  ].join("\n");
+  return [`*${thread.subject}*`, "", body, ...(attachmentNames.length ? ["", `Attachments: ${attachmentNames.join(", ")}`] : [])].join("\n");
 }
 
 type EmailShare = { ready: boolean; preparing: boolean; go: () => void };
