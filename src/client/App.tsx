@@ -74,9 +74,18 @@ const NAV: NavItem[] = [
 function Shell({ children }: { children: ReactNode }) {
   const counts = useSummary().data?.counts;
   const badge: Record<string, number | undefined> = { "/inbox": counts?.pendingEmails };
+  // Phones scroll only the page area (below), so each screen starts at its top, as in apps.
+  const mainRef = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [pathname]);
 
   return (
-    <div className="min-h-dvh bg-canvas-soft md:flex">
+    // Phones (under 768px) are laid out like an app (2026-10-06: "doesn't behave like a mobile app, elements
+    // not fixed in position"): the screen itself never scrolls, bounces or slides sideways; the top bar and
+    // the tab bar stay put and only the page area between them scrolls. Computers scroll the page as before.
+    <div className="flex h-dvh flex-col overflow-hidden bg-canvas-soft md:h-auto md:min-h-dvh md:flex-row md:overflow-visible">
       <FirstSync />
       <UndoBar />
       {/* Labelled icon rail */}
@@ -96,9 +105,14 @@ function Shell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar />
-        <main className="flex-1 pb-[calc(var(--tabbar-h)+1rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+        <main
+          ref={mainRef}
+          className="min-h-0 flex-1 pb-[calc(var(--tabbar-h)+1rem+env(safe-area-inset-bottom))] max-md:overflow-x-clip max-md:overflow-y-auto max-md:overscroll-contain md:pb-0"
+        >
+          {children}
+        </main>
       </div>
 
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
