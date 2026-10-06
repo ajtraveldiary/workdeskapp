@@ -1,4 +1,4 @@
-import { Check, Eye, ExternalLink, FileText, Mail, Pencil, RotateCcw } from "lucide-react";
+import { Check, Eye, ExternalLink, CalendarClock, Mail, Pencil, RotateCcw } from "lucide-react";
 import type { Task } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
@@ -82,8 +82,8 @@ export function TaskRow({
           {done && task.completedAt && <span>Completed {formatDateTime(task.completedAt)}</span>}
           {task.report && (
             <span className="inline-flex min-w-0 items-center gap-1">
-              <FileText size={12} className="shrink-0" />
-              <span className="truncate">Report: {task.report.label}</span>
+              <CalendarClock size={12} className="shrink-0" />
+              <span className="truncate">Reminder</span>
             </span>
           )}
           {task.thread && (

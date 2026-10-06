@@ -19,7 +19,7 @@ const EMPTY: Record<TaskView, string> = {
   all: "No open tasks",
   completed: "No completed tasks yet",
   any: "No tasks",
-  reports: "No open report tasks",
+  reports: "No open reminder tasks",
 };
 
 export function TasksPage() {

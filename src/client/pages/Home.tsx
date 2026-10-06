@@ -2,13 +2,13 @@ import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   AlarmClock,
+  CalendarClock,
   ArrowRight,
   CalendarDays,
   Check,
   Eye,
   CircleCheck,
   ExternalLink,
-  FileText,
   ListChecks,
   ListPlus,
   Mail,
@@ -20,6 +20,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { dayLabel } from "../../shared/reminderSchedule";
 import type { Task, TaskView, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import {
@@ -67,10 +68,10 @@ export function HomePage() {
         <StatCard to="/tasks?view=today" icon={CircleCheck} value={counts.dueToday} label="Tasks due today" note={counts.dueToday ? "Stay on track" : "Nothing due today"} tone={counts.dueToday ? "high" : "low"} />
         <StatCard to="/tasks?view=overdue" icon={TriangleAlert} value={counts.overdue} label="Overdue tasks" note={counts.overdue ? "Needs action" : "All on time"} tone={counts.overdue ? "urgent" : "low"} />
         <StatCard
-          to="/reports"
-          icon={FileText}
+          to="/reminders"
+          icon={CalendarClock}
           value={counts.reportsUpcoming + counts.reportsOverdue}
-          label="Upcoming reports"
+          label="Reminders"
           note={counts.reportsOverdue ? `${counts.reportsOverdue} overdue` : counts.reportsUpcoming ? "Next 30 days" : "Nothing due soon"}
           tone={counts.reportsOverdue ? "urgent" : counts.reportsUpcoming ? "info" : "low"}
         />
@@ -271,7 +272,7 @@ function CommandCenter({
             { value: "today", label: "Today", count: counts.dueToday, tone: "high" },
             { value: "overdue", label: "Overdue", count: counts.overdue, tone: "urgent" },
             { value: "upcoming", label: "Upcoming", count: counts.upcoming, tone: "info" },
-            { value: "reports", label: "Reports", count: counts.reportTasks },
+            { value: "reports", label: "Reminders", count: counts.reportTasks },
           ]}
         />
       </TabsRow>
@@ -281,8 +282,8 @@ function CommandCenter({
         {!data ? (
           <Loading />
         ) : tasks.length === 0 && tab === "reports" ? (
-          <Empty icon={FileText} title="No report tasks open">
-            Each report's task appears here ahead of its due date. <Link to="/reports" className="font-medium text-brand-700 hover:underline">Set up reports</Link>
+          <Empty icon={CalendarClock} title="No reminder tasks open">
+            Each reminder's task appears here ahead of its date. <Link to="/reminders" className="font-medium text-brand-700 hover:underline">Set up reminders</Link>
           </Empty>
         ) : tasks.length === 0 ? (
           <Empty icon={CircleCheck} title={phone ? "Nothing due today or overdue" : tab === "today" ? "Nothing due today" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
@@ -320,7 +321,7 @@ function subtitleFor(task: Task) {
   const firstLine = task.notes.split("\n")[0]?.trim();
   if (firstLine) return firstLine;
   if (task.thread) return `${task.thread.fromName ?? task.thread.fromEmail}: ${task.thread.subject}`;
-  if (task.report) return `Recurring report · ${task.report.label}`;
+  if (task.report) return task.report.label === dayLabel(task.dueDate ?? "") ? "Reminder" : `Reminder · ${task.report.label}`;
   return "";
 }
 
@@ -491,7 +492,7 @@ function TodoRow({
   onOpen: (t: Task) => void;
 }) {
   const a = useTaskActions(task);
-  const context = task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Recurring report" : "Manual task";
+  const context = task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Reminder" : "Manual task";
   const swipe = useSwipeMode();
 
   return (

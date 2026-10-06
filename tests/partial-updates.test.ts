@@ -1,4 +1,4 @@
-// Updates (tasks, reports, labels) change only the fields they include; they used to reset the rest to defaults.
+// Updates (tasks, reminders, labels) change only the fields they include; they used to reset the rest to defaults.
 import { beforeEach, describe, expect, it } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
@@ -56,24 +56,22 @@ describe("task updates", () => {
   });
 });
 
-describe("report updates", () => {
-  it("pausing a report keeps its settings", async () => {
+describe("reminder updates", () => {
+  it("pausing a reminder keeps its settings", async () => {
     await call("POST", "/reports", {
       name: "Test quarterly return",
       notes: "Attach the bank statement",
-      frequency: "quarterly",
-      dueDay: 15,
-      dueMonthOffset: 1,
-      yearStartMonth: 1,
+      repeat: "quarterly",
+      startDate: "2026-10-15",
+      dueTime: "11:00",
+      endDate: "2028-03-31",
       leadDays: 10,
       priority: "urgent",
-      responsible: "Accounts section",
-      firstPeriodStart: "2026-10-01",
     });
     const report = (await call("GET", "/reports")).json.reports.find((r: { name: string }) => r.name === "Test quarterly return");
     expect((await call("PATCH", `/reports/${report.id}`, { active: false })).status).toBe(200);
     const after = (await call("GET", "/reports")).json.reports.find((r: { id: string }) => r.id === report.id);
-    expect(after).toMatchObject({ active: false, notes: "Attach the bank statement", yearStartMonth: 1, leadDays: 10, priority: "urgent", responsible: "Accounts section" });
+    expect(after).toMatchObject({ active: false, notes: "Attach the bank statement", repeat: "quarterly", startDate: "2026-10-15", dueTime: "11:00", endDate: "2028-03-31", leadDays: 10, priority: "urgent" });
   });
 });
 

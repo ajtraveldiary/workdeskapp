@@ -1,4 +1,5 @@
 // Shapes exchanged between the API and the dashboard.
+import type { Repeat } from "./reminderSchedule";
 
 export type EmailState = "needs_decision" | "task" | "snoozed" | "dismissed";
 export type Priority = "low" | "normal" | "high" | "urgent";
@@ -106,35 +107,31 @@ export type Summary = {
   recentlyCompleted: Task[];
 };
 
-export type Frequency = "monthly" | "quarterly" | "half_yearly" | "annual";
-
+// A reminder's occurrence (old reminders also have reporting-period rows, labelled "Sep 2026").
 export type ReportPeriod = {
   id: string;
-  periodStart: string;
-  periodEnd: string;
   label: string;
   dueDate: string;
+  // "submitted" = done.
   status: "pending" | "submitted";
   submittedAt: string | null;
   taskId: string | null;
 };
 
+// A reminder (stored as a report).
 export type Report = {
   id: string;
   name: string;
   notes: string;
-  frequency: Frequency;
+  repeat: Repeat;
+  startDate: string;
+  dueTime: string | null;
+  endDate: string | null;
   dueDay: number;
-  dueMonthOffset: number;
-  yearStartMonth: number;
   leadDays: number;
   priority: Priority;
-  // Gmail labels (WorkDesk only) given to each period's task.
-  labelIds: string[];
-  responsible: string | null;
-  firstPeriodStart: string;
   active: boolean;
-  // Generated periods, newest first.
+  // Created occurrences, newest first.
   periods: ReportPeriod[];
 };
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LABEL_COLORS } from "./labelColors";
+import { REPEATS } from "./reminderSchedule";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 // The user's own Gmail labels only (system labels like INBOX are never accepted).
@@ -33,36 +34,32 @@ export const taskPatch = z
 export const snoozeInput = z.object({ until: z.iso.datetime({ offset: true }) });
 export const bulkIds = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
 
+// Reminders (stored as reports): the fields of a standard add-reminder screen.
+const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM");
 export const reportInput = z.object({
-  name: z.string().trim().min(1, "Name is required").max(120),
+  name: z.string().trim().min(1, "Title is required").max(120),
   notes: z.string().max(5_000).default(""),
-  frequency: z.enum(["monthly", "quarterly", "half_yearly", "annual"]),
-  dueDay: z.number().int().min(1).max(31),
-  dueMonthOffset: z.number().int().min(0).max(12),
-  yearStartMonth: z.number().int().min(1).max(12).default(4),
-  leadDays: z.number().int().min(0).max(90).default(7),
-  priority: priority.default("high"),
-  labelIds: userLabelIds.default([]),
-  responsible: z.string().trim().max(80).nullable().default(null),
-  firstPeriodStart: day,
+  repeat: z.enum(REPEATS).default("never"),
+  startDate: day,
+  dueTime: time.nullable().default(null),
+  endDate: day.nullable().default(null),
+  leadDays: z.number().int().min(0).max(90).default(0),
+  priority: priority.default("normal"),
   active: z.boolean().default(true),
 });
 export type ReportInput = z.input<typeof reportInput>;
 // Updates change only the fields they include (reportInput.partial() would apply reportInput's defaults,
-// so pausing a report used to reset its notes, year start, lead time, priority, labels and responsible).
+// so pausing a reminder would reset its settings).
 export const reportPatch = z
   .object({
     name: reportInput.shape.name,
     notes: z.string().max(5_000),
-    frequency: reportInput.shape.frequency,
-    dueDay: reportInput.shape.dueDay,
-    dueMonthOffset: reportInput.shape.dueMonthOffset,
-    yearStartMonth: z.number().int().min(1).max(12),
+    repeat: z.enum(REPEATS),
+    startDate: day,
+    dueTime: time.nullable(),
+    endDate: day.nullable(),
     leadDays: z.number().int().min(0).max(90),
     priority,
-    labelIds: userLabelIds,
-    responsible: z.string().trim().max(80).nullable(),
-    firstPeriodStart: day,
     active: z.boolean(),
   })
   .partial();

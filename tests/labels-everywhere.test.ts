@@ -1,5 +1,6 @@
 // Categories were merged into Gmail labels (2026-10-06). A task from an email shows its email's Gmail labels;
-// tasks without an email and reports keep labels in WorkDesk. Filters, deleting a label and reports follow.
+// tasks without an email keep labels in WorkDesk. Filters and deleting a label follow. (Reminders, formerly
+// reports, have no labels since 2026-10-06; see reminders.test.ts.)
 import { beforeEach, describe, expect, it } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
@@ -73,29 +74,9 @@ describe("labels on tasks", () => {
     expect((await call("GET", `/threads?state=all&label=${labelA}`)).json.threads.map((t: { id: string }) => t.id)).toContain(thread.id);
   });
 
-  it("deleting a label takes it off tasks and reports too", async () => {
+  it("deleting a label takes it off tasks too", async () => {
     const { json: task } = await call("POST", "/tasks", { title: "Loses a label", labelIds: [labelA, labelB] });
     await call("DELETE", `/labels/${labelA}`);
     expect((await anyTasks()).find((t) => t.id === task.id)!.labelIds).toEqual([labelB]);
-  });
-});
-
-describe("labels on reports", () => {
-  it("each period's task gets the report's labels, and changing them updates open tasks", async () => {
-    const { json: report } = await call("POST", "/reports", {
-      name: "Test quarterly return",
-      frequency: "monthly",
-      dueDay: 5,
-      dueMonthOffset: 1,
-      firstPeriodStart: "2026-09-01",
-      labelIds: [labelA],
-    });
-    const mine = async () => (await anyTasks()).filter((t) => t.title.startsWith("Test quarterly return"));
-    expect((await mine()).length).toBeGreaterThan(0);
-    expect((await mine()).every((t) => t.labelIds.join() === labelA)).toBe(true);
-    await call("PATCH", `/reports/${report.id}`, { labelIds: [labelB] });
-    expect((await mine()).every((t) => t.labelIds.join() === labelB)).toBe(true);
-    const { json: reports } = await call("GET", "/reports");
-    expect(reports.reports.find((r: { id: string }) => r.id === report.id).labelIds).toEqual([labelB]);
   });
 });

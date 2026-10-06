@@ -1,15 +1,16 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, max } from "drizzle-orm";
 import type { DB } from "../db";
 import { events, reportPeriods, reports, tasks } from "../db/schema";
-import { periodsFrom } from "../../shared/reportSchedule";
+import { dayLabel, occurrences } from "../../shared/reminderSchedule";
 import { addDays } from "./dates";
 
-// At most this many periods are created per report per run, so a first period set far back
-// doesn't flood the task list in one go.
+// At most this many occurrences are created per reminder per run, so a start date set far back doesn't
+// flood the task list in one go.
 const MAX_NEW_PER_REPORT = 24;
 
-// Creates every period (and its task) whose task date has arrived: due date minus the report's lead days.
-// Idempotent: existing periods are skipped. Safe to call on every page load and from the cron job.
+// Creates every reminder occurrence (and its task) whose task date has arrived: the date minus "Remind me".
+// Only dates after the reminder's latest occurrence are added, so editing a reminder changes what comes next
+// and never re-creates or moves what exists. Safe to call on every page load and from the cron job.
 export async function ensureReportPeriods(db: DB, today: string, userId?: string) {
   const active = await db
     .select()
@@ -17,18 +18,20 @@ export async function ensureReportPeriods(db: DB, today: string, userId?: string
     .where(and(eq(reports.active, true), userId ? eq(reports.userId, userId) : undefined));
   if (active.length === 0) return 0;
 
-  const existing = await db
-    .select({ reportId: reportPeriods.reportId, periodStart: reportPeriods.periodStart })
+  const latest = await db
+    .select({ reportId: reportPeriods.reportId, last: max(reportPeriods.dueDate) })
     .from(reportPeriods)
-    .where(inArray(reportPeriods.reportId, active.map((r) => r.id)));
-  const have = new Set(existing.map((p) => `${p.reportId}|${p.periodStart}`));
+    .where(inArray(reportPeriods.reportId, active.map((r) => r.id)))
+    .groupBy(reportPeriods.reportId);
+  const lastDue = new Map(latest.map((l) => [l.reportId, l.last]));
 
   const newPeriods: (typeof reportPeriods.$inferInsert)[] = [];
   for (const r of active) {
-    const due = periodsFrom(r, r.firstPeriodStart, (p) => addDays(p.dueDate, -r.leadDays) <= today)
-      .filter((p) => !have.has(`${r.id}|${p.periodStart}`))
+    const last = lastDue.get(r.id);
+    const due = occurrences(r, (d) => addDays(d, -r.leadDays) <= today)
+      .filter((d) => !last || d > last)
       .slice(0, MAX_NEW_PER_REPORT);
-    for (const p of due) newPeriods.push({ ...p, userId: r.userId, reportId: r.id });
+    for (const d of due) newPeriods.push({ userId: r.userId, reportId: r.id, periodStart: d, periodEnd: d, dueDate: d, label: dayLabel(d) });
   }
   if (newPeriods.length === 0) return 0;
 
@@ -43,11 +46,11 @@ export async function ensureReportPeriods(db: DB, today: string, userId?: string
         const r = byId.get(p.reportId)!;
         return {
           userId: p.userId,
-          title: `${r.name} — ${p.label}`,
+          title: r.name,
           notes: r.notes,
           dueDate: p.dueDate,
+          dueTime: r.dueTime,
           priority: r.priority,
-          labelIds: r.labelIds,
           reportPeriodId: p.id,
         };
       }),
@@ -59,14 +62,14 @@ export async function ensureReportPeriods(db: DB, today: string, userId?: string
       entityType: "task" as const,
       entityId: t.id,
       action: "task.created",
-      summary: "Created for a report period",
+      summary: "Created by a reminder",
       detail: { title: t.title },
     })),
   );
   return created.length;
 }
 
-// Marks a period submitted (or back to pending) and keeps its task in step, in both directions.
+// Marks an occurrence done (or not done) and keeps its task in step, in both directions.
 export async function setPeriodStatus(db: DB, userId: string, periodId: string, status: "pending" | "submitted") {
   const [period] = await db
     .update(reportPeriods)
@@ -89,15 +92,15 @@ export async function setPeriodStatus(db: DB, userId: string, periodId: string, 
       entityType: "report" as const,
       entityId: period.reportId,
       action: done ? "report.submitted" : "report.reopened",
-      summary: done ? `${period.label} marked submitted` : `${period.label} marked not submitted`,
-      detail: { title: `${report?.name ?? "Report"} — ${period.label}` },
+      summary: done ? `${period.label} marked done` : `${period.label} marked not done`,
+      detail: { title: `${report?.name ?? "Reminder"} — ${period.label}` },
     },
     ...changed.map((t) => ({
       userId,
       entityType: "task" as const,
       entityId: t.id,
       action: done ? "task.completed" : "task.reopened",
-      summary: done ? "Completed (report submitted)" : "Reopened (report marked not submitted)",
+      summary: done ? "Completed (reminder done)" : "Reopened (reminder marked not done)",
       detail: { title: t.title },
     })),
   ]);

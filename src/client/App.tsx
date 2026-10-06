@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router";
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import {
+  CalendarClock,
   Bell,
   CalendarDays,
   CalendarCheck,
   ChevronDown,
-  FileText,
   History as HistoryIcon,
   House,
   ListChecks,
@@ -27,7 +27,7 @@ import { TasksPage } from "./pages/Tasks";
 import { CalendarPage } from "./pages/Calendar";
 import { SearchPage } from "./pages/Search";
 import { HistoryPage } from "./pages/History";
-import { ReportsPage } from "./pages/Reports";
+import { RemindersPage } from "./pages/Reminders";
 import { SettingsPage } from "./pages/Settings";
 import { LoginPage } from "./pages/Login";
 
@@ -44,7 +44,8 @@ export function App() {
         <Route path="/inbox" element={<Page><InboxPage /></Page>} />
         <Route path="/tasks" element={<Page><TasksPage /></Page>} />
         <Route path="/calendar" element={<Page wide><CalendarPage /></Page>} />
-        <Route path="/reports" element={<Page><ReportsPage /></Page>} />
+        <Route path="/reminders" element={<Page><RemindersPage /></Page>} />
+        <Route path="/reports" element={<Navigate to="/reminders" replace />} />
         <Route path="/history" element={<Page><HistoryPage /></Page>} />
         <Route path="/search" element={<Page><SearchPage /></Page>} />
         <Route path="/settings" element={<Page><SettingsPage /></Page>} />
@@ -64,7 +65,7 @@ const NAV: NavItem[] = [
   { to: "/", label: "Home", icon: House },
   { to: "/inbox", label: "Emails", icon: Mail },
   { to: "/tasks", label: "Tasks", icon: ListChecks },
-  { to: "/reports", label: "Reports", icon: FileText },
+  { to: "/reminders", label: "Reminders", icon: CalendarClock },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/history", label: "History", icon: HistoryIcon },
 ];
@@ -196,7 +197,7 @@ function TopBar() {
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search emails, tasks, reports…"
+            placeholder="Search emails and tasks…"
             aria-label="Search"
             className="h-11 w-full rounded-xl border border-line bg-canvas-soft pr-3 pl-10 text-sm placeholder:text-slate-400 focus:border-brand-200 focus:bg-white"
           />

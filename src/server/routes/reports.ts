@@ -9,20 +9,20 @@ import { todayIn } from "../lib/dates";
 import { ensureReportPeriods, setPeriodStatus } from "../lib/reports";
 import { maintain } from "../lib/maintenance";
 import { reportInput, reportPatch } from "../../shared/schemas";
-import { periodsFrom, type ScheduleRule } from "../../shared/reportSchedule";
 import type { Report } from "../../shared/types";
 
-// Periods returned per report (newest first); enough for a year of monthly history plus what's ahead.
+// Reminders (stored as reports, user request 2026-10-06). Occurrences returned per reminder, newest first.
 const PERIODS_SHOWN = 18;
 
-const alignedStart = (rule: ScheduleRule, day: string) => periodsFrom(rule, day, () => true, 1)[0]!.periodStart;
+// Monthly and longer repeats fall on the start date's day of the month.
+const dueDayOf = (startDate: string) => Number(startDate.slice(8, 10));
 
 async function loadReport(db: DB, userId: string, id: string) {
   const [r] = await db
     .select()
     .from(reports)
     .where(and(eq(reports.id, id), eq(reports.userId, userId)));
-  if (!r) throw new HTTPException(404, { message: "Report not found" });
+  if (!r) throw new HTTPException(404, { message: "Reminder not found" });
   return r;
 }
 
@@ -36,7 +36,7 @@ export const reportRoutes = new Hono<AppEnv>()
     const rows = await db.select().from(reports).where(eq(reports.userId, userId)).orderBy(desc(reports.active), asc(reports.name));
     const ids = rows.map((r) => r.id);
     const periods = ids.length
-      ? await db.select().from(reportPeriods).where(inArray(reportPeriods.reportId, ids)).orderBy(desc(reportPeriods.periodStart))
+      ? await db.select().from(reportPeriods).where(inArray(reportPeriods.reportId, ids)).orderBy(desc(reportPeriods.dueDate))
       : [];
     const periodIds = periods.map((p) => p.id);
     const links = periodIds.length
@@ -48,23 +48,19 @@ export const reportRoutes = new Hono<AppEnv>()
       id: r.id,
       name: r.name,
       notes: r.notes,
-      frequency: r.frequency,
+      repeat: r.repeat,
+      startDate: r.startDate,
+      dueTime: r.dueTime,
+      endDate: r.endDate,
       dueDay: r.dueDay,
-      dueMonthOffset: r.dueMonthOffset,
-      yearStartMonth: r.yearStartMonth,
       leadDays: r.leadDays,
       priority: r.priority,
-      labelIds: r.labelIds,
-      responsible: r.responsible,
-      firstPeriodStart: r.firstPeriodStart,
       active: r.active,
       periods: periods
         .filter((p) => p.reportId === r.id)
         .slice(0, PERIODS_SHOWN)
         .map((p) => ({
           id: p.id,
-          periodStart: p.periodStart,
-          periodEnd: p.periodEnd,
           label: p.label,
           dueDate: p.dueDate,
           status: p.status,
@@ -81,37 +77,30 @@ export const reportRoutes = new Hono<AppEnv>()
     const input = reportInput.parse(await c.req.json());
     const [r] = await db
       .insert(reports)
-      .values({ ...input, userId, firstPeriodStart: alignedStart(input, input.firstPeriodStart) })
+      .values({ ...input, userId, dueDay: dueDayOf(input.startDate) })
       .returning();
-    await db.insert(events).values({ userId, entityType: "report", entityId: r!.id, action: "report.created", summary: "Report created", detail: { title: r!.name } });
+    await db.insert(events).values({ userId, entityType: "report", entityId: r!.id, action: "report.created", summary: "Reminder created", detail: { title: r!.name } });
     await ensureReportPeriods(db, todayIn(timezone(c.env)), userId);
     return c.json(r, 201);
   })
 
-  // Schedule changes apply to periods created from now on; existing periods keep their due dates.
+  // Schedule changes apply to occurrences after the latest one created; existing ones keep their dates.
   .patch("/:id", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
     const input = reportPatch.parse(await c.req.json());
     const r = await loadReport(db, userId, c.req.param("id"));
     const merged = { ...r, ...input };
-    const set = { ...input, updatedAt: new Date(), ...(input.firstPeriodStart ? { firstPeriodStart: alignedStart(merged, input.firstPeriodStart) } : {}) };
+    const set = { ...input, updatedAt: new Date(), ...(input.startDate ? { dueDay: dueDayOf(input.startDate) } : {}) };
     await db.update(reports).set(set).where(eq(reports.id, r.id));
-    // New labels also go on the report's open tasks (completed ones keep theirs).
-    if (input.labelIds) {
-      await db
-        .update(tasks)
-        .set({ labelIds: input.labelIds, updatedAt: new Date() })
-        .where(and(eq(tasks.status, "open"), inArray(tasks.reportPeriodId, db.select({ id: reportPeriods.id }).from(reportPeriods).where(eq(reportPeriods.reportId, r.id)))));
-    }
     const action = input.active === false && r.active ? "report.paused" : input.active === true && !r.active ? "report.resumed" : "report.updated";
-    const summary = action === "report.paused" ? "Paused" : action === "report.resumed" ? "Resumed" : "Report settings changed";
+    const summary = action === "report.paused" ? "Paused" : action === "report.resumed" ? "Resumed" : "Reminder changed";
     await db.insert(events).values({ userId, entityType: "report", entityId: r.id, action, summary, detail: { title: merged.name } });
     await ensureReportPeriods(db, todayIn(timezone(c.env)), userId);
     return c.json({ ok: true });
   })
 
-  // Removes the report and its periods. Open generated tasks go with it; completed ones stay in history.
+  // Removes the reminder and its occurrences. Open generated tasks go with it; completed ones stay in history.
   .delete("/:id", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
@@ -121,18 +110,18 @@ export const reportRoutes = new Hono<AppEnv>()
       await db.delete(tasks).where(and(inArray(tasks.reportPeriodId, periodIds), eq(tasks.status, "open")));
     }
     await db.delete(reports).where(eq(reports.id, r.id));
-    await db.insert(events).values({ userId, entityType: "report", entityId: r.id, action: "report.deleted", summary: "Report deleted", detail: { title: r.name } });
+    await db.insert(events).values({ userId, entityType: "report", entityId: r.id, action: "report.deleted", summary: "Reminder deleted", detail: { title: r.name } });
     return c.json({ ok: true });
   })
 
   .post("/periods/:id/submit", async (c) => {
     const p = await setPeriodStatus(c.get("db"), c.get("userId"), c.req.param("id"), "submitted");
-    if (!p) throw new HTTPException(404, { message: "Period not found" });
+    if (!p) throw new HTTPException(404, { message: "Occurrence not found" });
     return c.json({ ok: true });
   })
 
   .post("/periods/:id/reopen", async (c) => {
     const p = await setPeriodStatus(c.get("db"), c.get("userId"), c.req.param("id"), "pending");
-    if (!p) throw new HTTPException(404, { message: "Period not found" });
+    if (!p) throw new HTTPException(404, { message: "Occurrence not found" });
     return c.json({ ok: true });
   });

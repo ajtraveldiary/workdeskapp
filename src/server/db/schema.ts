@@ -12,6 +12,7 @@ import {
   index,
   primaryKey,
 } from "drizzle-orm/pg-core";
+import { REPEATS } from "../../shared/reminderSchedule";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -161,36 +162,44 @@ export const tasks = pgTable(
 );
 
 // Audit trail, kept separate from Gmail's own history.
+// Legacy report frequencies (before reminders); kept so the old columns still describe old rows.
 export const FREQUENCIES = ["monthly", "quarterly", "half_yearly", "annual"] as const;
 export type Frequency = (typeof FREQUENCIES)[number];
 
-// A recurring reporting duty, e.g. "Monthly expenditure statement, due on the 5th of the following month".
+// A reminder (shown as "Reminders"; stored as "reports", user request 2026-10-06): monthly reports, meetings,
+// payment due dates... Each occurrence gets a row in report_periods and its own task.
 export const reports = pgTable("reports", {
   id: id(),
   userId: uuid("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
   notes: text("notes").notNull().default(""),
-  frequency: text("frequency", { enum: FREQUENCIES }).notNull(),
-  // Day of the due month (31 = last day of the month).
+  repeat: text("repeat", { enum: REPEATS }).notNull().default("never"),
+  // The first occurrence.
+  startDate: date("start_date").notNull(),
+  // Optional time of day, "HH:MM" (24h) in the app timezone; copied to each task.
+  dueTime: text("due_time"),
+  // No occurrences after this day (null = repeats forever).
+  endDate: date("end_date"),
+  // Day of the month for monthly and longer repeats (31 = last day of the month).
   dueDay: integer("due_day").notNull(),
-  // 0 = due in the period's last month, 1 = the month after the period ends, ...
-  dueMonthOffset: integer("due_month_offset").notNull().default(1),
-  // Quarters, halves and years start in this month (4 = April, the Indian financial year).
-  yearStartMonth: integer("year_start_month").notNull().default(4),
-  // The period's task appears this many days before it is due.
-  leadDays: integer("lead_days").notNull().default(7),
-  priority: text("priority", { enum: PRIORITIES }).notNull().default("high"),
-  // Gmail labels (WorkDesk only) given to each period's task.
+  // The occurrence's task appears this many days before it is due ("Remind me").
+  leadDays: integer("lead_days").notNull().default(0),
+  priority: text("priority", { enum: PRIORITIES }).notNull().default("normal"),
+  // No longer set from the app (reminders have no labels, user request 2026-10-06); old values are ignored.
   labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
-  responsible: text("responsible"),
-  // Start of the first period to track.
-  firstPeriodStart: date("first_period_start").notNull(),
   active: boolean("active").notNull().default(true),
+  // Legacy report fields, no longer used: the period rule old reports were converted from, and "responsible".
+  responsible: text("responsible"),
+  frequency: text("frequency", { enum: FREQUENCIES }),
+  dueMonthOffset: integer("due_month_offset"),
+  yearStartMonth: integer("year_start_month"),
+  firstPeriodStart: date("first_period_start"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
 
-// One row per reporting period, so each period's submission is tracked on its own.
+// One row per occurrence of a reminder (old rows: per reporting period), so each one is tracked on its own.
+// New occurrences have periodStart = periodEnd = dueDate; status "submitted" means done.
 export const reportPeriods = pgTable(
   "report_periods",
   {

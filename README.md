@@ -81,7 +81,7 @@ You can follow each run in the repository's **Actions** tab, and start one by ha
 
 ```
 src/
-  client/          React dashboard (Home, Emails, Tasks, Reports, Calendar, History, Search, Settings)
+  client/          React dashboard (Home, Emails, Tasks, Reminders, Calendar, History, Search, Settings)
   server/
     app.ts         Hono API, Google sign-in, session cookie
     worker.ts      Cloudflare entry (fetch + cron)
@@ -90,8 +90,8 @@ src/
     lib/gmail.ts   Gmail client: GET requests to an allowlist of read endpoints, a fixed mark-read call, and guarded label changes
     lib/sync.ts    Incremental sync via Gmail history, in batches
     lib/threadRules.ts  What a new message does to a dismissed, snoozed, or converted email
-    lib/reports.ts Creates each report period and its task ahead of the due date; keeps period and task in step
-  shared/reportSchedule.ts  Period and due-date rules (shared with the browser for previews)
+    lib/reports.ts Creates each reminder occurrence and its task ahead of its date; keeps the two in step
+  shared/reminderSchedule.ts  Repeat and date rules for reminders (shared with the browser for previews)
   shared/          Types and Zod schemas used by both sides
 ```
 
@@ -124,4 +124,5 @@ The live site shows the version it was deployed with, so commit before `npm run 
 - [x] Phase 1: Gmail queue, Create task / Dismiss / Snooze / Open in Gmail
 - [x] Phase 2: tasks with due dates, priorities, notes, categories, and completion history
 - [x] Phase 3: recurring reports (monthly, quarterly, half-yearly, annual) with period-by-period tracking and a reporting calendar
+- [x] Reports became Reminders: date, time, repeat (daily to yearly), end repeat and "remind me", for reports, meetings and payments
 - [~] Phase 4: Command Center (the Today screen exists; backup and reminders are still to do)

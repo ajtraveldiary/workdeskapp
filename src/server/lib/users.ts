@@ -96,19 +96,25 @@ export async function demoArrival(db: DB, userId: string) {
   ]);
 }
 
-// Sample reporting duties (from the WorkDesk plan; illustrative, not a verified list of obligations).
-// Periods already past their due date are marked submitted so the demo starts with some history.
+// Sample reminders: reporting duties (from the WorkDesk plan; illustrative, not a verified list of obligations),
+// a weekly meeting and a bill. Occurrences already past their date are marked done so the demo starts with some history.
 export async function seedDemoReports(db: DB, userId: string, today: string) {
-  const back = (months: number) => {
+  // The given day of the month, some months back.
+  const back = (months: number, day: number) => {
     const d = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
     d.setUTCMonth(d.getUTCMonth() - months);
-    return d.toISOString().slice(0, 10);
+    return `${d.toISOString().slice(0, 8)}${String(day).padStart(2, "0")}`;
   };
+  // The Monday two weeks before this week's.
+  const monday = new Date(`${today}T00:00:00Z`);
+  monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7) - 14);
+  const staffMeeting = monday.toISOString().slice(0, 10);
   await db.insert(reports).values([
-    { userId, name: "Monthly expenditure statement", frequency: "monthly", dueDay: 5, dueMonthOffset: 1, leadDays: 7, priority: "high", responsible: "Accounts section", firstPeriodStart: back(4) },
-    { userId, name: "Monthly HMIS report", frequency: "monthly", dueDay: 10, dueMonthOffset: 1, leadDays: 7, priority: "high", firstPeriodStart: back(3) },
-    { userId, name: "NHM quarterly progress report", frequency: "quarterly", dueDay: 15, dueMonthOffset: 1, yearStartMonth: 4, leadDays: 14, priority: "normal", firstPeriodStart: back(6) },
-    { userId, name: "Annual administrative report", frequency: "annual", dueDay: 30, dueMonthOffset: 3, yearStartMonth: 4, leadDays: 30, priority: "normal", firstPeriodStart: back(18) },
+    { userId, name: "Monthly expenditure statement", repeat: "monthly", startDate: back(3, 5), dueDay: 5, leadDays: 7, priority: "high" },
+    { userId, name: "Monthly HMIS report", repeat: "monthly", startDate: back(2, 10), dueDay: 10, leadDays: 7, priority: "high" },
+    { userId, name: "NHM quarterly progress report", repeat: "quarterly", startDate: back(3, 15), dueDay: 15, leadDays: 14, priority: "normal" },
+    { userId, name: "Staff meeting", repeat: "weekly", startDate: staffMeeting, dueDay: Number(staffMeeting.slice(8)), dueTime: "10:30", priority: "normal" },
+    { userId, name: "Electricity bill payment", repeat: "monthly", startDate: back(1, 20), dueDay: 20, leadDays: 3, priority: "high", notes: "Consumer no. 1155 (office building)" },
   ]);
   await ensureReportPeriods(db, today, userId);
   const past = await db

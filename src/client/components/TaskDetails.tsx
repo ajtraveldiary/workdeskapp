@@ -1,6 +1,6 @@
 // Read-only view of a task, with what was entered when it was created. Used for tasks that didn't come
-// from an email (made by hand, or by a recurring report).
-import { CalendarDays, Check, Clock, FileText, Pencil, RotateCcw, StickyNote, Tag } from "lucide-react";
+// from an email (made by hand, or by a reminder).
+import { CalendarDays, Check, Clock, CalendarClock, Pencil, RotateCcw, StickyNote, Tag } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Task } from "../../shared/types";
 import { useCompleteTask, useMe, useReopenTask } from "../api";
@@ -30,7 +30,7 @@ function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; o
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <PriorityPill priority={task.priority} />
           {done ? <Badge tone="low">Completed</Badge> : overdue ? <Badge tone="urgent">Overdue</Badge> : <Badge>Open</Badge>}
-          {task.report ? <Badge tone="info">Recurring report</Badge> : <Badge>Created by hand</Badge>}
+          {task.report ? <Badge tone="info">Reminder</Badge> : <Badge>Created by hand</Badge>}
         </div>
       </div>
 
@@ -53,7 +53,7 @@ function Details({ task, onClose, onEdit }: { task: Task; onClose: () => void; o
           {task.labelIds?.length ? <LabelChips ids={task.labelIds} max={8} /> : <span className="text-slate-500">None</span>}
         </Row>
         {task.report && (
-          <Row icon={FileText} label="Report">
+          <Row icon={CalendarClock} label="Reminder">
             {task.report.name} · {task.report.label}
           </Row>
         )}
