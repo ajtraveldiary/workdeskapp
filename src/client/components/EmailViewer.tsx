@@ -1,8 +1,8 @@
 // Full-screen email viewer: the conversation on one side, the selected attachment (PDF or image) on the other.
 // On phones and tablets the email comes first and the attachment preview follows it further down the same
 // scroll (user request 2026-10-06). Content comes from Gmail on demand and is never stored in WorkDesk's database.
-import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Paperclip, X } from "lucide-react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { ChevronDown, Download, ExternalLink, File, FileText, Image as ImageIcon, ListPlus, Paperclip, X } from "lucide-react";
 import type { EmailAttachment, EmailMessageContent, Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { attachmentUrl, useDismiss, useEmailContent, useMarkRead } from "../api";
@@ -46,20 +46,93 @@ export function EmailViewer({ thread, onClose, onCreateTask }: { thread: Thread 
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (thread && !d.open) d.showModal();
+    if (thread && !d.open) {
+      // Undo where a pull-to-close left the sheet.
+      d.style.transition = "";
+      d.style.transform = "";
+      d.showModal();
+    }
     if (!thread && d.open) d.close();
   }, [thread]);
+  usePullToClose(ref, onClose, !!thread);
 
   return (
     <dialog
       ref={ref}
       onClose={onClose}
       aria-label={thread?.subject ?? "Email"}
-      className="m-0 h-dvh max-h-none w-full max-w-none bg-white p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:m-auto sm:p-0 sm:h-[min(100dvh-2rem,60rem)] sm:w-[min(100vw-2rem,84rem)] sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl"
+      className="sheet m-0 h-dvh max-h-none w-full max-w-none bg-white p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:m-auto sm:p-0 sm:h-[min(100dvh-2rem,60rem)] sm:w-[min(100vw-2rem,84rem)] sm:rounded-2xl sm:border sm:border-line sm:shadow-2xl"
     >
       {thread && <ViewerBody key={thread.id} thread={thread} onClose={onClose} onCreateTask={onCreateTask} />}
     </dialog>
   );
+}
+
+// Phones: pull the viewer down to close it, like an app sheet (user request 2026-10-06). The pull starts on the
+// top bar and header, or on the email while it is scrolled to the top (not inside an email's own HTML frame).
+const PHONE = "(max-width: 639.98px)";
+function usePullToClose(ref: RefObject<HTMLDialogElement | null>, onClose: () => void, open: boolean) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !open || !window.matchMedia(PHONE).matches) return;
+    let state: "idle" | "maybe" | "drag" = "idle";
+    let startX = 0;
+    let startY = 0;
+    let startT = 0;
+    let dy = 0;
+    const place = (y: number, animate: boolean) => {
+      el.style.transition = animate ? "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)" : "none";
+      el.style.transform = y ? `translateY(${y}px)` : "";
+    };
+    const start = (e: TouchEvent) => {
+      const scroller = (e.target as Element).closest?.("[data-sheet-scroll]");
+      if (e.touches.length !== 1 || (scroller && scroller.scrollTop > 0)) return;
+      startX = e.touches[0]!.clientX;
+      startY = e.touches[0]!.clientY;
+      startT = e.timeStamp;
+      dy = 0;
+      state = "maybe";
+    };
+    const move = (e: TouchEvent) => {
+      if (state === "idle") return;
+      const x = e.touches[0]!.clientX - startX;
+      const y = e.touches[0]!.clientY - startY;
+      if (state === "maybe") {
+        // Sideways swipes and upward scrolls are left alone.
+        if ((Math.abs(x) > 8 && Math.abs(x) > Math.abs(y)) || y < -4) return void (state = "idle");
+        if (y < 8) return;
+        state = "drag";
+      }
+      e.preventDefault();
+      dy = Math.max(0, y);
+      place(dy, false);
+    };
+    const end = (e: TouchEvent) => {
+      if (state !== "drag") return void (state = "idle");
+      state = "idle";
+      const speed = dy / Math.max(1, e.timeStamp - startT);
+      if (dy > 140 || (dy > 50 && speed > 0.6)) {
+        place(el.offsetHeight, true);
+        setTimeout(() => closeRef.current(), 200);
+      } else place(0, true);
+    };
+    const cancel = () => {
+      if (state === "drag") place(0, true);
+      state = "idle";
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", cancel);
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchmove", move);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", cancel);
+    };
+  }, [ref, open]);
 }
 
 function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose: () => void; onCreateTask: (t: Thread) => void }) {
@@ -99,8 +172,25 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
 
   return (
     <div className="flex h-full flex-col">
+      {/* Phones: app-style top bar (user request 2026-10-06): close on the left, a grab handle for pulling the
+          sheet down, and the label and Gmail buttons on the right. Wider screens keep them in the header below. */}
+      <div className="relative flex items-center px-1.5 pt-2 sm:hidden">
+        <span aria-hidden="true" className="absolute top-1.5 left-1/2 h-1 w-9 -translate-x-1/2 rounded-full bg-slate-300" />
+        <button onClick={onClose} className="inline-flex size-10 items-center justify-center rounded-full text-slate-600 active:scale-90 active:bg-slate-100" aria-label="Close">
+          <ChevronDown size={26} strokeWidth={2} />
+        </button>
+        <div className="ml-auto flex items-center gap-1 pr-1">
+          <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} />
+          {gmailUrl && (
+            <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-10 items-center justify-center rounded-full text-slate-500 active:scale-90 active:bg-slate-100" aria-label="Open in Gmail">
+              <ExternalLink size={20} />
+            </a>
+          )}
+        </div>
+      </div>
+
       {/* Header: subject, sender and the usual email actions */}
-      <header className="flex flex-wrap items-start gap-3 border-b border-line px-4 py-3 sm:px-5">
+      <header className="flex flex-wrap items-start gap-3 border-b border-line px-4 pt-1 pb-3 sm:px-5 sm:py-3">
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="line-clamp-2 text-lg leading-snug font-semibold text-ink">{thread.subject}</h2>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.8125rem] text-slate-500">
@@ -123,15 +213,18 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
               </Button>
             </>
           )}
-          <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} />
-          {gmailUrl && (
-            <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:size-9" title="Open in Gmail" aria-label="Open in Gmail">
-              <ExternalLink size={18} />
-            </a>
-          )}
-          <button onClick={onClose} className="inline-flex size-9 items-center justify-center rounded-full border border-line text-slate-600 hover:bg-slate-100 hover:text-ink pointer-coarse:size-9" aria-label="Close" title="Close">
-            <X size={18} />
-          </button>
+          {/* On phones these live in the top bar above. */}
+          <div className="contents max-sm:hidden">
+            <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} />
+            {gmailUrl && (
+              <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:size-9" title="Open in Gmail" aria-label="Open in Gmail">
+                <ExternalLink size={18} />
+              </a>
+            )}
+            <button onClick={onClose} className="inline-flex size-9 items-center justify-center rounded-full border border-line text-slate-600 hover:bg-slate-100 hover:text-ink pointer-coarse:size-9" aria-label="Close" title="Close">
+              <X size={18} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -146,7 +239,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
 
       <div className="relative grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {/* Left: the conversation and its attachments */}
-        <section className="scroll-thin min-h-0 overflow-y-auto px-4 py-4 sm:px-5" aria-label="Email">
+        <section data-sheet-scroll className="scroll-thin min-h-0 overflow-y-auto px-4 py-4 sm:px-5" aria-label="Email">
           {isPending ? (
             <Loading label="Loading email…" className="py-16" />
           ) : error ? (

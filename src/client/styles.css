@@ -62,6 +62,18 @@ dialog::backdrop {
   background: rgb(32 33 36 / 0.4);
 }
 
+/* Phones: the email viewer slides up like an app sheet (and can be pulled down to close). */
+@media (max-width: 639.98px) {
+  dialog.sheet[open] {
+    animation: sheet-up 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 2px;
