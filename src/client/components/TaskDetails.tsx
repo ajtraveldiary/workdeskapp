@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import type { Task } from "../../shared/types";
 import { useCompleteTask, useMe, useReopenTask } from "../api";
 import { formatDateTime, formatDay, formatTime } from "../format";
-import { Badge, Button, Modal, PriorityPill } from "./ui";
+import { Badge, Button, Modal, PriorityPill, cx } from "./ui";
 
 export function TaskDetails({
   task,
@@ -19,7 +19,7 @@ export function TaskDetails({
   onOpenEmail?: (threadId: string) => void;
 }) {
   return (
-    <Modal open={task !== null} onClose={onClose} title="Task details">
+    <Modal open={task !== null} onClose={onClose} title="Task details" closeOnBackdrop>
       {task && <Details task={task} onClose={onClose} onEdit={onEdit} onOpenEmail={onOpenEmail} />}
     </Modal>
   );
@@ -78,18 +78,20 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
         {done && task.completedAt && ` · completed ${formatDateTime(task.completedAt)}`}
       </p>
 
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="ghost" onClick={onClose}>
-          Close
-        </Button>
-        {task.thread && onOpenEmail && (
-          <Button onClick={() => onOpenEmail(task.thread!.id)}>
-            <Mail size={15} /> Open email
+      {/* Buttons (alignment cleanup, user request 2026-10-06): the main action is a full-width button on phones
+          with Open email and Edit side by side under it; wider screens put Open email and Edit on the left and
+          the main action on the right. Close is the ✕, a tap outside, or pulling the sheet down. */}
+      <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className={cx("grid gap-2 sm:flex", task.thread && onOpenEmail ? "grid-cols-2" : "grid-cols-1")}>
+          {task.thread && onOpenEmail && (
+            <Button onClick={() => onOpenEmail(task.thread!.id)}>
+              <Mail size={15} /> Open email
+            </Button>
+          )}
+          <Button onClick={() => onEdit(task)}>
+            <Pencil size={15} /> Edit
           </Button>
-        )}
-        <Button onClick={() => onEdit(task)}>
-          <Pencil size={15} /> Edit
-        </Button>
+        </div>
         {done ? (
           <Button onClick={() => reopen.mutate(task.id, { onSuccess: onClose })} disabled={reopen.isPending}>
             <RotateCcw size={15} /> Reopen
@@ -106,11 +108,12 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
 
 function Row({ icon: Icon, label, children }: { icon: typeof CalendarDays; label: string; children: ReactNode }) {
   return (
-    <div className="flex gap-3">
-      <dt className="flex w-24 shrink-0 items-center gap-1.5 text-slate-500">
-        <Icon size={15} /> {label}
+    <div className="flex items-start gap-3">
+      {/* Label lines up with the first line of the value, also when the value wraps (2026-10-06). */}
+      <dt className="flex w-20 shrink-0 items-center gap-1.5 leading-5 text-slate-500 sm:w-24">
+        <Icon size={15} className="shrink-0" /> {label}
       </dt>
-      <dd className="min-w-0 flex-1 text-ink">{children}</dd>
+      <dd className="min-w-0 flex-1 leading-5 text-ink [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }

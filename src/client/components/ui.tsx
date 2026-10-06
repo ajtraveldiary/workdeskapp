@@ -127,7 +127,9 @@ export function SearchInput({ value, onChange, placeholder }: { value: string; o
 
 // Pop-up forms. Phones get an app-style sheet from the bottom with a grab handle that can be pulled down to
 // close (user request 2026-10-06: every part of the app should act like a mobile app).
-export function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+// closeOnBackdrop: a tap outside the box closes it (read-only views such as Task details, user request
+// 2026-10-06); forms leave it off so a stray tap can't lose what was typed.
+export function Modal({ open, onClose, title, children, closeOnBackdrop }: { open: boolean; onClose: () => void; title: string; children: ReactNode; closeOnBackdrop?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -136,6 +138,9 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
       d.style.transition = "";
       d.style.transform = ""; // where a pull-to-close left it
       d.showModal();
+      // The browser focuses the first button (the ✕), which then shows a focus ring on phones (2026-10-06).
+      // Focus the box itself instead, unless a field took the focus; Tab still reaches the buttons.
+      if (!(document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement)) d.focus();
     }
     if (!open && d.open) d.close();
   }, [open]);
@@ -145,11 +150,16 @@ export function Modal({ open, onClose, title, children }: { open: boolean; onClo
       ref={ref}
       // Only its own close: menus opened inside it are dialogs too.
       onClose={(e) => e.target === e.currentTarget && onClose()}
+      // The dialog element itself is only hit outside its content box (the dimmed backdrop).
+      onClick={closeOnBackdrop ? (e) => e.target === e.currentTarget && onClose() : undefined}
+      tabIndex={-1}
+      aria-label={title}
       data-sheet-scroll
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-white p-0 shadow-xl sheet max-sm:mx-0 max-sm:mt-auto max-sm:mb-0 max-sm:max-h-[92dvh] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[env(safe-area-inset-bottom)]"
+      className="outline-none m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-white p-0 shadow-xl sheet max-sm:mx-0 max-sm:mt-auto max-sm:mb-0 max-sm:max-h-[92dvh] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0"
     >
       {open && (
-        <div className="p-5 max-sm:px-4 max-sm:pt-2">
+        // The safe-area space is inside the content, so a tap there isn't taken as a tap outside.
+        <div className="p-5 max-sm:px-4 max-sm:pt-2 max-sm:pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
           <span aria-hidden="true" className="mx-auto mb-2 block h-1 w-9 rounded-full bg-slate-300 sm:hidden" />
           <div className="mb-4 flex items-start justify-between gap-4">
             <h2 className="text-lg font-medium text-ink">{title}</h2>
