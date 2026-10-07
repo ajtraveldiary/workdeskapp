@@ -518,18 +518,18 @@ dialog[open]::backdrop {
 
 /*
   Dark mode (user request 2026-10-07; Settings > Appearance: Automatic / Light / Dark, theme.ts). Instead of
-  dark: classes on every element, the colour tokens themselves change: white surfaces become iOS's dark grey
-  cards on a black background, the slate greys flip (light text, dark fills and borders), and each tone's soft
+  dark: classes on every element, the colour tokens themselves change: white surfaces become lighter dark-grey
+  cards on a dark-grey page (not pure black; user request 2026-10-07, like iOS apps and Gmail), the slate greys flip (light text, dark fills and borders), and each tone's soft
   tint and ink are redone for a dark background. Kept white on purpose: the email itself and Word/PDF previews
   (documents are written for paper), and text on coloured buttons (.text-white below).
 */
 html.dark {
   color-scheme: dark;
-  --color-white: #1c1c1e;
-  --color-slate-50: #242426;
-  --color-slate-100: #2c2c2e;
-  --color-slate-200: #3a3a3c;
-  --color-slate-300: #48484a;
+  --color-white: #2a2b2d;
+  --color-slate-50: #323336;
+  --color-slate-100: #38393c;
+  --color-slate-200: #45464a;
+  --color-slate-300: #55565a;
   --color-slate-400: #8e8e93;
   --color-slate-500: #98989f;
   --color-slate-600: #aeaeb2;
@@ -538,8 +538,8 @@ html.dark {
   --color-slate-900: #f2f2f7;
 
   --color-ink: #f2f2f7;
-  --color-line: #38383a;
-  --color-canvas-soft: #000000;
+  --color-line: #3c3d40;
+  --color-canvas-soft: #1e1f20;
   --color-tint: #14233d;
   --color-sender: #f28b8b;
 
@@ -566,19 +566,19 @@ html.dark {
 }
 html.dark,
 html.dark body {
-  background: #000000;
+  background: #1e1f20;
 }
 html.dark dialog::backdrop {
   background: rgb(0 0 0 / 0.6);
 }
 html.dark .scroll-thin {
-  scrollbar-color: #48484a transparent;
+  scrollbar-color: #55565a transparent;
 }
 html.dark .skeleton {
-  background: linear-gradient(90deg, #2c2c2e 25%, #3a3a3c 45%, #2c2c2e 65%) 0 0 / 300% 100%;
+  background: linear-gradient(90deg, #38393c 25%, #45464a 45%, #38393c 65%) 0 0 / 300% 100%;
 }
 html.dark .row-click:has(.row-link:active) {
-  background-color: rgb(58 58 60 / 0.7);
+  background-color: rgb(69 70 74 / 0.7);
 }
 /* White text on coloured buttons, badges and swipe actions stays white (bg-white surfaces turned dark). */
 @layer utilities {

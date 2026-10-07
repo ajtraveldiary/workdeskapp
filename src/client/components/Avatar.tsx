@@ -8,7 +8,7 @@ const TONES = [
   "bg-[#d9f6fb] text-[#00838f] dark:bg-[#0f3a40] dark:text-[#7fe3ef]", // cyan
   "bg-[#d5f5ee] text-[#00796b] dark:bg-[#0f3a33] dark:text-[#7fe0cc]", // teal
   "bg-[#e3e5ff] text-[#3949ab] dark:bg-[#22264f] dark:text-[#aab3ff]", // indigo
-  "bg-[#eef0f3] text-[#4b5563] dark:bg-[#3a3a3c] dark:text-[#d1d1d6]", // grey
+  "bg-[#eef0f3] text-[#4b5563] dark:bg-[#4a4b4f] dark:text-[#d1d1d6]", // grey
 ];
 
 function initials(name: string) {
