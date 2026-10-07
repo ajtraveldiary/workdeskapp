@@ -1,5 +1,5 @@
 // Read-only view of a task, with what was entered when it was created. Opened from task lists; for a task
-// made from an email it also names the email and can open it (onOpenEmail).
+// made from an email it also names the email, and its title opens it (onOpenEmail).
 import { CalendarDays, Check, Clock, CalendarClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Task } from "../../shared/types";
@@ -50,7 +50,26 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
   return (
     <div className="space-y-4">
       <div>
-        <h3 className={done ? "text-lg font-semibold text-slate-400 line-through" : "text-lg font-semibold text-ink"}>{task.title}</h3>
+        {/* For an email task the title opens the email (user request 2026-10-07, replacing the Open email button). */}
+        {task.thread && onOpenEmail ? (
+          <h3 className="text-lg font-semibold">
+            <button
+              type="button"
+              onClick={() => onOpenEmail(task.thread!.id)}
+              title="Open email"
+              className={cx(
+                "group/open text-left [overflow-wrap:anywhere] hover:text-brand-700 hover:underline active:opacity-70",
+                done ? "text-slate-400 line-through" : "text-ink",
+              )}
+            >
+              {task.title}
+              <Mail size={15} className="ml-1.5 inline-block align-[-1px] text-slate-400 group-hover/open:text-brand-600" aria-hidden />
+              <span className="sr-only">, open email</span>
+            </button>
+          </h3>
+        ) : (
+          <h3 className={cx("text-lg font-semibold [overflow-wrap:anywhere]", done ? "text-slate-400 line-through" : "text-ink")}>{task.title}</h3>
+        )}
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <PriorityPill priority={task.priority} />
           {done ? <Badge tone="low">Completed</Badge> : waiting ? <Badge tone="snooze">Waiting for reply</Badge> : overdue ? <Badge tone="urgent">Overdue</Badge> : <Badge>Open</Badge>}
@@ -105,33 +124,23 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
         {done && task.completedAt && ` · completed ${formatDateTime(task.completedAt)}`}
       </p>
 
-      {/* Buttons (alignment cleanup, user request 2026-10-06): the main action is a full-width button on phones
-          with Open email and Edit side by side under it; wider screens put Open email and Edit on the left and
-          the main action on the right. Close is the ✕, a tap outside, or pulling the sheet down. */}
-      <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className={cx("grid gap-2 sm:flex", task.thread && onOpenEmail ? "grid-cols-2" : "grid-cols-1")}>
-          {task.thread && onOpenEmail && (
-            <Button onClick={() => onOpenEmail(task.thread!.id)}>
-              <Mail size={15} /> Open email
-            </Button>
-          )}
-          <Button onClick={() => onEdit(task)}>
-            <Pencil size={15} /> Edit
+      {/* Buttons on one line (user request 2026-10-07): Edit on the left, Wait for reply and the main action on
+          the right; on phones the three share the width. No Open email button: the title opens the email. They
+          only wrap when they can't fit. Close is the ✕, a tap outside, or pulling the sheet down. */}
+      <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4 max-sm:[&>button]:flex-1 max-sm:[&>button]:px-2">
+        <Button onClick={() => onEdit(task)} className="sm:mr-auto">
+          <Pencil size={15} /> Edit
+        </Button>
+        {wait}
+        {done ? (
+          <Button onClick={() => reopen.mutate(task.id, { onSuccess: onClose })} disabled={reopen.isPending}>
+            <RotateCcw size={15} /> Reopen
           </Button>
-        </div>
-        {/* Wraps under Open email / Edit when the four buttons don't fit one line, instead of overflowing. */}
-        <div className={cx("grid gap-2 sm:ml-auto sm:flex", wait ? "grid-cols-2" : "grid-cols-1")}>
-          {wait}
-          {done ? (
-            <Button onClick={() => reopen.mutate(task.id, { onSuccess: onClose })} disabled={reopen.isPending}>
-              <RotateCcw size={15} /> Reopen
-            </Button>
-          ) : (
-            <Button variant="primary" onClick={() => complete.mutate(task.id, { onSuccess: onClose })} disabled={complete.isPending}>
-              <Check size={15} /> Mark complete
-            </Button>
-          )}
-        </div>
+        ) : (
+          <Button variant="primary" onClick={() => complete.mutate(task.id, { onSuccess: onClose })} disabled={complete.isPending}>
+            <Check size={15} /> Mark complete
+          </Button>
+        )}
       </div>
     </div>
   );
