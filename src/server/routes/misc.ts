@@ -3,7 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import { designations, emailThreads, employees, events, gmailAccounts, hiddenSnippets, mutedSenders, reportPeriods, tasks, users } from "../db/schema";
-import { incrementOnHome } from "../../shared/staff";
+import { contractOnHome, incrementOnHome } from "../../shared/staff";
 import { timezone } from "../env";
 import { addDays, todayIn } from "../lib/dates";
 import { syncUser, wakeSnoozed } from "../lib/sync";
@@ -110,6 +110,15 @@ export const miscRoutes = new Hono<AppEnv>()
         .where(and(eq(employees.userId, userId), sql`${employees.leftOn} is null`, sql`${employees.nextIncrementOn} is not null`))
         .orderBy(asc(employees.nextIncrementOn), asc(employees.name))
     ).filter((e) => incrementOnHome(e.due, today)) as Summary["incrementsDue"];
+    // Temporary employees' contracts ending within 7 days or already past (user request 2026-10-08).
+    const contractsEnding = (
+      await db
+        .select({ employeeId: employees.id, name: employees.name, designation: designations.name, end: employees.engagedTill, days: employees.contractDays })
+        .from(employees)
+        .leftJoin(designations, eq(employees.designationId, designations.id))
+        .where(and(eq(employees.userId, userId), eq(employees.permanent, false), sql`${employees.leftOn} is null`, sql`${employees.engagedTill} is not null`))
+        .orderBy(asc(employees.engagedTill), asc(employees.name))
+    ).filter((e) => contractOnHome(e.end, today)) as Summary["contractsEnding"];
     const summary: Summary = {
       today,
       counts: {
@@ -132,8 +141,10 @@ export const miscRoutes = new Hono<AppEnv>()
         jobTasks: Number(openCount[0]?.jobs ?? 0),
         remindersDue: Number(reportCounts[0]?.due ?? 0),
         incrementsDue: incrementsDue.length,
+        contractsEnding: contractsEnding.length,
       },
       incrementsDue,
+      contractsEnding,
       overdue: overdue.map(toTask),
       dueToday: dueToday.map(toTask),
       dueTomorrow: dueTomorrow.map(toTask),

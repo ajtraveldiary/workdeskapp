@@ -91,8 +91,8 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `tasks.ts` | Tasks: lists by view (today, overdue, upcoming, waiting, completed…), date ranges for the calendar, create, edit, complete, reopen, bulk delete (with Gmail task-label clean-up). |
 | `reports.ts` | Reminders (stored as reports): list with their dates, create, edit, pause/resume, delete, mark a date done or not done. |
 | `labels.ts` | Gmail labels: list, create, rename/recolour, delete, change an email's labels, task/done label settings, Send to a section (`/threads/bulk-section`). |
-| `misc.ts` | `/me`, Home summary counts, History, hidden senders, hidden text, housekeeping (`/maintain`) and Sync now. |
-| `staff.ts` | Employees page: designations, types of temporary employees, employees (add/edit, left the office, delete), an employee's open work, increment done. `employeeValues` keeps only the fields that fit permanent or temporary staff. |
+| `misc.ts` | `/me`, Home summary counts (with increments and contracts ending), History, hidden senders, hidden text, housekeeping (`/maintain`) and Sync now. |
+| `staff.ts` | Employees page: designations, types of temporary employees, employees (add/edit, left the office, delete), an employee's open work, increment done, contract renewed / ended (with Undo). `employeeValues` keeps only the fields that fit permanent or temporary staff. |
 | `files.ts` | File register: list, add, edit, remove; one entry per e-file number. |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
@@ -129,7 +129,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `types.ts` | The shapes of data the API sends to the app (Thread, Task, Report, Employee, OfficeFile, Summary…). |
 | `schemas.ts` | Checks on everything the app sends (Zod): tasks, reminders, labels, staff, files, notifications, hidden text. |
 | `reminderSchedule.ts` | Reminder date maths: repeats, next dates, "remind me" lead days, labels like "Every month". |
-| `staff.ts` | Employee lists and rules: categories, engaged as, common designations and types, contract end date, increment due dates. |
+| `staff.ts` | Employee lists and rules: categories, engaged as, common designations and types, contract end date, increment due dates, contracts ending (on Home from 7 days before, renewed end date). |
 | `transfer.ts` | Import / Export: CSV columns of each list, sample files, CSV writing, reading dates/times/priorities, backup tables. |
 | `findDates.ts` | Finds a due date written in an email (Indian day-first formats) for a new task. |
 | `addressLists.ts` | Counts and names addresses for folding long To/Cc lists. |
@@ -175,7 +175,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | Screen |
 |---|---|
-| `Home.tsx` | Home: four stat cards, Due Today (Today / Overdue / Upcoming, with increments), To-do card (calendar tiles, selection bar), Pending Emails card. |
+| `Home.tsx` | Home: four stat cards, Due Today (Today / Overdue / Upcoming, with increments and temporary contracts ending: Renew / Contract ended), To-do card (calendar tiles, selection bar), Pending Emails card. |
 | `Inbox.tsx` | Emails: Pending / Other sections / Removed / All tabs, search, label and unread filters, toolbar. |
 | `Tasks.tsx` | Tasks: views (Today, Upcoming, No date, Waiting, Completed…), in priority order. |
 | `Reminders.tsx` | Reminders: Due next and All reminders; tap opens Reminder details. |
@@ -250,7 +250,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `reminder-links.test.ts` | Links on reminders. |
 | `calendar-feed.test.ts` | The calendar link's `.ics` file. |
 | `push.test.ts` | Push encryption, VAPID signature, notification schedule. |
-| `staff.test.ts` | Designations, employees (permanent/temporary), types, increments, "For" links. |
+| `staff.test.ts` | Designations, employees (permanent/temporary), types, increments, contracts ending (renew / ended), "For" links. |
 | `file-register.test.ts` | File register entries and e-file numbers. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |
 | `db-errors.test.ts` | Database problems explained in plain words. |

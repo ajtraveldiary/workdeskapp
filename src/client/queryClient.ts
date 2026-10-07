@@ -52,7 +52,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 10: the summary lists incrementsDue (Staff, 2026-10-07).
 // 11: employees are permanent or temporary (permanent, engagedTill), 2026-10-07.
 // 12: the staff list has types; employees carry engagement, typeId, contractDays, payPerDay (2026-10-07).
-export const CACHE_VERSION = "12";
+// 13: the summary lists contractsEnding (temporary employees, 2026-10-08).
+export const CACHE_VERSION = "13";
 
 export async function clearSavedData() {
   queryClient.clear();

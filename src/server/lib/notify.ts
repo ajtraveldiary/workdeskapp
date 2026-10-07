@@ -5,7 +5,7 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { DB } from "../db";
 import { employees, pushSubscriptions, tasks, users } from "../db/schema";
-import { incrementOnHome } from "../../shared/staff";
+import { contractOnHome, incrementOnHome } from "../../shared/staff";
 import { timezone, type Env } from "../env";
 import { viewFilter } from "../routes/tasks";
 import { decryptSecret, encryptSecret } from "./crypto";
@@ -84,11 +84,15 @@ export async function planNotifications(db: DB, env: Env, userId: string, now = 
     db.select(cols).from(tasks).where(and(mine, viewFilter("overdue", today))).orderBy(...order),
     db.select(cols).from(tasks).where(and(mine, viewFilter("today", today))).orderBy(...order),
   ])) as [Row[], Row[]];
-  // The app icon's badge: Home's "Pending today" (due today + overdue, and increments due, user request 2026-10-07).
-  const increments = (
-    await db.select({ due: employees.nextIncrementOn }).from(employees).where(and(eq(employees.userId, userId), isNull(employees.leftOn)))
-  ).filter((e) => incrementOnHome(e.due, today)).length;
-  const badge = overdue.length + dueToday.length + increments;
+  // The app icon's badge: Home's "Pending today" (due today + overdue, and increments due, user request 2026-10-07;
+  // and temporary contracts ending, user request 2026-10-08).
+  const staffDates = await db
+    .select({ due: employees.nextIncrementOn, end: employees.engagedTill, permanent: employees.permanent })
+    .from(employees)
+    .where(and(eq(employees.userId, userId), isNull(employees.leftOn)));
+  const increments = staffDates.filter((e) => incrementOnHome(e.due, today)).length;
+  const contracts = staffDates.filter((e) => !e.permanent && contractOnHome(e.end, today)).length;
+  const badge = overdue.length + dueToday.length + increments + contracts;
   const messages: PushMessage[] = [];
 
   // At the due time: today's timed tasks and reminders whose time has come (not waiting ones: they come

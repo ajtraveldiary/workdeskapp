@@ -9,7 +9,7 @@ import { designations, employeeTypes, employees, events, reports, tasks } from "
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { designationInput, employeeInput } from "../../shared/schemas";
-import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES, nextYear } from "../../shared/staff";
+import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES, nextYear, renewedEnd } from "../../shared/staff";
 import type { Employee, StaffList } from "../../shared/types";
 import { openTaskOrder, selectTasks, toTask } from "./tasks";
 
@@ -236,6 +236,48 @@ export const staffRoutes = new Hono<AppEnv>()
     await db.update(employees).set({ nextIncrementOn: next, updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.increment_done", `Increment for ${e.name} (due ${e.nextIncrementOn}) marked done; next due ${next}`);
     return c.json({ previous: e.nextIncrementOn, next });
+  })
+  // Contract ending (user request 2026-10-08), from Home's Due Today. Renew: the contract runs the same number
+  // of days again from the day after it ends. Undo sends the end date it was ("undoTo"), put back only if
+  // nothing changed it since.
+  .post("/employees/:id/contract/renew", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("id"));
+    const { undoTo } = (await c.req.json().catch(() => ({}))) as { undoTo?: string };
+    if (e.permanent) throw new HTTPException(400, { message: `${e.name} is a permanent employee` });
+    if (!e.contractDays) throw new HTTPException(400, { message: `Set ${e.name}'s contract period (days) first` });
+    if (undoTo !== undefined) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(undoTo)) throw new HTTPException(400, { message: "Use YYYY-MM-DD" });
+      if (e.engagedTill !== renewedEnd(undoTo, e.contractDays)) return c.json({ previous: e.engagedTill, next: e.engagedTill });
+      await db.update(employees).set({ engagedTill: undoTo, updatedAt: new Date() }).where(eq(employees.id, e.id));
+      await log(db, userId, "staff.contract_renew_undone", `Contract of ${e.name} not renewed after all; ends ${undoTo} again`);
+      return c.json({ previous: e.engagedTill, next: undoTo });
+    }
+    if (!e.engagedTill) throw new HTTPException(400, { message: `${e.name} has no contract end date` });
+    const next = renewedEnd(e.engagedTill, e.contractDays);
+    await db.update(employees).set({ engagedTill: next, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await log(db, userId, "staff.contract_renewed", `Contract of ${e.name} (ended ${e.engagedTill}) renewed for ${e.contractDays} days; now ends ${next}`);
+    return c.json({ previous: e.engagedTill, next });
+  })
+  // Contract ended: the employee left the office on the contract's end date. Undo ({ undo: true }) brings them
+  // back, only if they are still marked as left on that date.
+  .post("/employees/:id/contract/ended", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("id"));
+    const { undo } = (await c.req.json().catch(() => ({}))) as { undo?: boolean };
+    if (e.permanent) throw new HTTPException(400, { message: `${e.name} is a permanent employee` });
+    if (!e.engagedTill) throw new HTTPException(400, { message: `${e.name} has no contract end date` });
+    if (undo) {
+      if (e.leftOn !== e.engagedTill) return c.json({ leftOn: e.leftOn });
+      await db.update(employees).set({ leftOn: null, updatedAt: new Date() }).where(eq(employees.id, e.id));
+      await log(db, userId, "staff.contract_end_undone", `Contract of ${e.name} not ended after all; back in the office`);
+      return c.json({ leftOn: null });
+    }
+    await db.update(employees).set({ leftOn: e.engagedTill, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await log(db, userId, "staff.contract_ended", `Contract of ${e.name} ended on ${e.engagedTill}; left the office`);
+    return c.json({ leftOn: e.engagedTill });
   })
   // Only an employee no task or reminder is about can be deleted; otherwise "Left the office" keeps the name.
   .delete("/employees/:id", async (c) => {

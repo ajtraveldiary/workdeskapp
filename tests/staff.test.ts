@@ -7,7 +7,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { COMMON_DESIGNATIONS, contractEnd, incrementDue, incrementOnHome, nextYear } from "../src/shared/staff";
+import { COMMON_DESIGNATIONS, contractEnd, contractOnHome, contractOver, incrementDue, incrementOnHome, nextYear, renewedEnd } from "../src/shared/staff";
 import type { Report, StaffList, Summary, Task } from "../src/shared/types";
 
 const NAME = "ശ്രീമതി. ലക്ഷ്മി കുട്ടി അമ്മ കെ. എസ്. (ജൂനിയർ പബ്ലിക് ഹെൽത്ത് നഴ്സ്, പ്രാഥമികാരോഗ്യ കേന്ദ്രം)";
@@ -164,5 +164,51 @@ describe("staff", () => {
     // No date: nothing to mark.
     const none = (await call("POST", "/staff/employees", { name: "No date" })).json.id as string;
     expect((await call("POST", `/staff/employees/${none}/increment`)).status).toBe(400);
+  });
+
+  it("contracts ending: on Home from 7 days before, renew for the same period or end, both with Undo", async () => {
+    expect(contractOnHome("2026-10-15", "2026-10-08")).toBe(true); // 7 days ahead
+    expect(contractOnHome("2026-10-16", "2026-10-08")).toBe(false);
+    expect(contractOnHome("2026-09-30", "2026-10-08")).toBe(true); // past, not dealt with
+    expect(contractOnHome(null, "2026-10-08")).toBe(false);
+    expect(contractOver("2026-10-07", "2026-10-08")).toBe(true);
+    expect(contractOver("2026-10-08", "2026-10-08")).toBe(false);
+    expect(renewedEnd("2027-03-28", 179)).toBe("2027-09-23"); // 29 Mar + 179 days − 1
+
+    const today = (await call("GET", "/me")).json.today as string;
+    const soon = contractEnd(today, 5); // ends in 4 days
+    const later = contractEnd(today, 30);
+    const temp = (await call("POST", "/staff/employees", { name: NAME, permanent: false, engagement: "contract", contractDays: 179, joinedServiceOn: "2026-04-01", engagedTill: soon })).json.id as string;
+    const noDays = (await call("POST", "/staff/employees", { name: "No period", permanent: false, engagedTill: soon })).json.id as string;
+    await call("POST", "/staff/employees", { name: "Not yet", permanent: false, contractDays: 30, engagedTill: later });
+    const summary = async () => (await call("GET", "/summary")).json as Summary;
+    let s = await summary();
+    expect(s.contractsEnding.map((c) => c.name).sort()).toEqual([NAME, "No period"].sort());
+    expect(s.contractsEnding.find((c) => c.employeeId === temp)).toMatchObject({ end: soon, days: 179 });
+    expect(s.counts.contractsEnding).toBe(2);
+
+    // Renew: the same 179 days again from the day after it ends; Undo puts the old end date back.
+    const r = (await call("POST", `/staff/employees/${temp}/contract/renew`)).json;
+    expect(r).toEqual({ previous: soon, next: renewedEnd(soon, 179) });
+    s = await summary();
+    expect(s.contractsEnding.map((c) => c.employeeId)).toEqual([noDays]);
+    await call("POST", `/staff/employees/${temp}/contract/renew`, { undoTo: soon });
+    expect((await staff()).employees.find((e) => e.id === temp)!.engagedTill).toBe(soon);
+    // No contract period: renew is refused (set it on the employee first).
+    expect((await call("POST", `/staff/employees/${noDays}/contract/renew`)).status).toBe(400);
+
+    // Ended: left the office on the end date, off Home; Undo brings them back.
+    expect((await call("POST", `/staff/employees/${noDays}/contract/ended`)).json).toEqual({ leftOn: soon });
+    expect((await staff()).employees.find((e) => e.id === noDays)!.leftOn).toBe(soon);
+    expect((await summary()).contractsEnding.map((c) => c.employeeId)).toEqual([temp]);
+    await call("POST", `/staff/employees/${noDays}/contract/ended`, { undo: true });
+    expect((await staff()).employees.find((e) => e.id === noDays)!.leftOn).toBeNull();
+
+    const history = JSON.stringify((await call("GET", "/history")).json);
+    expect(history).toContain("renewed for 179 days");
+    expect(history).toContain("left the office");
+    // Permanent employees have no contract.
+    const perm = (await call("POST", "/staff/employees", { name: "Permanent" })).json.id as string;
+    expect((await call("POST", `/staff/employees/${perm}/contract/ended`)).status).toBe(400);
   });
 });

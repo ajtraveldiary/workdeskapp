@@ -211,6 +211,19 @@ export function useIncrementDone() {
   });
 }
 
+// Contract ending (user request 2026-10-08): renew for the same period, or ended (left on the end date).
+export function useContractAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action, undoTo, undo }: { id: string; action: "renew" | "ended"; undoTo?: string; undo?: boolean }) =>
+      api<{ previous?: string | null; next?: string | null; leftOn?: string | null }>(`/staff/employees/${id}/contract/${action}`, {
+        method: "POST",
+        body: action === "renew" ? (undoTo ? { undoTo } : {}) : undo ? { undo: true } : {},
+      }),
+    onSettled: () => qc.invalidateQueries({ predicate: (q) => ["staff", "summary", "history"].includes(q.queryKey[0] as string) }),
+  });
+}
+
 // Phone notifications (user request 2026-10-07): the settings apply to every device; on/off is per device.
 export type PushSettings = { publicKey: string; summaryOn: boolean; summaryTime: string; dueOn: boolean; devices: number };
 export const usePushSettings = () => useQuery({ queryKey: ["push"], queryFn: () => api<PushSettings>("/push") });

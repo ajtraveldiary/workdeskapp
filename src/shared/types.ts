@@ -123,8 +123,11 @@ export type Summary = {
     remindersDue: number;
     // Increments shown in Due Today (Staff, user request 2026-10-07): this month's from the 20th, earlier ones always.
     incrementsDue: number;
+    // Temporary employees' contracts ending within 7 days or already past (user request 2026-10-08).
+    contractsEnding: number;
   };
   incrementsDue: IncrementDue[];
+  contractsEnding: ContractEnding[];
   overdue: Task[];
   dueToday: Task[];
   dueTomorrow: Task[];
@@ -227,6 +230,10 @@ export type StaffList = { designations: Designation[]; types: EmployeeType[]; em
 
 // An employee's increment shown in Home's Due Today (user request 2026-10-07).
 export type IncrementDue = { employeeId: string; name: string; designation: string | null; due: string };
+
+// A temporary employee's contract ending, shown in Home's Due Today (user request 2026-10-08). days = the
+// contract period (null: not given, so Renew needs it set on the employee first).
+export type ContractEnding = { employeeId: string; name: string; designation: string | null; end: string; days: number | null };
 
 // File register (user request 2026-10-07): a physical file and/or an e-file. efileNumber "" = e-file not created yet.
 export type OfficeFile = { id: string; subject: string; physical: boolean; efileNumber: string; notes: string; updatedAt: string };

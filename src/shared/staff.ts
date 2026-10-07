@@ -73,3 +73,18 @@ export function nextYear(day: string): string {
   const last = Number(monthEnd(`${y}-${m}-01`).slice(8, 10));
   return `${y}-${m}-${String(Math.min(Number(day.slice(8, 10)), last)).padStart(2, "0")}`;
 }
+
+// --- Contract endings (user request 2026-10-08) ---
+// A temporary employee's contract end date (engagedTill) shows in Home's Due Today from 7 days before it, and
+// stays (red once past) until it is dealt with: Renew for the same number of days again (the contract period),
+// or Contract ended (left the office on the end date).
+
+export const CONTRACT_HOME_DAYS = 7;
+
+const plusDays = (day: string, n: number) => contractEnd(day, n + 1);
+
+// On Home's Due Today: ending within the next 7 days, today, or already past.
+export const contractOnHome = (end: string | null, today: string) => !!end && end <= plusDays(today, CONTRACT_HOME_DAYS);
+export const contractOver = (end: string | null, today: string) => !!end && end < today;
+// Renewed for the same period: the new contract starts the day after the old one ends.
+export const renewedEnd = (end: string, days: number) => contractEnd(plusDays(end, 1), days);
