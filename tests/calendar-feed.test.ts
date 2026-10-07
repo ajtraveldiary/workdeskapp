@@ -51,10 +51,10 @@ describe("calendar file", () => {
     const ev = (uid: string) => ics.split("BEGIN:VEVENT").find((e) => e.includes(`UID:${uid}`))!;
     const task = ev("task-late@workdesk");
     expect(task).toContain("DTSTART;VALUE=DATE:20261007");
-    expect(task).toContain("SUMMARY:Overdue: File returns");
+    expect(task).toContain("SUMMARY:File returns\r\n");
     expect(task).toContain("Overdue – was due 18 Sept 2026\\, 09:30");
     expect(ev("reminder-r2-2026-09-30@workdesk")).toContain("DTSTART;VALUE=DATE:20261007");
-    expect(ev("reminder-r2-2026-09-30@workdesk")).toContain("SUMMARY:Overdue: Staff meeting");
+    expect(ev("reminder-r2-2026-09-30@workdesk")).toContain("SUMMARY:Staff meeting\r\n");
     expect(ev("reminder-r2-2026-09-23@workdesk")).toContain("SUMMARY:✓ Staff meeting"); // done: stays on its day
     expect(ev("reminder-r2-2026-10-14@workdesk")).toContain("DTSTART:20261014T050000Z"); // still to come: as before
   });

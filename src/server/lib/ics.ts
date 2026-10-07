@@ -5,8 +5,9 @@
 //  - Reminders: every date from two months back to a year ahead, worked out with the app's own date maths;
 //    dates already marked done get a ✓.
 //  - Overdue (user request 2026-10-07, like the Due Today card): an open task whose date has passed, and a
-//    reminder date before today that isn't done, show on today as an all-day "Overdue: …" event instead of on
-//    their old date, with the old date in the details. They move along day by day until done.
+//    reminder date before today that isn't done, show on today as an all-day event instead of on their old
+//    date, with the old date in the details. They move along day by day until done. The title is just the
+//    name, without "Overdue:" (user request 2026-10-07).
 import { occurrences, repeatText, type ReminderRule } from "../../shared/reminderSchedule";
 
 export type FeedTask = {
@@ -117,7 +118,7 @@ export function buildCalendar(opts: { tasks: FeedTask[]; reminders: FeedReminder
     ].filter(Boolean);
     event(`task-${t.id}@workdesk`, t.updatedAt, [
       ...(overdue ? when(opts.today, null, opts.tz) : when(t.dueDate, t.dueTime, opts.tz)),
-      `SUMMARY:${escapeText(`${overdue ? "Overdue: " : ""}${t.title}`)}`,
+      `SUMMARY:${escapeText(t.title)}`,
       `DESCRIPTION:${escapeText(about.join("\n"))}`,
     ]);
   }
@@ -139,7 +140,7 @@ export function buildCalendar(opts: { tasks: FeedTask[]; reminders: FeedReminder
       ].filter(Boolean);
       event(`reminder-${r.id}-${day}@workdesk`, r.updatedAt, [
         ...(overdue ? when(opts.today, null, opts.tz) : when(day, r.dueTime, opts.tz)),
-        `SUMMARY:${escapeText(`${done ? "✓ " : overdue ? "Overdue: " : ""}${r.name}`)}`,
+        `SUMMARY:${escapeText(`${done ? "✓ " : ""}${r.name}`)}`,
         `DESCRIPTION:${escapeText(about.join("\n"))}`,
       ]);
     }
