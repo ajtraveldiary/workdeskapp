@@ -140,7 +140,9 @@ function LabelFilterChip({ value, onChange, labels }: { value: string; onChange:
 
 // Add or remove the user's Gmail labels on this conversation (changes Gmail too). Each tap applies at once.
 // Also used on email rows and in the task form for tasks made from an email.
-export function LabelPicker({ thread, selected, onChange, compact }: { thread: Pick<Thread, "id">; selected: string[]; onChange: (ids: string[]) => void; compact?: boolean }) {
+// iconClassName: a plain icon button (no border or text) styled like the buttons beside it, as in the email
+// viewer's header on wider screens (user request 2026-10-07).
+export function LabelPicker({ thread, selected, onChange, compact, iconClassName }: { thread: Pick<Thread, "id">; selected: string[]; onChange: (ids: string[]) => void; compact?: boolean; iconClassName?: string }) {
   const { data } = useLabels();
   const setLabels = useSetThreadLabels();
   const [open, setOpen] = useState(false);
@@ -161,9 +163,22 @@ export function LabelPicker({ thread, selected, onChange, compact }: { thread: P
 
   return (
     <div className="relative" ref={ref}>
-      <Button size="sm" type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Labels" aria-label="Labels">
-        <Tag size={15} /> <span className={compact ? "sr-only" : "hidden sm:inline"}>Labels</span>
-      </Button>
+      {iconClassName ? (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          title="Labels"
+          aria-label="Labels"
+          className={cx("inline-flex items-center justify-center text-slate-500 hover:text-ink active:scale-90 active:bg-slate-100 aria-expanded:bg-slate-100 aria-expanded:text-ink", iconClassName)}
+        >
+          <Tag size={18} />
+        </button>
+      ) : (
+        <Button size="sm" type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Labels" aria-label="Labels">
+          <Tag size={15} /> <span className={compact ? "sr-only" : "hidden sm:inline"}>Labels</span>
+        </Button>
+      )}
       {open && (
         <PopPanel onClose={() => setOpen(false)} title="Labels" className="absolute right-0 z-30 mt-1 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-line bg-white p-1 shadow-xl">
           <p className="px-3 pt-2 pb-1 text-xs text-slate-500">Labels on this email (changes Gmail too)</p>

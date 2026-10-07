@@ -185,7 +185,8 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
           {/* On phones these live in the top bar above. */}
           <div className="contents max-sm:hidden">
             <ShareButton share={share} className="size-9 rounded-lg hover:bg-slate-100" />
-            <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} />
+            {/* Icon only, like Share and Gmail beside it (user request 2026-10-07). */}
+            <LabelPicker thread={thread} selected={labelIds} onChange={setLabelIds} iconClassName="size-9 rounded-lg hover:bg-slate-100" />
             {gmailUrl && (
               <a href={gmailUrl} target="_blank" rel="noreferrer" className="inline-flex size-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-ink pointer-coarse:size-9" title="Open in Gmail" aria-label="Open in Gmail">
                 <ExternalLink size={18} />
