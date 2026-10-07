@@ -30,6 +30,10 @@ export const users = pgTable("users", {
   doneLabelId: text("done_label_id"),
   // More labels whose emails become completed tasks straight away, like the done label (user request 2026-10-06).
   autoDoneLabelIds: text("auto_done_label_ids").array().notNull().default(sql`'{}'::text[]`),
+  // Labels only for organising mail (user request 2026-10-07): every other label besides the task/done labels
+  // marks another section of the office (emails with it skip Pending, see lib/sections.ts). Replaces the
+  // "straight to completed" tick boxes; autoDoneLabelIds is no longer used.
+  organizeLabelIds: text("organize_label_ids").array().notNull().default(sql`'{}'::text[]`),
   // Secret part of the private calendar link (tasks and reminders for Apple Calendar etc., user request
   // 2026-10-07). Null = no link; a new value stops the old link working.
   calendarToken: text("calendar_token").unique(),
@@ -118,7 +122,9 @@ export const hiddenSnippets = pgTable(
   (t) => [index("hidden_snippets_user").on(t.userId)],
 );
 
-export const EMAIL_STATES = ["needs_decision", "task", "snoozed", "dismissed"] as const;
+// "elsewhere": handled by another section of the office, i.e. the email carries a label other than the user's
+// task/done labels and their organising labels (user request 2026-10-07).
+export const EMAIL_STATES = ["needs_decision", "task", "snoozed", "dismissed", "elsewhere"] as const;
 export type EmailState = (typeof EMAIL_STATES)[number];
 
 // One row per Gmail conversation. We keep only what the queue needs (no message bodies).
@@ -142,6 +148,9 @@ export const emailThreads = pgTable(
     hasNewActivity: boolean("has_new_activity").notNull().default(false),
     // The user's own Gmail labels on this conversation (IDs like "Label_12"); system labels aren't kept.
     labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
+    // The section (label) the email went to "Other sections" with; kept when a new reply brings it back to
+    // Pending, which shows "Back from …" and stops it moving away again.
+    sectionLabelId: text("section_label_id"),
     stateChangedAt: timestamp("state_changed_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

@@ -530,7 +530,11 @@ function TaskLabels() {
           r.labelled && `${r.labelled} ${r.labelled === 1 ? "email" : "emails"} labelled in Gmail`,
           r.toLabel && `${r.toLabel} more will be labelled over the next syncs`,
         ].filter(Boolean);
-        setNotice(added ? (parts.length ? `Done: ${parts.join(" · ")}.` : "Saved. No emails had this label yet.") : "Saved.");
+        const moved = [
+          r.toSections && `${r.toSections} ${r.toSections === 1 ? "email" : "emails"} moved to Other sections`,
+          r.fromSections && `${r.fromSections} back in Pending`,
+        ].filter(Boolean);
+        setNotice(added ? (parts.length ? `Done: ${parts.join(" · ")}.` : "Saved. No emails had this label yet.") : moved.length ? `Saved: ${moved.join(" · ")}.` : "Saved.");
       },
     });
   };
@@ -544,20 +548,17 @@ function TaskLabels() {
           : `Every email labelled "${nameOf(id)}" in Gmail will become a completed task, and every email whose task is completed (already, or later) will get this label in Gmail.`;
       if (!confirm(`${what}\n\nEmails not in WorkDesk yet are fetched over the next few syncs. Continue?`)) return;
     }
-    // A label chosen as the done label no longer needs its tick below.
-    const autoDoneLabelIds = which === "doneLabelId" && id ? (settings.autoDoneLabelIds ?? []).filter((x) => x !== id) : (settings.autoDoneLabelIds ?? []);
-    apply({ ...settings, autoDoneLabelIds, [which]: id }, !!id);
+    // A label chosen as the task or done label is your own section, not an organising one.
+    const organizeLabelIds = id ? (settings.organizeLabelIds ?? []).filter((x) => x !== id) : (settings.organizeLabelIds ?? []);
+    apply({ ...settings, organizeLabelIds, [which]: id }, !!id);
   };
 
-  // Tick boxes: labels whose emails go straight to completed tasks (user request 2026-10-06).
-  const toggleStraight = (id: string, on: boolean) => {
+  // Sections (user request 2026-10-07; replaced the "straight to completed" tick boxes): every label is a
+  // section of the office except the ones ticked here as only for organising mail.
+  const toggleOrganise = (id: string, on: boolean) => {
     if (!settings) return;
-    if (on) {
-      const gmail = settings.doneLabelId ? ` They also get "${nameOf(settings.doneLabelId)}" in Gmail.` : "";
-      if (!confirm(`Every email labelled "${nameOf(id)}" in Gmail (already, or later) will become a completed task in WorkDesk, without going through Pending or your to-do list.${gmail}\n\nEmails not in WorkDesk yet are fetched over the next few syncs. Continue?`)) return;
-    }
-    const autoDoneLabelIds = on ? [...(settings.autoDoneLabelIds ?? []), id] : (settings.autoDoneLabelIds ?? []).filter((x) => x !== id);
-    apply({ ...settings, autoDoneLabelIds }, on, "completed task");
+    const organizeLabelIds = on ? [...(settings.organizeLabelIds ?? []), id] : (settings.organizeLabelIds ?? []).filter((x) => x !== id);
+    apply({ ...settings, organizeLabelIds }, false);
   };
 
   const picker = (which: "taskLabelId" | "doneLabelId", label: string, help: string) => {
@@ -610,27 +611,29 @@ function TaskLabels() {
       </div>
       {list.length > 0 && (
         <fieldset className="mt-4">
-          <legend className="block text-sm font-medium text-ink">Labels that go straight to completed tasks</legend>
+          <legend className="block text-sm font-medium text-ink">Sections of the office</legend>
           <span className="mt-0.5 block text-xs text-slate-500">
-            Emails with a ticked label become completed tasks right away, without going through Pending or your to-do list.
+            Your labels are sections: the two above are yours (pending and completed work). Any other label means
+            another section has the email, so it skips Pending and shows under Emails › Other sections, never as your
+            task. A new reply brings it back to Pending. Tick the labels that are only for organising mail, not sections.
           </span>
           <div className="mt-1.5 grid gap-x-3 sm:grid-cols-2">
             {list.map((l) => {
               const isTask = l.id === settings?.taskLabelId;
               const isDone = l.id === settings?.doneLabelId;
-              const checked = isDone || !!(settings?.autoDoneLabelIds ?? []).includes(l.id);
+              const organise = !!(settings?.organizeLabelIds ?? []).includes(l.id);
               return (
                 <label key={l.id} className={cx("flex min-h-11 items-center gap-2.5 rounded-lg px-1.5", isTask || isDone ? "opacity-60" : "has-[:enabled]:cursor-pointer has-[:enabled]:hover:bg-slate-50")}>
                   <input
                     type="checkbox"
                     className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5"
-                    checked={checked}
+                    checked={organise}
                     disabled={!settings || !labels?.canEdit || save.isPending || isTask || isDone}
-                    onChange={(e) => toggleStraight(l.id, e.target.checked)}
+                    onChange={(e) => toggleOrganise(l.id, e.target.checked)}
+                    aria-label={`${l.name}: only for organising`}
                   />
                   <LabelChip label={l} className="max-w-full" />
-                  {isTask && <span className="text-xs text-slate-500">task label</span>}
-                  {isDone && <span className="text-xs text-slate-500">completed label</span>}
+                  <span className="text-xs text-slate-500">{isTask ? "your section" : isDone ? "your completed" : organise ? "organising only" : "other section"}</span>
                 </label>
               );
             })}

@@ -11,6 +11,7 @@ import { GmailError, canMarkRead, createLabel, deleteLabel, setThreadLabels, upd
 import { applyLabelOps, refreshLabels } from "../lib/sync";
 import { labelInput, labelPatch, taskLabelSettingsInput, threadLabelsInput } from "../../shared/schemas";
 import { clearMissingTaskLabels, getTaskLabels, importLabel, labelTaskEmails, runLabelRules } from "../lib/taskLabels";
+import { applySectionRules } from "../lib/sections";
 import { LABEL_COLORS } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
 
@@ -69,19 +70,22 @@ export const labelRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const input = taskLabelSettingsInput.parse(await c.req.json());
+    // "Straight to completed" labels were replaced by sections (user request 2026-10-07).
+    input.autoDoneLabelIds = [];
+    if (input.organizeLabelIds) input.organizeLabelIds = [...new Set(input.organizeLabelIds)];
     if (input.taskLabelId && input.taskLabelId === input.doneLabelId) throw new HTTPException(400, { message: "Choose two different labels" });
     // The done label already completes tasks, and the task label can't also mean completed.
     if (input.autoDoneLabelIds) input.autoDoneLabelIds = [...new Set(input.autoDoneLabelIds)].filter((id) => id !== input.doneLabelId);
     if (input.taskLabelId && input.autoDoneLabelIds?.includes(input.taskLabelId))
       throw new HTTPException(400, { message: "The task label can't also go straight to completed tasks" });
     const known = new Set((await listLocal(db, userId)).map((l) => l.id));
-    for (const id of [input.taskLabelId, input.doneLabelId, ...(input.autoDoneLabelIds ?? [])]) if (id && !known.has(id)) throw new HTTPException(400, { message: "Unknown label" });
+    for (const id of [input.taskLabelId, input.doneLabelId, ...(input.organizeLabelIds ?? [])]) if (id && !known.has(id)) throw new HTTPException(400, { message: "Unknown label" });
     const before = await getTaskLabels(db, userId);
     await db.update(users).set(input).where(eq(users.id, userId));
 
-    const result = { created: 0, completed: 0, queued: 0, labelled: 0, toLabel: 0 };
-    const had = new Set([before.taskLabelId, before.doneLabelId, ...before.autoDoneLabelIds]);
-    for (const id of [input.taskLabelId, input.doneLabelId, ...(input.autoDoneLabelIds ?? [])]) {
+    const result = { created: 0, completed: 0, queued: 0, labelled: 0, toLabel: 0, toSections: 0, fromSections: 0 };
+    const had = new Set([before.taskLabelId, before.doneLabelId]);
+    for (const id of [input.taskLabelId, input.doneLabelId]) {
       if (!id || had.has(id)) continue; // only newly chosen labels import
       had.add(id);
       const r = await importLabel(db, c.env, userId, id);
@@ -95,8 +99,11 @@ export const labelRoutes = new Hono<AppEnv>()
     result.toLabel = l.remaining;
     const names = Object.fromEntries((await listLocal(db, userId)).map((l) => [l.id, l.name]));
     const after = await getTaskLabels(db, userId);
-    const straight = after.autoDoneLabelIds.map((id) => names[id] ?? id).join(", ");
-    const summary = `Task label: ${after.taskLabelId ? names[after.taskLabelId] : "none"} · Done label: ${after.doneLabelId ? names[after.doneLabelId] : "none"}${straight ? ` · Straight to completed: ${straight}` : ""}`;
+    // Emails move in or out of "Other sections" with the new settings.
+    const sections = await applySectionRules(db, userId);
+    Object.assign(result, { toSections: sections.moved, fromSections: sections.back });
+    const organise = after.organizeLabelIds.map((id) => names[id] ?? id).join(", ");
+    const summary = `Task label: ${after.taskLabelId ? names[after.taskLabelId] : "none"} · Done label: ${after.doneLabelId ? names[after.doneLabelId] : "none"}${organise ? ` · Only for organising: ${organise}` : ""}`;
     await db.insert(events).values({ userId, entityType: "email", action: "settings.task_labels", summary, detail: { subject: summary } });
     return c.json(result);
   })
@@ -195,5 +202,7 @@ export const threadLabelRoute = new Hono<AppEnv>().put("/:id/labels", async (c) 
   await db.insert(events).values({ userId, entityType: "email", entityId: t.id, action: "email.labels_changed", summary: "Labels changed (in Gmail too)", detail: { subject: t.subject } });
   // Adding the task / done label here makes it a task (or completes it), same as in Gmail.
   await runLabelRules(db, c.env, userId, [t.gmailThreadId]);
+  // Another section's label takes it out of Pending; removing it brings it back (user request 2026-10-07).
+  await applySectionRules(db, userId, [t.gmailThreadId]);
   return c.json({ ok: true });
 });

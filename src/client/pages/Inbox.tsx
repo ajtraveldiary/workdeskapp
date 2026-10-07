@@ -55,6 +55,7 @@ export function InboxPage() {
         options={[
           { value: "needs_decision", label: "Pending", count: counts.needs_decision }, // renamed from "Needs decision" (user request 2026-10-06)
           { value: "task", label: "Converted to task" },
+          { value: "elsewhere", label: "Other sections", count: counts.elsewhere }, // labelled for another section (user request 2026-10-07)
           { value: "dismissed", label: "Removed" }, // was "Dismissed" (user request 2026-10-06)
           { value: "all", label: "All" },
         ]}

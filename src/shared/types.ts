@@ -1,7 +1,7 @@
 // Shapes exchanged between the API and the dashboard.
 import type { Repeat } from "./reminderSchedule";
 
-export type EmailState = "needs_decision" | "task" | "snoozed" | "dismissed";
+export type EmailState = "needs_decision" | "task" | "snoozed" | "dismissed" | "elsewhere";
 export type Priority = "low" | "normal" | "high" | "urgent";
 
 // One step of a task's checklist (user request 2026-10-07).
@@ -37,6 +37,8 @@ export type Thread = {
   muted: boolean;
   // The user's own Gmail labels on the conversation (IDs; names and colours come from /labels).
   labelIds: string[];
+  // The other section (label) it went to; still set when a new reply brought it back to Pending.
+  sectionLabelId: string | null;
 };
 
 export type Label = { id: string; name: string; backgroundColor: string | null; textColor: string | null };

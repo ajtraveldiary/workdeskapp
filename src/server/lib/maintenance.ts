@@ -1,6 +1,7 @@
 import type { DB } from "../db";
 import { ensureReportPeriods } from "./reports";
 import { wakeSnoozed } from "./sync";
+import { applySectionRules } from "./sections";
 
 // Housekeeping that read endpoints used to run on every request (waking snoozed emails, creating report
 // periods). It now runs at most once per INTERVAL per user from page loads, which saves database round trips.
@@ -14,4 +15,6 @@ export async function maintain(db: DB, userId: string, today: string, force = fa
   lastRun.set(userId, now);
   await wakeSnoozed(db, userId);
   await ensureReportPeriods(db, today, userId);
+  // Emails already in Pending with another section's label move out too (user request 2026-10-07).
+  await applySectionRules(db, userId);
 }

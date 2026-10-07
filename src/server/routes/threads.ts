@@ -38,6 +38,7 @@ export const threadColumns = {
   // On the user's "hide from Pending" list (Settings > Mail)
   muted: isMuted,
   labelIds: emailThreads.labelIds,
+  sectionLabelId: emailThreads.sectionLabelId,
 };
 
 export function selectThreads(db: DB) {
@@ -314,7 +315,7 @@ export const threadRoutes = new Hono<AppEnv>()
     const picked = await db
       .select({ id: emailThreads.id, subject: emailThreads.subject })
       .from(emailThreads)
-      .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.id, ids), eq(emailThreads.state, "needs_decision")));
+      .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.id, ids), inArray(emailThreads.state, ["needs_decision", "elsewhere"])));
     if (picked.length === 0) return c.json({ created: 0 });
     const created = await db
       .insert(tasks)

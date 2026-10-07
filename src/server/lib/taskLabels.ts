@@ -15,18 +15,20 @@ import { applyLabelOps, type LabelOp } from "./sync";
 
 // autoDoneLabelIds: more labels whose emails go straight to completed tasks (Settings tick boxes); unlike the
 // done label, WorkDesk never adds or removes them in Gmail.
-export type TaskLabelSettings = { taskLabelId: string | null; doneLabelId: string | null; autoDoneLabelIds: string[] };
+export type TaskLabelSettings = { taskLabelId: string | null; doneLabelId: string | null; autoDoneLabelIds: string[]; organizeLabelIds: string[] };
 
 export async function getTaskLabels(db: DB, userId: string): Promise<TaskLabelSettings> {
   const [u] = await db
-    .select({ taskLabelId: users.taskLabelId, doneLabelId: users.doneLabelId, autoDoneLabelIds: users.autoDoneLabelIds })
+    .select({ taskLabelId: users.taskLabelId, doneLabelId: users.doneLabelId, autoDoneLabelIds: users.autoDoneLabelIds, organizeLabelIds: users.organizeLabelIds })
     .from(users)
     .where(eq(users.id, userId));
-  return u ?? { taskLabelId: null, doneLabelId: null, autoDoneLabelIds: [] };
+  return u ?? { taskLabelId: null, doneLabelId: null, autoDoneLabelIds: [], organizeLabelIds: [] };
 }
 
 // Every label that makes an email's task completed.
-const completingLabels = (s: TaskLabelSettings) => [...new Set([s.doneLabelId, ...s.autoDoneLabelIds].filter((x): x is string => !!x))];
+// Only the done label now (user request 2026-10-07): other labels mark other sections (lib/sections.ts), so
+// their emails no longer become completed tasks or get the done label.
+const completingLabels = (s: TaskLabelSettings) => (s.doneLabelId ? [s.doneLabelId] : []);
 export const watchedLabels = (s: TaskLabelSettings) => [...new Set([s.taskLabelId, ...completingLabels(s)].filter((x): x is string => !!x))];
 
 const textArray = (ids: string[]) => sql`${`{${ids.join(",")}}`}::text[]`;

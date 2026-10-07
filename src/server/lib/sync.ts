@@ -6,6 +6,7 @@ import { requireEnv, timezone } from "../env";
 import { todayIn } from "./dates";
 import { ensureReportPeriods } from "./reports";
 import { clearMissingTaskLabels, getTaskLabels, labelTaskEmails, runLabelRules, watchedLabels } from "./taskLabels";
+import { applySectionRules } from "./sections";
 import { decryptSecret } from "./crypto";
 import {
   GmailError,
@@ -450,7 +451,10 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
   const watched = watchedLabels(taskLabels);
   await applySnapshots(db, account.userId, account.id, snaps, watched);
   // Emails that now carry the task/done label become tasks (and the reverse labels are tidied).
-  if (watched.length) await runLabelRules(db, env, account.userId, [...new Set([...snaps.map((x) => x.gmailThreadId), ...labelOps.map((o) => o.threadId)])]);
+  const touched = [...new Set([...snaps.map((x) => x.gmailThreadId), ...labelOps.map((o) => o.threadId)])];
+  if (watched.length) await runLabelRules(db, env, account.userId, touched);
+  // Emails with another section's label leave Pending (user request 2026-10-07).
+  await applySectionRules(db, account.userId, touched);
   if (downloaded.length) await db.insert(gmailMessages).values(downloaded).onConflictDoNothing();
 
   const restThreads = [...pendingThreads].slice(threadBatch.length);

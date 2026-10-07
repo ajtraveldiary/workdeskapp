@@ -13,7 +13,7 @@ import { DRIVE_KIND_LABEL, driveLinks, type DriveLink } from "../driveLinks";
 import { stripSnippets } from "../../shared/snippets";
 import { formatDateTime } from "../format";
 import { Avatar } from "./Avatar";
-import { EmailStatusTags } from "./EmailStatus";
+import { EmailStatusTags, SectionBackTag } from "./EmailStatus";
 import { LabelChips, LabelPicker } from "./LabelChips";
 import { Button, Loading, Modal, Spinner, cx } from "./ui";
 import { showUndo } from "./SwipeRow";
@@ -168,11 +168,13 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
             <span>· {formatDateTime(thread.lastMessageAt)}</span>
             {thread.messageCount > 1 && <span>· {thread.messageCount} messages</span>}
             {!inQueue && <EmailStatusTags thread={thread} />}
+            <SectionBackTag thread={thread} />
             <LabelChips ids={labelIds} max={6} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {inQueue && (
+          {/* Another section's email can still become your task (user request 2026-10-07). */}
+          {(inQueue || thread.state === "elsewhere") && (
             <>
               <Button size="sm" variant="primary" onClick={() => onCreateTask(thread)}>
                 <ListPlus size={15} /> Create task

@@ -207,7 +207,7 @@ export function useLabelActions() {
 }
 
 // Settings > Mail: the task label and the done label.
-type TaskLabelSettings = { taskLabelId: string | null; doneLabelId: string | null; autoDoneLabelIds: string[] };
+type TaskLabelSettings = { taskLabelId: string | null; doneLabelId: string | null; autoDoneLabelIds: string[]; organizeLabelIds: string[] };
 export const useTaskLabelSettings = () =>
   useQuery({ queryKey: ["task-label-settings"], queryFn: () => api<TaskLabelSettings>("/labels/task-settings") });
 
@@ -216,7 +216,7 @@ export function useSetTaskLabelSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: TaskLabelSettings) =>
-      api<{ created: number; completed: number; queued: number; labelled: number; toLabel: number }>("/labels/task-settings", { method: "PUT", body: input }),
+      api<{ created: number; completed: number; queued: number; labelled: number; toLabel: number; toSections: number; fromSections: number }>("/labels/task-settings", { method: "PUT", body: input }),
     onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "labels" }),
   });
 }

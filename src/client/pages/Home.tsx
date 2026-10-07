@@ -36,7 +36,7 @@ import {
 } from "../api";
 import { formatDay, formatTime, formatWhen } from "../format";
 import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../components/SwipeRow";
-import { EmailStatusTags } from "../components/EmailStatus";
+import { EmailStatusTags, SectionBackTag } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
 import { EmailBulkBar } from "../components/EmailBulkBar";
@@ -919,6 +919,7 @@ function EmailCard({
         {/* Compact (user request 2026-10-06): status and labels share the preview line. */}
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
           {showStatus && <EmailStatusTags thread={thread} />}
+          <SectionBackTag thread={thread} />
           <LabelChips ids={thread.labelIds} max={2} className="shrink-0 flex-nowrap" />
           <p className={emailLine.preview}>{thread.snippet}</p>
         </div>

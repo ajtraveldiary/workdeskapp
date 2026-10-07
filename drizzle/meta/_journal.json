@@ -134,6 +134,13 @@
       "when": 1791347645020,
       "tag": "0018_task_waiting",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791355845567,
+      "tag": "0019_office_sections",
+      "breakpoints": true
     }
   ]
 }

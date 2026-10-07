@@ -9,6 +9,8 @@ import type { DB } from "../src/server/db";
 import { encryptSecret } from "../src/server/lib/crypto";
 import { syncAccount, syncUser } from "../src/server/lib/sync";
 import { importLabel, labelTaskEmails, reconcileThreadLabels } from "../src/server/lib/taskLabels";
+import { applySectionRules } from "../src/server/lib/sections";
+import { onThreadUpdate } from "../src/server/lib/threadRules";
 import type { Env } from "../src/server/env";
 
 const KEY = Buffer.from(new Uint8Array(32).fill(5)).toString("base64");
@@ -167,26 +169,44 @@ describe("task labels", () => {
     expect(await labelTaskEmails(db, env, userId)).toEqual({ labelled: 0, remaining: 0 }); // nothing left to do
   });
 
-  it("a ticked label sends its emails straight to completed tasks, now and as they arrive", async () => {
-    // t3 is outside the inbox, so WorkDesk hasn't downloaded it yet.
-    mailbox = [msg("m1", "t1", 1000, ["INBOX", "Label_fin"]), msg("m2", "t2", 2000, ["INBOX"]), msg("m3", "t3", 3000, ["Label_fin"])];
-    await syncAccount(db, env, await account());
+  // Sections of the office (user request 2026-10-07; replaced the "straight to completed" tick boxes): every
+  // label besides the task/done labels and the organising ones belongs to another section.
+  it("an email with another section's label leaves Pending, never becomes a task and never gets the done label", async () => {
+    mailbox = [msg("m1", "t1", 1000, ["INBOX", "Label_fin"]), msg("m2", "t2", 2000, ["INBOX"]), msg("m3", "t3", 3000, ["INBOX", "Label_fin", "Label_task"])];
     await choose("Label_task", "Label_done");
-    await db.update(schema.users).set({ autoDoneLabelIds: ["Label_fin"] }).where(eq(schema.users.id, userId));
-    expect((await importLabel(db, env, userId, "Label_fin")).queued).toBe(1);
+    await syncAccount(db, env, await account());
 
     const t1 = (await threadByGmail("t1"))!;
-    expect((await tasksOf(t1.id)).map((t) => t.status)).toEqual(["done"]);
-    expect(t1.state).toBe("task"); // out of Pending
-    expect(await tasksOf((await threadByGmail("t2"))!.id)).toEqual([]);
+    expect(t1.state).toBe("elsewhere");
+    expect(t1.sectionLabelId).toBe("Label_fin");
+    expect(await tasksOf(t1.id)).toEqual([]);
+    expect((await threadByGmail("t2"))!.state).toBe("needs_decision");
+    // The task label wins: the user's own section.
+    expect((await threadByGmail("t3"))!.state).toBe("task");
 
-    // The next sync fetches it and completes it too.
-    await syncAccount(db, env, await account());
-    expect((await tasksOf((await threadByGmail("t3"))!.id)).map((t) => t.status)).toEqual(["done"]);
-
-    // Both get the completed label in Gmail; WorkDesk leaves "Finished" itself alone.
     await labelTaskEmails(db, env, userId);
-    expect(mailbox.find((m) => m.threadId === "t1")!.labelIds).toEqual(["INBOX", "Label_fin", "Label_done"]);
-    expect(mailbox.find((m) => m.threadId === "t3")!.labelIds).toEqual(["Label_fin", "Label_done"]);
+    expect(mailbox.find((m) => m.threadId === "t1")!.labelIds).toEqual(["INBOX", "Label_fin"]);
+
+    // Marked as only for organising: back to Pending; unmarked: out again.
+    await db.update(schema.users).set({ organizeLabelIds: ["Label_fin"] }).where(eq(schema.users.id, userId));
+    await applySectionRules(db, userId);
+    expect((await threadByGmail("t1"))!.state).toBe("needs_decision");
+    await db.update(schema.users).set({ organizeLabelIds: [] }).where(eq(schema.users.id, userId));
+    await applySectionRules(db, userId);
+    expect((await threadByGmail("t1"))!.state).toBe("elsewhere");
+  });
+
+  it("a new reply brings a section's email back to Pending, where it stays", async () => {
+    expect(onThreadUpdate({ state: "elsewhere", lastMessageAt: new Date(1000), hasNewActivity: false }, new Date(2000), 0).state).toBe("needs_decision");
+    mailbox = [msg("m1", "t1", 1000, ["INBOX", "Label_fin"])];
+    await choose("Label_task", "Label_done");
+    await syncAccount(db, env, await account());
+    const t1 = (await threadByGmail("t1"))!;
+    // As the sync does on a new reply: back to Pending, keeping the section it came from.
+    await db.update(schema.emailThreads).set({ state: "needs_decision" }).where(eq(schema.emailThreads.id, t1.id));
+    await applySectionRules(db, userId);
+    const after = (await threadByGmail("t1"))!;
+    expect(after.state).toBe("needs_decision");
+    expect(after.sectionLabelId).toBe("Label_fin");
   });
 });

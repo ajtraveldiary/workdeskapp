@@ -130,6 +130,8 @@ export const threadLabelsInput = z.object({
 export const taskLabelSettingsInput = z.object({
   taskLabelId: z.string().regex(/^Label_[\w-]+$/).nullable(),
   doneLabelId: z.string().regex(/^Label_[\w-]+$/).nullable(),
-  // Labels whose emails go straight to completed tasks (left out = unchanged).
+  // No longer used (replaced by organizeLabelIds, user request 2026-10-07); accepted and ignored.
   autoDoneLabelIds: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).optional(),
+  // Labels only for organising mail, not sections of the office (left out = unchanged).
+  organizeLabelIds: z.array(z.string().regex(/^Label_[\w-]+$/)).max(100).optional(),
 });

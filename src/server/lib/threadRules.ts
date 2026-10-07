@@ -24,6 +24,13 @@ export function onThreadUpdate(
   switch (existing.state) {
     case "needs_decision":
       return keep;
+    // Handled by another section, but a new reply came: back to Pending (user request 2026-10-07).
+    case "elsewhere":
+      return {
+        state: "needs_decision",
+        hasNewActivity: false,
+        event: { action: "email.returned", summary: "New reply after another section had it; back to Pending" },
+      };
     case "dismissed":
     case "snoozed":
       return {

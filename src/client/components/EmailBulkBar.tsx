@@ -39,10 +39,12 @@ export function EmailBulkBar({
 
   const picked = threads.filter((t) => selected.has(t.id));
   if (hideUntilSelected && picked.length === 0) return null;
-  const pending = picked.filter((t) => t.state === "needs_decision");
+  // Emails with another section (user request 2026-10-07) can still become tasks or be removed.
+  const decidable = (t: Thread) => t.state === "needs_decision" || t.state === "elsewhere";
+  const pending = picked.filter(decidable);
   const others = picked.filter((t) => t.state !== "needs_decision");
   // Show only the actions this list can use; they stay disabled until something fitting is ticked.
-  const listHasPending = threads.some((t) => t.state === "needs_decision");
+  const listHasPending = threads.some(decidable);
   const listHasOthers = threads.some((t) => t.state !== "needs_decision");
   const all = picked.length === threads.length;
   const clear = () => onSelectedChange(new Set());

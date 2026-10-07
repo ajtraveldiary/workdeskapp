@@ -6,7 +6,7 @@ import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useDismiss, useRestore } from "../api";
 import { formatWhen } from "../format";
 import { cx } from "./ui";
-import { EmailStatusTags } from "./EmailStatus";
+import { EmailStatusTags, SectionBackTag } from "./EmailStatus";
 import { LabelChips } from "./LabelChips";
 import { SelectAvatar } from "./Avatar";
 
@@ -89,6 +89,11 @@ export function ThreadRow({
         {!inQueue && (
           <div className="mt-1 flex flex-wrap items-center gap-2 empty:hidden">
             <EmailStatusTags thread={thread} />
+          </div>
+        )}
+        {inQueue && thread.sectionLabelId && (
+          <div className="mt-1 flex">
+            <SectionBackTag thread={thread} />
           </div>
         )}
       </div>

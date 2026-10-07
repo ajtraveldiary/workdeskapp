@@ -78,6 +78,7 @@ const WARM_URLS = [
   "/api/tasks?view=nodate",
   "/api/threads?state=needs_decision",
   "/api/threads?state=task",
+  "/api/threads?state=elsewhere",
   "/api/threads?state=all",
   "/api/threads?state=all&limit=100",
   "/api/reports",

@@ -20,6 +20,7 @@ const base: Thread = {
   task: null,
   muted: false,
   labelIds: [],
+  sectionLabelId: null,
 };
 const labels = (t: Partial<Thread>) => emailTags({ ...base, ...t }).map((x) => `${x.tone}:${x.label}`);
 
