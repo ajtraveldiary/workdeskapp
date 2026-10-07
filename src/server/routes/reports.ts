@@ -56,6 +56,7 @@ export const reportRoutes = new Hono<AppEnv>()
       leadDays: r.leadDays,
       priority: r.priority,
       active: r.active,
+      links: r.links ?? [],
       periods: periods
         .filter((p) => p.reportId === r.id)
         .slice(0, PERIODS_SHOWN)

@@ -13,7 +13,7 @@ import {
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { REPEATS } from "../../shared/reminderSchedule";
-import type { ChecklistItem } from "../../shared/types";
+import type { ChecklistItem, ReminderLink } from "../../shared/types";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -206,6 +206,8 @@ export const reports = pgTable("reports", {
   // The occurrence's task appears this many days before it is due ("Remind me").
   leadDays: integer("lead_days").notNull().default(0),
   priority: text("priority", { enum: PRIORITIES }).notNull().default("normal"),
+  // Links to Google Drive files, Sheets, Docs… needed for the reminder (user request 2026-10-07).
+  links: jsonb("links").$type<ReminderLink[]>().notNull().default([]),
   // No longer set from the app (reminders have no labels, user request 2026-10-06); old values are ignored.
   labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
   active: boolean("active").notNull().default(true),

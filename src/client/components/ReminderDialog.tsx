@@ -1,10 +1,11 @@
 // Add / edit a reminder (stored as a report): the fields of a standard add-reminder screen (user request
 // 2026-10-06): title, date, optional time, repeat, end repeat, remind me, priority and notes. No labels.
 import { useState, type FormEvent } from "react";
-import type { Priority, Report } from "../../shared/types";
+import type { Priority, ReminderLink, Report } from "../../shared/types";
 import { REMIND_OPTIONS, REPEATS, REPEAT_LABEL, nextOccurrence, occurrences, remindLabel, repeatText, type Repeat } from "../../shared/reminderSchedule";
 import { useCreateReport, useMe, useUpdateReport } from "../api";
 import { formatDay, formatTime } from "../format";
+import { LinksEditor } from "./ReminderLinks";
 import { Button, ErrorNote, Field, Modal, inputClass } from "./ui";
 
 export type ReminderDialogMode = { kind: "new" } | { kind: "edit"; report: Report };
@@ -32,6 +33,9 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
   const [leadDays, setLeadDays] = useState(r?.leadDays ?? 0);
   const [priority, setPriority] = useState<Priority>(r?.priority ?? "normal");
   const [notes, setNotes] = useState(r?.notes ?? "");
+  const [links, setLinks] = useState<ReminderLink[]>(r?.links ?? []);
+  // A link pasted but not yet added is saved too.
+  const [draftLink, setDraftLink] = useState<ReminderLink | null>(null);
 
   const repeats = repeat !== "never";
   const rule = { repeat, startDate: startDate || today, dueDay: Number((startDate || today).slice(8, 10)), endDate: repeats && endsOn && endDate ? endDate : null };
@@ -43,7 +47,7 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const input = { name, notes, repeat, startDate, dueTime: dueTime || null, endDate: rule.endDate, leadDays, priority };
+    const input = { name, notes, repeat, startDate, dueTime: dueTime || null, endDate: rule.endDate, leadDays, priority, links: draftLink ? [...links, draftLink] : links };
     if (r) {
       const { startDate: _, ...rest } = input;
       await update.mutateAsync({ id: r.id, input: startDate === shownDate ? rest : input });
@@ -130,6 +134,8 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
           placeholder="Optional"
         />
       </Field>
+
+      <LinksEditor links={links} onChange={setLinks} onDraft={setDraftLink} />
 
       <div className="rounded-lg bg-tint px-3.5 py-2.5 text-footnote text-slate-600">
         <p className="font-medium text-ink">

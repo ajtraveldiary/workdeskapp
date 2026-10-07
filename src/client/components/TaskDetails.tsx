@@ -6,6 +6,7 @@ import type { Task } from "../../shared/types";
 import { useCompleteTask, useMe, useReopenTask } from "../api";
 import { formatDateTime, formatDay, formatTime } from "../format";
 import { ChecklistTicks } from "./Checklist";
+import { LinkChips } from "./ReminderLinks";
 import { Badge, Button, Modal, PriorityPill, cx } from "./ui";
 
 export function TaskDetails({
@@ -62,6 +63,7 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
         {task.report && (
           <Row icon={CalendarClock} label="Reminder">
             {task.report.name} · {task.report.label}
+            <LinkChips links={task.report.links} className="mt-1.5" />
           </Row>
         )}
         {task.thread && (

@@ -39,6 +39,7 @@ export function selectTasks(db: DB) {
         periodId: reportPeriods.id,
         name: reports.name,
         label: reportPeriods.label,
+        links: reports.links,
       },
     })
     .from(tasks)
@@ -66,7 +67,7 @@ export function toTask({ task, thread, report }: Row): Task {
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
     thread: thread?.id ? (threadInfo as Task["thread"]) : null,
-    report: report?.periodId ? (report as Task["report"]) : null,
+    report: report?.periodId ? ({ ...report, links: report.links ?? [] } as Task["report"]) : null,
   };
 }
 

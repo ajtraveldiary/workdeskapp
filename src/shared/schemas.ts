@@ -41,6 +41,16 @@ export const bulkIds = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
 
 // Reminders (stored as reports): the fields of a standard add-reminder screen.
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM");
+// Links kept with a reminder (user request 2026-10-07): web addresses only (Google Drive, Sheets, Docs…).
+export const reminderLinks = z
+  .array(
+    z.object({
+      url: z.string().trim().max(2000).regex(/^https?:\/\/[^\s]+\.[^\s]+$/i, "Paste a full link starting with https://"),
+      name: z.string().trim().max(120).default(""),
+    }),
+  )
+  .max(20, "Up to 20 links");
+
 export const reportInput = z.object({
   name: z.string().trim().min(1, "Title is required").max(120),
   notes: z.string().max(5_000).default(""),
@@ -51,6 +61,7 @@ export const reportInput = z.object({
   leadDays: z.number().int().min(0).max(90).default(0),
   priority: priority.default("normal"),
   active: z.boolean().default(true),
+  links: reminderLinks.default([]),
 });
 export type ReportInput = z.input<typeof reportInput>;
 // Updates change only the fields they include (reportInput.partial() would apply reportInput's defaults,
@@ -66,6 +77,7 @@ export const reportPatch = z
     leadDays: z.number().int().min(0).max(90),
     priority,
     active: z.boolean(),
+    links: reminderLinks,
   })
   .partial();
 

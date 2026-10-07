@@ -6,6 +6,7 @@ import type { Report, ReportPeriod } from "../../shared/types";
 import { dayLabel, nextOccurrence, remindLabel, repeatText } from "../../shared/reminderSchedule";
 import { useDeleteReport, useReports, useSetPeriodStatus, useUpdateReport } from "../api";
 import { addDays, formatDay, formatTime } from "../format";
+import { LinkChips } from "../components/ReminderLinks";
 import { ReminderDialog, type ReminderDialogMode } from "../components/ReminderDialog";
 import { Badge, Button, Card, CheckCircle, Fab, Loading, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
@@ -123,6 +124,7 @@ function DueRow({ report, period, today }: { report: Report; period: ReportPerio
           {/* Old report periods say which month they cover ("Sep 2026"); newer labels are just the date. */}
           {period.label !== dayLabel(period.dueDate) && <span className="text-slate-400"> · {period.label}</span>}
         </p>
+        <LinkChips links={report.links} className="mt-1.5" />
       </div>
     </li>
   );
@@ -136,13 +138,17 @@ function ReminderRow({ report, today, onEdit }: { report: Report; today: string;
 
   return (
     <li className={cx("row-click flex items-start gap-3 px-4 py-3 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5", !report.active && "opacity-60")}>
-      <button onClick={onEdit} className="row-link group/title min-w-0 flex-1 text-left">
+      <div className="min-w-0 flex-1">
+      <button onClick={onEdit} className="row-link group/title block w-full text-left">
         <p className="text-subhead font-medium text-ink group-hover/title:text-brand-700">{report.name}</p>
         <p className="text-footnote text-slate-500">{details}</p>
         <p className="mt-0.5 text-footnote text-slate-500">
           {!report.active ? <Badge>Paused</Badge> : next ? <>Next: <span className="font-medium text-ink">{formatDay(next, today)}</span></> : "No more dates"}
         </p>
       </button>
+      {/* Links kept with the reminder open in Google's app or site (user request 2026-10-07). */}
+      <LinkChips links={report.links} className="mt-1.5" />
+      </div>
       <Menu
         items={[
           { label: "Edit", onClick: onEdit },
