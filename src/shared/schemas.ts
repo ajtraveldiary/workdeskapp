@@ -194,3 +194,12 @@ export const employeeInput = z.object({
   notes: z.string().max(5_000).default(""),
 });
 export type EmployeeInput = z.input<typeof employeeInput>;
+
+// File register (user request 2026-10-07).
+export const officeFileInput = z.object({
+  subject: z.string().trim().min(1, "Subject is required").max(200),
+  physical: z.boolean().default(true),
+  efileNumber: z.string().trim().max(50).default(""),
+  notes: z.string().max(2_000).default(""),
+});
+export type OfficeFileInput = z.input<typeof officeFileInput>;

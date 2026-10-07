@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, EmailContent, Label, RangeTasks, EmailState, Me, MutedSender, Report, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
-import type { EmployeeInput, ReportInput, TaskInput } from "../shared/schemas";
+import type { AuditEvent, EmailContent, Label, RangeTasks, EmailState, Me, MutedSender, OfficeFile, Report, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { EmployeeInput, OfficeFileInput, ReportInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
   constructor(
@@ -183,6 +183,18 @@ export function useStaffActions() {
     removeEmployee: m((id: string) => api(`/staff/employees/${id}`, { method: "DELETE" })),
   };
 }
+// File register (user request 2026-10-07).
+export const useOfficeFiles = () => useQuery({ queryKey: ["files"], queryFn: () => api<{ files: OfficeFile[] }>("/files") });
+export function useOfficeFileActions() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "files" || q.queryKey[0] === "history" });
+  return {
+    add: useMutation({ mutationFn: (input: OfficeFileInput) => api<OfficeFile>("/files", { method: "POST", body: input }), onSettled: refresh }),
+    save: useMutation({ mutationFn: ({ id, input }: { id: string; input: OfficeFileInput }) => api(`/files/${id}`, { method: "PUT", body: input }), onSettled: refresh }),
+    remove: useMutation({ mutationFn: (id: string) => api(`/files/${id}`, { method: "DELETE" }), onSettled: refresh }),
+  };
+}
+
 // Increment done (user request 2026-10-07): the date moves a year on; undoTo puts the old date back.
 export function useIncrementDone() {
   const qc = useQueryClient();

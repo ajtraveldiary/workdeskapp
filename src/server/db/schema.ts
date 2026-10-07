@@ -310,6 +310,20 @@ export const employees = pgTable("employees", {
   updatedAt: updatedAt(),
 });
 
+// File register (user request 2026-10-07): the office's files, old physical ones (they have no number) and
+// e-files. A physical file with no e-file number is "e-file not yet created".
+export const officeFiles = pgTable("office_files", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  // The file's name, or the e-file's subject.
+  subject: text("subject").notNull(),
+  physical: boolean("physical").notNull().default(true),
+  efileNumber: text("efile_number").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 // Devices that turned on phone notifications (user request 2026-10-07): one Web Push subscription each.
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: id(),

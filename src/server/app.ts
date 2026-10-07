@@ -20,6 +20,7 @@ import { reportRoutes } from "./routes/reports";
 import { labelRoutes, threadLabelRoute } from "./routes/labels";
 import { pushRoutes } from "./routes/push";
 import { staffRoutes } from "./routes/staff";
+import { fileRoutes } from "./routes/files";
 
 export type AppEnv = {
   Bindings: Env;
@@ -158,6 +159,7 @@ export function createApp(opts: Options) {
   app.route("/reports", reportRoutes);
   app.route("/push", pushRoutes);
   app.route("/staff", staffRoutes);
+  app.route("/files", fileRoutes);
   app.route("/", miscRoutes);
   app.route("/", calendarSettingsRoutes);
 

@@ -217,3 +217,6 @@ export type StaffList = { designations: Designation[]; employees: Employee[] };
 
 // An employee's increment shown in Home's Due Today (user request 2026-10-07).
 export type IncrementDue = { employeeId: string; name: string; designation: string | null; due: string };
+
+// File register (user request 2026-10-07): a physical file and/or an e-file. efileNumber "" = e-file not created yet.
+export type OfficeFile = { id: string; subject: string; physical: boolean; efileNumber: string; notes: string; updatedAt: string };
