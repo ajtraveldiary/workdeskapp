@@ -548,7 +548,8 @@ function UserMenu() {
   const name = me?.name ?? me?.email ?? "";
   const accountLine = me?.demo ? "Demo mode · sample emails" : (me?.account?.email ?? me?.email);
   // Phones: a panel from the right edge, where the profile picture is (user request 2026-10-07).
-  const sideRow = "flex min-h-11 w-full items-center gap-3 px-5 py-2.5 text-left text-subhead text-ink active:bg-slate-100";
+  // Big rows (user request 2026-10-07: "increase size of buttons in the side panel").
+  const sideRow = "flex min-h-14 w-full items-center gap-4 px-5 py-3.5 text-left text-body text-ink active:bg-slate-100";
   const panel = open && phone && (
     <SidePanel onClose={() => setOpen(false)} label="Account">
       <div className="flex items-start gap-3 border-b border-line px-5 pt-5 pb-4">
@@ -568,13 +569,13 @@ function UserMenu() {
           { to: "/settings", label: "Settings", icon: SettingsIcon },
         ].map((l) => (
           <NavLink key={l.to} to={l.to} onClick={() => setOpen(false)} className={({ isActive }) => cx(sideRow, isActive && "bg-tint font-medium text-brand-800")}>
-            <l.icon size={20} className="shrink-0 text-slate-500" /> {l.label}
+            <l.icon size={24} className="shrink-0 text-slate-500" /> {l.label}
           </NavLink>
         ))}
       </nav>
       {!me?.demo && (
         <button onClick={() => logout().then(() => location.assign("/"))} className={cx(sideRow, "border-t border-line text-urgent-ink")}>
-          <LogOut size={20} className="shrink-0" /> Sign out
+          <LogOut size={24} className="shrink-0" /> Sign out
         </button>
       )}
     </SidePanel>
