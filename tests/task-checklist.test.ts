@@ -12,7 +12,7 @@ describe("task checklist", () => {
   let app: ReturnType<typeof createApp>;
   const call = async (method: string, path: string, body?: unknown) => {
     const res = await app.request(`/api${path}`, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined }, {});
-    return { status: res.status, json: await res.json().catch(() => null) };
+    return { status: res.status, json: (await res.json().catch(() => null)) as any };
   };
   const find = async (id: string) => ((await call("GET", "/tasks?view=any")).json.tasks as Task[]).find((t) => t.id === id)!;
   beforeEach(async () => {
