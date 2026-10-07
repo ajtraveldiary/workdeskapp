@@ -111,6 +111,10 @@ export type Summary = {
     reportTasks: number;
     // Tasks waiting for a reply.
     waiting: number;
+    // Home's "Pending jobs" card: open tasks that aren't waiting or made by a reminder, and reminder dates due
+    // today or overdue (user request 2026-10-07).
+    jobTasks: number;
+    remindersDue: number;
   };
   overdue: Task[];
   dueToday: Task[];

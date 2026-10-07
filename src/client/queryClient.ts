@@ -46,7 +46,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 4: tasks carry a checklist (2026-10-07).
 // 5: reminders (and reminder tasks' report) carry links (2026-10-07).
 // 6: tasks carry waitingSince/replyBy and the summary counts waiting tasks (2026-10-07).
-export const CACHE_VERSION = "6";
+// 7: the summary counts jobTasks and remindersDue (2026-10-07).
+export const CACHE_VERSION = "7";
 
 export async function clearSavedData() {
   queryClient.clear();

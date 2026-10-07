@@ -78,7 +78,12 @@ export const miscRoutes = new Hono<AppEnv>()
           .where(and(mine, eq(tasks.status, "done"), gte(tasks.completedAt, weekAgo))),
         // Open tasks not waiting for a reply ("My tasks"), and those waiting.
         db
-          .select({ n: sql<number>`(count(*) filter (where ${tasks.waitingSince} is null))::int`, waiting: sql<number>`(count(*) filter (where ${tasks.waitingSince} is not null))::int` })
+          .select({
+            n: sql<number>`(count(*) filter (where ${tasks.waitingSince} is null))::int`,
+            waiting: sql<number>`(count(*) filter (where ${tasks.waitingSince} is not null))::int`,
+            // For "Pending jobs": open tasks not waiting and not made by a reminder (reminders count by date).
+            jobs: sql<number>`(count(*) filter (where ${tasks.waitingSince} is null and ${tasks.reportPeriodId} is null))::int`,
+          })
           .from(tasks)
           .where(and(mine, eq(tasks.status, "open"))),
         db.select({ n: count() }).from(tasks).where(and(mine, viewFilter("upcoming", today))),
@@ -87,6 +92,7 @@ export const miscRoutes = new Hono<AppEnv>()
           .select({
             upcoming: sql<number>`(count(*) filter (where ${reportPeriods.dueDate} >= ${today} and ${reportPeriods.dueDate} <= ${addDays(today, 30)}))::int`,
             overdue: sql<number>`(count(*) filter (where ${reportPeriods.dueDate} < ${today}))::int`,
+            due: sql<number>`(count(*) filter (where ${reportPeriods.dueDate} <= ${today}))::int`,
           })
           .from(reportPeriods)
           .where(and(eq(reportPeriods.userId, userId), eq(reportPeriods.status, "pending"))),
@@ -111,6 +117,10 @@ export const miscRoutes = new Hono<AppEnv>()
         reportsOverdue: Number(reportCounts[0]?.overdue ?? 0),
         reportTasks: reportTaskCount[0]?.n ?? 0,
         waiting: Number(openCount[0]?.waiting ?? 0),
+        // Home stat cards (user request 2026-10-07): Pending jobs = open tasks (not waiting, not reminder tasks)
+        // + reminders due today or overdue.
+        jobTasks: Number(openCount[0]?.jobs ?? 0),
+        remindersDue: Number(reportCounts[0]?.due ?? 0),
       },
       overdue: overdue.map(toTask),
       dueToday: dueToday.map(toTask),

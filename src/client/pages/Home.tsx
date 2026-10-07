@@ -71,15 +71,32 @@ export function HomePage() {
       <div className="grid grid-cols-4 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
         {/* Each card is green when its list is clear, and coloured by urgency when it isn't. */}
         <StatCard to="/inbox" icon={Mail} value={counts.pendingEmails} label="Pending emails" note={counts.pendingEmails ? (counts.unreadPending ? `${counts.unreadPending} unread` : "Need your attention") : "All decided"} tone={counts.pendingEmails ? "info" : "low"} />
-        <StatCard to="/tasks?view=today" icon={CircleCheck} value={counts.dueToday} label="Tasks due today" note={counts.dueToday ? "Stay on track" : "Nothing due today"} tone={counts.dueToday ? "high" : "low"} />
-        <StatCard to="/tasks?view=overdue" icon={TriangleAlert} value={counts.overdue} label="Overdue tasks" note={counts.overdue ? "Needs action" : "All on time"} tone={counts.overdue ? "urgent" : "low"} />
+        {/* Cards 2–4 (user request 2026-10-07). Pending jobs: open tasks (not waiting, not reminder tasks) plus
+            reminders due today or overdue. Pending today: tasks and reminders due today plus overdue ones (the
+            Due Today card's Today count). Upcoming reminders: reminder dates in the next 30 days not done yet. */}
+        <StatCard
+          to="/tasks"
+          icon={ListChecks}
+          value={counts.jobTasks + counts.remindersDue}
+          label="Pending jobs"
+          note={counts.remindersDue ? `+${counts.remindersDue} reminder${counts.remindersDue === 1 ? "" : "s"}` : "Open tasks"}
+          tone={counts.jobTasks + counts.remindersDue ? "info" : "low"}
+        />
+        <StatCard
+          to={counts.overdue ? "/tasks?view=overdue" : "/tasks?view=today"}
+          icon={counts.overdue ? TriangleAlert : CircleCheck}
+          value={counts.dueToday + counts.overdue}
+          label="Pending today"
+          note={counts.overdue ? `${counts.overdue} overdue` : counts.dueToday ? "Due today" : "Nothing due today"}
+          tone={counts.overdue ? "urgent" : counts.dueToday ? "high" : "low"}
+        />
         <StatCard
           to="/reminders"
           icon={CalendarClock}
-          value={counts.reportsUpcoming + counts.reportsOverdue}
-          label="Reminders"
-          note={counts.reportsOverdue ? `${counts.reportsOverdue} overdue` : counts.reportsUpcoming ? "Next 30 days" : "Nothing due soon"}
-          tone={counts.reportsOverdue ? "urgent" : counts.reportsUpcoming ? "info" : "low"}
+          value={counts.reportsUpcoming}
+          label="Upcoming reminders"
+          note={counts.reportsUpcoming ? "Next 30 days" : "Nothing in 30 days"}
+          tone={counts.reportsUpcoming ? "info" : "low"}
         />
       </div>
 
