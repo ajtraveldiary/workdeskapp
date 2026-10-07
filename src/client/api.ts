@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, EmailContent, Label, RangeTasks, EmailState, Me, MutedSender, Report, Summary, Task, TaskView, Thread } from "../shared/types";
-import type { ReportInput, TaskInput } from "../shared/schemas";
+import type { AuditEvent, EmailContent, Label, RangeTasks, EmailState, Me, MutedSender, Report, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { EmployeeInput, ReportInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
   constructor(
@@ -155,6 +155,32 @@ export function useCalendarLinkActions() {
   return {
     make: useMutation({ mutationFn: () => api<{ url: string }>("/calendar-link", { method: "POST" }), onSuccess: set }),
     off: useMutation({ mutationFn: () => api<{ url: null }>("/calendar-link", { method: "DELETE" }), onSuccess: set }),
+  };
+}
+
+// Staff page (user request 2026-10-07): designations and employees, kept for a day on the device (it changes
+// rarely; every change here refetches it).
+export const useStaff = () => useQuery({ queryKey: ["staff"], queryFn: () => api<StaffList>("/staff"), staleTime: 24 * 3600_000 });
+export const useEmployeeWork = (id: string | null) =>
+  useQuery({
+    queryKey: ["staff-work", id],
+    enabled: !!id,
+    queryFn: () => api<{ tasks: Task[]; reminders: { id: string; name: string; active: boolean; relatedKind: string }[]; today: string }>(`/staff/employees/${id}/work`),
+  });
+export function useStaffActions() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "staff" || q.queryKey[0] === "history" });
+  const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
+  return {
+    addDesignation: m((name: string) => api<{ id: string }>("/staff/designations", { method: "POST", body: { name } })),
+    addCommon: m(() => api<{ added: number }>("/staff/designations/common", { method: "POST" })),
+    renameDesignation: m(({ id, name }: { id: string; name: string }) => api(`/staff/designations/${id}`, { method: "PATCH", body: { name } })),
+    moveDesignation: m(({ id, by }: { id: string; by: number }) => api(`/staff/designations/${id}/move`, { method: "POST", body: { by } })),
+    removeDesignation: m((id: string) => api(`/staff/designations/${id}`, { method: "DELETE" })),
+    addEmployee: m((input: EmployeeInput) => api<{ id: string }>("/staff/employees", { method: "POST", body: input })),
+    saveEmployee: m(({ id, input }: { id: string; input: EmployeeInput }) => api(`/staff/employees/${id}`, { method: "PUT", body: input })),
+    setLeft: m(({ id, left }: { id: string; left: boolean }) => api(`/staff/employees/${id}/left`, { method: "POST", body: { left } })),
+    removeEmployee: m((id: string) => api(`/staff/employees/${id}`, { method: "DELETE" })),
   };
 }
 

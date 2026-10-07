@@ -1,13 +1,14 @@
 // Read-only view of a task, with what was entered when it was created. Opened from task lists; for a task
 // made from an email it also names the email, and its title opens it (onOpenEmail).
-import { CalendarDays, Check, Clock, CalendarClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote } from "lucide-react";
-import type { ReactNode } from "react";
+import { CalendarDays, Check, Clock, CalendarClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote, UserRound } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import type { Task } from "../../shared/types";
-import { useCompleteTask, useMe, useReopenTask } from "../api";
+import { useCompleteTask, useMe, useReopenTask, useUpdateTask } from "../api";
 import { formatDateTime, formatDay, formatTime, formatWhen } from "../format";
 import { ChecklistTicks } from "./Checklist";
 import { LinkChips } from "./ReminderLinks";
 import { canWait, isWaiting, openWait, waitingText } from "./Waiting";
+import { RelatedLine, type RelatedValue } from "./Related";
 import { Badge, Button, Modal, PriorityPill, cx } from "./ui";
 
 export function TaskDetails({
@@ -32,6 +33,9 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
   const complete = useCompleteTask();
   const reopen = useReopenTask();
+  const update = useUpdateTask();
+  // Shown straight away: the card holds the task as it was when opened.
+  const [related, setRelated] = useState<RelatedValue>({ relatedKind: task.relatedKind, relatedId: task.relatedId });
   const done = task.status === "done";
   const waiting = isWaiting(task);
   const overdue = !done && !waiting && !!task.dueDate && task.dueDate < today;
@@ -112,6 +116,18 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
             <span className="font-medium">{task.thread.fromName ?? task.thread.fromEmail}</span>: {task.thread.subject}
           </Row>
         )}
+        {/* What the task is about (Staff, user request 2026-10-07): changed here straight away. */}
+        <Row icon={UserRound} label="For">
+          <RelatedLine
+            value={related}
+            busy={update.isPending}
+            onChange={(v) => {
+              const before = related;
+              setRelated(v);
+              update.mutate({ id: task.id, input: v }, { onError: () => setRelated(before) });
+            }}
+          />
+        </Row>
         <Row icon={StickyNote} label="Notes">
           {task.notes ? <span className="select-text whitespace-pre-wrap">{task.notes}</span> : <span className="text-slate-500">No notes</span>}
         </Row>

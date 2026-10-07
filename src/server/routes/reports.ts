@@ -8,6 +8,7 @@ import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { ensureReportPeriods, setPeriodStatus } from "../lib/reports";
 import { maintain } from "../lib/maintenance";
+import { checkRelated, relatedName } from "../lib/staff";
 import { reportInput, reportPatch } from "../../shared/schemas";
 import type { Report } from "../../shared/types";
 
@@ -57,6 +58,8 @@ export const reportRoutes = new Hono<AppEnv>()
       priority: r.priority,
       active: r.active,
       links: r.links ?? [],
+      relatedKind: r.relatedKind,
+      relatedId: r.relatedId,
       periods: periods
         .filter((p) => p.reportId === r.id)
         .slice(0, PERIODS_SHOWN)
@@ -75,10 +78,11 @@ export const reportRoutes = new Hono<AppEnv>()
   .post("/", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const input = reportInput.parse(await c.req.json());
+    const { relatedKind, relatedId, ...input } = reportInput.parse(await c.req.json());
+    const related = await checkRelated(db, userId, relatedKind, relatedId);
     const [r] = await db
       .insert(reports)
-      .values({ ...input, userId, dueDay: dueDayOf(input.startDate) })
+      .values({ ...input, ...related, userId, dueDay: dueDayOf(input.startDate) })
       .returning();
     await db.insert(events).values({ userId, entityType: "report", entityId: r!.id, action: "report.created", summary: "Reminder created", detail: { title: r!.name } });
     await ensureReportPeriods(db, todayIn(timezone(c.env)), userId);
@@ -89,11 +93,19 @@ export const reportRoutes = new Hono<AppEnv>()
   .patch("/:id", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const input = reportPatch.parse(await c.req.json());
+    const { relatedKind, relatedId, ...input } = reportPatch.parse(await c.req.json());
     const r = await loadReport(db, userId, c.req.param("id"));
     const merged = { ...r, ...input };
-    const set = { ...input, updatedAt: new Date(), ...(input.startDate ? { dueDay: dueDayOf(input.startDate) } : {}) };
+    // What it is about (Staff, user request 2026-10-07): only when sent; its open tasks follow.
+    const relatedSent = relatedKind !== undefined || relatedId !== undefined;
+    const related = relatedSent ? await checkRelated(db, userId, relatedKind !== undefined ? relatedKind : r.relatedKind, relatedId !== undefined ? relatedId : r.relatedId) : null;
+    const set = { ...input, ...(related ?? {}), updatedAt: new Date(), ...(input.startDate ? { dueDay: dueDayOf(input.startDate) } : {}) };
     await db.update(reports).set(set).where(eq(reports.id, r.id));
+    if (related && (related.relatedKind !== r.relatedKind || related.relatedId !== r.relatedId)) {
+      const periodIds = (await db.select({ id: reportPeriods.id }).from(reportPeriods).where(eq(reportPeriods.reportId, r.id))).map((p) => p.id);
+      if (periodIds.length) await db.update(tasks).set(related).where(and(inArray(tasks.reportPeriodId, periodIds), eq(tasks.status, "open")));
+      await db.insert(events).values({ userId, entityType: "report", entityId: r.id, action: "report.related", summary: related.relatedKind ? `For: ${await relatedName(db, related)}` : "No longer linked to staff", detail: { title: merged.name } });
+    }
     const action = input.active === false && r.active ? "report.paused" : input.active === true && !r.active ? "report.resumed" : "report.updated";
     const summary = action === "report.paused" ? "Paused" : action === "report.resumed" ? "Resumed" : "Reminder changed";
     await db.insert(events).values({ userId, entityType: "report", entityId: r.id, action, summary, detail: { title: merged.name } });

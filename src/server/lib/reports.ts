@@ -52,6 +52,9 @@ export async function ensureReportPeriods(db: DB, today: string, userId?: string
           dueTime: r.dueTime,
           priority: r.priority,
           reportPeriodId: p.id,
+          // What the reminder is about (Staff, user request 2026-10-07).
+          relatedKind: r.relatedKind,
+          relatedId: r.relatedId,
         };
       }),
     )

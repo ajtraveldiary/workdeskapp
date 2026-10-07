@@ -45,6 +45,7 @@ import { SelectAvatar } from "../components/Avatar";
 import { emailLine } from "../components/ThreadRow";
 import { PriorityGrouped } from "../components/PriorityGroups";
 import { ChecklistChip } from "../components/Checklist";
+import { RelatedTag } from "../components/Related";
 import { deleteTasksWithUndo, useHiddenTasks } from "../taskDelete";
 import { WaitingBadge, canWait, isWaiting, openWait } from "../components/Waiting";
 import { TaskDetails } from "../components/TaskDetails";
@@ -731,6 +732,8 @@ function TodoRow({
             <EditableDue task={task} today={today} layout="time" />
           )}
           {context && <span className="min-w-0 flex-1 truncate text-xs text-slate-500 sm:text-footnote">{context}</span>}
+          {/* What it is about (Staff, user request 2026-10-07). */}
+          <RelatedTag value={task} className={cx("text-xs sm:text-footnote", !context && "mr-auto")} />
           <ChecklistChip items={task.checklist} onClick={() => onDetails(task)} />
         </div>
       </div>

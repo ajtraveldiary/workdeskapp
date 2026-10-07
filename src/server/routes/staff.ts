@@ -1,0 +1,174 @@
+// Staff page (user request 2026-10-07): the office's designations and employees, and the open work linked to
+// an employee. Only WorkDesk's database changes; every change is in History.
+import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
+import { and, asc, count, eq, max, or, sql } from "drizzle-orm";
+import type { AppEnv } from "../app";
+import type { DB } from "../db";
+import { designations, employees, events, reports, tasks } from "../db/schema";
+import { timezone } from "../env";
+import { todayIn } from "../lib/dates";
+import { designationInput, employeeInput } from "../../shared/schemas";
+import { COMMON_DESIGNATIONS } from "../../shared/staff";
+import type { Employee, StaffList } from "../../shared/types";
+import { openTaskOrder, selectTasks, toTask } from "./tasks";
+
+const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
+
+function toEmployee(e: typeof employees.$inferSelect): Employee {
+  const { userId: _u, createdAt: _c, updatedAt: _up, ...rest } = e;
+  return rest;
+}
+
+async function loadEmployee(db: DB, userId: string, id: string) {
+  const [e] = await db.select().from(employees).where(and(eq(employees.id, id), eq(employees.userId, userId)));
+  if (!e) throw new HTTPException(404, { message: "Employee not found" });
+  return e;
+}
+async function loadDesignation(db: DB, userId: string, id: string) {
+  const [d] = await db.select().from(designations).where(and(eq(designations.id, id), eq(designations.userId, userId)));
+  if (!d) throw new HTTPException(404, { message: "Designation not found" });
+  return d;
+}
+async function checkDesignation(db: DB, userId: string, id: string | null) {
+  if (id) await loadDesignation(db, userId, id);
+}
+
+// Tasks and reminders that say they are about this employee / designation.
+async function linkCount(db: DB, kind: "employee" | "designation", id: string) {
+  const [t] = await db.select({ n: count() }).from(tasks).where(and(eq(tasks.relatedKind, kind), eq(tasks.relatedId, id)));
+  const [r] = await db.select({ n: count() }).from(reports).where(and(eq(reports.relatedKind, kind), eq(reports.relatedId, id)));
+  return Number(t?.n ?? 0) + Number(r?.n ?? 0);
+}
+
+export const staffRoutes = new Hono<AppEnv>()
+  .get("/", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const [d, e] = await Promise.all([
+      db.select({ id: designations.id, name: designations.name, sortOrder: designations.sortOrder }).from(designations).where(eq(designations.userId, userId)).orderBy(asc(designations.sortOrder), asc(designations.name)),
+      db.select().from(employees).where(eq(employees.userId, userId)).orderBy(asc(employees.name)),
+    ]);
+    return c.json({ designations: d, employees: e.map(toEmployee) } satisfies StaffList);
+  })
+
+  // --- Designations ---
+  .post("/designations", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { name } = designationInput.parse(await c.req.json());
+    const [m] = await db.select({ m: max(designations.sortOrder) }).from(designations).where(eq(designations.userId, userId));
+    const [d] = await db.insert(designations).values({ userId, name, sortOrder: (m?.m ?? 0) + 1 }).returning();
+    await log(db, userId, "staff.designation_added", `Designation added: ${name}`);
+    return c.json(d, 201);
+  })
+  // The common Health Services list; ones already there (same name) are skipped.
+  .post("/designations/common", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const have = await db.select({ name: designations.name, sortOrder: designations.sortOrder }).from(designations).where(eq(designations.userId, userId));
+    const names = new Set(have.map((d) => d.name.trim().toLowerCase()));
+    const start = Math.max(0, ...have.map((d) => d.sortOrder)) + 1;
+    const add = COMMON_DESIGNATIONS.filter((n) => !names.has(n.toLowerCase()));
+    if (add.length) {
+      await db.insert(designations).values(add.map((name, i) => ({ userId, name, sortOrder: start + i })));
+      await log(db, userId, "staff.designations_common", `Added ${add.length} common designations`);
+    }
+    return c.json({ added: add.length });
+  })
+  .patch("/designations/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const d = await loadDesignation(db, userId, c.req.param("id"));
+    const { name } = designationInput.parse(await c.req.json());
+    await db.update(designations).set({ name }).where(eq(designations.id, d.id));
+    if (name !== d.name) await log(db, userId, "staff.designation_renamed", `Designation renamed: ${d.name} → ${name}`);
+    return c.json({ ok: true });
+  })
+  // Moves a designation one place up or down the list.
+  .post("/designations/:id/move", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { by } = (await c.req.json()) as { by: number };
+    const list = await db.select().from(designations).where(eq(designations.userId, userId)).orderBy(asc(designations.sortOrder), asc(designations.name));
+    const i = list.findIndex((d) => d.id === c.req.param("id"));
+    const j = i + (by < 0 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= list.length) return c.json({ ok: true });
+    [list[i], list[j]] = [list[j]!, list[i]!];
+    for (const [k, d] of list.entries()) if (d.sortOrder !== k) await db.update(designations).set({ sortOrder: k }).where(eq(designations.id, d.id));
+    return c.json({ ok: true });
+  })
+  // Only an unused designation can be removed: no employees and no tasks or reminders about it.
+  .delete("/designations/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const d = await loadDesignation(db, userId, c.req.param("id"));
+    const [e] = await db.select({ n: count() }).from(employees).where(eq(employees.designationId, d.id));
+    if (Number(e?.n ?? 0) > 0) throw new HTTPException(409, { message: `${d.name} has ${e!.n} employee${Number(e!.n) === 1 ? "" : "s"}. Change their designation first.` });
+    const links = await linkCount(db, "designation", d.id);
+    if (links > 0) throw new HTTPException(409, { message: `${d.name} is linked to ${links} task${links === 1 ? "" : "s"} or reminder${links === 1 ? "" : "s"}, so it can't be removed. Rename it instead.` });
+    await db.delete(designations).where(eq(designations.id, d.id));
+    await log(db, userId, "staff.designation_removed", `Designation removed: ${d.name}`);
+    return c.json({ ok: true });
+  })
+
+  // --- Employees ---
+  .post("/employees", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const input = employeeInput.parse(await c.req.json());
+    await checkDesignation(db, userId, input.designationId);
+    const [e] = await db.insert(employees).values({ ...input, userId }).returning();
+    await log(db, userId, "staff.employee_added", `Employee added: ${e!.name}`);
+    return c.json(toEmployee(e!), 201);
+  })
+  // The form sends every detail.
+  .put("/employees/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("id"));
+    const input = employeeInput.parse(await c.req.json());
+    await checkDesignation(db, userId, input.designationId);
+    await db.update(employees).set({ ...input, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await log(db, userId, "staff.employee_changed", `Employee details changed: ${input.name}`);
+    return c.json({ ok: true });
+  })
+  // Left the office (transfer, retirement…) or back again.
+  .post("/employees/:id/left", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("id"));
+    const { left } = (await c.req.json()) as { left: boolean };
+    const leftOn = left ? todayIn(timezone(c.env)) : null;
+    await db.update(employees).set({ leftOn, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await log(db, userId, left ? "staff.employee_left" : "staff.employee_back", left ? `${e.name} left the office` : `${e.name} is back in the office`);
+    return c.json({ ok: true });
+  })
+  // Only an employee no task or reminder is about can be deleted; otherwise "Left the office" keeps the name.
+  .delete("/employees/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("id"));
+    const links = await linkCount(db, "employee", e.id);
+    if (links > 0) throw new HTTPException(409, { message: `${e.name} is linked to ${links} task${links === 1 ? "" : "s"} or reminder${links === 1 ? "" : "s"}. Use "Left the office" instead.` });
+    await db.delete(employees).where(eq(employees.id, e.id));
+    await log(db, userId, "staff.employee_removed", `Employee removed: ${e.name}`);
+    return c.json({ ok: true });
+  })
+  // Open tasks and active reminders about this employee, or about their designation.
+  .get("/employees/:id/work", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("id"));
+    const today = todayIn(timezone(c.env));
+    const about = (t: typeof tasks | typeof reports) =>
+      or(and(eq(t.relatedKind, "employee"), eq(t.relatedId, e.id)), e.designationId ? and(eq(t.relatedKind, "designation"), eq(t.relatedId, e.designationId)) : sql`false`);
+    const [open, rems] = await Promise.all([
+      selectTasks(db)
+        .where(and(eq(tasks.userId, userId), eq(tasks.status, "open"), about(tasks)))
+        .orderBy(...openTaskOrder)
+        .limit(100),
+      db.select({ id: reports.id, name: reports.name, active: reports.active, relatedKind: reports.relatedKind }).from(reports).where(and(eq(reports.userId, userId), about(reports))).orderBy(asc(reports.name)),
+    ]);
+    return c.json({ tasks: open.map(toTask), reminders: rems, today });
+  });

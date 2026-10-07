@@ -10,6 +10,7 @@ import {
   CalendarCheck,
   ChevronDown,
   History as HistoryIcon,
+  UsersRound,
   House,
   ListChecks,
   LogOut,
@@ -37,6 +38,7 @@ import { TasksPage } from "./pages/Tasks";
 import { CalendarPage } from "./pages/Calendar";
 import { SearchPage } from "./pages/Search";
 import { HistoryPage } from "./pages/History";
+import { StaffPage } from "./pages/Staff";
 import { RemindersPage } from "./pages/Reminders";
 import { SettingsPage } from "./pages/Settings";
 import { LoginPage } from "./pages/Login";
@@ -67,6 +69,7 @@ export function App() {
         <Route path="/history" element={<Page><HistoryPage /></Page>} />
         <Route path="/search" element={<Page><SearchPage /></Page>} />
         <Route path="/settings" element={<Page><SettingsPage /></Page>} />
+        <Route path="/staff" element={<Page><StaffPage /></Page>} />
         <Route path="*" element={<Page><p className="text-slate-500">Page not found.</p></Page>} />
       </Routes>
     </Shell>
@@ -87,6 +90,8 @@ const NAV: NavItem[] = [
   { to: "/reminders", label: "Reminders", icon: CalendarClock },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/history", label: "History", icon: HistoryIcon },
+  // Staff page (user request 2026-10-07): in the side rail on wider screens, in the profile menu on phones.
+  { to: "/staff", label: "Staff", icon: UsersRound },
 ];
 
 function Shell({ children }: { children: ReactNode }) {
@@ -147,7 +152,7 @@ function Shell({ children }: { children: ReactNode }) {
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
           corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
       <nav className="tabbar fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
-        {NAV.filter((n) => n.to !== "/history").map((n) => (
+        {NAV.filter((n) => n.to !== "/history" && n.to !== "/staff").map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -546,6 +551,10 @@ function UserMenu() {
             <div className="truncate text-xs text-slate-500">{me?.demo ? "Demo mode · sample emails" : (me?.account?.email ?? me?.email)}</div>
           </div>
           <div className="my-1 h-px bg-line" />
+          {/* Staff (user request 2026-10-07): next to Settings in the profile menu. */}
+          <Link to="/staff" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
+            <UsersRound size={16} /> Staff
+          </Link>
           <Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <SettingsIcon size={16} /> Settings
           </Link>

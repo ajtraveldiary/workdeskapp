@@ -1,7 +1,7 @@
 // Reminder details (user request 2026-10-07): tapping a reminder in All reminders opens this read-only card
 // with everything about it, a preview of its linked Google document, and Edit, Pause/Resume, Delete and
 // Mark done (for its earliest date not yet done, whose task already exists). Like Task details, a tap outside closes it.
-import { Bell, CalendarDays, CalendarCheck, Check, Clock, ExternalLink, Maximize2, Pause, Pencil, Play, Repeat as RepeatIcon, StickyNote, Trash2 } from "lucide-react";
+import { Bell, CalendarDays, CalendarCheck, Check, Clock, ExternalLink, Maximize2, Pause, Pencil, Play, Repeat as RepeatIcon, StickyNote, Trash2, UserRound } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { Report } from "../../shared/types";
 import { dayLabel, nextOccurrence, remindLabel, repeatText } from "../../shared/reminderSchedule";
@@ -10,6 +10,7 @@ import { parseDriveUrl, type DriveLink } from "../driveLinks";
 import { addDays, formatDateTime, formatDay, formatTime } from "../format";
 import { AttachmentViewer, DriveFrame, GoogleButton } from "./EmailViewer";
 import { linkKind, linkName } from "./ReminderLinks";
+import { RelatedLine } from "./Related";
 import { showUndo } from "./SwipeRow";
 import { Badge, Button, ErrorNote, Modal, PriorityPill, cx } from "./ui";
 
@@ -96,6 +97,10 @@ function Details({ report, today, onClose, onEdit }: { report: Report; today: st
             {dayLabel(lastDone.dueDate)} <span className="text-slate-500">· marked {formatDateTime(lastDone.submittedAt)}</span>
           </Row>
         )}
+        {/* What the reminder is about (Staff, user request 2026-10-07); its open tasks follow. */}
+        <Row icon={UserRound} label="For">
+          <RelatedLine value={report} busy={update.isPending} onChange={(v) => update.mutate({ id: report.id, input: v })} />
+        </Row>
         <Row icon={StickyNote} label="Notes">
           {report.notes ? <span className="select-text whitespace-pre-wrap">{report.notes}</span> : <span className="text-slate-500">No notes</span>}
         </Row>

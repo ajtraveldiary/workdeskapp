@@ -48,7 +48,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 6: tasks carry waitingSince/replyBy and the summary counts waiting tasks (2026-10-07).
 // 7: the summary counts jobTasks and remindersDue (2026-10-07).
 // 8: emails can be "elsewhere" (Other sections) and carry sectionLabelId; label settings have organizeLabelIds (2026-10-07).
-export const CACHE_VERSION = "8";
+// 9: tasks and reminders carry relatedKind/relatedId (Staff page, 2026-10-07).
+export const CACHE_VERSION = "9";
 
 export async function clearSavedData() {
   queryClient.clear();

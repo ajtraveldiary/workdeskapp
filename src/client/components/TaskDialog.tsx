@@ -7,6 +7,7 @@ import { htmlToText } from "../snippets";
 import { ChecklistEditor } from "./Checklist";
 import { Hourglass } from "lucide-react";
 import { canWait, isWaiting } from "./Waiting";
+import { NO_RELATED, TitleWithRelated, type RelatedValue } from "./Related";
 import { Button, ErrorNote, Field, Modal, Spinner, inputClass } from "./ui";
 
 export type TaskDialogMode = { kind: "new"; dueDate?: string } | { kind: "fromThread"; thread: Thread } | { kind: "edit"; task: Task };
@@ -44,6 +45,8 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
   const [waiting, setWaiting] = useState(mode.kind === "edit" ? isWaiting(mode.task) : false);
   const [replyBy, setReplyBy] = useState(mode.kind === "edit" && isWaiting(mode.task) ? (mode.task.replyBy ?? "") : "");
   const waitAllowed = mode.kind !== "edit" || canWait(mode.task);
+  // What it is about: an employee, a designation or the office (Staff, user request 2026-10-07).
+  const [related, setRelated] = useState<RelatedValue>(mode.kind === "edit" ? { relatedKind: mode.task.relatedKind, relatedId: mode.task.relatedId } : NO_RELATED);
 
   // From an email: a date written in the newest message becomes the due date, unless the user has already
   // set or cleared one (user request 2026-10-06). The email usually comes from the cache (it was just open).
@@ -74,7 +77,7 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
     e.preventDefault();
     const steps = checklist.map((i) => ({ ...i, text: i.text.trim() })).filter((i) => i.text);
     const wait = waitAllowed ? { waiting, replyBy: (waiting && replyBy) || null } : {};
-    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, checklist: steps, ...wait };
+    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, checklist: steps, ...wait, ...related };
     if (mode.kind === "edit") await update.mutateAsync({ id: mode.task.id, input });
     else if (mode.kind === "fromThread") await fromThread.mutateAsync({ threadId: mode.thread.id, input });
     else await create.mutateAsync(input);
@@ -96,14 +99,17 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
         </p>
       )}
       <Field label="Task">
-        <input
-          className={inputClass}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-          autoFocus
-          placeholder={mode.kind === "fromThread" ? "What needs to be done?" : undefined}
-        />
+        {/* The person icon at the end of the box: what the task is about (Staff, user request 2026-10-07). */}
+        <TitleWithRelated value={related} onChange={setRelated}>
+          <input
+            className={inputClass}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            autoFocus
+            placeholder={mode.kind === "fromThread" ? "What needs to be done?" : undefined}
+          />
+        </TitleWithRelated>
       </Field>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Field label="Due date">

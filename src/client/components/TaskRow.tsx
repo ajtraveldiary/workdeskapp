@@ -4,6 +4,7 @@ import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
 import { daysBetween, formatDateTime, formatDay, formatTime } from "../format";
 import { ChecklistChip } from "./Checklist";
+import { RelatedTag } from "./Related";
 import { WaitingBadge, canWait, isWaiting, openWait } from "./Waiting";
 import { Badge, PRIORITY_BAR, cx } from "./ui";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
@@ -90,6 +91,7 @@ export function TaskRow({
           )}
           {done && task.completedAt && <span>Completed {formatDateTime(task.completedAt)}</span>}
           <ChecklistChip items={task.checklist} onClick={onDetails && (() => onDetails(task))} />
+          <RelatedTag value={task} />
           {task.report && (
             <span className="inline-flex min-w-0 items-center gap-1">
               <CalendarClock size={12} className="shrink-0" />

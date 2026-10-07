@@ -6,6 +6,7 @@ import { REMIND_OPTIONS, REPEATS, REPEAT_LABEL, nextOccurrence, occurrences, rem
 import { useCreateReport, useMe, useUpdateReport } from "../api";
 import { formatDay, formatTime } from "../format";
 import { LinksEditor } from "./ReminderLinks";
+import { NO_RELATED, TitleWithRelated, type RelatedValue } from "./Related";
 import { Button, ErrorNote, Field, Modal, inputClass } from "./ui";
 
 export type ReminderDialogMode = { kind: "new" } | { kind: "edit"; report: Report };
@@ -36,6 +37,8 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
   const [links, setLinks] = useState<ReminderLink[]>(r?.links ?? []);
   // A link pasted but not yet added is saved too.
   const [draftLink, setDraftLink] = useState<ReminderLink | null>(null);
+  // What it is about (Staff, user request 2026-10-07); its tasks carry it too.
+  const [related, setRelated] = useState<RelatedValue>(r ? { relatedKind: r.relatedKind, relatedId: r.relatedId } : NO_RELATED);
 
   const repeats = repeat !== "never";
   const rule = { repeat, startDate: startDate || today, dueDay: Number((startDate || today).slice(8, 10)), endDate: repeats && endsOn && endDate ? endDate : null };
@@ -47,7 +50,7 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const input = { name, notes, repeat, startDate, dueTime: dueTime || null, endDate: rule.endDate, leadDays, priority, links: draftLink ? [...links, draftLink] : links };
+    const input = { name, notes, repeat, startDate, dueTime: dueTime || null, endDate: rule.endDate, leadDays, priority, links: draftLink ? [...links, draftLink] : links, ...related };
     if (r) {
       const { startDate: _, ...rest } = input;
       await update.mutateAsync({ id: r.id, input: startDate === shownDate ? rest : input });
@@ -58,7 +61,9 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
   return (
     <form onSubmit={submit} className="space-y-4">
       <Field label="Title">
-        <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Submit HMIS report, Staff meeting, Pay electricity bill" required autoFocus={!r} />
+        <TitleWithRelated value={related} onChange={setRelated}>
+          <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Submit HMIS report, Staff meeting, Pay electricity bill" required autoFocus={!r} />
+        </TitleWithRelated>
       </Field>
 
       <div className="grid grid-cols-2 gap-3">

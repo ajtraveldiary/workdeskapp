@@ -7,6 +7,7 @@ import { dayLabel, nextOccurrence, remindLabel, repeatText } from "../../shared/
 import { useDeleteReport, useReports, useSetPeriodStatus, useUpdateReport } from "../api";
 import { addDays, formatDay, formatTime } from "../format";
 import { LinkChips } from "../components/ReminderLinks";
+import { RelatedTag } from "../components/Related";
 import { ReminderDetails } from "../components/ReminderDetails";
 import { ReminderDialog, type ReminderDialogMode } from "../components/ReminderDialog";
 import { Badge, Button, Card, CheckCircle, Fab, Loading, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
@@ -155,6 +156,7 @@ function ReminderRow({ report, today, onOpen, onEdit }: { report: Report; today:
       <button onClick={onOpen} className="row-link group/title block w-full text-left">
         <p className="text-subhead font-medium text-ink group-hover/title:text-brand-700">{report.name}</p>
         <p className="text-footnote text-slate-500">{details}</p>
+        <RelatedTag value={report} className="max-w-full! text-footnote" />
         <p className="mt-0.5 text-footnote text-slate-500">
           {!report.active ? <Badge>Paused</Badge> : next ? <>Next: <span className="font-medium text-ink">{formatDay(next, today)}</span></> : "No more dates"}
         </p>

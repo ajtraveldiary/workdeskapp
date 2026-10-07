@@ -62,7 +62,8 @@ export function RemoveChooserHost() {
 
 // A small menu under (or above) the Remove button, growing out of it. It is a popover in the top layer and,
 // for a button inside a pop-up (the email viewer), lives inside that pop-up so it isn't covered or blocked.
-function AnchoredMenu({ anchor, onClose, children }: { anchor: HTMLElement; onClose: () => void; children: ReactNode }) {
+// Also used by the Staff picker (Related.tsx).
+export function AnchoredMenu({ anchor, onClose, children, label = "Remove" }: { anchor: HTMLElement; onClose: () => void; children: ReactNode; label?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; origin: string } | null>(null);
   useLayoutEffect(() => {
@@ -106,7 +107,7 @@ function AnchoredMenu({ anchor, onClose, children }: { anchor: HTMLElement; onCl
       ref={ref}
       popover="manual"
       role="dialog"
-      aria-label="Remove"
+      aria-label={label}
       style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, width: WIDTH, transformOrigin: pos?.origin }}
       className={cx("fixed inset-auto m-0 max-h-[70vh] overflow-y-auto rounded-xl border border-line bg-white p-1 text-ink shadow-xl", pos && "grow-in")}
     >

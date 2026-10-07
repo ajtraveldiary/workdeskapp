@@ -13,6 +13,7 @@ import {
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { REPEATS } from "../../shared/reminderSchedule";
+import { RELATED_KINDS } from "../../shared/staff";
 import type { ChecklistItem, ReminderLink } from "../../shared/types";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
@@ -199,6 +200,10 @@ export const tasks = pgTable(
     waitingSince: timestamp("waiting_since", { withTimezone: true }),
     replyBy: date("reply_by"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    // What the task is about (user request 2026-10-07, Staff): an employee, a designation (all staff of that
+    // kind) or the general office; null = nothing chosen. related_id is the employee / designation id.
+    relatedKind: text("related_kind", { enum: RELATED_KINDS }),
+    relatedId: uuid("related_id"),
     // "YYYY-MM-DD HH:MM" the phone was last notified for (at the due time); a new date or time notifies again.
     pushNotifiedFor: text("push_notified_for"),
     createdAt: createdAt(),
@@ -233,6 +238,9 @@ export const reports = pgTable("reports", {
   priority: text("priority", { enum: PRIORITIES }).notNull().default("normal"),
   // Links to Google Drive files, Sheets, Docs… needed for the reminder (user request 2026-10-07).
   links: jsonb("links").$type<ReminderLink[]>().notNull().default([]),
+  // What the reminder is about (Staff, user request 2026-10-07); copied to its tasks.
+  relatedKind: text("related_kind", { enum: RELATED_KINDS }),
+  relatedId: uuid("related_id"),
   // No longer set from the app (reminders have no labels, user request 2026-10-06); old values are ignored.
   labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
   active: boolean("active").notNull().default(true),
@@ -266,6 +274,41 @@ export const reportPeriods = pgTable(
   },
   (t) => [uniqueIndex("report_periods_report_start").on(t.reportId, t.periodStart), index("report_periods_user_due").on(t.userId, t.dueDate)],
 );
+
+// The office's staff (user request 2026-10-07, Staff page): designations (posts such as Senior Clerk, Staff
+// Nurse) and employees. Tasks and reminders can be about one employee, one designation or the general office.
+export const designations = pgTable("designations", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+});
+
+export const employees = pgTable("employees", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  designationId: uuid("designation_id").references(() => designations.id),
+  pen: text("pen").notNull().default(""),
+  phone: text("phone").notNull().default(""),
+  email: text("email").notNull().default(""),
+  dateOfBirth: date("date_of_birth"),
+  // General, OBC, OEC, SC, ST, EWS or Other ("" = not given).
+  category: text("category").notNull().default(""),
+  joinedServiceOn: date("joined_service_on"),
+  joinedOfficeOn: date("joined_office_on"),
+  nextIncrementOn: date("next_increment_on"),
+  retiresOn: date("retires_on"),
+  payScale: text("pay_scale").notNull().default(""),
+  probationDeclaredOn: date("probation_declared_on"),
+  address: text("address").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  // Left the office (transfer, retirement…): hidden from the pickers, kept for old tasks.
+  leftOn: date("left_on"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
 
 // Devices that turned on phone notifications (user request 2026-10-07): one Web Push subscription each.
 export const pushSubscriptions = pgTable("push_subscriptions", {

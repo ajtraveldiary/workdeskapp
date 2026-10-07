@@ -9,6 +9,7 @@ import { logEvent } from "../lib/audit";
 import { todayIn } from "../lib/dates";
 import { setPeriodStatus } from "../lib/reports";
 import { clearTaskLabels, reconcileThreadLabels } from "../lib/taskLabels";
+import { checkRelated, relatedName } from "../lib/staff";
 import { bulkIds, taskInput, taskPatch } from "../../shared/schemas";
 import type { Task, TaskView } from "../../shared/types";
 
@@ -66,6 +67,8 @@ export function toTask({ task, thread, report }: Row): Task {
     checklist: task.checklist ?? [],
     waitingSince: task.waitingSince?.toISOString() ?? null,
     replyBy: task.replyBy,
+    relatedKind: task.relatedKind,
+    relatedId: task.relatedId,
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
     thread: thread?.id ? (threadInfo as Task["thread"]) : null,
@@ -151,10 +154,11 @@ export const taskRoutes = new Hono<AppEnv>()
   .post("/", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const { waiting, replyBy, ...input } = taskInput.parse(await c.req.json());
+    const { waiting, replyBy, relatedKind, relatedId, ...input } = taskInput.parse(await c.req.json());
+    const related = await checkRelated(db, userId, relatedKind, relatedId);
     const [task] = await db
       .insert(tasks)
-      .values({ ...input, userId, ...waitingFields(waiting, replyBy) })
+      .values({ ...input, ...related, userId, ...waitingFields(waiting, replyBy) })
       .returning();
     await logEvent(db, { userId, entityType: "task", entityId: task!.id, action: "task.created", summary: "Created manually", detail: { title: task!.title } });
     if (waiting) await logEvent(db, { userId, entityType: "task", entityId: task!.id, action: "task.waiting", summary: waitingSummary(replyBy), detail: { title: task!.title } });
@@ -164,8 +168,12 @@ export const taskRoutes = new Hono<AppEnv>()
   .patch("/:id", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const { waiting, replyBy, ...input } = taskPatch.parse(await c.req.json());
+    const { waiting, replyBy, relatedKind, relatedId, ...input } = taskPatch.parse(await c.req.json());
     const t = await loadTask(db, userId, c.req.param("id"));
+    // What the task is about (Staff, user request 2026-10-07): only when sent.
+    const relatedSent = relatedKind !== undefined || relatedId !== undefined;
+    const related = relatedSent ? await checkRelated(db, userId, relatedKind !== undefined ? relatedKind : t.relatedKind, relatedId !== undefined ? relatedId : t.relatedId) : null;
+    const relatedChanged = !!related && (related.relatedKind !== t.relatedKind || related.relatedId !== t.relatedId);
     if (input.labelIds !== undefined && t.threadId) {
       throw new HTTPException(400, { message: "This task uses its email's labels; change them on the email" });
     }
@@ -186,9 +194,12 @@ export const taskRoutes = new Hono<AppEnv>()
     // Only the fields sent are changed. Removing the due date also removes its time.
     await db
       .update(tasks)
-      .set({ ...input, ...(input.dueDate === null ? { dueTime: null } : {}), ...waitSet, updatedAt: new Date() })
+      .set({ ...input, ...(related ?? {}), ...(input.dueDate === null ? { dueTime: null } : {}), ...waitSet, updatedAt: new Date() })
       .where(eq(tasks.id, t.id));
     const title = input.title ?? t.title;
+    if (related && relatedChanged) {
+      await logEvent(db, { userId, entityType: "task", entityId: t.id, action: "task.related", summary: related.relatedKind ? `For: ${await relatedName(db, related)}` : "No longer linked to staff", detail: { title } });
+    }
     if (startsWaiting) {
       await logEvent(db, { userId, entityType: "task", entityId: t.id, action: "task.waiting", summary: waitingSummary(replyBy ?? null), detail: { title } });
     } else if (wasWaiting && !willWait) {

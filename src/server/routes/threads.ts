@@ -13,6 +13,7 @@ import { GmailError, canMarkRead, getAttachment, getMessageFull, getThreadFull, 
 import { decodeBase64Url, demoContent, demoPdf, findPart, parseMessage } from "../lib/emailContent";
 import { bulkIds, taskInput } from "../../shared/schemas";
 import { waitingFields, waitingSummary } from "./tasks";
+import { checkRelated } from "../lib/staff";
 import { events } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
@@ -257,12 +258,13 @@ export const threadRoutes = new Hono<AppEnv>()
   .post("/:id/task", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const { waiting, replyBy, ...input } = taskInput.parse(await c.req.json());
+    const { waiting, replyBy, relatedKind, relatedId, ...input } = taskInput.parse(await c.req.json());
     const t = await loadThread(db, userId, c.req.param("id"));
+    const related = await checkRelated(db, userId, relatedKind, relatedId);
     const [task] = await db
       .insert(tasks)
       // Its labels are the email's labels (Gmail), so none are stored on the task itself.
-      .values({ ...input, labelIds: [], userId, threadId: t.id, ...waitingFields(waiting, replyBy) })
+      .values({ ...input, ...related, labelIds: [], userId, threadId: t.id, ...waitingFields(waiting, replyBy) })
       .returning();
     await db
       .update(emailThreads)
