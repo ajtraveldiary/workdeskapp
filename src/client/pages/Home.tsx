@@ -495,13 +495,15 @@ function TodoRow({
   onDetails: (t: Task) => void;
 }) {
   const a = useTaskActions(task);
-  const context = task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Reminder" : "Manual task";
+  // Compact rows (user request 2026-10-07): where the task came from shares the due date's line, and plain
+  // hand-made tasks say nothing there.
+  const context = task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Reminder" : null;
   const swipe = useSwipeMode();
 
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName="row-click flex gap-3 px-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-4"
+      contentClassName="row-click flex gap-2.5 px-3 py-2 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2.5"
       {...taskSwipe(task, a, onEdit)}
     >
       {!swipe && (
@@ -517,9 +519,8 @@ function TodoRow({
           aria-label={task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`}
         >
           <span className={cx("line-clamp-2 text-subhead leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
-          <span className="mt-0.5 block truncate text-xs text-slate-500 sm:text-footnote">{context}</span>
         </button>
-        <div className="mt-1.5 flex items-center justify-between gap-2 sm:mt-2">
+        <div className="mt-1 flex min-w-0 items-center gap-2">
           {a.done ? (
             <>
               <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap sm:text-footnote", TONE[dueTone(task, today)].soft)}>
@@ -532,6 +533,7 @@ function TodoRow({
           ) : (
             <EditableDue task={task} today={today} layout="joined" />
           )}
+          {context && <span className="min-w-0 flex-1 truncate text-xs text-slate-500 sm:text-footnote">{context}</span>}
           <ChecklistChip items={task.checklist} onClick={() => onDetails(task)} />
         </div>
       </div>

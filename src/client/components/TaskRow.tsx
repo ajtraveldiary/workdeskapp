@@ -35,7 +35,8 @@ export function TaskRow({
 
   return (
     <SwipeRow
-      contentClassName={cx("row-click flex items-start gap-3 py-3 transition-colors has-[:is(button,a):hover]:bg-slate-50/80", swipe ? "px-3" : "px-4")}
+      // Compact rows (user request 2026-10-07): tighter padding, one line of notes.
+      contentClassName={cx("row-click flex items-start gap-2.5 py-2 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:py-2.5", swipe ? "px-3" : "px-4")}
       leading={
         done
           ? { label: "Reopen", icon: RotateCcw, tone: "neutral", onClick: () => reopen.mutateAsync(task.id) }
@@ -74,12 +75,12 @@ export function TaskRow({
       <div className="min-w-0 flex-1">
         <button
           onClick={() => (onOpen ? onOpen(task) : onEdit(task))}
-          className="row-link group/title text-left"
+          className="row-link group/title block w-full text-left"
           aria-label={onOpen ? (task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`) : undefined}
         >
-          <span className={cx("text-subhead leading-snug font-medium [overflow-wrap:anywhere]", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>
+          <span className={cx("line-clamp-3 text-subhead leading-snug font-medium [overflow-wrap:anywhere]", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>
         </button>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
           {waiting && <WaitingBadge task={task} today={today} />}
           {task.dueDate && !done && !waiting && (
             <Badge tone={overdue ? "urgent" : task.dueDate === today ? "high" : "info"}>
@@ -104,7 +105,7 @@ export function TaskRow({
             </span>
           )}
         </div>
-        {task.notes && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{task.notes}</p>}
+        {task.notes && <p className="mt-0.5 line-clamp-1 text-footnote text-slate-500">{task.notes}</p>}
         {task.thread?.hasNewActivity && !done && (
           <div className="mt-2 flex flex-wrap items-center gap-2 rounded-md bg-brand-100 px-2.5 py-1.5 text-xs text-brand-800">
             <span className="font-medium">New reply in the linked email.</span>
