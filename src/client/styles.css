@@ -428,8 +428,11 @@ dialog::backdrop {
     top: 14px;
   }
 }
+/* "backwards", not "both": the start state covers the delay, and nothing stays once the animation ends.
+   With "both" every row kept a transform, so each row became its own layer and the next row's text was drawn
+   over a ⋮ menu opened in the row above (2026-10-07). */
 .app-main ul.divide-y > li {
-  animation: row-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: row-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 .app-main ul.divide-y > li:nth-child(2) { animation-delay: 25ms; }
 .app-main ul.divide-y > li:nth-child(3) { animation-delay: 50ms; }
