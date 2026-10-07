@@ -29,6 +29,9 @@ export const users = pgTable("users", {
   doneLabelId: text("done_label_id"),
   // More labels whose emails become completed tasks straight away, like the done label (user request 2026-10-06).
   autoDoneLabelIds: text("auto_done_label_ids").array().notNull().default(sql`'{}'::text[]`),
+  // Secret part of the private calendar link (tasks and reminders for Apple Calendar etc., user request
+  // 2026-10-07). Null = no link; a new value stops the old link working.
+  calendarToken: text("calendar_token").unique(),
   // Shown on the home screen profile card, e.g. "Clerk, District Hospital".
   title: text("title"),
   picture: text("picture"),

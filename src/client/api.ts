@@ -131,6 +131,20 @@ export function useSync() {
 // Downloaded once and kept with the saved copy (user request 2026-10-06): every email is checked against this
 // local list, so reading emails never asks the server for it. It is fetched again only after the list is
 // changed in Settings (or Settings is refreshed), or when the saved copy expires (CACHE_MAX_AGE).
+// Private calendar link for Apple Calendar etc. (user request 2026-10-07).
+export const useCalendarLink = () => useQuery({ queryKey: ["calendar-link"], queryFn: () => api<{ url: string | null }>("/calendar-link") });
+export function useCalendarLinkActions() {
+  const qc = useQueryClient();
+  const set = (d: { url: string | null }) => {
+    qc.setQueryData(["calendar-link"], d);
+    void qc.invalidateQueries({ queryKey: ["history"] });
+  };
+  return {
+    make: useMutation({ mutationFn: () => api<{ url: string }>("/calendar-link", { method: "POST" }), onSuccess: set }),
+    off: useMutation({ mutationFn: () => api<{ url: null }>("/calendar-link", { method: "DELETE" }), onSuccess: set }),
+  };
+}
+
 export const useSnippets = () =>
   useQuery({
     queryKey: ["snippets"],

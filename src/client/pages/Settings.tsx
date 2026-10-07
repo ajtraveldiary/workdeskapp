@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
-import { useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useSnippetActions, useSnippets, useTaskLabelSettings } from "../api";
+import { CalendarDays, Copy, Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
+import { useCalendarLink, useCalendarLinkActions, useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useSnippetActions, useSnippets, useTaskLabelSettings } from "../api";
 import { LABEL_COLORS, type LabelColor } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
 import { LabelChip } from "../components/LabelChips";
@@ -14,7 +14,7 @@ export function SettingsPage() {
   const me = useMe().data;
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         {/* Phones: History moved here from the bottom bar (user request 2026-10-06); wider screens keep it in the side rail. */}
         <Link
@@ -63,11 +63,85 @@ export function SettingsPage() {
 
         <MailSettings />
 
+        <CalendarLink />
+
         <p className="text-xs text-slate-500">
           Signed in as {me?.email} · Dates use {me?.timezone}
         </p>
       </div>
     </>
+  );
+}
+
+// Settings > Calendar (user request 2026-10-07): a private link that puts WorkDesk's tasks and reminders in
+// Apple Calendar (or Google Calendar / Outlook). One way and read-only; a new link stops the old one.
+function CalendarLink() {
+  const { data, error } = useCalendarLink();
+  const { make, off } = useCalendarLinkActions();
+  const [copied, setCopied] = useState(false);
+  const url = data?.url ?? null;
+  const webcal = url?.replace(/^https?:/, "webcal:");
+  const copy = () => {
+    if (!url) return;
+    void navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <Card className="p-5">
+      <h2 id="calendar" className="flex scroll-mt-24 items-center gap-2 font-semibold text-slate-900">
+        <CalendarDays size={18} className="text-brand-700" /> Calendar
+      </h2>
+      <p className="mt-1 text-sm text-slate-600">
+        See your tasks and reminders in Apple Calendar on your iPhone, iPad or Mac (Google Calendar and Outlook work too). The calendar app shows a copy:
+        tick off and edit things here in WorkDesk.
+      </p>
+      <ErrorNote error={error ?? make.error ?? off.error} />
+      {!data && !error ? (
+        <Loading className="py-4" />
+      ) : !url ? (
+        <Button variant="primary" className="mt-3" disabled={make.isPending} onClick={() => make.mutate()}>
+          <CalendarDays size={16} /> Create calendar link
+        </Button>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={webcal}
+              className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-brand-600 px-4 text-sm font-medium text-white shadow-sm hover:bg-brand-700 active:scale-[0.97] pointer-coarse:h-9"
+            >
+              <CalendarDays size={16} /> Add to Apple Calendar
+            </a>
+            <Button onClick={copy}>
+              {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? "Copied" : "Copy link"}
+            </Button>
+          </div>
+          <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Calendar link" className={cx(inputClass, "font-mono text-xs text-slate-600")} />
+          <ul className="list-disc space-y-1 pl-5 text-footnote text-slate-600">
+            <li>
+              <span className="font-medium text-ink">iPhone:</span> tap Add to Apple Calendar, then Subscribe. Or Settings → Calendar → Accounts → Add Account → Other → Add
+              Subscribed Calendar, and paste the link.
+            </li>
+            <li>Shows open tasks with a due date (at their time, or all day) and every reminder date from two months back to a year ahead; done reminder dates get a ✓.</li>
+            <li>Calendar apps check for changes on their own, usually every 15 minutes to an hour on iPhone (Google Calendar: every few hours).</li>
+            <li>Anyone with this link can see your task titles. Keep it private; Make new link stops the old one.</li>
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              disabled={make.isPending}
+              onClick={() => confirm("Make a new link? Calendars using the old link stop updating until you add the new one.") && make.mutate()}
+            >
+              <RefreshCw size={14} /> Make new link
+            </Button>
+            <Button size="sm" variant="danger" disabled={off.isPending} onClick={() => confirm("Turn off the calendar link? Calendars using it stop updating.") && off.mutate()}>
+              <X size={14} /> Turn off
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

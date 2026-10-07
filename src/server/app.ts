@@ -12,6 +12,7 @@ import { authUrl, exchangeCode, idTokenClaims } from "./lib/gmail";
 import { ensureUser, seedDemoMailbox, seedDemoReports } from "./lib/users";
 import { todayIn } from "./lib/dates";
 import { DB_ERROR_MESSAGE, classifyDbError } from "./lib/dbErrors";
+import { calendarFeedRoute, calendarSettingsRoutes } from "./routes/calendar";
 import { threadRoutes } from "./routes/threads";
 import { taskRoutes } from "./routes/tasks";
 import { miscRoutes } from "./routes/misc";
@@ -123,6 +124,9 @@ export function createApp(opts: Options) {
     return c.json({ ok: true });
   });
 
+  // Private calendar feed for Apple Calendar etc.: no sign-in, the secret link is the key (2026-10-07).
+  app.route("/", calendarFeedRoute);
+
   // --- Everything below requires a signed-in user ---
 
   app.use(async (c, next) => {
@@ -151,6 +155,7 @@ export function createApp(opts: Options) {
   app.route("/tasks", taskRoutes);
   app.route("/reports", reportRoutes);
   app.route("/", miscRoutes);
+  app.route("/", calendarSettingsRoutes);
 
   return app;
 }
