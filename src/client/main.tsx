@@ -8,6 +8,9 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { CACHE_MAX_AGE, CACHE_VERSION, persister, queryClient } from "./queryClient";
 import "./styles.css";
 import { startAutoUpdate } from "./autoUpdate";
+import { watchSystemTheme } from "./theme";
+
+watchSystemTheme();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

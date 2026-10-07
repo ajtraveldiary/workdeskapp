@@ -1,13 +1,14 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { CalendarDays, Copy, Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
+import { CalendarDays, Copy, Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Moon, Sun, SunMoon, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
 import { useCalendarLink, useCalendarLinkActions, useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useSnippetActions, useSnippets, useTaskLabelSettings } from "../api";
 import { LABEL_COLORS, type LabelColor } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
 import { LabelChip } from "../components/LabelChips";
 import { normalizeSenderPattern } from "../../shared/schemas";
 import { formatDateTime } from "../format";
-import { Button, Card, ErrorNote, Loading, PageHeader, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Loading, PageHeader, Segmented, cx, inputClass } from "../components/ui";
+import { onThemeChoice, setThemeChoice, themeChoice, type ThemeChoice } from "../theme";
 import { RefreshButton } from "../components/RefreshButton";
 
 export function SettingsPage() {
@@ -30,6 +31,8 @@ export function SettingsPage() {
           </span>
           <ChevronRight size={18} className="shrink-0 text-slate-400" />
         </Link>
+
+        <Appearance />
 
         <Card className="p-5">
           <h2 className="font-semibold text-slate-900">Gmail connection</h2>
@@ -70,6 +73,34 @@ export function SettingsPage() {
         </p>
       </div>
     </>
+  );
+}
+
+// Settings > Appearance (user request 2026-10-07): Automatic follows the iPhone's or computer's own setting.
+// Saved on this device only, like the screen brightness.
+function Appearance() {
+  const [choice, setChoice] = useState<ThemeChoice>(themeChoice);
+  useEffect(() => onThemeChoice(setChoice), []);
+  const Icon = choice === "dark" ? Moon : choice === "light" ? Sun : SunMoon;
+  return (
+    <Card className="p-5">
+      <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+        <Icon size={18} className="text-brand-700" /> Appearance
+      </h2>
+      <p className="mt-1 mb-3 text-sm text-slate-600">
+        {choice === "auto" ? "Light or dark to match this device's own setting." : choice === "dark" ? "Dark colours, easier on the eyes at night." : "Light colours all the time."}
+      </p>
+      <Segmented<ThemeChoice>
+        value={choice}
+        onChange={setThemeChoice}
+        oneRow
+        options={[
+          { value: "auto", label: "Automatic" },
+          { value: "light", label: "Light" },
+          { value: "dark", label: "Dark" },
+        ]}
+      />
+    </Card>
   );
 }
 

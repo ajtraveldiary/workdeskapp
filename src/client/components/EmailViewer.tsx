@@ -466,7 +466,10 @@ function HtmlBody({ html, cids }: { html: string; cids: Record<string, string> }
           </button>
         </div>
       )}
-      <iframe ref={ref} title="Email content" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcDoc={srcDoc} className="block min-h-24 w-full border-0" />
+      {/* Dark mode: the email stays on white paper, as written (user request 2026-10-07). */}
+      <div className="dark:rounded-lg dark:bg-[#fff] dark:p-3">
+        <iframe ref={ref} title="Email content" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcDoc={srcDoc} className="block min-h-24 w-full border-0" />
+      </div>
     </div>
   );
 }

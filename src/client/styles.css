@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Dark mode (user request 2026-10-07) is switched by the `dark` class on <html> (theme.ts), so `dark:` utilities
+   follow the app's own Light / Dark / Automatic setting, not only the device's. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
   Minimal white surfaces; bright, saturated primary and secondary colours mark meaning.
   Each tone has a solid accent (dots, bars, icon tiles, badges), a light tint (-soft) and a dark ink for text:
@@ -509,5 +513,76 @@ dialog[open]::backdrop {
   }
   .page-in {
     animation: none !important;
+  }
+}
+
+/*
+  Dark mode (user request 2026-10-07; Settings > Appearance: Automatic / Light / Dark, theme.ts). Instead of
+  dark: classes on every element, the colour tokens themselves change: white surfaces become iOS's dark grey
+  cards on a black background, the slate greys flip (light text, dark fills and borders), and each tone's soft
+  tint and ink are redone for a dark background. Kept white on purpose: the email itself and Word/PDF previews
+  (documents are written for paper), and text on coloured buttons (.text-white below).
+*/
+html.dark {
+  color-scheme: dark;
+  --color-white: #1c1c1e;
+  --color-slate-50: #242426;
+  --color-slate-100: #2c2c2e;
+  --color-slate-200: #3a3a3c;
+  --color-slate-300: #48484a;
+  --color-slate-400: #8e8e93;
+  --color-slate-500: #98989f;
+  --color-slate-600: #aeaeb2;
+  --color-slate-700: #c7c7cc;
+  --color-slate-800: #e5e5ea;
+  --color-slate-900: #f2f2f7;
+
+  --color-ink: #f2f2f7;
+  --color-line: #38383a;
+  --color-canvas-soft: #000000;
+  --color-tint: #14233d;
+  --color-sender: #f28b8b;
+
+  --color-brand-50: #111c2f;
+  --color-brand-100: #172a4a;
+  --color-brand-200: #23406f;
+  --color-brand-500: #5c97ff;
+  --color-brand-600: #2f78ff;
+  --color-brand-700: #7aaaff;
+  --color-brand-800: #a6c6ff;
+
+  --color-urgent-soft: #3d151a;
+  --color-urgent-ink: #ff8f9a;
+  --color-high-soft: #3b2412;
+  --color-high-ink: #ffb46b;
+  --color-medium-soft: #372d0c;
+  --color-medium-ink: #ffd75e;
+  --color-low-soft: #10301f;
+  --color-low-ink: #5fe08f;
+  --color-snooze-soft: #2a1d45;
+  --color-snooze-ink: #c9a8ff;
+  --color-info-soft: #14243f;
+  --color-info-ink: #7aaaff;
+}
+html.dark,
+html.dark body {
+  background: #000000;
+}
+html.dark dialog::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+html.dark .scroll-thin {
+  scrollbar-color: #48484a transparent;
+}
+html.dark .skeleton {
+  background: linear-gradient(90deg, #2c2c2e 25%, #3a3a3c 45%, #2c2c2e 65%) 0 0 / 300% 100%;
+}
+html.dark .row-click:has(.row-link:active) {
+  background-color: rgb(58 58 60 / 0.7);
+}
+/* White text on coloured buttons, badges and swipe actions stays white (bg-white surfaces turned dark). */
+@layer utilities {
+  .dark .text-white {
+    color: #ffffff;
   }
 }

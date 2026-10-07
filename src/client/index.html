@@ -8,7 +8,18 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- Dark mode (user request 2026-10-07): set before the page first draws, so it never flashes white. The
+         home-screen app's status bar is dark too (its style is read when the app opens; the top bar already
+         leaves room for it). Same rules as src/client/theme.ts. -->
+    <script>
+      (function () {
+        var c = null;
+        try { c = localStorage.getItem("workdesk-theme"); } catch (e) {}
+        var dark = c === "dark" || (c !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) document.documentElement.classList.add("dark");
+        document.write('<meta name="apple-mobile-web-app-status-bar-style" content="' + (dark ? "black-translucent" : "default") + '" />');
+      })();
+    </script>
     <meta name="apple-mobile-web-app-title" content="WorkDesk" />
     <link rel="apple-touch-icon" href="/icon-180.png" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231e6bff'/><path d='M8 16.5l5 5 11-11' stroke='white' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
@@ -23,6 +34,7 @@
       .wd-splash-logo { display: flex; width: 72px; height: 72px; border-radius: 18px; background: #1e6bff; box-shadow: 0 8px 24px rgb(30 107 255 / 0.28); }
       .wd-splash-logo svg { margin: auto; width: 44px; height: 44px; fill: none; stroke: #fff; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
       .wd-splash-spin { width: 24px; height: 24px; border-radius: 50%; border: 3px solid rgb(30 107 255 / 0.18); border-top-color: #1e6bff; animation: wd-spin 0.8s linear infinite; }
+      html.dark, html.dark body, html.dark .wd-splash { background: #000; }
       @keyframes wd-spin { to { transform: rotate(360deg); } }
       @media (prefers-reduced-motion: reduce) { .wd-splash-spin { animation: none; } }
     </style>
