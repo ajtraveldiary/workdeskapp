@@ -183,6 +183,15 @@ export function useStaffActions() {
     removeEmployee: m((id: string) => api(`/staff/employees/${id}`, { method: "DELETE" })),
   };
 }
+// Increment done (user request 2026-10-07): the date moves a year on; undoTo puts the old date back.
+export function useIncrementDone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, undoTo }: { id: string; undoTo?: string }) =>
+      api<{ previous: string | null; next: string | null }>(`/staff/employees/${id}/increment`, { method: "POST", body: undoTo ? { undoTo } : {} }),
+    onSettled: () => qc.invalidateQueries({ predicate: (q) => ["staff", "summary", "history"].includes(q.queryKey[0] as string) }),
+  });
+}
 
 // Phone notifications (user request 2026-10-07): the settings apply to every device; on/off is per device.
 export type PushSettings = { publicKey: string; summaryOn: boolean; summaryTime: string; dueOn: boolean; devices: number };

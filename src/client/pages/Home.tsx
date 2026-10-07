@@ -16,16 +16,19 @@ import {
   RotateCcw,
   Hourglass,
   Trash2,
+  TrendingUp,
   TriangleAlert,
   Undo2,
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { Task, TaskView, Thread } from "../../shared/types";
+import type { IncrementDue, Task, TaskView, Thread } from "../../shared/types";
+import { incrementOverdue } from "../../shared/staff";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import {
   useCompleteTask,
   useDismiss,
+  useIncrementDone,
   useMarkSeen,
   useReopenTask,
   useRestore,
@@ -75,7 +78,8 @@ export function HomePage() {
         <StatCard to="/inbox" icon={Mail} value={counts.pendingEmails} label="Pending emails" note={counts.pendingEmails ? (counts.unreadPending ? `${counts.unreadPending} unread` : "Need your attention") : "All decided"} tone={counts.pendingEmails ? "info" : "low"} />
         {/* Cards 2–4 (user request 2026-10-07). Pending jobs: open tasks (not waiting, not reminder tasks) plus
             reminders due today or overdue. Pending today: tasks and reminders due today plus overdue ones (the
-            Due Today card's Today count). Upcoming reminders: reminder dates in the next 30 days not done yet. */}
+            Due Today card's Today count, with increments due, user request 2026-10-07). Upcoming reminders:
+            reminder dates in the next 30 days not done yet. */}
         <StatCard
           to="/tasks"
           icon={ListChecks}
@@ -87,10 +91,18 @@ export function HomePage() {
         <StatCard
           to={counts.overdue ? "/tasks?view=overdue" : "/tasks?view=today"}
           icon={counts.overdue ? TriangleAlert : CircleCheck}
-          value={counts.dueToday + counts.overdue}
+          value={counts.dueToday + counts.overdue + (counts.incrementsDue ?? 0)}
           label="Pending today"
-          note={counts.overdue ? `${counts.overdue} overdue` : counts.dueToday ? "Due today" : "Nothing due today"}
-          tone={counts.overdue ? "urgent" : counts.dueToday ? "high" : "low"}
+          note={
+            counts.overdue
+              ? `${counts.overdue} overdue`
+              : counts.dueToday
+                ? "Due today"
+                : counts.incrementsDue
+                  ? `${counts.incrementsDue} increment${counts.incrementsDue === 1 ? "" : "s"}`
+                  : "Nothing due today"
+          }
+          tone={counts.overdue ? "urgent" : counts.dueToday || counts.incrementsDue ? "high" : "low"}
         />
         <StatCard
           to="/reminders"
@@ -272,6 +284,8 @@ function CommandCenter({
     const seen = new Set(list.map((t) => t.id));
     return [...(overdueList?.tasks ?? []).filter((t) => !seen.has(t.id)), ...list];
   }, [data, tab, overdueList]);
+  // Increments due (Staff, user request 2026-10-07): in the Today tab from the 20th of their month.
+  const increments = tab === "today" ? (summary.incrementsDue ?? []) : [];
 
   return (
     <Panel hiddenOnPhone={hiddenOnPhone}>
@@ -292,7 +306,7 @@ function CommandCenter({
           value={tab}
           onChange={setTab}
           options={[
-            { value: "today", label: "Today", count: counts.dueToday + counts.overdue, tone: "high" },
+            { value: "today", label: "Today", count: counts.dueToday + counts.overdue + (counts.incrementsDue ?? 0), tone: "high" },
             { value: "overdue", label: "Overdue", count: counts.overdue, tone: "urgent" },
             { value: "upcoming", label: "Upcoming", count: counts.upcoming, tone: "info" },
             ...(phone ? [] : [{ value: "reports" as const, label: "Reminders", count: counts.reportTasks }]),
@@ -306,12 +320,15 @@ function CommandCenter({
           <Empty icon={CalendarClock} title="No reminder tasks open">
             Each reminder's task appears here ahead of its date. <Link to="/reminders" className="font-medium text-brand-700 hover:underline">Set up reminders</Link>
           </Empty>
-        ) : tasks.length === 0 ? (
+        ) : tasks.length === 0 && increments.length === 0 ? (
           <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today or overdue" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
             {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
           </Empty>
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
+            {increments.map((i) => (
+              <IncrementRow key={i.employeeId} item={i} today={today} />
+            ))}
             <PriorityGrouped tasks={tasks}>
               {(t) => <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />}
             </PriorityGrouped>
@@ -408,6 +425,46 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
         {task.title}
       </button>
       {when && <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
+    </SwipeRow>
+  );
+}
+
+// An employee's increment due (Staff, user request 2026-10-07): tick (computers) or swipe right (phones) marks
+// it done, which moves their next increment date a year on, with Undo; tapping opens the employee's card.
+function IncrementRow({ item, today }: { item: IncrementDue; today: string }) {
+  const done = useIncrementDone();
+  const navigate = useNavigate();
+  const swipe = useSwipeMode();
+  const late = incrementOverdue(item.due, today);
+  const markDone = () =>
+    done.mutateAsync({ id: item.employeeId }).then((r) =>
+      showUndo({
+        message: `Increment done: ${item.name}${r.next ? ` · next ${formatDay(r.next, today)}` : ""}`,
+        onUndo: () => r.previous && done.mutate({ id: item.employeeId, undoTo: r.previous }),
+      }),
+    );
+  return (
+    <SwipeRow
+      className="-mx-3 sm:-mx-5"
+      contentClassName="row-click flex items-start gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2"
+      leading={{ label: "Done", icon: Check, tone: "low", onClick: markDone }}
+    >
+      {!swipe && (
+        <div className="pt-px">
+          <CheckCircle checked={false} onToggle={() => void markDone()} disabled={done.isPending} label={`Mark increment done: ${item.name}`} />
+        </div>
+      )}
+      <span className="w-[3px] shrink-0 self-stretch rounded-full bg-brand-500" aria-hidden />
+      <button
+        onClick={() => navigate(`/staff?employee=${item.employeeId}`)}
+        className="row-link line-clamp-3 min-w-0 flex-1 text-left text-subhead leading-snug font-medium text-ink [overflow-wrap:anywhere] hover:text-brand-700 hover:underline sm:text-sm"
+        aria-label={`Increment due: ${item.name}. Open employee`}
+      >
+        <TrendingUp size={14} className="mr-1 inline -translate-y-px text-brand-600" aria-hidden />
+        Increment: {item.name}
+        {item.designation && <span className="font-normal text-slate-500"> · {item.designation}</span>}
+      </button>
+      <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{formatDay(item.due, today)}</span>
     </SwipeRow>
   );
 }

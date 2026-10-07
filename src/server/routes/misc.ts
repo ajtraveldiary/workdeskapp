@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
-import { emailThreads, events, gmailAccounts, hiddenSnippets, mutedSenders, reportPeriods, tasks, users } from "../db/schema";
+import { designations, emailThreads, employees, events, gmailAccounts, hiddenSnippets, mutedSenders, reportPeriods, tasks, users } from "../db/schema";
+import { incrementOnHome } from "../../shared/staff";
 import { timezone } from "../env";
 import { addDays, todayIn } from "../lib/dates";
 import { syncUser, wakeSnoozed } from "../lib/sync";
@@ -100,6 +101,15 @@ export const miscRoutes = new Hono<AppEnv>()
       ]);
 
     const pending = pendingCounts.reduce((s, r) => s + r.n, 0);
+    // Increments due (Staff, user request 2026-10-07), shown in Due Today: this month's from the 20th.
+    const incrementsDue = (
+      await db
+        .select({ employeeId: employees.id, name: employees.name, designation: designations.name, due: employees.nextIncrementOn })
+        .from(employees)
+        .leftJoin(designations, eq(employees.designationId, designations.id))
+        .where(and(eq(employees.userId, userId), sql`${employees.leftOn} is null`, sql`${employees.nextIncrementOn} is not null`))
+        .orderBy(asc(employees.nextIncrementOn), asc(employees.name))
+    ).filter((e) => incrementOnHome(e.due, today)) as Summary["incrementsDue"];
     const summary: Summary = {
       today,
       counts: {
@@ -121,7 +131,9 @@ export const miscRoutes = new Hono<AppEnv>()
         // + reminders due today or overdue.
         jobTasks: Number(openCount[0]?.jobs ?? 0),
         remindersDue: Number(reportCounts[0]?.due ?? 0),
+        incrementsDue: incrementsDue.length,
       },
+      incrementsDue,
       overdue: overdue.map(toTask),
       dueToday: dueToday.map(toTask),
       dueTomorrow: dueTomorrow.map(toTask),

@@ -2,7 +2,7 @@
 // about an employee, a designation or the general office (Related.tsx). Reached from the side rail on wider
 // screens and from the profile menu on phones. Only WorkDesk's database changes; History records each change.
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import {
   ArrowDown,
   ArrowUp,
@@ -17,15 +17,17 @@ import {
   Plus,
   Search,
   Trash2,
+  TrendingUp,
   UserMinus,
   UserPlus,
   UserRound,
   UsersRound,
 } from "lucide-react";
 import type { Designation, Employee, StaffList, Task } from "../../shared/types";
-import { EMPLOYEE_CATEGORIES, COMMON_DESIGNATIONS } from "../../shared/staff";
+import { EMPLOYEE_CATEGORIES, COMMON_DESIGNATIONS, incrementDue, incrementOverdue } from "../../shared/staff";
 import type { EmployeeInput } from "../../shared/schemas";
-import { useEmployeeWork, useMe, useStaff, useStaffActions } from "../api";
+import { useEmployeeWork, useIncrementDone, useMe, useStaff, useStaffActions } from "../api";
+import { showUndo } from "../components/SwipeRow";
 import { formatDay, formatTime } from "../format";
 import { Avatar } from "../components/Avatar";
 import { RefreshButton } from "../components/RefreshButton";
@@ -46,7 +48,13 @@ export function StaffPage() {
   const { data, error } = useStaff();
   const [tab, setTab] = useState<"employees" | "designations">("employees");
   const [form, setForm] = useState<{ employee: Employee | null } | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  // ?employee=<id> (Home's increment rows) opens that employee's card.
+  const [params, setParams] = useSearchParams();
+  const [openId, setOpenIdState] = useState<string | null>(params.get("employee"));
+  const setOpenId = (id: string | null) => {
+    setOpenIdState(id);
+    if (!id && params.has("employee")) setParams({}, { replace: true });
+  };
 
   const add = () => setForm({ employee: null });
   return (
@@ -79,6 +87,7 @@ export function StaffPage() {
               { value: "designations", label: "Designations", count: data.designations.length },
             ]}
           />
+          {tab === "employees" && <DueIncrements staff={data} onOpen={setOpenId} />}
           {tab === "employees" ? <Employees staff={data} onOpen={setOpenId} onAdd={add} onDesignations={() => setTab("designations")} /> : <Designations staff={data} />}
         </div>
       )}
@@ -97,6 +106,63 @@ export function StaffPage() {
         </>
       )}
     </>
+  );
+}
+
+// --- Increments due (user request 2026-10-07) ---
+// Employees whose next increment falls this month or earlier: Mark done moves the date a year on (with Undo).
+// Home's Due Today shows the same ones from the 20th of the month.
+function DueIncrements({ staff, onOpen }: { staff: StaffList; onOpen: (id: string) => void }) {
+  const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
+  const done = useIncrementDone();
+  const desig = new Map(staff.designations.map((d) => [d.id, d.name]));
+  const due = staff.employees
+    .filter((e) => !e.leftOn && incrementDue(e.nextIncrementOn, today))
+    .sort((a, b) => a.nextIncrementOn!.localeCompare(b.nextIncrementOn!) || a.name.localeCompare(b.name));
+  if (!due.length) return null;
+  const markDone = (e: Employee) =>
+    done.mutate(
+      { id: e.id },
+      {
+        onSuccess: (r) =>
+          showUndo({
+            message: `Increment done: ${e.name}${r.next ? ` · next ${fullDate(r.next)}` : ""}`,
+            onUndo: () => r.previous && done.mutate({ id: e.id, undoTo: r.previous }),
+          }),
+      },
+    );
+  return (
+    <Card className="overflow-hidden">
+      <h2 className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-footnote font-semibold text-slate-600 sm:px-5">
+        <TrendingUp size={15} className="text-brand-700" />
+        <span className="flex-1">Due increments</span>
+        <span className="font-normal text-slate-500">{due.length}</span>
+      </h2>
+      <ul className="divide-y divide-line">
+        {due.map((e) => {
+          const late = incrementOverdue(e.nextIncrementOn, today);
+          return (
+            <li key={e.id} className="row-click flex items-center gap-3 px-4 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5">
+              <button onClick={() => onOpen(e.id)} className="row-link group/title min-w-0 flex-1 text-left">
+                <span className="line-clamp-2 text-subhead font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{e.name}</span>
+                <span className="block text-footnote text-slate-500">
+                  {[desig.get(e.designationId ?? ""), e.payScale].filter(Boolean).join(" · ")}
+                  {desig.get(e.designationId ?? "") || e.payScale ? " · " : ""}
+                  <span className={cx(late && "font-medium text-urgent-ink")}>
+                    {late ? "Overdue · " : "Due "}
+                    {fullDate(e.nextIncrementOn!)}
+                  </span>
+                </span>
+              </button>
+              <Button size="sm" onClick={() => markDone(e)} disabled={done.isPending} className="shrink-0">
+                <Check size={15} /> Mark done
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+      <ErrorNote error={done.error} />
+    </Card>
   );
 }
 

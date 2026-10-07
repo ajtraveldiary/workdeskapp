@@ -9,7 +9,7 @@ import { designations, employees, events, reports, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { designationInput, employeeInput } from "../../shared/schemas";
-import { COMMON_DESIGNATIONS } from "../../shared/staff";
+import { COMMON_DESIGNATIONS, nextYear } from "../../shared/staff";
 import type { Employee, StaffList } from "../../shared/types";
 import { openTaskOrder, selectTasks, toTask } from "./tasks";
 
@@ -143,6 +143,26 @@ export const staffRoutes = new Hono<AppEnv>()
     await db.update(employees).set({ leftOn, updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, left ? "staff.employee_left" : "staff.employee_back", left ? `${e.name} left the office` : `${e.name} is back in the office`);
     return c.json({ ok: true });
+  })
+  // Increment done (user request 2026-10-07): the next increment date moves a year on. Undo sends the date it
+  // was ("undoTo"), which is put back only if nothing changed it since.
+  .post("/employees/:id/increment", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("id"));
+    const { undoTo } = (await c.req.json().catch(() => ({}))) as { undoTo?: string };
+    if (undoTo !== undefined) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(undoTo)) throw new HTTPException(400, { message: "Use YYYY-MM-DD" });
+      if (e.nextIncrementOn !== nextYear(undoTo)) return c.json({ previous: e.nextIncrementOn, next: e.nextIncrementOn });
+      await db.update(employees).set({ nextIncrementOn: undoTo, updatedAt: new Date() }).where(eq(employees.id, e.id));
+      await log(db, userId, "staff.increment_undone", `Increment for ${e.name} not done after all; due ${undoTo} again`);
+      return c.json({ previous: e.nextIncrementOn, next: undoTo });
+    }
+    if (!e.nextIncrementOn) throw new HTTPException(400, { message: `${e.name} has no increment date` });
+    const next = nextYear(e.nextIncrementOn);
+    await db.update(employees).set({ nextIncrementOn: next, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await log(db, userId, "staff.increment_done", `Increment for ${e.name} (due ${e.nextIncrementOn}) marked done; next due ${next}`);
+    return c.json({ previous: e.nextIncrementOn, next });
   })
   // Only an employee no task or reminder is about can be deleted; otherwise "Left the office" keeps the name.
   .delete("/employees/:id", async (c) => {

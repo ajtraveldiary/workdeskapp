@@ -121,7 +121,10 @@ export type Summary = {
     // today or overdue (user request 2026-10-07).
     jobTasks: number;
     remindersDue: number;
+    // Increments shown in Due Today (Staff, user request 2026-10-07): this month's from the 20th, earlier ones always.
+    incrementsDue: number;
   };
+  incrementsDue: IncrementDue[];
   overdue: Task[];
   dueToday: Task[];
   dueTomorrow: Task[];
@@ -211,3 +214,6 @@ export type Employee = {
   leftOn: string | null;
 };
 export type StaffList = { designations: Designation[]; employees: Employee[] };
+
+// An employee's increment shown in Home's Due Today (user request 2026-10-07).
+export type IncrementDue = { employeeId: string; name: string; designation: string | null; due: string };

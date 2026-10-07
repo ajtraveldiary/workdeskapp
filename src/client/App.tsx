@@ -477,7 +477,7 @@ function IconBadge() {
     void refreshPushSubscription();
   }, []);
   useEffect(() => {
-    if (counts) setIconBadge(counts.dueToday + counts.overdue);
+    if (counts) setIconBadge(counts.dueToday + counts.overdue + (counts.incrementsDue ?? 0));
   }, [counts]);
   return null;
 }

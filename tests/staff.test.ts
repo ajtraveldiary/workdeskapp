@@ -7,8 +7,8 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { COMMON_DESIGNATIONS } from "../src/shared/staff";
-import type { Report, StaffList, Task } from "../src/shared/types";
+import { COMMON_DESIGNATIONS, incrementDue, incrementOnHome, nextYear } from "../src/shared/staff";
+import type { Report, StaffList, Summary, Task } from "../src/shared/types";
 
 const NAME = "ശ്രീമതി. ലക്ഷ്മി കുട്ടി അമ്മ കെ. എസ്. (ജൂനിയർ പബ്ലിക് ഹെൽത്ത് നഴ്സ്, പ്രാഥമികാരോഗ്യ കേന്ദ്രം)";
 
@@ -84,5 +84,45 @@ describe("staff", () => {
     expect(await mine()).toMatchObject({ relatedKind: "designation", relatedId: hc });
     const r = ((await call("GET", "/reports")).json.reports as Report[]).find((x) => x.id === rid)!;
     expect(r).toMatchObject({ relatedKind: "designation", relatedId: hc });
+  });
+
+  it("increments: due this month, on Home from the 20th, done moves them a year on, Undo puts them back", async () => {
+    expect(nextYear("2027-06-01")).toBe("2028-06-01");
+    expect(nextYear("2028-02-29")).toBe("2029-02-28");
+    expect(incrementDue("2026-10-01", "2026-10-07")).toBe(true);
+    expect(incrementDue("2026-11-01", "2026-10-31")).toBe(false);
+    expect(incrementOnHome("2026-10-01", "2026-10-19")).toBe(false); // this month, before the 20th
+    expect(incrementOnHome("2026-10-01", "2026-10-20")).toBe(true);
+    expect(incrementOnHome("2026-09-01", "2026-10-05")).toBe(true); // an earlier month's, not done yet
+    expect(incrementOnHome("2026-11-01", "2026-10-25")).toBe(false);
+
+    const today = (await call("GET", "/me")).json.today as string;
+    const lastMonth = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
+    lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+    const overdueDay = lastMonth.toISOString().slice(0, 10);
+    const nextMonth = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
+    nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+    const late = (await call("POST", "/staff/employees", { name: NAME, nextIncrementOn: overdueDay })).json.id as string;
+    await call("POST", "/staff/employees", { name: "Not yet", nextIncrementOn: nextMonth.toISOString().slice(0, 10) });
+    await call("POST", "/staff/employees", { name: "Gone", nextIncrementOn: overdueDay });
+    const gone = (await staff()).employees.find((e) => e.name === "Gone")!.id;
+    await call("POST", `/staff/employees/${gone}/left`, { left: true });
+
+    const summary = async () => (await call("GET", "/summary")).json as Summary;
+    let s = await summary();
+    expect(s.incrementsDue.map((i) => i.name)).toEqual([NAME]);
+    expect(s.counts.incrementsDue).toBe(1);
+
+    const r = (await call("POST", `/staff/employees/${late}/increment`)).json;
+    expect(r).toEqual({ previous: overdueDay, next: nextYear(overdueDay) });
+    s = await summary();
+    expect(s.incrementsDue).toEqual([]);
+    expect(JSON.stringify((await call("GET", "/history")).json)).toContain("marked done");
+
+    await call("POST", `/staff/employees/${late}/increment`, { undoTo: overdueDay });
+    expect((await staff()).employees.find((e) => e.id === late)!.nextIncrementOn).toBe(overdueDay);
+    // No date: nothing to mark.
+    const none = (await call("POST", "/staff/employees", { name: "No date" })).json.id as string;
+    expect((await call("POST", `/staff/employees/${none}/increment`)).status).toBe(400);
   });
 });
