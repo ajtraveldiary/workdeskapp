@@ -9,8 +9,12 @@ import { CACHE_MAX_AGE, CACHE_VERSION, persister, queryClient } from "./queryCli
 import "./styles.css";
 import { startAutoUpdate } from "./autoUpdate";
 import { watchSystemTheme } from "./theme";
+import { watchConnection } from "./connection";
 
 watchSystemTheme();
+watchConnection();
+// The offline helper (src/sw/sw.js) is built for the real app only, not the development server.
+if (import.meta.env.PROD && "serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

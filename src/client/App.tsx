@@ -4,6 +4,9 @@ import {
   CalendarClock,
   Bell,
   CalendarDays,
+  Check,
+  TriangleAlert,
+  WifiOff,
   CalendarCheck,
   ChevronDown,
   History as HistoryIcon,
@@ -16,12 +19,14 @@ import {
   Settings as SettingsIcon,
   type LucideIcon,
 } from "lucide-react";
+import { useIsFetching, useIsMutating } from "@tanstack/react-query";
 import { ApiError, logout, useMe, useSummary, useSync } from "./api";
+import { useConnection, warmOfflineCopy } from "./connection";
 import { isDbIssue } from "./dbStatus";
 import { DatabaseIssueDialog, DatabaseIssuePage } from "./components/DatabaseIssue";
 import { formatWhen } from "./format";
 import { Avatar } from "./components/Avatar";
-import { UndoBar } from "./components/SwipeRow";
+import { UndoBar, showUndo } from "./components/SwipeRow";
 import { PopPanel, Spinner, Splash, TONE, cx, type Tone } from "./components/ui";
 import { HomePage } from "./pages/Home";
 import { InboxPage } from "./pages/Inbox";
@@ -35,11 +40,16 @@ import { LoginPage } from "./pages/Login";
 
 export function App() {
   const me = useMe();
-  if (me.isPending) return <Splash />;
+  // Opened offline before WorkDesk was ever loaded on this device: nothing saved to show yet.
+  if (me.isPending) return me.fetchStatus === "paused" ? <OfflineStart /> : <Splash />;
   if (me.error instanceof ApiError && me.error.status === 401) return <LoginPage />;
   // Database paused (Neon usage limit) or down: say so, with the way to check it (user request 2026-10-06).
   if (isDbIssue(me.error)) return <DatabaseIssuePage issue={me.error} onRetry={() => void me.refetch()} />;
-  if (me.error) return <div className="p-8 text-sm text-urgent-ink">Could not reach WorkDesk: {me.error.message}</div>;
+  // Offline with a saved copy: the app opens with it (user request 2026-10-07, offline viewing).
+  if (me.error && !me.data) {
+    if (!(me.error instanceof ApiError)) return <OfflineStart onRetry={() => void me.refetch()} />;
+    return <div className="p-8 text-sm text-urgent-ink">Could not reach WorkDesk: {me.error.message}</div>;
+  }
 
   return (
     <Shell>
@@ -85,6 +95,11 @@ function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
   }, [pathname]);
+  // Save a copy of the main screens for offline use, a little after start-up (connection.ts).
+  useEffect(() => {
+    const t = setTimeout(warmOfflineCopy, 8000);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     // Phones (under 768px), and WorkDesk opened from the home screen on any device, are laid out like an app
@@ -290,9 +305,7 @@ function TopBar() {
           <span>
             <span className="block text-headline font-semibold text-ink md:text-2xl md:leading-tight">
               WorkDesk
-              <span className="ml-1.5 align-baseline text-caption2 font-normal text-slate-400 md:text-xs" title="Version">
-                v{__APP_VERSION__}
-              </span>
+              <TitleStatus />
             </span>
             <span className="hidden text-footnote text-slate-500 lg:block">Every email accounted for. Every task tracked.</span>
           </span>
@@ -320,6 +333,81 @@ function TopBar() {
         </div>
       </div>
     </header>
+  );
+}
+
+// Beside the title (user request 2026-10-07): the version for the first 5 seconds after the app opens, then
+// the connection: a small yellow warning triangle when offline, a spinner while syncing, and a green tick with
+// the time of the last sync. Tapping it says the same in words (and the version), so nothing is hover-only.
+function TitleStatus() {
+  const [intro, setIntro] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setIntro(false), 5000);
+    return () => clearTimeout(t);
+  }, []);
+  const { offline, lastSynced } = useConnection();
+  // Any data being fetched or a change being saved; shown after a moment so quick requests don't flicker.
+  const busy = useIsFetching() + useIsMutating() > 0;
+  const [syncing, setSyncing] = useState(false);
+  useEffect(() => {
+    if (!busy) return setSyncing(false);
+    const t = setTimeout(() => setSyncing(true), 250);
+    return () => clearTimeout(t);
+  }, [busy]);
+
+  const when = lastSynced ? formatWhen(new Date(lastSynced).toISOString()) : null;
+  const text = offline
+    ? `Offline. Showing what was saved${when ? ` at ${when}` : ""}; changes are sent when you're back online.`
+    : syncing
+      ? "Syncing…"
+      : when
+        ? `Synced at ${when}`
+        : "Connected";
+  const state = intro ? "version" : offline ? "offline" : syncing ? "syncing" : "synced";
+  return (
+    // Above the title link's own tap area (z-[1]) with a 44px tap area of its own, so a tap explains the
+    // status instead of going Home.
+    <span
+      role="button"
+      tabIndex={0}
+      data-title-status
+      aria-label={intro ? `Version ${__APP_VERSION__}` : text}
+      title={`${text} · Version ${__APP_VERSION__}`}
+      onClick={(e) => {
+        if (intro) return;
+        e.preventDefault(); // inside the title's link: explain instead of going Home
+        showUndo({ message: offline ? (when ? `Offline · showing data saved ${when}` : "Offline · showing saved data") : `${text} · v${__APP_VERSION__}` });
+      }}
+      className="relative z-[1] ml-1.5 inline-flex items-center gap-1 align-baseline text-caption2 font-normal text-slate-400 after:absolute after:top-1/2 after:left-1/2 after:h-11 after:w-[max(100%,44px)] after:-translate-1/2 after:content-[''] md:text-xs"
+    >
+      <span key={state} className="inline-flex animate-[fade-in_300ms_ease-out] items-center gap-1">
+        {state === "version" && <>v{__APP_VERSION__}</>}
+        {state === "offline" && <TriangleAlert size={14} strokeWidth={2.2} className="fill-medium text-[#7a5a00]" aria-hidden />}
+        {state === "syncing" && <Spinner size={12} />}
+        {state === "synced" && (
+          <>
+            <Check size={13} strokeWidth={3} className="text-low" aria-hidden />
+            {when && <span className="tabular-nums">{when}</span>}
+          </>
+        )}
+      </span>
+    </span>
+  );
+}
+
+// WorkDesk opened offline on a device where it was never loaded: nothing saved to show yet.
+function OfflineStart({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-canvas-soft px-6 text-center">
+      <span className="flex size-12 items-center justify-center rounded-xl bg-medium-soft text-medium-ink">
+        <WifiOff size={24} />
+      </span>
+      <p className="font-semibold text-ink">You're offline</p>
+      <p className="max-w-xs text-sm text-slate-600">Connect to the internet once to open WorkDesk on this device. After that it opens offline too, with what was saved.</p>
+      <button onClick={() => (onRetry ? onRetry() : location.reload())} className="mt-1 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white active:scale-[0.97]">
+        Try again
+      </button>
+    </div>
   );
 }
 

@@ -69,7 +69,8 @@ export function SettingsPage() {
         <CalendarLink />
 
         <p className="text-xs text-slate-500">
-          Signed in as {me?.email} · Dates use {me?.timezone}
+          {/* The title shows the version only for its first 5 seconds (user request 2026-10-07), so it is here too. */}
+          WorkDesk v{__APP_VERSION__} · Signed in as {me?.email} · Dates use {me?.timezone}
         </p>
       </div>
     </>

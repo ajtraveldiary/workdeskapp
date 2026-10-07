@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
 import type { AuditEvent, EmailContent, Label, RangeTasks, EmailState, Me, MutedSender, Report, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { ReportInput, TaskInput } from "../shared/schemas";
@@ -16,12 +17,20 @@ export class ApiError extends Error {
 }
 
 async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
-  const res = await fetch(`/api${path}`, {
-    method: init?.method ?? "GET",
-    headers: init?.body !== undefined ? { "content-type": "application/json" } : undefined,
-    body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
-    credentials: "same-origin",
-  });
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: init?.method ?? "GET",
+      headers: init?.body !== undefined ? { "content-type": "application/json" } : undefined,
+      body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+      credentials: "same-origin",
+    });
+  } catch (e) {
+    noteNetworkError(); // no connection: the title bar shows offline (connection.ts)
+    throw e;
+  }
+  // Answered from the copy saved for offline use (service worker), or by the server.
+  noteResponse(res.headers.get("x-workdesk-offline") === "1");
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const d = data as { error?: string; code?: string; detail?: string };
@@ -269,4 +278,9 @@ export const useSetPeriodStatus = () =>
   );
 
 // Signing out also clears the copy saved in this browser.
-export const logout = () => api(`/auth/logout`, { method: "POST" }).finally(clearSavedData);
+export const logout = () =>
+  api(`/auth/logout`, { method: "POST" }).finally(() => {
+    void clearSavedData();
+    // The offline copies of emails and lists go too (service worker data cache).
+    void globalThis.caches?.delete("workdesk-data").catch(() => undefined);
+  });

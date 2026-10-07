@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -32,8 +33,18 @@ const versionFile = {
   },
 };
 
+// dist/sw.js, the offline helper (src/sw/sw.js, user request 2026-10-07), stamped with this build's version
+// so every deploy installs a fresh copy and drops the old saved app files.
+const serviceWorker = {
+  name: "workdesk-service-worker",
+  generateBundle(this: { emitFile: (f: { type: "asset"; fileName: string; source: string }) => void }) {
+    const source = readFileSync(new URL("./src/sw/sw.js", import.meta.url), "utf8").replace("__WORKDESK_VERSION__", version);
+    this.emitFile({ type: "asset", fileName: "sw.js", source });
+  },
+};
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), versionFile],
+  plugins: [react(), tailwindcss(), versionFile, serviceWorker],
   root: "src/client",
   build: { outDir: "../../dist", emptyOutDir: true },
   define: { __APP_VERSION__: JSON.stringify(version) },

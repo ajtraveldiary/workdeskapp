@@ -6,7 +6,8 @@ import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persist
 // instantly from the saved copy and the database is only asked again when data is older than STALE
 // (or after a change, or a manual refresh). The database stays the source of truth.
 const STALE = 5 * 60_000;
-export const CACHE_MAX_AGE = 24 * 60 * 60_000;
+// Kept a week so WorkDesk can be read offline (user request 2026-10-07; was a day).
+export const CACHE_MAX_AGE = 7 * 24 * 60 * 60_000;
 
 export const queryClient = new QueryClient({
   // A database problem in any request opens the "database paused / error" pop-up (App.tsx).
@@ -18,6 +19,9 @@ export const queryClient = new QueryClient({
       gcTime: CACHE_MAX_AGE, // must be at least the persisted max age
       refetchOnWindowFocus: false,
       retry: 1,
+      // Offline (user request 2026-10-07): still ask once, so the offline helper (src/sw/sw.js) can answer
+      // from its saved copy; only retries wait for the connection.
+      networkMode: "offlineFirst",
     },
   },
 });
