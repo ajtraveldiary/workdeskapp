@@ -2,11 +2,9 @@
 // employees, permanent or temporary, and designations. Tasks and reminders can be
 // about an employee, a designation or the general office (Related.tsx). Reached from the side rail on wider
 // screens and from the profile menu on phones. Only WorkDesk's database changes; History records each change.
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
-  ArrowDown,
-  ArrowUp,
   CalendarClock,
   Check,
   ChevronDown,
@@ -16,7 +14,6 @@ import {
   MessageCircle,
   Pencil,
   Phone,
-  Plus,
   Search,
   Trash2,
   TrendingUp,
@@ -25,8 +22,8 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
-import type { Designation, Employee, StaffList, Task } from "../../shared/types";
-import { EMPLOYEE_CATEGORIES, COMMON_DESIGNATIONS, incrementDue, incrementOverdue } from "../../shared/staff";
+import type { Employee, StaffList, Task } from "../../shared/types";
+import { EMPLOYEE_CATEGORIES, incrementDue, incrementOverdue } from "../../shared/staff";
 import type { EmployeeInput } from "../../shared/schemas";
 import { useEmployeeWork, useIncrementDone, useMe, useStaff, useStaffActions } from "../api";
 import { showUndo } from "../components/SwipeRow";
@@ -48,7 +45,7 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 export function StaffPage() {
   const { data, error } = useStaff();
-  const [tab, setTab] = useState<"employees" | "designations">("employees");
+  const navigate = useNavigate();
   const [form, setForm] = useState<{ employee: Employee | null } | null>(null);
   // ?employee=<id> (Home's increment rows) opens that employee's card.
   const [params, setParams] = useSearchParams();
@@ -63,7 +60,7 @@ export function StaffPage() {
     <>
       <PageHeader
         title="Employees"
-        subtitle="The office's employees, permanent and temporary, and designations. Link tasks and reminders to them with the person icon in the task and reminder forms."
+        subtitle="The office's employees, permanent and temporary. Designations are in Settings. Link tasks and reminders to them with the person icon in the task and reminder forms."
         actions={
           <>
             <RefreshButton keys={[["staff"], ["staff-work"]]} label="Refresh employees" />
@@ -80,17 +77,9 @@ export function StaffPage() {
         <SkeletonList rows={6} />
       ) : (
         <div className="space-y-4">
-          <Segmented
-            value={tab}
-            onChange={setTab}
-            oneRow
-            options={[
-              { value: "employees", label: "Employees", count: data.employees.filter((e) => !e.leftOn).length },
-              { value: "designations", label: "Designations", count: data.designations.length },
-            ]}
-          />
-          {tab === "employees" && <DueIncrements staff={data} onOpen={setOpenId} />}
-          {tab === "employees" ? <Employees staff={data} onOpen={setOpenId} onAdd={add} onDesignations={() => setTab("designations")} /> : <Designations staff={data} />}
+          {/* Designations are edited in Settings > Employees (moved there by user request 2026-10-07). */}
+          <DueIncrements staff={data} onOpen={setOpenId} />
+          <Employees staff={data} onOpen={setOpenId} onAdd={add} onDesignations={() => navigate("/settings#employees")} />
         </div>
       )}
       {data && (
@@ -529,7 +518,7 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
           ))}
         </select>
       </Field>
-      {staff.designations.length === 0 && <p className="-mt-2 text-footnote text-slate-500">Add designations on the Employees page's Designations tab.</p>}
+      {staff.designations.length === 0 && <p className="-mt-2 text-footnote text-slate-500">Add designations in Settings › Employees.</p>}
 
       <Section title="Personal">
         {text("pen", "PEN", { inputMode: "numeric", maxLength: 20 })}
@@ -588,112 +577,5 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       {/* Two per row where they fit; one per row on narrow phones. */}
       <div className="grid gap-3 min-[400px]:grid-cols-2">{children}</div>
     </fieldset>
-  );
-}
-
-// --- Designations ---
-
-function Designations({ staff }: { staff: StaffList }) {
-  const { addDesignation, addCommon, renameDesignation, moveDesignation, removeDesignation } = useStaffActions();
-  const [name, setName] = useState("");
-  const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
-  const count = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const e of staff.employees) if (!e.leftOn && e.designationId) m.set(e.designationId, (m.get(e.designationId) ?? 0) + 1);
-    return m;
-  }, [staff.employees]);
-  const have = new Set(staff.designations.map((d) => d.name.toLowerCase()));
-  const missing = COMMON_DESIGNATIONS.filter((n) => !have.has(n.toLowerCase())).length;
-  const error = addDesignation.error ?? addCommon.error ?? renameDesignation.error ?? moveDesignation.error ?? removeDesignation.error;
-
-  const add = (ev: FormEvent) => {
-    ev.preventDefault();
-    if (!name.trim()) return;
-    addDesignation.mutate(name.trim(), { onSuccess: () => setName("") });
-  };
-  const saveRename = (ev: FormEvent) => {
-    ev.preventDefault();
-    if (editing && editing.name.trim()) renameDesignation.mutate({ id: editing.id, name: editing.name.trim() }, { onSuccess: () => setEditing(null) });
-  };
-  const remove = (d: Designation) => confirm(`Remove the designation "${d.name}"?`) && removeDesignation.mutate(d.id);
-
-  return (
-    <div className="space-y-4">
-      {missing > 0 && (
-        <Card className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
-          <p className="min-w-0 flex-1 text-sm text-slate-600">Add the usual Health Services posts (Medical Officer, Staff Nurse, JPHN, Senior Clerk…). You can rename or remove any.</p>
-          <Button onClick={() => addCommon.mutate()} disabled={addCommon.isPending}>
-            <ListPlus size={16} /> Add {missing === COMMON_DESIGNATIONS.length ? "common designations" : `${missing} more common ones`}
-          </Button>
-        </Card>
-      )}
-      <Card className="overflow-hidden">
-        {staff.designations.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-slate-500">No designations yet.</p>
-        ) : (
-          <ul className="divide-y divide-line">
-            {staff.designations.map((d, i) => (
-              <li key={d.id} className="flex items-center gap-2 px-4 py-2 sm:px-5">
-                {editing?.id === d.id ? (
-                  <form onSubmit={saveRename} className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                    <input className={cx(inputClass, "min-w-0 flex-1")} value={editing.name} onChange={(e) => setEditing({ id: d.id, name: e.target.value })} autoFocus maxLength={80} aria-label="Designation name" />
-                    <Button size="sm" type="submit" variant="primary" disabled={renameDesignation.isPending}>
-                      Save
-                    </Button>
-                    <Button size="sm" type="button" variant="ghost" onClick={() => setEditing(null)}>
-                      Cancel
-                    </Button>
-                  </form>
-                ) : (
-                  <>
-                    <span className="min-w-0 flex-1 text-sm text-ink [overflow-wrap:anywhere]">
-                      {d.name}
-                      {count.get(d.id) ? <span className="text-slate-500"> · {plural(count.get(d.id)!, "employee")}</span> : null}
-                    </span>
-                    <IconButton label={`Move ${d.name} up`} disabled={i === 0} onClick={() => moveDesignation.mutate({ id: d.id, by: -1 })}>
-                      <ArrowUp size={16} />
-                    </IconButton>
-                    <IconButton label={`Move ${d.name} down`} disabled={i === staff.designations.length - 1} onClick={() => moveDesignation.mutate({ id: d.id, by: 1 })}>
-                      <ArrowDown size={16} />
-                    </IconButton>
-                    <IconButton label={`Rename ${d.name}`} onClick={() => setEditing({ id: d.id, name: d.name })}>
-                      <Pencil size={16} />
-                    </IconButton>
-                    <IconButton label={`Remove ${d.name}`} onClick={() => remove(d)} danger>
-                      <Trash2 size={16} />
-                    </IconButton>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        <form onSubmit={add} className="flex gap-2 border-t border-line px-4 py-3 sm:px-5">
-          <input className={cx(inputClass, "min-w-0 flex-1")} value={name} onChange={(e) => setName(e.target.value)} placeholder="New designation, e.g. Senior Clerk" aria-label="New designation" maxLength={80} />
-          <Button type="submit" disabled={!name.trim() || addDesignation.isPending}>
-            <Plus size={16} /> Add
-          </Button>
-        </form>
-      </Card>
-      <ErrorNote error={error} />
-      <p className="text-footnote text-slate-500">
-        The order here is the order on the Employees tab and in the picker. A designation with employees, or linked to a task or reminder, can't be removed; rename it instead.
-      </p>
-    </div>
-  );
-}
-
-function IconButton({ label, onClick, disabled, danger, children }: { label: string; onClick: () => void; disabled?: boolean; danger?: boolean; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      title={label}
-      className={cx("shrink-0 rounded-md p-1.5 text-slate-500 enabled:hover:bg-slate-100 enabled:active:scale-90 disabled:opacity-30", danger ? "enabled:hover:text-urgent-ink" : "enabled:hover:text-ink")}
-    >
-      {children}
-    </button>
   );
 }

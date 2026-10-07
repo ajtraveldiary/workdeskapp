@@ -186,7 +186,7 @@ function Choices({ value, onPick }: { value: RelatedValue; onPick: (v: RelatedVa
         </div>
       ))}
       {query && groups.length === 0 && <p className="px-2.5 py-2 text-footnote text-slate-500">No one matches “{q.trim()}”.</p>}
-      {empty && <p className="px-2.5 py-2 text-footnote text-slate-500">No employees yet. Add designations and employees on the Employees page (profile menu on phones, side bar on computers).</p>}
+      {empty && <p className="px-2.5 py-2 text-footnote text-slate-500">No employees yet. Add designations in Settings › Employees and people on the Employees page (profile menu on phones, side bar on computers).</p>}
     </div>
   );
 }

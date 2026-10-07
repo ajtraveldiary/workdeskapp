@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { CalendarDays, Copy, Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Moon, Sun, SunMoon, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
 import { useCalendarLink, useCalendarLinkActions, useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useSnippetActions, useSnippets, useTaskLabelSettings } from "../api";
 import { LABEL_COLORS, type LabelColor } from "../../shared/labelColors";
@@ -11,12 +11,21 @@ import { Button, Card, ErrorNote, Loading, PageHeader, Segmented, cx, inputClass
 import { onThemeChoice, setThemeChoice, themeChoice, type ThemeChoice } from "../theme";
 import { RefreshButton } from "../components/RefreshButton";
 import { NotificationSettings } from "../components/NotificationSettings";
+import { EmployeeSettings } from "../components/Designations";
 
 export function SettingsPage() {
   const me = useMe().data;
+  // /settings#employees (or #mail, #calendar) scrolls to that section once the page has settled (the shell
+  // resets <main> to the top on each page change first).
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const t = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: "smooth", block: "start" }), 350);
+    return () => clearTimeout(t);
+  }, [hash]);
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         {/* Phones: History moved here from the bottom bar (user request 2026-10-06); wider screens keep it in the side rail. */}
         <Link
@@ -68,6 +77,9 @@ export function SettingsPage() {
         </Card>
 
         <MailSettings />
+
+        {/* Employees (user request 2026-10-07): designations, moved here from the Employees page. */}
+        <EmployeeSettings />
 
         <CalendarLink />
 
