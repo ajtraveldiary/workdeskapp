@@ -2,10 +2,10 @@
 // Issue order → Update service book", ticked one by one. The form edits them (ChecklistEditor), the task
 // details card ticks them straight away (ChecklistTicks), and task rows show the progress (ChecklistChip).
 import { ListChecks, Plus, X } from "lucide-react";
-import { useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ChecklistItem, Task } from "../../shared/types";
 import { useUpdateTask } from "../api";
-import { CheckCircle, ErrorNote, cx, inputClass } from "./ui";
+import { CheckCircle, ErrorNote, cx } from "./ui";
 
 const newId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`).slice(0, 36);
 
@@ -20,12 +20,6 @@ export function ChecklistEditor({ items, onChange }: { items: ChecklistItem[]; o
     onChange([...items, { id: newId(), text, done: false }]);
     setDraft("");
   };
-  // Enter adds the step instead of saving the whole form.
-  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    add();
-  };
   const set = (id: string, patch: Partial<ChecklistItem>) => onChange(items.map((i) => (i.id === id ? { ...i, ...patch } : i)));
 
   return (
@@ -37,22 +31,23 @@ export function ChecklistEditor({ items, onChange }: { items: ChecklistItem[]; o
       {items.length > 0 && (
         <ul className="mb-2 space-y-1.5">
           {items.map((i) => (
-            <li key={i.id} className="flex items-center gap-2">
-              <CheckCircle checked={i.done} onToggle={() => set(i.id, { done: !i.done })} label={i.done ? "Mark step not done" : "Mark step done"} />
-              <input
-                className={cx(inputClass, "h-9 flex-1", i.done && "text-slate-500 line-through")}
+            <li key={i.id} className="flex items-start gap-2">
+              <span className="pt-[7px] pointer-coarse:pt-[5px]">
+                <CheckCircle checked={i.done} onToggle={() => set(i.id, { done: !i.done })} label={i.done ? "Mark step not done" : "Mark step done"} />
+              </span>
+              <StepText
                 value={i.text}
-                onChange={(e) => set(i.id, { text: e.target.value })}
+                onChange={(text) => set(i.id, { text })}
                 onBlur={() => !i.text.trim() && onChange(items.filter((x) => x.id !== i.id))}
-                onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
-                aria-label="Step"
+                className={cx(i.done && "text-slate-400")}
+                label="Step"
               />
               <button
                 type="button"
                 onClick={() => onChange(items.filter((x) => x.id !== i.id))}
                 aria-label={`Remove step: ${i.text}`}
                 title="Remove step"
-                className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-ink active:scale-90 pointer-coarse:p-1.5"
+                className="mt-1 shrink-0 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-ink active:scale-90 pointer-coarse:mt-0.5 pointer-coarse:p-1.5"
               >
                 <X size={16} />
               </button>
@@ -60,15 +55,13 @@ export function ChecklistEditor({ items, onChange }: { items: ChecklistItem[]; o
           ))}
         </ul>
       )}
-      <div className="flex items-center gap-2">
-        <input
-          className={cx(inputClass, "h-9 flex-1")}
+      <div className="flex items-start gap-2">
+        <StepText
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onKey}
+          onChange={setDraft}
+          onEnter={add}
           placeholder={items.length ? "Add another step" : "Add a step, e.g. Prepare draft"}
-          aria-label="New step"
-          maxLength={300}
+          label="New step"
         />
         <button
           type="button"
@@ -80,6 +73,63 @@ export function ChecklistEditor({ items, onChange }: { items: ChecklistItem[]; o
         </button>
       </div>
     </div>
+  );
+}
+
+// A step's text box grows to show the whole step on as many lines as it needs (user request 2026-10-07: long
+// Malayalam steps were cut off in one-line boxes). A step stays one paragraph: Enter adds the step (new-step
+// box) or does nothing, and pasted line breaks become spaces.
+function StepText({
+  value,
+  onChange,
+  onEnter,
+  onBlur,
+  placeholder,
+  label,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onEnter?: () => void;
+  onBlur?: () => void;
+  placeholder?: string;
+  label: string;
+  className?: string;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`; // + borders
+    };
+    fit();
+    // The width changes as the sheet opens or the phone turns, and with it the number of lines.
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\s*\n\s*/g, " "))}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault(); // never saves the whole form or breaks the line
+        onEnter?.();
+      }}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      aria-label={label}
+      maxLength={300}
+      className={cx(
+        "min-w-0 flex-1 resize-none overflow-hidden rounded-lg border border-line bg-white px-3 py-1.5 text-sm leading-5 outline-none [overflow-wrap:anywhere] hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100",
+        className,
+      )}
+    />
   );
 }
 
@@ -111,7 +161,7 @@ export function ChecklistTicks({ task }: { task: Task }) {
         {items.map((i) => (
           <li key={i.id} className="flex items-start gap-2.5 py-1">
             <CheckCircle checked={i.done} onToggle={() => toggle(i.id)} label={i.done ? `Mark not done: ${i.text}` : `Mark done: ${i.text}`} />
-            <span className={cx("min-w-0 flex-1 text-sm leading-5 [overflow-wrap:anywhere]", i.done ? "text-slate-500 line-through" : "text-ink")}>{i.text}</span>
+            <span className={cx("min-w-0 flex-1 text-sm leading-5 [overflow-wrap:anywhere]", i.done ? "text-slate-400" : "text-ink")}>{i.text}</span>
           </li>
         ))}
       </ul>
