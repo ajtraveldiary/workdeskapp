@@ -589,3 +589,20 @@ html.dark .row-click:has(.row-link:active) {
     color: #ffffff;
   }
 }
+
+/* Pop-ups never show scroll bars (user request 2026-10-07: "popup shouldn't have scroll bar"): nothing in them
+   may be wider than the box, and a form taller than the screen still scrolls by swiping or the wheel. */
+dialog,
+dialog :not(.scroll-thin),
+.menu-in {
+  scrollbar-width: none;
+}
+dialog::-webkit-scrollbar,
+dialog :not(.scroll-thin)::-webkit-scrollbar,
+.menu-in::-webkit-scrollbar {
+  display: none;
+}
+/* The one exception: a spreadsheet preview's wide table (.scroll-thin) keeps its thin bar so a mouse can scroll it. */
+dialog {
+  overflow-x: hidden;
+}

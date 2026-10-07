@@ -184,7 +184,8 @@ function DueForm({ task, today, onDone }: { task: Task; today: string; onDone: (
           No date
         </Button>
       </div>
-      <div className="grid grid-cols-[1fr_7rem] gap-2">
+      {/* Date and time on their own rows: side by side they didn't fit the pop-up (2026-10-07). */}
+      <div className="grid gap-2">
         <input type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
         <input type="time" className={inputClass} value={time} onChange={(e) => setTime(e.target.value)} aria-label="Time" disabled={!date} />
       </div>

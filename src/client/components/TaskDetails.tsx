@@ -108,7 +108,7 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
       {/* Buttons (alignment cleanup, user request 2026-10-06): the main action is a full-width button on phones
           with Open email and Edit side by side under it; wider screens put Open email and Edit on the left and
           the main action on the right. Close is the ✕, a tap outside, or pulling the sheet down. */}
-      <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col-reverse gap-2 border-t border-line pt-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className={cx("grid gap-2 sm:flex", task.thread && onOpenEmail ? "grid-cols-2" : "grid-cols-1")}>
           {task.thread && onOpenEmail && (
             <Button onClick={() => onOpenEmail(task.thread!.id)}>
@@ -119,7 +119,8 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
             <Pencil size={15} /> Edit
           </Button>
         </div>
-        <div className={cx("grid gap-2 sm:flex", wait ? "grid-cols-2" : "grid-cols-1")}>
+        {/* Wraps under Open email / Edit when the four buttons don't fit one line, instead of overflowing. */}
+        <div className={cx("grid gap-2 sm:ml-auto sm:flex", wait ? "grid-cols-2" : "grid-cols-1")}>
           {wait}
           {done ? (
             <Button onClick={() => reopen.mutate(task.id, { onSuccess: onClose })} disabled={reopen.isPending}>
