@@ -4,6 +4,9 @@
 //    at their time (30 minutes) when they have one, otherwise all day.
 //  - Reminders: every date from two months back to a year ahead, worked out with the app's own date maths;
 //    dates already marked done get a ✓.
+//  - Overdue (user request 2026-10-07, like the Due Today card): an open task whose date has passed, and a
+//    reminder date before today that isn't done, show on today as an all-day "Overdue: …" event instead of on
+//    their old date, with the old date in the details. They move along day by day until done.
 import { occurrences, repeatText, type ReminderRule } from "../../shared/reminderSchedule";
 
 export type FeedTask = {
@@ -24,6 +27,8 @@ export type FeedReminder = ReminderRule & {
   dueTime: string | null;
   updatedAt: Date;
   doneDates: Set<string>;
+  // Past dates not marked done (their tasks are still open).
+  overdueDates: Set<string>;
 };
 
 const PRIORITY: Record<string, string> = { urgent: "Urgent", high: "High", normal: "Medium", low: "Low" };
@@ -38,6 +43,9 @@ const shift = (day: string, days: number) => {
 };
 const compactDay = (day: string) => day.replaceAll("-", "");
 const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+// "18 Sept 2026, 09:30"
+const wasDue = (day: string, time: string | null) => `${Number(day.slice(8))} ${MONTHS[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}${time ? `, ${time}` : ""}`;
 
 // A wall-clock time in `tz` as a UTC instant (works for any time zone, with or without summer time).
 export function localToUtc(day: string, time: string, tz: string): Date {
@@ -99,25 +107,39 @@ export function buildCalendar(opts: { tasks: FeedTask[]; reminders: FeedReminder
     lines.push("BEGIN:VEVENT", `UID:${uid}`, `DTSTAMP:${now}`, `LAST-MODIFIED:${stamp(updated)}`, ...fields, "TRANSP:TRANSPARENT", `URL:${opts.appUrl}`, "END:VEVENT");
 
   for (const t of opts.tasks) {
+    const overdue = t.dueDate < opts.today;
     const about = [
+      overdue ? `Overdue – was due ${wasDue(t.dueDate, t.dueTime)}` : null,
       `Priority: ${PRIORITY[t.priority] ?? t.priority}`,
       t.email ? `From email: ${t.email.from ? `${t.email.from} – ` : ""}${t.email.subject}` : null,
       t.notes.trim() ? `\n${t.notes.trim()}` : null,
       `\nOpen WorkDesk: ${opts.appUrl}`,
     ].filter(Boolean);
-    event(`task-${t.id}@workdesk`, t.updatedAt, [...when(t.dueDate, t.dueTime, opts.tz), `SUMMARY:${escapeText(t.title)}`, `DESCRIPTION:${escapeText(about.join("\n"))}`]);
+    event(`task-${t.id}@workdesk`, t.updatedAt, [
+      ...(overdue ? when(opts.today, null, opts.tz) : when(t.dueDate, t.dueTime, opts.tz)),
+      `SUMMARY:${escapeText(`${overdue ? "Overdue: " : ""}${t.title}`)}`,
+      `DESCRIPTION:${escapeText(about.join("\n"))}`,
+    ]);
   }
 
   const from = shift(opts.today, -BACK_DAYS);
   const until = shift(opts.today, AHEAD_DAYS);
   for (const r of opts.reminders) {
     const days = occurrences(r, (day) => day <= until, 2000).filter((day) => day >= from);
+    // Overdue dates older than the window still come along to today.
+    for (const day of [...r.overdueDates].filter((d) => d < from)) days.unshift(day);
     for (const day of days) {
       const done = r.doneDates.has(day);
-      const about = [`Reminder · ${repeatText(r)}`, r.notes.trim() ? `\n${r.notes.trim()}` : null, `\nOpen WorkDesk: ${opts.appUrl}`].filter(Boolean);
+      const overdue = !done && day < opts.today && r.overdueDates.has(day);
+      const about = [
+        overdue ? `Overdue – was due ${wasDue(day, r.dueTime)}` : null,
+        `Reminder · ${repeatText(r)}`,
+        r.notes.trim() ? `\n${r.notes.trim()}` : null,
+        `\nOpen WorkDesk: ${opts.appUrl}`,
+      ].filter(Boolean);
       event(`reminder-${r.id}-${day}@workdesk`, r.updatedAt, [
-        ...when(day, r.dueTime, opts.tz),
-        `SUMMARY:${escapeText(`${done ? "✓ " : ""}${r.name}`)}`,
+        ...(overdue ? when(opts.today, null, opts.tz) : when(day, r.dueTime, opts.tz)),
+        `SUMMARY:${escapeText(`${done ? "✓ " : overdue ? "Overdue: " : ""}${r.name}`)}`,
         `DESCRIPTION:${escapeText(about.join("\n"))}`,
       ]);
     }

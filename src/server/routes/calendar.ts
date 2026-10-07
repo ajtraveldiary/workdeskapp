@@ -52,11 +52,11 @@ export const calendarFeedRoute = new Hono<AppEnv>().get("/calendar/:file", async
   }));
 
   const reminderRows = await db.select().from(reports).where(and(eq(reports.userId, user.id), eq(reports.active, true)));
-  const done = reminderRows.length
+  const periods = reminderRows.length
     ? await db
-        .select({ reportId: reportPeriods.reportId, dueDate: reportPeriods.dueDate })
+        .select({ reportId: reportPeriods.reportId, dueDate: reportPeriods.dueDate, status: reportPeriods.status })
         .from(reportPeriods)
-        .where(and(inArray(reportPeriods.reportId, reminderRows.map((r) => r.id)), eq(reportPeriods.status, "submitted")))
+        .where(inArray(reportPeriods.reportId, reminderRows.map((r) => r.id)))
     : [];
   const feedReminders: FeedReminder[] = reminderRows.map((r) => ({
     id: r.id,
@@ -68,7 +68,9 @@ export const calendarFeedRoute = new Hono<AppEnv>().get("/calendar/:file", async
     startDate: r.startDate,
     dueDay: r.dueDay,
     endDate: r.endDate,
-    doneDates: new Set(done.filter((d) => d.reportId === r.id).map((d) => d.dueDate)),
+    doneDates: new Set(periods.filter((p) => p.reportId === r.id && p.status === "submitted").map((p) => p.dueDate)),
+    // Past dates still pending: shown on today as overdue (user request 2026-10-07).
+    overdueDates: new Set(periods.filter((p) => p.reportId === r.id && p.status === "pending" && p.dueDate < today).map((p) => p.dueDate)),
   }));
 
   const ics = buildCalendar({ tasks: feedTasks, reminders: feedReminders, today, tz, appUrl: appUrl(c.env, c.req.url) });

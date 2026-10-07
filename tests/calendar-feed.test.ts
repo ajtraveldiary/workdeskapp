@@ -17,7 +17,7 @@ describe("calendar file", () => {
         { id: "t2", title: "Pay bill", notes: "", dueDate: "2026-10-12", dueTime: null, priority: "normal", updatedAt: new Date(), email: null },
       ],
       reminders: [
-        { id: "r1", name: "HMIS report", notes: "", dueTime: null, updatedAt: new Date(), repeat: "monthly", startDate: "2026-09-05", dueDay: 5, endDate: null, doneDates: new Set(["2026-10-05"]) },
+        { id: "r1", name: "HMIS report", notes: "", dueTime: null, updatedAt: new Date(), repeat: "monthly", startDate: "2026-09-05", dueDay: 5, endDate: null, doneDates: new Set(["2026-10-05"]), overdueDates: new Set() },
       ],
       today: "2026-10-07",
       tz: "Asia/Kolkata",
@@ -36,6 +36,27 @@ describe("calendar file", () => {
     expect(ics).toContain("UID:reminder-r1-2027-10-05@workdesk");
     expect(ics).not.toContain("reminder-r1-2027-11-05");
     for (const line of ics.split("\r\n")) expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
+  });
+
+  it("moves overdue tasks and reminder dates to today", () => {
+    const ics = buildCalendar({
+      tasks: [{ id: "late", title: "File returns", notes: "", dueDate: "2026-09-18", dueTime: "09:30", priority: "urgent", updatedAt: new Date(), email: null }],
+      reminders: [
+        { id: "r2", name: "Staff meeting", notes: "", dueTime: "10:30", updatedAt: new Date(), repeat: "weekly", startDate: "2026-09-23", dueDay: 23, endDate: null, doneDates: new Set(["2026-09-23"]), overdueDates: new Set(["2026-09-30"]) },
+      ],
+      today: "2026-10-07",
+      tz: "Asia/Kolkata",
+      appUrl: "https://workdesk.example",
+    });
+    const ev = (uid: string) => ics.split("BEGIN:VEVENT").find((e) => e.includes(`UID:${uid}`))!;
+    const task = ev("task-late@workdesk");
+    expect(task).toContain("DTSTART;VALUE=DATE:20261007");
+    expect(task).toContain("SUMMARY:Overdue: File returns");
+    expect(task).toContain("Overdue – was due 18 Sept 2026\\, 09:30");
+    expect(ev("reminder-r2-2026-09-30@workdesk")).toContain("DTSTART;VALUE=DATE:20261007");
+    expect(ev("reminder-r2-2026-09-30@workdesk")).toContain("SUMMARY:Overdue: Staff meeting");
+    expect(ev("reminder-r2-2026-09-23@workdesk")).toContain("SUMMARY:✓ Staff meeting"); // done: stays on its day
+    expect(ev("reminder-r2-2026-10-14@workdesk")).toContain("DTSTART:20261014T050000Z"); // still to come: as before
   });
 
   it("escapes text and folds long lines without breaking Malayalam letters", () => {
