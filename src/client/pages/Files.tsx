@@ -3,12 +3,12 @@
 // has its subject and number. A physical file without an e-file number shows "E-file not yet created". Next to
 // Staff (side rail / profile menu).
 import { useState, type FormEvent } from "react";
-import { Check, Copy, FileText, FolderClosed, FolderOpen, Plus, Search, Trash2 } from "lucide-react";
+import { Check, FileText, FolderClosed, FolderOpen, Plus, Search, Trash2 } from "lucide-react";
 import type { OfficeFile } from "../../shared/types";
 import type { OfficeFileInput } from "../../shared/schemas";
 import { useOfficeFileActions, useOfficeFiles } from "../api";
 import { RefreshButton } from "../components/RefreshButton";
-import { Badge, Button, Card, ErrorNote, Fab, Field, Modal, PageHeader, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Fab, Field, Modal, PageHeader, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
 
 type Filter = "all" | "pending" | "efiles";
 
@@ -101,26 +101,28 @@ function FileRow({ file: f, onOpen }: { file: OfficeFile; onOpen: () => void }) 
       setTimeout(() => setCopied(false), 1500);
     });
   const Icon = f.physical ? FolderClosed : FileText;
+  // One line per file (user request 2026-10-07: "very compact, it's just a long list of files"): the icon shows
+  // the kind (folder = physical file, page = e-file), the subject is cut to one line (whole in the edit form and
+  // on hover), and the e-file number, or "No e-file", sits at the right. Notes are only in the edit form.
   return (
-    <li className="row-click flex items-start gap-3 px-4 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5">
-      <Icon size={18} className={cx("mt-0.5 shrink-0", f.physical ? "text-medium-ink" : "text-brand-700")} aria-hidden />
-      <button onClick={onOpen} className="row-link group/title min-w-0 flex-1 text-left">
-        <span className="line-clamp-2 text-subhead font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{f.subject}</span>
-        <span className="block text-footnote text-slate-500 [overflow-wrap:anywhere]">
-          {f.physical ? "Physical file" : "E-file"}
-          {f.notes && <span className="text-slate-400"> · {f.notes.split("\n")[0]}</span>}
-        </span>
+    <li className="row-click flex items-center gap-2.5 px-3 py-1.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-4">
+      <Icon size={15} className={cx("shrink-0", f.physical ? "text-medium-ink" : "text-brand-700")} aria-label={f.physical ? "Physical file" : "E-file"} />
+      <button onClick={onOpen} title={f.subject} className="row-link group/title min-w-0 flex-1 truncate text-left text-subhead text-ink group-hover/title:text-brand-700 sm:text-sm">
+        {f.subject}
       </button>
       {f.efileNumber ? (
         // Tap the number to copy it (for searching in e-office).
-        <button onClick={copy} title="Copy e-file number" aria-label={`Copy e-file number ${f.efileNumber}`} className="mt-px inline-flex shrink-0 items-center gap-1 rounded-md bg-tint px-1.5 py-0.5 text-footnote font-medium text-brand-800 tabular-nums active:scale-95">
-          {copied ? <Check size={13} /> : <Copy size={12} className="opacity-60" />}
+        <button
+          onClick={copy}
+          title="Copy e-file number"
+          aria-label={`Copy e-file number ${f.efileNumber}`}
+          className="inline-flex shrink-0 items-center gap-1 rounded text-footnote font-medium text-brand-700 tabular-nums hover:underline active:scale-95"
+        >
+          {copied && <Check size={13} />}
           {f.efileNumber}
         </button>
       ) : (
-        <span className="mt-px shrink-0">
-          <Badge tone="high">E-file not yet created</Badge>
-        </span>
+        <span className="shrink-0 text-footnote text-high-ink">No e-file</span>
       )}
     </li>
   );
