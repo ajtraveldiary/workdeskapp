@@ -197,6 +197,9 @@ export type Employee = {
   id: string;
   name: string;
   designationId: string | null;
+  // Permanent or temporary (user request 2026-10-07); engagedTill only for temporary ones.
+  permanent: boolean;
+  engagedTill: string | null;
   pen: string;
   phone: string;
   email: string;

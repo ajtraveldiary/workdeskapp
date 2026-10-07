@@ -50,7 +50,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 8: emails can be "elsewhere" (Other sections) and carry sectionLabelId; label settings have organizeLabelIds (2026-10-07).
 // 9: tasks and reminders carry relatedKind/relatedId (Staff page, 2026-10-07).
 // 10: the summary lists incrementsDue (Staff, 2026-10-07).
-export const CACHE_VERSION = "10";
+// 11: employees are permanent or temporary (permanent, engagedTill), 2026-10-07.
+export const CACHE_VERSION = "11";
 
 export async function clearSavedData() {
   queryClient.clear();

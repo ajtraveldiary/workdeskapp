@@ -74,6 +74,17 @@ describe("staff", () => {
     expect((await call("POST", "/staff/employees", { name: "x", category: "Unknown" })).status).toBe(400);
   });
 
+  it("permanent or temporary: temporary ones keep no increment, retirement or probation dates", async () => {
+    const id = (await call("POST", "/staff/employees", { name: NAME, permanent: false, engagedTill: "2027-03-31", nextIncrementOn: "2026-01-01", retiresOn: "2040-05-31" })).json.id as string;
+    expect((await staff()).employees.find((e) => e.id === id)).toMatchObject({ permanent: false, engagedTill: "2027-03-31", nextIncrementOn: null, retiresOn: null });
+    expect(((await call("GET", "/summary")).json as Summary).incrementsDue).toEqual([]);
+    // Made permanent: the end date goes, the service dates stay.
+    await call("PUT", `/staff/employees/${id}`, { name: NAME, permanent: true, engagedTill: "2027-03-31", retiresOn: "2040-05-31" });
+    expect((await staff()).employees.find((e) => e.id === id)).toMatchObject({ permanent: true, engagedTill: null, retiresOn: "2040-05-31" });
+    // Old clients that don't send it get a permanent employee.
+    expect((await call("POST", "/staff/employees", { name: "x" })).json).toMatchObject({ permanent: true });
+  });
+
   it("a reminder's tasks carry what it is about, and follow a change", async () => {
     const today = (await call("GET", "/me")).json.today as string;
     const hc = (await call("POST", "/staff/designations", { name: "Head Clerk" })).json.id as string;

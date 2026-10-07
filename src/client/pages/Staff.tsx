@@ -1,4 +1,5 @@
-// Staff page (user request 2026-10-07): the office's employees and designations. Tasks and reminders can be
+// Employees page (user request 2026-10-07; called Staff until renamed by user request the same day): the office's
+// employees, permanent or temporary, and designations. Tasks and reminders can be
 // about an employee, a designation or the general office (Related.tsx). Reached from the side rail on wider
 // screens and from the profile menu on phones. Only WorkDesk's database changes; History records each change.
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
@@ -9,6 +10,7 @@ import {
   CalendarClock,
   Check,
   ChevronDown,
+  Clock,
   ListPlus,
   Mail,
   MessageCircle,
@@ -60,11 +62,11 @@ export function StaffPage() {
   return (
     <>
       <PageHeader
-        title="Staff"
-        subtitle="The office's employees and designations. Link tasks and reminders to them with the person icon in the task and reminder forms."
+        title="Employees"
+        subtitle="The office's employees, permanent and temporary, and designations. Link tasks and reminders to them with the person icon in the task and reminder forms."
         actions={
           <>
-            <RefreshButton keys={[["staff"], ["staff-work"]]} label="Refresh staff" />
+            <RefreshButton keys={[["staff"], ["staff-work"]]} label="Refresh employees" />
             <Button variant="primary" onClick={add} className="max-sm:hidden">
               <UserPlus size={17} /> Add employee
             </Button>
@@ -117,7 +119,7 @@ function DueIncrements({ staff, onOpen }: { staff: StaffList; onOpen: (id: strin
   const done = useIncrementDone();
   const desig = new Map(staff.designations.map((d) => [d.id, d.name]));
   const due = staff.employees
-    .filter((e) => !e.leftOn && incrementDue(e.nextIncrementOn, today))
+    .filter((e) => !e.leftOn && e.permanent && incrementDue(e.nextIncrementOn, today))
     .sort((a, b) => a.nextIncrementOn!.localeCompare(b.nextIncrementOn!) || a.name.localeCompare(b.name));
   if (!due.length) return null;
   const markDone = (e: Employee) =>
@@ -171,11 +173,16 @@ function DueIncrements({ staff, onOpen }: { staff: StaffList; onOpen: (id: strin
 function Employees({ staff, onOpen, onAdd, onDesignations }: { staff: StaffList; onOpen: (id: string) => void; onAdd: () => void; onDesignations: () => void }) {
   const [q, setQ] = useState("");
   const [showLeft, setShowLeft] = useState(false);
+  // All / Permanent / Temporary (user request 2026-10-07).
+  const [kind, setKind] = useState<"all" | "permanent" | "temporary">("all");
   const { addCommon } = useStaffActions();
   const query = q.trim().toLowerCase();
   const desig = new Map(staff.designations.map((d) => [d.id, d.name]));
   const match = (e: Employee) =>
-    !query || [e.name, e.pen, e.phone, e.email, desig.get(e.designationId ?? "") ?? ""].some((x) => x.toLowerCase().includes(query));
+    (kind === "all" || e.permanent === (kind === "permanent")) &&
+    (!query || [e.name, e.pen, e.phone, e.email, desig.get(e.designationId ?? "") ?? ""].some((x) => x.toLowerCase().includes(query)));
+  const current = staff.employees.filter((e) => !e.leftOn);
+  const temporary = current.filter((e) => !e.permanent).length;
   const here = staff.employees.filter((e) => !e.leftOn && match(e));
   const left = staff.employees.filter((e) => e.leftOn && match(e));
   // In designation order (senior first), then those without one.
@@ -211,9 +218,21 @@ function Employees({ staff, onOpen, onAdd, onDesignations }: { staff: StaffList;
     <div className="space-y-4">
       <label className="relative block">
         <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, PEN, phone or designation" aria-label="Search staff" className={cx(inputClass, "pl-9")} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, PEN, phone or designation" aria-label="Search employees" className={cx(inputClass, "pl-9")} />
       </label>
-      {groups.length === 0 && left.length === 0 && <p className="py-6 text-center text-sm text-slate-500">No one matches “{q.trim()}”.</p>}
+      <Segmented
+        value={kind}
+        onChange={setKind}
+        oneRow
+        options={[
+          { value: "all", label: "All", count: current.length },
+          { value: "permanent", label: "Permanent", count: current.length - temporary },
+          { value: "temporary", label: "Temporary", count: temporary },
+        ]}
+      />
+      {groups.length === 0 && left.length === 0 && (
+        <p className="py-6 text-center text-sm text-slate-500">{query ? `No one matches “${q.trim()}”.` : kind === "temporary" ? "No temporary employees." : "No permanent employees."}</p>
+      )}
       {groups.map((g) => (
         <Card key={g.key} className="overflow-hidden">
           <h2 className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-footnote font-semibold text-slate-600 sm:px-5">
@@ -256,8 +275,17 @@ function EmployeeRow({ employee: e, designation, onOpen }: { employee: Employee;
         <span className="line-clamp-2 text-subhead font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{e.name}</span>
         {line && <span className="block truncate text-footnote text-slate-500">{line}</span>}
       </button>
+      {!e.permanent && <TemporaryTag />}
       {e.leftOn && <Badge>Left {fullDate(e.leftOn)}</Badge>}
     </li>
+  );
+}
+
+function TemporaryTag({ className }: { className?: string }) {
+  return (
+    <span className={cx("inline-flex shrink-0 items-center gap-1 rounded-full bg-high-soft px-2 py-0.5 text-caption font-medium text-high-ink", className)}>
+      <Clock size={12} /> Temporary
+    </span>
   );
 }
 
@@ -283,17 +311,22 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
   const whatsapp = digits.length === 10 ? `91${digits}` : digits;
   const busy = setLeft.isPending || removeEmployee.isPending;
 
+  const ended = !!e.engagedTill && e.engagedTill < today;
   const rows: [string, ReactNode][] = [
+    ["Employment", e.permanent ? "Permanent" : "Temporary"],
+    ["Engaged till", !e.permanent && e.engagedTill && <span className={cx(ended && "font-medium text-urgent-ink")}>{fullDate(e.engagedTill)}{ended && " (ended)"}</span>],
     ["PEN", e.pen],
     ["Phone", e.phone],
     ["Email", e.email && <a href={`mailto:${e.email}`} className="text-brand-700 hover:underline">{e.email}</a>],
     ["Date of birth", e.dateOfBirth && `${fullDate(e.dateOfBirth)} (${yearsBetween(e.dateOfBirth, today)} years)`],
     ["Category", e.category],
-    ["Joined service", e.joinedServiceOn && `${fullDate(e.joinedServiceOn)} (${plural(yearsBetween(e.joinedServiceOn, today), "year")} of service)`],
+    e.permanent
+      ? ["Joined service", e.joinedServiceOn && `${fullDate(e.joinedServiceOn)} (${plural(yearsBetween(e.joinedServiceOn, today), "year")} of service)`]
+      : ["Engaged from", e.joinedServiceOn && fullDate(e.joinedServiceOn)],
     ["Joined this office", e.joinedOfficeOn && fullDate(e.joinedOfficeOn)],
     ["Next increment", e.nextIncrementOn && <span className={cx(e.nextIncrementOn < today && "font-medium text-urgent-ink")}>{fullDate(e.nextIncrementOn)}{e.nextIncrementOn < today && " (passed)"}</span>],
     ["Retirement", e.retiresOn && `${fullDate(e.retiresOn)}${e.retiresOn > today ? ` (in ${yearsBetween(today, e.retiresOn) > 0 ? plural(yearsBetween(today, e.retiresOn), "year") : "less than a year"})` : ""}`],
-    ["Pay scale / basic pay", e.payScale],
+    [e.permanent ? "Pay scale / basic pay" : "Pay / wages", e.payScale],
     ["Probation declared", e.probationDeclaredOn && fullDate(e.probationDeclaredOn)],
     ["Home address", e.address && <span className="whitespace-pre-wrap">{e.address}</span>],
     ["Notes", e.notes && <span className="whitespace-pre-wrap">{e.notes}</span>],
@@ -310,7 +343,12 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
         <div className="min-w-0 flex-1">
           <h3 className="text-lg font-semibold text-ink [overflow-wrap:anywhere]">{e.name}</h3>
           <p className="text-sm text-slate-600">{designation ?? "No designation"}</p>
-          {e.leftOn && <Badge>Left the office on {fullDate(e.leftOn)}</Badge>}
+          {(!e.permanent || e.leftOn) && (
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {!e.permanent && <TemporaryTag />}
+              {e.leftOn && <Badge>Left the office on {fullDate(e.leftOn)}</Badge>}
+            </div>
+          )}
         </div>
       </div>
 
@@ -404,6 +442,8 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
 const EMPTY: EmployeeInput = {
   name: "",
   designationId: null,
+  permanent: true,
+  engagedTill: null,
   pen: "",
   phone: "",
   email: "",
@@ -442,7 +482,7 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
     else await addEmployee.mutateAsync(v);
     onDone();
   };
-  const date = (k: "dateOfBirth" | "joinedServiceOn" | "joinedOfficeOn" | "nextIncrementOn" | "retiresOn" | "probationDeclaredOn", label: string) => (
+  const date = (k: "dateOfBirth" | "joinedServiceOn" | "joinedOfficeOn" | "nextIncrementOn" | "retiresOn" | "probationDeclaredOn" | "engagedTill", label: string) => (
     <Field label={label}>
       <input type="date" className={inputClass} value={v[k] ?? ""} onChange={(e) => set(k, e.target.value || null)} />
     </Field>
@@ -455,6 +495,27 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
 
   return (
     <form onSubmit={submit} className="space-y-4">
+      <div>
+        <span className="mb-1 block text-sm font-medium text-slate-700">Employment</span>
+        {/* Its own buttons (type="button"), so choosing never submits the form. */}
+        <div role="radiogroup" aria-label="Employment" className="inline-flex flex-wrap gap-1.5">
+          {([
+            [true, "Permanent"],
+            [false, "Temporary"],
+          ] as const).map(([permanent, label]) => (
+            <button
+              key={label}
+              type="button"
+              role="radio"
+              aria-checked={v.permanent === permanent}
+              onClick={() => set("permanent", permanent)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-sm text-slate-600 enabled:hover:bg-slate-50 active:scale-[0.97] aria-checked:border-brand-200 aria-checked:bg-tint aria-checked:font-medium aria-checked:text-brand-800"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <Field label="Name">
         <input className={inputClass} value={v.name} onChange={(e) => set("name", e.target.value)} required autoFocus={!employee} maxLength={120} />
       </Field>
@@ -468,7 +529,7 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
           ))}
         </select>
       </Field>
-      {staff.designations.length === 0 && <p className="-mt-2 text-footnote text-slate-500">Add designations on the Staff page's Designations tab.</p>}
+      {staff.designations.length === 0 && <p className="-mt-2 text-footnote text-slate-500">Add designations on the Employees page's Designations tab.</p>}
 
       <Section title="Personal">
         {text("pen", "PEN", { inputMode: "numeric", maxLength: 20 })}
@@ -486,13 +547,20 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
           </select>
         </Field>
       </Section>
+      {/* Temporary employees: no increment, retirement or probation; "Engaged till" instead. */}
       <Section title="Service">
-        {date("joinedServiceOn", "Joined service on")}
+        {date("joinedServiceOn", v.permanent ? "Joined service on" : "Engaged from")}
         {date("joinedOfficeOn", "Joined this office on")}
-        {date("nextIncrementOn", "Next increment date")}
-        {date("retiresOn", "Date of retirement")}
-        {date("probationDeclaredOn", "Probation declared on")}
-        {text("payScale", "Pay scale / basic pay", { maxLength: 100, placeholder: "e.g. 35600-75400" })}
+        {v.permanent ? (
+          <>
+            {date("nextIncrementOn", "Next increment date")}
+            {date("retiresOn", "Date of retirement")}
+            {date("probationDeclaredOn", "Probation declared on")}
+          </>
+        ) : (
+          date("engagedTill", "Engaged till")
+        )}
+        {text("payScale", v.permanent ? "Pay scale / basic pay" : "Pay / wages", { maxLength: 100, placeholder: v.permanent ? "e.g. 35600-75400" : "e.g. 755 per day" })}
       </Section>
       <Field label="Home address">
         <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={v.address} onChange={(e) => set("address", e.target.value)} maxLength={500} />

@@ -162,6 +162,13 @@
       "when": 1791391161217,
       "tag": "0022_file_register",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791396289773,
+      "tag": "0023_employee_kinds",
+      "breakpoints": true
     }
   ]
 }

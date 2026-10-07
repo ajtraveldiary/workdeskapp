@@ -15,6 +15,13 @@ import { openTaskOrder, selectTasks, toTask } from "./tasks";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
 
+// Temporary employees have no increment, retirement or probation dates; permanent ones no "engaged till".
+function employeeValues(input: ReturnType<typeof employeeInput.parse>) {
+  return input.permanent
+    ? { ...input, engagedTill: null }
+    : { ...input, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null };
+}
+
 function toEmployee(e: typeof employees.$inferSelect): Employee {
   const { userId: _u, createdAt: _c, updatedAt: _up, ...rest } = e;
   return rest;
@@ -118,7 +125,7 @@ export const staffRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const input = employeeInput.parse(await c.req.json());
     await checkDesignation(db, userId, input.designationId);
-    const [e] = await db.insert(employees).values({ ...input, userId }).returning();
+    const [e] = await db.insert(employees).values({ ...employeeValues(input), userId }).returning();
     await log(db, userId, "staff.employee_added", `Employee added: ${e!.name}`);
     return c.json(toEmployee(e!), 201);
   })
@@ -129,7 +136,7 @@ export const staffRoutes = new Hono<AppEnv>()
     const e = await loadEmployee(db, userId, c.req.param("id"));
     const input = employeeInput.parse(await c.req.json());
     await checkDesignation(db, userId, input.designationId);
-    await db.update(employees).set({ ...input, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await db.update(employees).set({ ...employeeValues(input), updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.employee_changed", `Employee details changed: ${input.name}`);
     return c.json({ ok: true });
   })

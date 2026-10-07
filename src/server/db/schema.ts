@@ -290,6 +290,10 @@ export const employees = pgTable("employees", {
   userId: uuid("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
   designationId: uuid("designation_id").references(() => designations.id),
+  // Permanent or temporary (user request 2026-10-07). Temporary staff have no increment, retirement or
+  // probation dates (cleared on save) and may have an "engaged till" date instead.
+  permanent: boolean("permanent").notNull().default(true),
+  engagedTill: date("engaged_till"),
   pen: text("pen").notNull().default(""),
   phone: text("phone").notNull().default(""),
   email: text("email").notNull().default(""),

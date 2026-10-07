@@ -78,7 +78,7 @@ export function TitleWithRelated({ value, onChange, children }: { value: Related
             {d.name}
             {d.detail && <span className="text-brand-800/70"> · {d.detail}</span>}
           </span>
-          <button type="button" onClick={() => onChange(NO_RELATED)} aria-label="Remove link to staff" title="Remove" className="shrink-0 rounded p-0.5 hover:bg-brand-100 active:scale-90">
+          <button type="button" onClick={() => onChange(NO_RELATED)} aria-label="Remove link to employee" title="Remove" className="shrink-0 rounded p-0.5 hover:bg-brand-100 active:scale-90">
             <X size={14} />
           </button>
         </span>
@@ -146,7 +146,7 @@ function Choices({ value, onPick }: { value: RelatedValue; onPick: (v: RelatedVa
     <div className="p-1">
       <label className="relative mb-1 block">
         <Search size={15} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-slate-400" />
-        <input ref={search} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, PEN or designation" aria-label="Search staff" onKeyDown={(e) => e.key === "Enter" && e.preventDefault()} className="h-9 w-full rounded-lg border border-line bg-white pr-2 pl-8 text-sm outline-none focus:border-brand-500" />
+        <input ref={search} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, PEN or designation" aria-label="Search employees" onKeyDown={(e) => e.key === "Enter" && e.preventDefault()} className="h-9 w-full rounded-lg border border-line bg-white pr-2 pl-8 text-sm outline-none focus:border-brand-500" />
       </label>
       {value.relatedKind && (
         <button type="button" onClick={() => onPick(NO_RELATED)} className={cx(item, "text-slate-600")}>
@@ -186,7 +186,7 @@ function Choices({ value, onPick }: { value: RelatedValue; onPick: (v: RelatedVa
         </div>
       ))}
       {query && groups.length === 0 && <p className="px-2.5 py-2 text-footnote text-slate-500">No one matches “{q.trim()}”.</p>}
-      {empty && <p className="px-2.5 py-2 text-footnote text-slate-500">No staff yet. Add designations and employees on the Staff page (profile menu on phones, side bar on computers).</p>}
+      {empty && <p className="px-2.5 py-2 text-footnote text-slate-500">No employees yet. Add designations and employees on the Employees page (profile menu on phones, side bar on computers).</p>}
     </div>
   );
 }

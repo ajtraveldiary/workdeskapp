@@ -456,7 +456,7 @@ function IncrementRow({ item, today }: { item: IncrementDue; today: string }) {
       )}
       <span className="w-[3px] shrink-0 self-stretch rounded-full bg-brand-500" aria-hidden />
       <button
-        onClick={() => navigate(`/staff?employee=${item.employeeId}`)}
+        onClick={() => navigate(`/employees?employee=${item.employeeId}`)}
         className="row-link line-clamp-3 min-w-0 flex-1 text-left text-subhead leading-snug font-medium text-ink [overflow-wrap:anywhere] hover:text-brand-700 hover:underline sm:text-sm"
         aria-label={`Increment due: ${item.name}. Open employee`}
       >

@@ -179,6 +179,8 @@ export const designationInput = z.object({ name: z.string().trim().min(1, "Name 
 export const employeeInput = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   designationId: z.uuid().nullable().default(null),
+  permanent: z.boolean().default(true),
+  engagedTill: day.nullable().default(null),
   pen: z.string().trim().max(20).default(""),
   phone: z.string().trim().max(20).regex(/^[0-9+\-\s()]*$/, "Use digits only").default(""),
   email: z.union([z.literal(""), z.email("Check the email address")]).default(""),
