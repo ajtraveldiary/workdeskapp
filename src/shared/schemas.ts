@@ -20,6 +20,9 @@ export const taskInput = z.object({
   // Kept for tasks without an email; a task made from an email uses the email's labels.
   labelIds: userLabelIds.default([]),
   checklist: checklist.default([]),
+  // Waiting for a reply, with the optional day a reply is expected by (user request 2026-10-07).
+  waiting: z.boolean().default(false),
+  replyBy: day.nullable().default(null),
 });
 export type TaskInput = z.input<typeof taskInput>;
 
@@ -34,6 +37,8 @@ export const taskPatch = z
     priority,
     labelIds: userLabelIds,
     checklist,
+    waiting: z.boolean(),
+    replyBy: day.nullable(),
   })
   .partial();
 

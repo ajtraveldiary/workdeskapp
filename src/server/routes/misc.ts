@@ -55,7 +55,7 @@ export const miscRoutes = new Hono<AppEnv>()
       await Promise.all([
         selectTasks(db).where(and(mine, viewFilter("overdue", today))).orderBy(...openTaskOrder),
         selectTasks(db).where(and(mine, viewFilter("today", today))).orderBy(...openTaskOrder),
-        selectTasks(db).where(and(mine, eq(tasks.status, "open"), eq(tasks.dueDate, tomorrow))).orderBy(...openTaskOrder),
+        selectTasks(db).where(and(mine, viewFilter("all", today), eq(tasks.dueDate, tomorrow))).orderBy(...openTaskOrder),
         selectTasks(db)
           .where(and(mine, eq(tasks.status, "open"), eq(emailThreads.hasNewActivity, true)))
           .orderBy(...openTaskOrder),
@@ -76,7 +76,11 @@ export const miscRoutes = new Hono<AppEnv>()
           .select({ n: count() })
           .from(tasks)
           .where(and(mine, eq(tasks.status, "done"), gte(tasks.completedAt, weekAgo))),
-        db.select({ n: count() }).from(tasks).where(and(mine, eq(tasks.status, "open"))),
+        // Open tasks not waiting for a reply ("My tasks"), and those waiting.
+        db
+          .select({ n: sql<number>`(count(*) filter (where ${tasks.waitingSince} is null))::int`, waiting: sql<number>`(count(*) filter (where ${tasks.waitingSince} is not null))::int` })
+          .from(tasks)
+          .where(and(mine, eq(tasks.status, "open"))),
         db.select({ n: count() }).from(tasks).where(and(mine, viewFilter("upcoming", today))),
         db.select({ n: count() }).from(tasks).where(and(mine, eq(tasks.status, "done"))),
         db
@@ -100,12 +104,13 @@ export const miscRoutes = new Hono<AppEnv>()
         dueTomorrow: dueTomorrow.length,
         newActivity: newActivity.length,
         completedThisWeek: doneCount[0]?.n ?? 0,
-        openTasks: openCount[0]?.n ?? 0,
+        openTasks: Number(openCount[0]?.n ?? 0),
         upcoming: upcomingCount[0]?.n ?? 0,
         completedTotal: completedTotal[0]?.n ?? 0,
         reportsUpcoming: Number(reportCounts[0]?.upcoming ?? 0),
         reportsOverdue: Number(reportCounts[0]?.overdue ?? 0),
         reportTasks: reportTaskCount[0]?.n ?? 0,
+        waiting: Number(openCount[0]?.waiting ?? 0),
       },
       overdue: overdue.map(toTask),
       dueToday: dueToday.map(toTask),

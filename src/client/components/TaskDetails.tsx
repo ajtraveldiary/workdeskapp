@@ -1,12 +1,13 @@
 // Read-only view of a task, with what was entered when it was created. Opened from task lists; for a task
 // made from an email it also names the email and can open it (onOpenEmail).
-import { CalendarDays, Check, Clock, CalendarClock, Mail, Pencil, RotateCcw, StickyNote } from "lucide-react";
+import { CalendarDays, Check, Clock, CalendarClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Task } from "../../shared/types";
 import { useCompleteTask, useMe, useReopenTask } from "../api";
-import { formatDateTime, formatDay, formatTime } from "../format";
+import { formatDateTime, formatDay, formatTime, formatWhen } from "../format";
 import { ChecklistTicks } from "./Checklist";
 import { LinkChips } from "./ReminderLinks";
+import { canWait, isWaiting, openWait, waitingText } from "./Waiting";
 import { Badge, Button, Modal, PriorityPill, cx } from "./ui";
 
 export function TaskDetails({
@@ -32,7 +33,19 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
   const complete = useCompleteTask();
   const reopen = useReopenTask();
   const done = task.status === "done";
-  const overdue = !done && !!task.dueDate && task.dueDate < today;
+  const waiting = isWaiting(task);
+  const overdue = !done && !waiting && !!task.dueDate && task.dueDate < today;
+  // Waiting for a reply (user request 2026-10-07): offered next to Mark complete (and for completed tasks).
+  const wait = canWait(task) ? (
+    <Button
+      onClick={() => {
+        onClose();
+        openWait(task);
+      }}
+    >
+      <Hourglass size={15} /> {waiting ? "Reply date" : "Wait for reply"}
+    </Button>
+  ) : null;
 
   return (
     <div className="space-y-4">
@@ -40,7 +53,7 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
         <h3 className={done ? "text-lg font-semibold text-slate-400 line-through" : "text-lg font-semibold text-ink"}>{task.title}</h3>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <PriorityPill priority={task.priority} />
-          {done ? <Badge tone="low">Completed</Badge> : overdue ? <Badge tone="urgent">Overdue</Badge> : <Badge>Open</Badge>}
+          {done ? <Badge tone="low">Completed</Badge> : waiting ? <Badge tone="snooze">Waiting for reply</Badge> : overdue ? <Badge tone="urgent">Overdue</Badge> : <Badge>Open</Badge>}
           {task.report ? <Badge tone="info">Reminder</Badge> : task.thread ? <Badge tone="info">From email</Badge> : <Badge>Created by hand</Badge>}
         </div>
       </div>
@@ -60,6 +73,15 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
             <span className="text-slate-500">No due date</span>
           )}
         </Row>
+        {waiting && (
+          <Row icon={Hourglass} label="Waiting">
+            Since {formatWhen(task.waitingSince!)}
+            {" · "}
+            <span className={cx(waitingText(task, today).tone === "urgent" ? "font-medium text-urgent-ink" : waitingText(task, today).tone === "high" ? "font-medium text-high-ink" : "")}>
+              {task.replyBy ? waitingText(task, today).text : "no reply date"}
+            </span>
+          </Row>
+        )}
         {task.report && (
           <Row icon={CalendarClock} label="Reminder">
             {task.report.name} · {task.report.label}
@@ -97,15 +119,18 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
             <Pencil size={15} /> Edit
           </Button>
         </div>
-        {done ? (
-          <Button onClick={() => reopen.mutate(task.id, { onSuccess: onClose })} disabled={reopen.isPending}>
-            <RotateCcw size={15} /> Reopen
-          </Button>
-        ) : (
-          <Button variant="primary" onClick={() => complete.mutate(task.id, { onSuccess: onClose })} disabled={complete.isPending}>
-            <Check size={15} /> Mark complete
-          </Button>
-        )}
+        <div className={cx("grid gap-2 sm:flex", wait ? "grid-cols-2" : "grid-cols-1")}>
+          {wait}
+          {done ? (
+            <Button onClick={() => reopen.mutate(task.id, { onSuccess: onClose })} disabled={reopen.isPending}>
+              <RotateCcw size={15} /> Reopen
+            </Button>
+          ) : (
+            <Button variant="primary" onClick={() => complete.mutate(task.id, { onSuccess: onClose })} disabled={complete.isPending}>
+              <Check size={15} /> Mark complete
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -175,6 +175,11 @@ export const tasks = pgTable(
     reportPeriodId: uuid("report_period_id").references(() => reportPeriods.id, { onDelete: "set null" }),
     // Steps inside the task, ticked one by one (user request 2026-10-07, v2 idea 4).
     checklist: jsonb("checklist").$type<ChecklistItem[]>().notNull().default([]),
+    // Waiting for a reply (user request 2026-10-07): set while the task waits on someone else; it then leaves
+    // the to-do lists for the Waiting tab and comes back (Today / Overdue) on replyBy, the optional date a
+    // reply is expected by. Waiting tasks stay status "open"; completing one clears both.
+    waitingSince: timestamp("waiting_since", { withTimezone: true }),
+    replyBy: date("reply_by"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

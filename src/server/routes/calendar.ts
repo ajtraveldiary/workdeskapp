@@ -32,6 +32,8 @@ export const calendarFeedRoute = new Hono<AppEnv>().get("/calendar/:file", async
       dueTime: tasks.dueTime,
       priority: tasks.priority,
       updatedAt: tasks.updatedAt,
+      waitingSince: tasks.waitingSince,
+      replyBy: tasks.replyBy,
       from: emailThreads.fromName,
       fromEmail: emailThreads.fromEmail,
       subject: emailThreads.subject,
@@ -39,13 +41,19 @@ export const calendarFeedRoute = new Hono<AppEnv>().get("/calendar/:file", async
     .from(tasks)
     .leftJoin(emailThreads, eq(emailThreads.id, tasks.threadId))
     // Open tasks with a date; reminder tasks show as the reminders themselves.
-    .where(and(eq(tasks.userId, user.id), eq(tasks.status, "open"), isNotNull(tasks.dueDate), isNull(tasks.reportPeriodId)));
-  const feedTasks: FeedTask[] = taskRows.map((t) => ({
+    .where(and(eq(tasks.userId, user.id), eq(tasks.status, "open"), isNull(tasks.reportPeriodId)));
+  // A task waiting for a reply (user request 2026-10-07) shows on the day a reply is expected instead of its
+  // due date, all day; one waiting with no such day is left out.
+  const feedTasks: FeedTask[] = taskRows.flatMap((t) => {
+    const day = t.waitingSince ? t.replyBy : t.dueDate;
+    return day ? [{ ...t, day }] : [];
+  }).map((t) => ({
     id: t.id,
     title: t.title,
     notes: t.notes,
-    dueDate: t.dueDate!,
-    dueTime: t.dueTime,
+    dueDate: t.day,
+    dueTime: t.waitingSince ? null : t.dueTime,
+    waiting: !!t.waitingSince,
     priority: t.priority,
     updatedAt: t.updatedAt,
     email: t.subject != null ? { from: t.from ?? t.fromEmail, subject: t.subject } : null,

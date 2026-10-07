@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { CheckCircle2, ChevronLeft, CircleDot, Mail, RotateCcw } from "lucide-react";
+import { CheckCircle2, ChevronLeft, CircleDot, Hourglass, Mail, RotateCcw } from "lucide-react";
 import type { AuditEvent } from "../../shared/types";
 import { useHistory, useRestore } from "../api";
 import { formatDateTime } from "../format";
@@ -70,6 +70,7 @@ export function HistoryPage() {
 function EventIcon({ e }: { e: AuditEvent }) {
   const cls = "mt-0.5 shrink-0";
   if (e.action === "task.completed") return <CheckCircle2 size={18} className={`${cls} text-brand-600`} />;
+  if (e.action.startsWith("task.waiting") || e.action === "task.reply_date") return <Hourglass size={18} className={`${cls} text-snooze`} />;
   if (e.entityType === "email") return <Mail size={18} className={`${cls} text-slate-400`} />;
   return <CircleDot size={18} className={`${cls} text-slate-400`} />;
 }

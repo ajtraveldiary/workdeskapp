@@ -5,6 +5,8 @@ import { useCreateTask, useCreateTaskFromThread, useEmailContent, useMe, useUpda
 import { addDays, formatDay } from "../format";
 import { htmlToText } from "../snippets";
 import { ChecklistEditor } from "./Checklist";
+import { Hourglass } from "lucide-react";
+import { canWait, isWaiting } from "./Waiting";
 import { Button, ErrorNote, Field, Modal, Spinner, inputClass } from "./ui";
 
 export type TaskDialogMode = { kind: "new"; dueDate?: string } | { kind: "fromThread"; thread: Thread } | { kind: "edit"; task: Task };
@@ -38,6 +40,10 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
   const [priority, setPriority] = useState<Priority>(initial.priority);
   const [notes, setNotes] = useState(initial.notes);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(mode.kind === "edit" ? (mode.task.checklist ?? []) : []);
+  // Waiting for a reply (user request 2026-10-07), with the optional day a reply is expected by.
+  const [waiting, setWaiting] = useState(mode.kind === "edit" ? isWaiting(mode.task) : false);
+  const [replyBy, setReplyBy] = useState(mode.kind === "edit" && isWaiting(mode.task) ? (mode.task.replyBy ?? "") : "");
+  const waitAllowed = mode.kind !== "edit" || canWait(mode.task);
 
   // From an email: a date written in the newest message becomes the due date, unless the user has already
   // set or cleared one (user request 2026-10-06). The email usually comes from the cache (it was just open).
@@ -67,7 +73,8 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const steps = checklist.map((i) => ({ ...i, text: i.text.trim() })).filter((i) => i.text);
-    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, checklist: steps };
+    const wait = waitAllowed ? { waiting, replyBy: (waiting && replyBy) || null } : {};
+    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, checklist: steps, ...wait };
     if (mode.kind === "edit") await update.mutateAsync({ id: mode.task.id, input });
     else if (mode.kind === "fromThread") await fromThread.mutateAsync({ threadId: mode.thread.id, input });
     else await create.mutateAsync(input);
@@ -149,6 +156,23 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
           </button>
         )}
       </div>
+      {waitAllowed && (
+        <div className="rounded-lg border border-line px-3 py-2.5">
+          <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
+            <input type="checkbox" checked={waiting} onChange={(e) => setWaiting(e.target.checked)} className="size-4 accent-[var(--color-snooze)]" />
+            <Hourglass size={15} className="text-snooze" aria-hidden />
+            Waiting for a reply
+          </label>
+          {waiting && (
+            <div className="mt-2.5">
+              <Field label="Reply expected by (optional)">
+                <input type="date" className={inputClass} value={replyBy} onChange={(e) => setReplyBy(e.target.value)} />
+              </Field>
+              <p className="mt-1.5 text-xs text-slate-500">The task stays under Waiting, out of your to-do list. With a date, it comes back to Today on that day.</p>
+            </div>
+          )}
+        </div>
+      )}
       <Field label="Notes">
         <textarea
           className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"

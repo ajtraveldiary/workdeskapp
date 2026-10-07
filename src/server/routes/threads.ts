@@ -12,6 +12,7 @@ import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, getAttachment, getMessageFull, getThreadFull, markThreadRead } from "../lib/gmail";
 import { decodeBase64Url, demoContent, demoPdf, findPart, parseMessage } from "../lib/emailContent";
 import { bulkIds, taskInput } from "../../shared/schemas";
+import { waitingFields, waitingSummary } from "./tasks";
 import { events } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
@@ -54,7 +55,7 @@ export async function withTaskInfo<T extends ThreadRow>(db: DB, threads: T[], to
           threadId: tasks.threadId,
           open: sql<number>`(count(*) filter (where ${tasks.status} = 'open'))::int`,
           done: sql<number>`(count(*) filter (where ${tasks.status} = 'done'))::int`,
-          overdue: sql<boolean>`coalesce(bool_or(${tasks.status} = 'open' and ${tasks.dueDate} < ${today}), false)`,
+          overdue: sql<boolean>`coalesce(bool_or(${tasks.status} = 'open' and ${tasks.waitingSince} is null and ${tasks.dueDate} < ${today}), false)`,
         })
         .from(tasks)
         .where(inArray(tasks.threadId, ids))
@@ -255,12 +256,12 @@ export const threadRoutes = new Hono<AppEnv>()
   .post("/:id/task", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const input = taskInput.parse(await c.req.json());
+    const { waiting, replyBy, ...input } = taskInput.parse(await c.req.json());
     const t = await loadThread(db, userId, c.req.param("id"));
     const [task] = await db
       .insert(tasks)
       // Its labels are the email's labels (Gmail), so none are stored on the task itself.
-      .values({ ...input, labelIds: [], userId, threadId: t.id })
+      .values({ ...input, labelIds: [], userId, threadId: t.id, ...waitingFields(waiting, replyBy) })
       .returning();
     await db
       .update(emailThreads)
@@ -269,6 +270,7 @@ export const threadRoutes = new Hono<AppEnv>()
     await db.insert(events).values([
       { userId, entityType: "email", entityId: t.id, action: "email.converted", summary: "Converted to task", detail: { subject: t.subject } },
       { userId, entityType: "task", entityId: task!.id, action: "task.created", summary: "Created from email", detail: { title: task!.title, subject: t.subject } },
+      ...(waiting ? [{ userId, entityType: "task" as const, entityId: task!.id, action: "task.waiting", summary: waitingSummary(replyBy), detail: { title: task!.title } }] : []),
     ]);
     // Settings > Mail task label, if one is chosen (best effort; never blocks creating the task).
     await reconcileThreadLabels(db, c.env, userId, [t.id]).catch(() => undefined);

@@ -7,8 +7,10 @@ import type { Priority, Task } from "../../shared/types";
 
 const ORDER: Priority[] = ["urgent", "high", "normal", "low"];
 
+// A task waiting for a reply counts by the day a reply is expected (user request 2026-10-07).
+const day = (t: Task) => (t.waitingSince && t.status === "open" ? t.replyBy : t.dueDate) ?? "9999";
 const byDue = (a: Task, b: Task) =>
-  (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") || (a.dueTime ?? "99").localeCompare(b.dueTime ?? "99") || a.title.localeCompare(b.title);
+  day(a).localeCompare(day(b)) || (a.dueTime ?? "99").localeCompare(b.dueTime ?? "99") || a.title.localeCompare(b.title);
 
 export const byPriority = (tasks: Task[]) => [...tasks].sort((a, b) => ORDER.indexOf(a.priority) - ORDER.indexOf(b.priority) || byDue(a, b));
 

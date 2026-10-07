@@ -1,9 +1,10 @@
-import { Check, Eye, ExternalLink, CalendarClock, Mail, Pencil, RotateCcw } from "lucide-react";
+import { Check, Eye, ExternalLink, CalendarClock, Hourglass, Mail, Pencil, RotateCcw } from "lucide-react";
 import type { Task } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
 import { daysBetween, formatDateTime, formatDay, formatTime } from "../format";
 import { ChecklistChip } from "./Checklist";
+import { WaitingBadge, canWait, isWaiting, openWait } from "./Waiting";
 import { Badge, PRIORITY_BAR, cx } from "./ui";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
 
@@ -26,7 +27,8 @@ export function TaskRow({
   const reopen = useReopenTask();
   const seen = useMarkSeen();
   const done = task.status === "done";
-  const overdue = !done && task.dueDate !== null && task.dueDate < today;
+  const waiting = isWaiting(task);
+  const overdue = !done && !waiting && task.dueDate !== null && task.dueDate < today;
   const gmailUrl = task.thread && gmailThreadUrl(task.thread.accountEmail, task.thread.gmailThreadId);
   // Phones: swipe right to complete (or reopen), left for Gmail / seen / edit; the side buttons go away.
   const swipe = useSwipeMode();
@@ -47,6 +49,8 @@ export function TaskRow({
       trailing={[
         { label: "Gmail", icon: ExternalLink, tone: "info", href: gmailUrl || undefined, hidden: !gmailUrl },
         { label: "Seen", icon: Eye, tone: "brand", onClick: () => seen.mutate(task.thread!.id), hidden: !task.thread?.hasNewActivity || done },
+        // Waiting for a reply (user request 2026-10-07): also for completed tasks, which it reopens.
+        { label: waiting ? "Waiting" : "Wait", icon: Hourglass, tone: "snooze", onClick: () => openWait(task), hidden: !canWait(task) },
         { label: "Edit", icon: Pencil, tone: "neutral", onClick: () => onEdit(task) },
       ]}
     >
@@ -76,7 +80,8 @@ export function TaskRow({
           <span className={cx("text-subhead leading-snug font-medium [overflow-wrap:anywhere]", done ? "text-slate-500 line-through" : "text-slate-900 group-hover/title:text-brand-700")}>{task.title}</span>
         </button>
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-          {task.dueDate && !done && (
+          {waiting && <WaitingBadge task={task} today={today} />}
+          {task.dueDate && !done && !waiting && (
             <Badge tone={overdue ? "urgent" : task.dueDate === today ? "high" : "info"}>
               {overdue ? `Overdue ${daysBetween(task.dueDate, today)}d · ${formatDay(task.dueDate, today)}` : `Due ${formatDay(task.dueDate, today)}`}
               {task.dueTime && `, ${formatTime(task.dueTime)}`}

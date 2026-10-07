@@ -19,6 +19,8 @@ export type FeedTask = {
   priority: string;
   updatedAt: Date;
   email: { from: string | null; subject: string } | null;
+  // Waiting for a reply: dueDate is then the day a reply is expected (user request 2026-10-07).
+  waiting?: boolean;
 };
 
 export type FeedReminder = ReminderRule & {
@@ -110,7 +112,8 @@ export function buildCalendar(opts: { tasks: FeedTask[]; reminders: FeedReminder
   for (const t of opts.tasks) {
     const overdue = t.dueDate < opts.today;
     const about = [
-      overdue ? `Overdue – was due ${wasDue(t.dueDate, t.dueTime)}` : null,
+      overdue ? `Overdue – ${t.waiting ? "reply was expected" : "was due"} ${wasDue(t.dueDate, t.dueTime)}` : null,
+      t.waiting && !overdue ? "Waiting for a reply, expected by this day" : null,
       `Priority: ${PRIORITY[t.priority] ?? t.priority}`,
       t.email ? `From email: ${t.email.from ? `${t.email.from} – ` : ""}${t.email.subject}` : null,
       t.notes.trim() ? `\n${t.notes.trim()}` : null,

@@ -14,6 +14,7 @@ import {
   Pencil,
   Plus,
   RotateCcw,
+  Hourglass,
   TriangleAlert,
   Undo2,
   X,
@@ -42,6 +43,7 @@ import { SelectAvatar } from "../components/Avatar";
 import { emailLine } from "../components/ThreadRow";
 import { PriorityGrouped } from "../components/PriorityGroups";
 import { ChecklistChip } from "../components/Checklist";
+import { WaitingBadge, canWait, isWaiting, openWait } from "../components/Waiting";
 import { TaskDetails } from "../components/TaskDetails";
 import { EditableDue, dueTone } from "../components/InlineTaskEdit";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
@@ -95,6 +97,7 @@ export function HomePage() {
         <TodoPanel
           onNew={() => setDialog({ kind: "new" })}
           open={counts.openTasks}
+          waiting={counts.waiting}
           completed={counts.completedTotal}
           onEdit={editTask}
           onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
@@ -338,6 +341,8 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
     trailing: [
       { label: "Gmail", icon: ExternalLink, tone: "info", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
       { label: "Seen", icon: Eye, tone: "brand", onClick: a.markSeen, hidden: !task.thread?.hasNewActivity || a.done },
+      // Waiting for a reply (user request 2026-10-07): also for completed tasks, which it reopens.
+      { label: isWaiting(task) ? "Waiting" : "Wait", icon: Hourglass, tone: "snooze", onClick: () => openWait(task), hidden: !canWait(task) },
       { label: "Edit", icon: Pencil, tone: "neutral", onClick: () => onEdit(task) },
     ],
   };
@@ -348,8 +353,11 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
 // Phones show them a little larger (user request 2026-10-06): subheadline titles, footnote times, roomier rows.
 function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string; onEdit: (t: Task) => void; onOpen: (t: Task) => void }) {
   const a = useTaskActions(task);
-  const late = !!task.dueDate && task.dueDate < today;
-  const when = [task.dueDate && task.dueDate !== today ? formatDay(task.dueDate, today) : null, task.dueTime && formatTime(task.dueTime)].filter(Boolean).join(", ");
+  // A task waiting for a reply is here because the reply is expected today or is late (user request 2026-10-07).
+  const waiting = isWaiting(task);
+  const day = waiting ? task.replyBy : task.dueDate;
+  const late = !!day && day < today;
+  const when = [day && day !== today ? formatDay(day, today) : null, !waiting && task.dueTime && formatTime(task.dueTime)].filter(Boolean).join(", ");
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
@@ -363,6 +371,7 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
         aria-label={`Show details: ${task.title}`}
       >
         {task.report && <CalendarClock size={14} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
+        {waiting && <Hourglass size={14} className="mr-1 inline -translate-y-px text-snooze" aria-label="Waiting for reply" />}
         {task.title}
       </button>
       {when && <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
@@ -375,6 +384,7 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
 function TodoPanel({
   onNew,
   open,
+  waiting,
   completed,
   onEdit,
   onCreateTask,
@@ -382,12 +392,13 @@ function TodoPanel({
 }: {
   onNew: () => void;
   open: number;
+  waiting: number;
   completed: number;
   onEdit: (t: Task) => void;
   onCreateTask: (t: Thread) => void;
   hiddenOnPhone?: boolean;
 }) {
-  const [tab, setTab] = useState<"all" | "completed">("all");
+  const [tab, setTab] = useState<"all" | "waiting" | "completed">("all");
   // Tapping a task opens the email it came from, or (for tasks made by hand) its details.
   const [emailId, setEmailId] = useState<string | null>(null);
   const [details, setDetails] = useState<Task | null>(null);
@@ -427,6 +438,8 @@ function TodoPanel({
           onChange={setTab}
           options={[
             { value: "all", label: "My tasks", count: open },
+            // Waiting for a reply (user request 2026-10-07).
+            { value: "waiting", label: "Waiting", count: waiting },
             { value: "completed", label: "Completed", count: completed },
           ]}
         />
@@ -435,7 +448,7 @@ function TodoPanel({
         {!data ? (
           <Loading />
         ) : tasks.length === 0 ? (
-          <Empty icon={ListPlus} title={tab === "all" ? "No open tasks" : "Nothing completed yet"} />
+          <Empty icon={ListPlus} title={tab === "all" ? "No open tasks" : tab === "waiting" ? "Nothing waiting for a reply" : "Nothing completed yet"} />
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
             {tab === "all" ? (
@@ -514,6 +527,8 @@ function TodoRow({
                 {task.completedAt ? `Done ${formatWhen(task.completedAt)}` : "Done"}
               </span>
             </>
+          ) : isWaiting(task) ? (
+            <WaitingBadge task={task} today={today} />
           ) : (
             <EditableDue task={task} today={today} layout="joined" />
           )}
@@ -525,6 +540,7 @@ function TodoRow({
           items={[
             { label: "Edit", onClick: () => onEdit(task) },
             { label: a.done ? "Reopen" : "Mark complete", onClick: a.toggle },
+            { label: isWaiting(task) ? "Waiting for reply…" : "Wait for reply…", onClick: () => openWait(task), hidden: !canWait(task) },
             { label: "Open email in Gmail", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
           ]}
         />

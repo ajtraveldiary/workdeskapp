@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { Plus } from "lucide-react";
 import type { Task, TaskView } from "../../shared/types";
-import { useTasks, useThread } from "../api";
+import { useSummary, useTasks, useThread } from "../api";
 import { EmailViewer } from "../components/EmailViewer";
 import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
@@ -18,6 +18,7 @@ const EMPTY: Record<TaskView, string> = {
   nodate: "No undated tasks",
   all: "No open tasks",
   completed: "No completed tasks yet",
+  waiting: "Nothing waiting for a reply",
   any: "No tasks",
   reports: "No open reminder tasks",
 };
@@ -28,6 +29,7 @@ export function TasksPage() {
   const [q, setQ] = useState("");
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
   const { data, error, isFetching } = useTasks({ view, q });
+  const waitingCount = useSummary().data?.counts.waiting;
   // Tapping a task opens the email it came from, or (for tasks without one) its details.
   const [emailId, setEmailId] = useState<string | null>(null);
   const [details, setDetails] = useState<Task | null>(null);
@@ -61,6 +63,8 @@ export function TasksPage() {
           { value: "overdue", label: "Overdue" },
           { value: "upcoming", label: "Upcoming" },
           { value: "nodate", label: "No date" },
+          // Waiting for a reply (user request 2026-10-07), soonest expected reply first.
+          { value: "waiting", label: "Waiting", count: waitingCount },
           { value: "completed", label: "Completed" },
         ]}
       />
@@ -78,7 +82,7 @@ export function TasksPage() {
           <Empty title={EMPTY[view]} />
         ) : (
           <ul className="divide-y divide-slate-100">
-            {view === "completed" ? (
+            {view === "completed" || view === "waiting" ? (
               data.tasks.map((t) => <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} onDetails={setDetails} />)
             ) : (
               <PriorityGrouped tasks={data.tasks}>
