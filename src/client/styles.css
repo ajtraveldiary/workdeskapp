@@ -367,25 +367,25 @@ dialog::backdrop {
     padding-bottom: calc(var(--tabbar-h) + 5rem + env(safe-area-inset-bottom));
   }
 }
-/* Phone action sheets in iOS's own sizes (user request 2026-10-07, "standard as iOS apps"; the same menus
-   are compact drop-downs on wider screens). Given in px, so the phones' 90% scale doesn't shrink them:
-   rounded 14px groups, a 13px semibold title, 17px rows at least 52px tall with hairlines between them, and
-   a 57px Cancel in 20px semibold. */
+/* Phone action sheets: iOS's shape (rounded group floating 8px from the edges, Cancel in its own group,
+   hairlines between rows; user request 2026-10-07) in WorkDesk's own compact sizes (user feedback
+   2026-10-07: iOS's full 17/20pt sizes didn't suit the rest of the app). Text in rem, so it follows the
+   phones' 90% scale like everything else; rows keep the 44px touch height. */
 .action-sheet .sheet-group {
-  border-radius: 14px;
+  border-radius: 12px;
 }
 .action-sheet .sheet-title {
-  padding-block: 14px;
-  font-size: 13px;
-  line-height: 18px;
+  padding-block: 10px;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
 }
 .action-sheet .sheet-group :is(button, a):is(.w-full, .block),
 .action-sheet .sheet-group > :is(button, a) {
-  min-height: 52px;
-  padding: 10px 16px;
+  min-height: 44px;
+  padding: 8px 14px;
   border-radius: 0;
-  font-size: 17px;
-  line-height: 22px;
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
 }
 .action-sheet .sheet-group a.block {
   display: flex;
@@ -397,13 +397,13 @@ dialog::backdrop {
   border-top: 0.5px solid var(--color-line);
 }
 .action-sheet .sheet-group :is(button, a) > svg.lucide:first-child {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 .action-sheet .sheet-cancel {
-  height: 57px;
-  border-radius: 14px;
-  font-size: 20px;
+  height: 46px;
+  border-radius: 12px;
+  font-size: 1rem;
   font-weight: 600;
 }
 

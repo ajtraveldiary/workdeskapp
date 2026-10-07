@@ -314,9 +314,9 @@ export function ActionSheet({ onClose, title, children }: { onClose: () => void;
       }}
       // A tap on the dimmed area above the sheet closes it.
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      // iOS action sheet (user request 2026-10-07, "standard as iOS apps"): a rounded group floating 8px from the
-      // screen edges with the title and choices, and Cancel in its own group below; sizes in styles.css
-      // (.action-sheet). Pulling it down still closes it.
+      // iOS action-sheet shape (user request 2026-10-07): a rounded group floating 8px from the screen edges with
+      // the title and choices, and Cancel in its own group below, in the app's compact sizes (styles.css
+      // .action-sheet). Pulling it down still closes it.
       className="sheet action-sheet m-0 mt-auto w-full max-w-none overflow-visible bg-transparent p-0 px-[8px] pb-[calc(8px+env(safe-area-inset-bottom))] outline-none"
     >
       <div className="sheet-group max-h-[calc(80dvh-65px)] overflow-y-auto bg-white">
