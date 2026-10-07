@@ -153,6 +153,41 @@ export async function reconcileThreadLabels(db: DB, env: Env, userId: string, th
   return changed;
 }
 
+// An email whose tasks were all deleted (user request 2026-10-07) loses WorkDesk's task and done labels in
+// Gmail, so applyLabelRules doesn't make the task again. Best effort, like reconcileThreadLabels; labels the
+// user ticked as "auto-done" are theirs and are never touched.
+export async function clearTaskLabels(db: DB, env: Env, userId: string, threadIds: string[]) {
+  if (threadIds.length === 0) return 0;
+  const s = await getTaskLabels(db, userId);
+  const ours = [s.taskLabelId, s.doneLabelId].filter((x): x is string => !!x);
+  if (ours.length === 0) return 0;
+  const threads = await db
+    .select({ gmailThreadId: emailThreads.gmailThreadId, accountId: emailThreads.accountId, labelIds: emailThreads.labelIds })
+    .from(emailThreads)
+    .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.id, threadIds)));
+  const ops: LabelOp[] = [];
+  let token: string | null | undefined;
+  for (const t of threads) {
+    const remove = ours.filter((id) => t.labelIds.includes(id));
+    if (remove.length === 0) continue;
+    if (t.accountId) {
+      if (token === undefined) {
+        const [a] = await db.select().from(gmailAccounts).where(eq(gmailAccounts.id, t.accountId));
+        token = a && canMarkRead(a.grantedScopes) ? await accessTokenFor(env, a) : null;
+      }
+      if (!token) continue;
+      try {
+        await setThreadLabels(token, t.gmailThreadId, [], remove);
+      } catch {
+        continue;
+      }
+    }
+    for (const id of remove) ops.push({ threadId: t.gmailThreadId, labelId: id, add: false });
+  }
+  await applyLabelOps(db, userId, ops);
+  return ops.length;
+}
+
 // Catch-up (user request 2026-10-06: every email in tasks and completed tasks carries the chosen label in Gmail):
 // finds conversations whose task/done labels don't match their tasks yet (tasks made before a label was chosen,
 // or a Gmail call that failed) and fixes a batch of them. Runs after each sync and when the labels are chosen;

@@ -1,15 +1,15 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, desc, eq, gt, gte, ilike, isNotNull, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { emailThreads, gmailAccounts, reportPeriods, reports, tasks } from "../db/schema";
+import { emailThreads, events, gmailAccounts, reportPeriods, reports, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { logEvent } from "../lib/audit";
 import { todayIn } from "../lib/dates";
 import { setPeriodStatus } from "../lib/reports";
-import { reconcileThreadLabels } from "../lib/taskLabels";
-import { taskInput, taskPatch } from "../../shared/schemas";
+import { clearTaskLabels, reconcileThreadLabels } from "../lib/taskLabels";
+import { bulkIds, taskInput, taskPatch } from "../../shared/schemas";
 import type { Task, TaskView } from "../../shared/types";
 
 const priorityRank = sql`case ${tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end`;
@@ -208,6 +208,39 @@ export const taskRoutes = new Hono<AppEnv>()
       });
     }
     return c.json({ ok: true });
+  })
+
+  // Deleting tasks (user request 2026-10-07, To-do card selection bar). Changes only WorkDesk: each deletion is
+  // logged in History. Reminder tasks are skipped (the reminder would make them again). An email left with no
+  // task goes back to Pending and loses WorkDesk's task/done label in Gmail, so the label rule doesn't
+  // re-create the task; the email itself is never touched.
+  .post("/bulk-delete", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { ids } = bulkIds.parse(await c.req.json());
+    const rows = await db.select().from(tasks).where(and(eq(tasks.userId, userId), inArray(tasks.id, ids)));
+    const gone = rows.filter((t) => !t.reportPeriodId);
+    const skipped = rows.length - gone.length;
+    if (gone.length === 0) return c.json({ deleted: 0, skipped });
+    await db.delete(tasks).where(inArray(tasks.id, gone.map((t) => t.id)));
+    const threadIds = [...new Set(gone.map((t) => t.threadId).filter((x): x is string => !!x))];
+    const still = threadIds.length
+      ? new Set((await db.select({ threadId: tasks.threadId }).from(tasks).where(inArray(tasks.threadId, threadIds))).map((r) => r.threadId))
+      : new Set<string | null>();
+    const orphanIds = threadIds.filter((id) => !still.has(id));
+    const orphans = orphanIds.length
+      ? await db
+          .update(emailThreads)
+          .set({ state: "needs_decision", hasNewActivity: false, stateChangedAt: new Date(), updatedAt: new Date() })
+          .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.id, orphanIds)))
+          .returning({ id: emailThreads.id, subject: emailThreads.subject })
+      : [];
+    await db.insert(events).values([
+      ...gone.map((t) => ({ userId, entityType: "task" as const, entityId: t.id, action: "task.deleted", summary: "Deleted", detail: { title: t.title } })),
+      ...orphans.map((e) => ({ userId, entityType: "email" as const, entityId: e.id, action: "email.returned", summary: "Back to Pending (its task was deleted)", detail: { subject: e.subject } })),
+    ]);
+    await clearTaskLabels(db, c.env, userId, orphans.map((e) => e.id)).catch(() => undefined);
+    return c.json({ deleted: gone.length, skipped });
   })
 
   // Completing a task changes only the task record; its email stays as it is, in Gmail and here.

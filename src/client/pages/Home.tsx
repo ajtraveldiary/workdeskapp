@@ -1,4 +1,4 @@
-import { useRef, useState, useSyncExternalStore, type ReactNode, useMemo } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   CalendarClock,
@@ -15,6 +15,7 @@ import {
   Plus,
   RotateCcw,
   Hourglass,
+  Trash2,
   TriangleAlert,
   Undo2,
   X,
@@ -43,6 +44,7 @@ import { SelectAvatar } from "../components/Avatar";
 import { emailLine } from "../components/ThreadRow";
 import { PriorityGrouped } from "../components/PriorityGroups";
 import { ChecklistChip } from "../components/Checklist";
+import { deleteTasksWithUndo, useHiddenTasks } from "../taskDelete";
 import { WaitingBadge, canWait, isWaiting, openWait } from "../components/Waiting";
 import { TaskDetails } from "../components/TaskDetails";
 import { EditableDue, dueTone } from "../components/InlineTaskEdit";
@@ -358,12 +360,24 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
   const day = waiting ? task.replyBy : task.dueDate;
   const late = !!day && day < today;
   const when = [day && day !== today ? formatDay(day, today) : null, !waiting && task.dueTime && formatTime(task.dueTime)].filter(Boolean).join(", ");
+  const swipe = useSwipeMode();
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
       contentClassName="row-click flex items-start gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2"
       {...taskSwipe(task, a, onEdit)}
     >
+      {/* Tick to complete (user request 2026-10-07); phones swipe instead. */}
+      {!swipe && (
+        <div className="pt-px">
+          <CheckCircle
+            checked={false}
+            onToggle={() => a.toggleAsync().then(() => showUndo({ message: "Task completed", undo: { kind: "reopen", id: task.id } }))}
+            disabled={a.busy}
+            label={`Mark complete: ${task.title}`}
+          />
+        </div>
+      )}
       <span className={cx("w-[3px] shrink-0 self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <button
         onClick={() => onOpen(task)}
@@ -376,6 +390,141 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
       </button>
       {when && <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
     </SwipeRow>
+  );
+}
+
+// --- To-do card calendar tile (user request 2026-10-07) ---
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const localDay = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+// The task's day as a small calendar (date over the short weekday): the due date, the reply-by date while
+// waiting, or the day it was completed. Red when overdue, orange today. Tapping selects the task.
+function DateTile({ task, today, selected, onToggle }: { task: Task; today: string; selected: boolean; onToggle: (on: boolean) => void }) {
+  const done = task.status === "done";
+  const day = done ? (task.completedAt ? localDay(task.completedAt) : null) : isWaiting(task) ? task.replyBy : task.dueDate;
+  const tone = done || !day ? "plain" : day < today ? "late" : day === today ? "today" : "plain";
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={selected}
+      aria-label={`Select task: ${task.title}`}
+      title={selected ? "Unselect" : "Select"}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle(!selected);
+      }}
+      className="group/tile shrink-0 self-start rounded-lg active:scale-90"
+    >
+      {selected ? (
+        <span className="flex size-9 animate-[pop_160ms_ease-out] items-center justify-center rounded-full bg-brand-600 text-white">
+          <Check size={18} strokeWidth={3} />
+        </span>
+      ) : day ? (
+        <span
+          className={cx(
+            "flex size-9 flex-col items-center justify-center rounded-lg border leading-none transition group-hover/tile:ring-2 group-hover/tile:ring-brand-200",
+            tone === "late" ? "border-urgent/30 bg-urgent-soft text-urgent-ink" : tone === "today" ? "border-high/30 bg-high-soft text-high-ink" : "border-line bg-white text-ink",
+            done && "opacity-60",
+          )}
+        >
+          <span className="text-subhead leading-none font-semibold tabular-nums">{Number(day.slice(8))}</span>
+          <span className={cx("mt-0.5 text-caption2 leading-none", tone === "plain" && "text-slate-500")}>{WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]}</span>
+        </span>
+      ) : (
+        <span className="flex size-9 items-center justify-center rounded-lg border border-line bg-white text-slate-400 transition group-hover/tile:ring-2 group-hover/tile:ring-brand-200">
+          <CalendarDays size={18} />
+        </span>
+      )}
+    </button>
+  );
+}
+
+// Shown above the list while tasks are selected (user request 2026-10-07): Select all, Mark complete (Reopen
+// on Completed), Wait for reply, Delete (confirm, then Undo for 5 seconds) and Cancel.
+function TodoSelectionBar({ tab, tasks, picked, onSelectAll, onClear }: { tab: "all" | "waiting" | "completed"; tasks: Task[]; picked: Task[]; onSelectAll: (all: boolean) => void; onClear: () => void }) {
+  const complete = useCompleteTask();
+  const reopen = useReopenTask();
+  const [busy, setBusy] = useState(false);
+  const all = picked.length === tasks.length;
+  const deletable = picked.filter((t) => !t.report);
+  const fromEmail = deletable.filter((t) => t.thread).length;
+  const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`;
+
+  const run = async (fn: (id: string) => Promise<unknown>, ids: string[]) => {
+    setBusy(true);
+    try {
+      for (const id of ids) await fn(id);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const completeAll = async () => {
+    const ids = picked.map((t) => t.id);
+    onClear();
+    await run((id) => complete.mutateAsync(id), ids);
+    showUndo({ message: `${n(ids.length, "task")} completed`, onUndo: () => void run((id) => reopen.mutateAsync(id), ids) });
+  };
+  const reopenAll = async () => {
+    const ids = picked.map((t) => t.id);
+    onClear();
+    await run((id) => reopen.mutateAsync(id), ids);
+    showUndo({ message: `${n(ids.length, "task")} reopened` });
+  };
+  const deleteAll = () => {
+    const skipped = picked.length - deletable.length;
+    const lines = [
+      `Delete ${n(deletable.length, "task")}?`,
+      fromEmail ? `${fromEmail === 1 ? "Its email goes" : "Their emails go"} back to Pending Emails; Gmail keeps the email${fromEmail === 1 ? "" : "s"}.` : "",
+      skipped ? `${n(skipped, "reminder task")} will be skipped: delete the reminder instead.` : "",
+      "You can undo for a few seconds.",
+    ].filter(Boolean);
+    if (!confirm(lines.join("\n\n"))) return;
+    deleteTasksWithUndo(deletable.map((t) => t.id));
+    onClear();
+  };
+
+  return (
+    <div className="mt-3 px-3 sm:mt-4 sm:px-5">
+      <div className="flex items-center gap-2">
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={all ? true : "mixed"}
+        onClick={() => onSelectAll(!all)}
+        className="inline-flex h-8 items-center gap-2 rounded-lg px-1.5 text-sm font-medium text-ink hover:bg-slate-100 active:scale-[0.97]"
+      >
+        <span className={cx("flex size-4 items-center justify-center rounded border", all ? "border-brand-600 bg-brand-600 text-white" : "border-brand-600 text-brand-600")}>
+          {all ? <Check size={12} strokeWidth={3} /> : <span className="h-0.5 w-2 rounded bg-current" />}
+        </span>
+        {picked.length} selected
+      </button>
+        <Button size="sm" variant="ghost" onClick={onClear} className="ml-auto">
+          Cancel
+        </Button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {tab === "completed" ? (
+          <Button size="sm" onClick={reopenAll} disabled={busy}>
+            <RotateCcw size={15} /> Reopen
+          </Button>
+        ) : (
+          <Button size="sm" variant="primary" onClick={completeAll} disabled={busy}>
+            <Check size={15} /> Complete
+          </Button>
+        )}
+        <Button size="sm" onClick={() => (openWait(picked), onClear())} disabled={busy || !picked.some(canWait)} title={picked.some(canWait) ? "Wait for reply" : "Reminder tasks can't wait"}>
+          <Hourglass size={15} /> Wait
+        </Button>
+        <Button size="sm" variant="danger" onClick={deleteAll} disabled={busy || deletable.length === 0} title={deletable.length ? "Delete" : "Delete the reminder instead"}>
+          <Trash2 size={15} /> Delete
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -405,7 +554,23 @@ function TodoPanel({
   const email = useThread(emailId).data ?? null;
   const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
   const { data } = useTasks({ view: tab });
-  const tasks = data?.tasks ?? [];
+  // Tasks being deleted (Undo still possible) are already gone from the list.
+  const hidden = useHiddenTasks();
+  const tasks = (data?.tasks ?? []).filter((t) => !hidden.has(t.id));
+  // Selected with the calendar tiles (user request 2026-10-07); cleared when the tab changes.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => setSelected(new Set()), [tab]);
+  const picked = tasks.filter((t) => selected.has(t.id));
+  const select = (id: string, on: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  const row = (t: Task) => (
+    <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} onDetails={setDetails} selected={selected.has(t.id)} onSelect={(on) => select(t.id, on)} />
+  );
 
   return (
     <Panel hiddenOnPhone={hiddenOnPhone}>
@@ -421,6 +586,9 @@ function TodoPanel({
           </div>
         }
       />
+      {picked.length > 0 ? (
+        <TodoSelectionBar tab={tab} tasks={tasks} picked={picked} onSelectAll={(all) => setSelected(new Set(all ? tasks.map((t) => t.id) : []))} onClear={() => setSelected(new Set())} />
+      ) : (
       <TabsRow
         end={<ViewAll to="/tasks" />}
         mobileActions={
@@ -444,6 +612,7 @@ function TodoPanel({
           ]}
         />
       </TabsRow>
+      )}
       <Scroll>
         {!data ? (
           <Loading />
@@ -452,11 +621,9 @@ function TodoPanel({
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
             {tab === "all" ? (
-              <PriorityGrouped tasks={tasks}>
-                {(t) => <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} onDetails={setDetails} />}
-              </PriorityGrouped>
+              <PriorityGrouped tasks={tasks}>{row}</PriorityGrouped>
             ) : (
-              tasks.map((t) => <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} onDetails={setDetails} />)
+              tasks.map(row)
             )}
           </ul>
         )}
@@ -487,12 +654,16 @@ function TodoRow({
   onEdit,
   onOpen,
   onDetails,
+  selected,
+  onSelect,
 }: {
   task: Task;
   today: string;
   onEdit: (t: Task) => void;
   onOpen: (t: Task) => void;
   onDetails: (t: Task) => void;
+  selected: boolean;
+  onSelect: (on: boolean) => void;
 }) {
   const a = useTaskActions(task);
   // Compact rows (user request 2026-10-07): where the task came from shares the due date's line, and plain
@@ -506,11 +677,9 @@ function TodoRow({
       contentClassName="row-click flex gap-2.5 px-3 py-2 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2.5"
       {...taskSwipe(task, a, onEdit)}
     >
-      {!swipe && (
-        <div className="pt-0.5">
-          <CheckCircle checked={a.done} onToggle={a.toggle} disabled={a.busy} label={a.done ? "Reopen task" : "Mark task complete"} />
-        </div>
-      )}
+      {/* A calendar tile with the date instead of a tick (user request 2026-10-07); tapping it selects the task
+          for the bar above the list. */}
+      {!swipe && <DateTile task={task} today={today} selected={selected} onToggle={onSelect} />}
       <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority], a.done && "opacity-40")} aria-hidden />
       <div className="min-w-0 flex-1">
         <button
@@ -530,8 +699,10 @@ function TodoRow({
             </>
           ) : isWaiting(task) ? (
             <WaitingBadge task={task} today={today} />
-          ) : (
+          ) : swipe ? (
             <EditableDue task={task} today={today} layout="joined" />
+          ) : (
+            <EditableDue task={task} today={today} layout="time" />
           )}
           {context && <span className="min-w-0 flex-1 truncate text-xs text-slate-500 sm:text-footnote">{context}</span>}
           <ChecklistChip items={task.checklist} onClick={() => onDetails(task)} />

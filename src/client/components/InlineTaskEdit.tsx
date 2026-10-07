@@ -103,15 +103,23 @@ function AnchoredPopover({ anchor, onClose, width = 288, label, children }: { an
 
 // --- Due date and time ---
 
-export function EditableDue({ task, today, layout }: { task: Task; today: string; layout: "split" | "joined" }) {
+// layout "time" (To-do card, user request 2026-10-07): only the time, if any, since the row's calendar tile
+// shows the date; it still opens the date-and-time pop-up.
+export function EditableDue({ task, today, layout }: { task: Task; today: string; layout: "split" | "joined" | "time" }) {
   const pop = useAnchoredPopover();
   const tone = TONE[dueTone(task, today)].soft;
   const chip = "inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 whitespace-nowrap transition hover:ring-1 hover:ring-current/40 active:scale-95";
   const label = `Change due date${task.dueDate ? ` (now ${formatDay(task.dueDate, today)}${task.dueTime ? `, ${formatTime(task.dueTime)}` : ""})` : ""}`;
   const openFrom = (e: React.MouseEvent<HTMLElement>) => pop.toggle(e.currentTarget);
 
+  if (layout === "time" && !task.dueTime) return null;
   const trigger =
-    layout === "joined" ? (
+    layout === "time" ? (
+      <button type="button" onClick={openFrom} aria-label={label} title="Change due date and time" className={cx(chip, "text-xs sm:text-footnote", tone)}>
+        <Clock size={14} />
+        {formatTime(task.dueTime!)}
+      </button>
+    ) : layout === "joined" ? (
       <button type="button" onClick={openFrom} aria-label={label} title="Change due date" className={cx(chip, "text-xs sm:text-footnote", tone)}>
         <CalendarDays size={14} />
         {task.dueDate ? `${formatDay(task.dueDate, today)}${task.dueTime ? `, ${formatTime(task.dueTime)}` : ""}` : "No date"}

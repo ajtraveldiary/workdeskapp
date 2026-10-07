@@ -293,24 +293,36 @@ export function SwipeRow({
 
 // --- "Undo" bar for actions taken by swiping ---
 
-type Undo = { message: string; undo?: { kind: "reopen" | "restore"; id: string } };
+// onUndo / onExpire (user request 2026-10-07, To-do selection bar): Undo for several tasks at once, and work
+// that only happens if Undo isn't tapped (deleting tasks). onExpire runs when the bar times out or another
+// message replaces it.
+type Undo = { message: string; undo?: { kind: "reopen" | "restore"; id: string }; onUndo?: () => void; onExpire?: () => void };
 let undoListener: ((u: Undo) => void) | null = null;
 export const showUndo = (u: Undo) => undoListener?.(u);
 
 export function UndoBar() {
   const [current, setCurrent] = useState<(Undo & { key: number }) | null>(null);
+  const shown = useRef<Undo | null>(null);
   const reopen = useReopenTask();
   const restore = useRestore();
 
   useEffect(() => {
-    undoListener = (u) => setCurrent({ ...u, key: Date.now() });
+    undoListener = (u) => {
+      shown.current?.onExpire?.();
+      shown.current = u;
+      setCurrent({ ...u, key: Date.now() });
+    };
     return () => {
       undoListener = null;
     };
   }, []);
   useEffect(() => {
     if (!current) return;
-    const t = setTimeout(() => setCurrent(null), 5000);
+    const t = setTimeout(() => {
+      shown.current?.onExpire?.();
+      shown.current = null;
+      setCurrent(null);
+    }, 5000);
     return () => clearTimeout(t);
   }, [current]);
 
@@ -322,11 +334,13 @@ export function UndoBar() {
       className="toast-in fixed inset-x-3 bottom-[calc(var(--tabbar-h)+0.75rem+env(safe-area-inset-bottom))] z-40 flex items-center justify-between gap-3 rounded-xl bg-ink px-4 py-2.5 text-footnote text-white dark:bg-[#4a4b4f] shadow-lg md:inset-x-auto md:right-6 md:bottom-6 md:w-80"
     >
       <span className="min-w-0 truncate">{current.message}</span>
-      {undo && (
+      {(undo || current.onUndo) && (
         <button
           type="button"
           onClick={() => {
-            (undo.kind === "reopen" ? reopen : restore).mutate(undo.id);
+            if (undo) (undo.kind === "reopen" ? reopen : restore).mutate(undo.id);
+            current.onUndo?.();
+            shown.current = null;
             setCurrent(null);
           }}
           className="shrink-0 rounded-md px-2 py-1 font-semibold text-brand-200 uppercase active:scale-[0.97]"

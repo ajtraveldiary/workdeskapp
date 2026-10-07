@@ -33,27 +33,33 @@ export function WaitingBadge({ task, today }: { task: Task; today: string }) {
   );
 }
 
-let opener: ((t: Task) => void) | null = null;
-export const openWait = (t: Task) => opener?.(t);
+// Several tasks at once from the To-do card's selection bar (user request 2026-10-07); reminder tasks are left out.
+let opener: ((t: Task[]) => void) | null = null;
+export const openWait = (t: Task | Task[]) => {
+  const list = (Array.isArray(t) ? t : [t]).filter(canWait);
+  if (list.length) opener?.(list);
+};
 
 export function WaitDialogHost() {
-  const [task, setTask] = useState<Task | null>(null);
+  const [tasks, setTasks] = useState<Task[] | null>(null);
   useEffect(() => {
-    opener = setTask;
+    opener = setTasks;
     return () => {
       opener = null;
     };
   }, []);
   return (
-    <Modal open={task !== null} onClose={() => setTask(null)} title="Waiting for reply">
-      {task && <WaitForm key={task.id} task={task} onDone={() => setTask(null)} />}
+    <Modal open={tasks !== null} onClose={() => setTasks(null)} title="Waiting for reply">
+      {tasks && <WaitForm key={tasks.map((t) => t.id).join()} tasks={tasks} onDone={() => setTasks(null)} />}
     </Modal>
   );
 }
 
-function WaitForm({ task, onDone }: { task: Task; onDone: () => void }) {
+function WaitForm({ tasks, onDone }: { tasks: Task[]; onDone: () => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
-  const waiting = isWaiting(task);
+  const task = tasks[0]!;
+  const many = tasks.length > 1;
+  const waiting = !many && isWaiting(task);
   const [replyBy, setReplyBy] = useState(waiting ? (task.replyBy ?? "") : "");
   const update = useUpdateTask();
   const quick = [
@@ -64,9 +70,10 @@ function WaitForm({ task, onDone }: { task: Task; onDone: () => void }) {
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    await update.mutateAsync({ id: task.id, input: { waiting: true, replyBy: replyBy || null } });
+    for (const t of tasks) await update.mutateAsync({ id: t.id, input: { waiting: true, replyBy: replyBy || null } });
     onDone();
-    if (!waiting) showUndo({ message: replyBy ? `Waiting for reply · back on ${formatDay(replyBy, today)}` : "Moved to Waiting for reply" });
+    const what = many ? `${tasks.length} tasks waiting for reply` : "Waiting for reply";
+    if (!waiting) showUndo({ message: replyBy ? `${what} · back on ${formatDay(replyBy, today)}` : many ? `${tasks.length} tasks moved to Waiting` : "Moved to Waiting for reply" });
   };
   const stop = async () => {
     await update.mutateAsync({ id: task.id, input: { waiting: false } });
@@ -77,13 +84,15 @@ function WaitForm({ task, onDone }: { task: Task; onDone: () => void }) {
   return (
     <form onSubmit={save} className="space-y-4">
       <div>
-        <p className="font-medium text-ink [overflow-wrap:anywhere]">{task.title}</p>
+        <p className="font-medium text-ink [overflow-wrap:anywhere]">{many ? `${tasks.length} tasks` : task.title}</p>
         <p className="mt-1 text-sm text-slate-600">
           {waiting
             ? `Waiting since ${formatDateTime(task.waitingSince!)}.`
-            : task.status === "done"
-              ? "It goes back to open tasks, under Waiting, until the reply comes."
-              : "It moves out of your to-do list to Waiting until the reply comes."}{" "}
+            : many
+              ? "They move out of your to-do list to Waiting until the replies come."
+              : task.status === "done"
+                ? "It goes back to open tasks, under Waiting, until the reply comes."
+                : "It moves out of your to-do list to Waiting until the reply comes."}{" "}
           With a date, it comes back to Today on that day if you're still waiting.
         </p>
       </div>
