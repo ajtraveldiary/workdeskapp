@@ -21,6 +21,7 @@ import { labelRoutes, threadLabelRoute } from "./routes/labels";
 import { pushRoutes } from "./routes/push";
 import { staffRoutes } from "./routes/staff";
 import { fileRoutes } from "./routes/files";
+import { transferRoutes } from "./routes/transfer";
 
 export type AppEnv = {
   Bindings: Env;
@@ -160,6 +161,7 @@ export function createApp(opts: Options) {
   app.route("/push", pushRoutes);
   app.route("/staff", staffRoutes);
   app.route("/files", fileRoutes);
+  app.route("/transfer", transferRoutes);
   app.route("/", miscRoutes);
   app.route("/", calendarSettingsRoutes);
 

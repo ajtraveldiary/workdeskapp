@@ -18,7 +18,7 @@ const log = (db: DB, userId: string, action: string, summary: string) => db.inse
 // A temporary employee keeps only name, designation, engagement, type, phone, email, category, date of birth,
 // date of joining, contract days, pay per day and contract end date (user request 2026-10-07); a permanent one
 // has none of the temporary details.
-function employeeValues(input: ReturnType<typeof employeeInput.parse>) {
+export function employeeValues(input: ReturnType<typeof employeeInput.parse>) {
   return input.permanent
     ? { ...input, engagedTill: null, engagement: "", typeId: null, contractDays: null, payPerDay: null }
     : { ...input, pen: "", joinedOfficeOn: null, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null, payScale: "", address: "", notes: "" };

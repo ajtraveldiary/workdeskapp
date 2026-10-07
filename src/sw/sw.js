@@ -4,7 +4,8 @@
 //  - the app itself (the page, its scripts and styles, fonts, icons), so WorkDesk opens with no internet;
 //  - the last answer to each of the app's data requests (lists, emails opened before), served only when the
 //    network can't be reached, marked with an "x-workdesk-offline" header so the app shows it is offline.
-// Changes (POST/PATCH…), sign-in, attachments, the calendar feed and version checks always go to the network.
+// Changes (POST/PATCH…), sign-in, attachments, the calendar feed, exports (Import / Export) and version checks
+// always go to the network.
 const VERSION = "__WORKDESK_VERSION__";
 const SHELL = `workdesk-shell-${VERSION}`;
 const DATA = "workdesk-data";
@@ -50,7 +51,7 @@ self.addEventListener("fetch", (event) => {
   const path = url.pathname;
   if (path === "/version.json" || path === "/sw.js") return;
   if (path.startsWith("/api/")) {
-    if (path.startsWith("/api/auth") || path.startsWith("/api/calendar/") || path.includes("/parts/")) return;
+    if (path.startsWith("/api/auth") || path.startsWith("/api/calendar/") || path.startsWith("/api/transfer/") || path.includes("/parts/")) return;
     event.respondWith(networkFirstData(req));
     return;
   }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import {
+  ArrowDownUp,
   CalendarClock,
   Bell,
   CalendarDays,
@@ -43,6 +44,7 @@ import { CalendarPage } from "./pages/Calendar";
 import { SearchPage } from "./pages/Search";
 import { HistoryPage } from "./pages/History";
 import { StaffPage } from "./pages/Staff";
+import { ImportExportPage } from "./pages/ImportExport";
 import { FilesPage } from "./pages/Files";
 import { RemindersPage } from "./pages/Reminders";
 import { SettingsPage } from "./pages/Settings";
@@ -75,6 +77,7 @@ export function App() {
         <Route path="/search" element={<Page><SearchPage /></Page>} />
         <Route path="/settings" element={<Page><SettingsPage /></Page>} />
         <Route path="/employees" element={<Page><StaffPage /></Page>} />
+        <Route path="/import-export" element={<Page><ImportExportPage /></Page>} />
         {/* Was /staff before the page was renamed Employees (user request 2026-10-07). */}
         <Route path="/staff" element={<StaffRedirect />} />
         <Route path="/files" element={<Page><FilesPage /></Page>} />
@@ -108,6 +111,8 @@ const NAV: NavItem[] = [
   { to: "/employees", label: "Employees", icon: UsersRound },
   // File register (user request 2026-10-07), next to Staff: rail on wider screens, profile menu on phones.
   { to: "/files", label: "Files", icon: FolderOpen },
+  // Import / Export (user request 2026-10-07): rail on wider screens, profile menu on phones.
+  { to: "/import-export", label: "Import/Export", icon: ArrowDownUp },
 ];
 
 function Shell({ children }: { children: ReactNode }) {
@@ -168,7 +173,7 @@ function Shell({ children }: { children: ReactNode }) {
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
           corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
       <nav className="tabbar fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
-        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/files").map((n) => (
+        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/import-export" && n.to !== "/files").map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -574,6 +579,7 @@ function UserMenu() {
         {[
           { to: "/employees", label: "Employees", icon: UsersRound },
           { to: "/files", label: "File register", icon: FolderOpen },
+          { to: "/import-export", label: "Import / Export", icon: ArrowDownUp },
           { to: "/settings", label: "Settings", icon: SettingsIcon },
         ].map((l) => (
           <NavLink key={l.to} to={l.to} onClick={() => setOpen(false)} className={({ isActive }) => cx(sideRow, isActive && "bg-tint font-medium text-brand-800")}>
@@ -609,6 +615,9 @@ function UserMenu() {
           </Link>
           <Link to="/files" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <FolderOpen size={16} /> File register
+          </Link>
+          <Link to="/import-export" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
+            <ArrowDownUp size={16} /> Import / Export
           </Link>
           <Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <SettingsIcon size={16} /> Settings
