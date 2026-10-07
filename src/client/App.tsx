@@ -12,6 +12,7 @@ import {
   History as HistoryIcon,
   UsersRound,
   FolderOpen,
+  X,
   House,
   ListChecks,
   LogOut,
@@ -31,6 +32,8 @@ import { Avatar } from "./components/Avatar";
 import { UndoBar, showUndo } from "./components/SwipeRow";
 import { WaitDialogHost } from "./components/Waiting";
 import { RemoveChooserHost } from "./components/RemoveChooser";
+import { SidePanel } from "./components/SidePanel";
+import { usePhone } from "./components/sheet";
 import { refreshPushSubscription, setIconBadge } from "./push";
 import { PopPanel, Spinner, Splash, TONE, cx, type Tone } from "./components/ui";
 import { HomePage } from "./pages/Home";
@@ -541,7 +544,41 @@ function Notifications() {
 function UserMenu() {
   const me = useMe().data;
   const { open, setOpen, ref } = usePopover();
+  const phone = usePhone();
   const name = me?.name ?? me?.email ?? "";
+  const accountLine = me?.demo ? "Demo mode · sample emails" : (me?.account?.email ?? me?.email);
+  // Phones: a panel from the right edge, where the profile picture is (user request 2026-10-07).
+  const sideRow = "flex min-h-11 w-full items-center gap-3 px-5 py-2.5 text-left text-subhead text-ink active:bg-slate-100";
+  const panel = open && phone && (
+    <SidePanel onClose={() => setOpen(false)} label="Account">
+      <div className="flex items-start gap-3 border-b border-line px-5 pt-5 pb-4">
+        <Avatar name={name} src={me?.picture} size={52} />
+        <div className="min-w-0 flex-1 pt-1">
+          <div className="text-headline font-semibold [overflow-wrap:anywhere]">{name}</div>
+          <div className="truncate text-footnote text-slate-500">{accountLine}</div>
+        </div>
+        <button onClick={() => setOpen(false)} aria-label="Close" className="-mt-1 -mr-2 rounded-lg p-2 text-slate-500 active:scale-90">
+          <X size={20} />
+        </button>
+      </div>
+      <nav className="flex-1 overflow-y-auto py-2">
+        {[
+          { to: "/staff", label: "Staff", icon: UsersRound },
+          { to: "/files", label: "File register", icon: FolderOpen },
+          { to: "/settings", label: "Settings", icon: SettingsIcon },
+        ].map((l) => (
+          <NavLink key={l.to} to={l.to} onClick={() => setOpen(false)} className={({ isActive }) => cx(sideRow, isActive && "bg-tint font-medium text-brand-800")}>
+            <l.icon size={20} className="shrink-0 text-slate-500" /> {l.label}
+          </NavLink>
+        ))}
+      </nav>
+      {!me?.demo && (
+        <button onClick={() => logout().then(() => location.assign("/"))} className={cx(sideRow, "border-t border-line text-urgent-ink")}>
+          <LogOut size={20} className="shrink-0" /> Sign out
+        </button>
+      )}
+    </SidePanel>
+  );
   return (
     <div className="relative ml-1" ref={ref}>
       <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-2.5 rounded-xl py-1 pr-1 pl-1 hover:bg-slate-100 active:scale-[0.97] aria-expanded:bg-slate-100 md:pr-2" aria-expanded={open} aria-label="Account menu">
@@ -549,7 +586,8 @@ function UserMenu() {
         <span className="hidden max-w-36 truncate text-sm font-medium text-ink md:block">{name}</span>
         <ChevronDown size={16} className="hidden text-slate-500 md:block" />
       </button>
-      {open && (
+      {panel}
+      {open && !phone && (
         <PopPanel onClose={() => setOpen(false)} title="Account" className="absolute right-0 z-30 mt-2 w-60 rounded-xl border border-line bg-white p-1 shadow-xl">
           <div className="px-3 py-2.5">
             <div className="truncate text-sm font-medium text-ink">{name}</div>

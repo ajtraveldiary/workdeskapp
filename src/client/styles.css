@@ -407,6 +407,16 @@ dialog::backdrop {
   font-weight: 600;
 }
 
+/* The phone Account panel slides in from the right (user request 2026-10-07; SidePanel.tsx). */
+dialog.side-panel[open] {
+  animation: side-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes side-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
 /* The ticked sender picture in email lists pops in (user request 2026-10-06). */
 @keyframes pop {
   from {
