@@ -7,6 +7,7 @@ import { localDb } from "./db/local";
 import { neonDb } from "./db/neon";
 import type { Env } from "./env";
 import { scheduledSync } from "./lib/sync";
+import { sendScheduledPush } from "./lib/notify";
 
 const env = process.env as Env;
 const db: DB = env.DATABASE_URL ? neonDb(env.DATABASE_URL) : await localDb();
@@ -17,6 +18,8 @@ serve({ fetch: (req) => app.fetch(req, env), port: 8787 }, () => {
 });
 
 // Same schedule as production's cron trigger.
+// Phone notifications, as the production cron does after each sync.
+setInterval(() => sendScheduledPush(db, env).catch((e) => console.error("Notifications failed:", e)), 10 * 60_000);
 if (env.GOOGLE_CLIENT_ID) {
   setInterval(() => scheduledSync(db, env).catch((e) => console.error("Sync failed:", e)), 10 * 60_000);
 }

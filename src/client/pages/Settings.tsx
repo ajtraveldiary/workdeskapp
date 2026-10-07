@@ -10,12 +10,13 @@ import { formatDateTime } from "../format";
 import { Button, Card, ErrorNote, Loading, PageHeader, Segmented, cx, inputClass } from "../components/ui";
 import { onThemeChoice, setThemeChoice, themeChoice, type ThemeChoice } from "../theme";
 import { RefreshButton } from "../components/RefreshButton";
+import { NotificationSettings } from "../components/NotificationSettings";
 
 export function SettingsPage() {
   const me = useMe().data;
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         {/* Phones: History moved here from the bottom bar (user request 2026-10-06); wider screens keep it in the side rail. */}
         <Link
@@ -33,6 +34,8 @@ export function SettingsPage() {
         </Link>
 
         <Appearance />
+
+        <NotificationSettings />
 
         <Card className="p-5">
           <h2 className="font-semibold text-slate-900">Gmail connection</h2>

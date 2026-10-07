@@ -29,6 +29,7 @@ import { Avatar } from "./components/Avatar";
 import { UndoBar, showUndo } from "./components/SwipeRow";
 import { WaitDialogHost } from "./components/Waiting";
 import { RemoveChooserHost } from "./components/RemoveChooser";
+import { refreshPushSubscription, setIconBadge } from "./push";
 import { PopPanel, Spinner, Splash, TONE, cx, type Tone } from "./components/ui";
 import { HomePage } from "./pages/Home";
 import { InboxPage } from "./pages/Inbox";
@@ -114,6 +115,7 @@ function Shell({ children }: { children: ReactNode }) {
       <UndoBar />
       <WaitDialogHost />
       <RemoveChooserHost />
+      <IconBadge />
       {/* Labelled icon rail */}
       <aside className="sticky top-0 hidden h-dvh w-[104px] shrink-0 flex-col border-r border-line bg-white md:flex">
         <Link to="/" className="flex h-20 items-center justify-center border-b border-line" title="WorkDesk">
@@ -460,6 +462,19 @@ function usePopover() {
     };
   }, [open]);
   return { open, setOpen, ref };
+}
+
+// Phone notifications (user request 2026-10-07): when the app opens it re-registers this device's notifications,
+// and the app icon's red number follows Home's "Pending today" (due today + overdue).
+function IconBadge() {
+  const counts = useSummary().data?.counts;
+  useEffect(() => {
+    void refreshPushSubscription();
+  }, []);
+  useEffect(() => {
+    if (counts) setIconBadge(counts.dueToday + counts.overdue);
+  }, [counts]);
+  return null;
 }
 
 function Notifications() {

@@ -102,3 +102,48 @@ async function networkFirstData(req) {
     return new Response(saved.body, { status: saved.status, statusText: saved.statusText, headers });
   }
 }
+
+// --- Phone notifications (user request 2026-10-07) ---
+// The server (src/server/lib/notify.ts) sends { title, body, url, tag, badge }. iPhone requires every push to
+// show a notification, so one is always shown. badge is the number on the app icon (Home's "Pending today").
+self.addEventListener("push", (event) => {
+  let d = {};
+  try {
+    d = event.data ? event.data.json() : {};
+  } catch {
+    d = { body: event.data ? event.data.text() : "" };
+  }
+  const nav = self.navigator;
+  const badge =
+    typeof d.badge === "number" && nav && "setAppBadge" in nav ? (d.badge > 0 ? nav.setAppBadge(d.badge) : nav.clearAppBadge()).catch(() => undefined) : null;
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(d.title || "WorkDesk", {
+        body: d.body || "",
+        tag: d.tag,
+        data: { url: d.url || "/" },
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+      }),
+      badge,
+    ]),
+  );
+});
+
+// Tapping a notification opens WorkDesk (the open window if there is one) at the notification's page.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const w of windows) {
+        if (new URL(w.url).origin !== self.location.origin) continue;
+        await w.focus();
+        if ("navigate" in w && w.url !== url) await w.navigate(url).catch(() => undefined);
+        return;
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
+});

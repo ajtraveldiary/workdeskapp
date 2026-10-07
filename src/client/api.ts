@@ -158,6 +158,23 @@ export function useCalendarLinkActions() {
   };
 }
 
+// Phone notifications (user request 2026-10-07): the settings apply to every device; on/off is per device.
+export type PushSettings = { publicKey: string; summaryOn: boolean; summaryTime: string; dueOn: boolean; devices: number };
+export const usePushSettings = () => useQuery({ queryKey: ["push"], queryFn: () => api<PushSettings>("/push") });
+export function useSavePushSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Pick<PushSettings, "summaryOn" | "summaryTime" | "dueOn">) => api("/push/settings", { method: "PUT", body: input }),
+    onMutate: (input) => qc.setQueryData<PushSettings>(["push"], (d) => (d ? { ...d, ...input } : d)),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["push"] }),
+  });
+}
+export const pushApi = {
+  subscribe: (body: { endpoint: string; keys: { p256dh: string; auth: string }; device: string }) => api("/push/subscribe", { method: "POST", body }),
+  unsubscribe: (endpoint: string) => api("/push/unsubscribe", { method: "POST", body: { endpoint } }),
+  test: (endpoint?: string) => api<{ sent: number }>("/push/test", { method: "POST", body: { endpoint } }),
+};
+
 export const useSnippets = () =>
   useQuery({
     queryKey: ["snippets"],

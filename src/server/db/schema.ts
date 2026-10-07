@@ -37,6 +37,15 @@ export const users = pgTable("users", {
   // Secret part of the private calendar link (tasks and reminders for Apple Calendar etc., user request
   // 2026-10-07). Null = no link; a new value stops the old link working.
   calendarToken: text("calendar_token").unique(),
+  // Phone notifications (user request 2026-10-07): the key pair WorkDesk signs its notifications with (made on
+  // first use; the private half encrypted with TOKEN_ENC_KEY), and what to send. The settings apply to every
+  // device the user turned notifications on for (push_subscriptions).
+  vapidPublicKey: text("vapid_public_key"),
+  vapidPrivateKeyEnc: text("vapid_private_key_enc"),
+  pushSummaryOn: boolean("push_summary_on").notNull().default(true),
+  pushSummaryTime: text("push_summary_time").notNull().default("09:30"),
+  pushSummarySentOn: date("push_summary_sent_on"),
+  pushDueOn: boolean("push_due_on").notNull().default(true),
   // Shown on the home screen profile card, e.g. "Clerk, District Hospital".
   title: text("title"),
   picture: text("picture"),
@@ -190,6 +199,8 @@ export const tasks = pgTable(
     waitingSince: timestamp("waiting_since", { withTimezone: true }),
     replyBy: date("reply_by"),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    // "YYYY-MM-DD HH:MM" the phone was last notified for (at the due time); a new date or time notifies again.
+    pushNotifiedFor: text("push_notified_for"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -255,6 +266,18 @@ export const reportPeriods = pgTable(
   },
   (t) => [uniqueIndex("report_periods_report_start").on(t.reportId, t.periodStart), index("report_periods_user_due").on(t.userId, t.dueDate)],
 );
+
+// Devices that turned on phone notifications (user request 2026-10-07): one Web Push subscription each.
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  device: text("device"),
+  createdAt: createdAt(),
+  lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+});
 
 export const events = pgTable(
   "events",

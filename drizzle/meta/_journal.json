@@ -141,6 +141,13 @@
       "when": 1791355845567,
       "tag": "0019_office_sections",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791380571518,
+      "tag": "0020_phone_notifications",
+      "breakpoints": true
     }
   ]
 }

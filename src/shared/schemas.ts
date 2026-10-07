@@ -149,3 +149,15 @@ export const taskLabelSettingsInput = z.object({
   // Labels only for organising mail, not sections of the office (left out = unchanged).
   organizeLabelIds: z.array(z.string().regex(/^Label_[\w-]+$/)).max(100).optional(),
 });
+
+// Phone notifications (user request 2026-10-07).
+export const pushSubscribeInput = z.object({
+  endpoint: z.url().max(1000).regex(/^https:\/\//, "Push services use https"),
+  keys: z.object({ p256dh: z.string().min(20).max(200), auth: z.string().min(8).max(100) }),
+  device: z.string().max(120).optional(),
+});
+export const pushSettingsInput = z.object({
+  summaryOn: z.boolean(),
+  summaryTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM"),
+  dueOn: z.boolean(),
+});
