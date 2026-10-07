@@ -314,16 +314,18 @@ export function ActionSheet({ onClose, title, children }: { onClose: () => void;
       }}
       // A tap on the dimmed area above the sheet closes it.
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      className="sheet action-sheet m-0 mt-auto max-h-[80dvh] w-full max-w-none overflow-y-auto rounded-t-2xl bg-white p-0 pb-[env(safe-area-inset-bottom)] text-base outline-none"
+      // iOS action sheet (user request 2026-10-07, "standard as iOS apps"): a rounded group floating 8px from the
+      // screen edges with the title and choices, and Cancel in its own group below; sizes in styles.css
+      // (.action-sheet). Pulling it down still closes it.
+      className="sheet action-sheet m-0 mt-auto w-full max-w-none overflow-visible bg-transparent p-0 px-[8px] pb-[calc(8px+env(safe-area-inset-bottom))] outline-none"
     >
-      <div className="px-2 pt-2 pb-2">
-        <span aria-hidden="true" className="mx-auto mb-1.5 block h-1 w-9 rounded-full bg-slate-300" />
-        {title && <p className="px-3 pt-1 pb-2 text-center text-footnote font-medium text-slate-500">{title}</p>}
+      <div className="sheet-group max-h-[calc(80dvh-65px)] overflow-y-auto bg-white">
+        {title && <p className="sheet-title border-b border-line px-4 text-center font-semibold text-slate-500">{title}</p>}
         {children}
-        <button onClick={onClose} className="sheet-cancel mt-2 block w-full rounded-xl bg-slate-100 py-3 text-center text-subhead font-medium text-ink active:bg-slate-200">
-          Cancel
-        </button>
       </div>
+      <button onClick={onClose} className="sheet-cancel mt-[8px] block w-full bg-white text-center text-brand-600 active:bg-slate-100">
+        Cancel
+      </button>
     </dialog>
   );
 }

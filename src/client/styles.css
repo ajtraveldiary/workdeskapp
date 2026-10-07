@@ -367,11 +367,44 @@ dialog::backdrop {
     padding-bottom: calc(var(--tabbar-h) + 5rem + env(safe-area-inset-bottom));
   }
 }
-/* Menu rows in phone action sheets get app-sized rows (the same menus are compact drop-downs elsewhere). */
-.action-sheet :is(button, a).w-full:not(.sheet-cancel),
-.action-sheet a.block {
-  padding-block: 0.75rem;
-  font-size: 0.9375rem;
+/* Phone action sheets in iOS's own sizes (user request 2026-10-07, "standard as iOS apps"; the same menus
+   are compact drop-downs on wider screens). Given in px, so the phones' 90% scale doesn't shrink them:
+   rounded 14px groups, a 13px semibold title, 17px rows at least 52px tall with hairlines between them, and
+   a 57px Cancel in 20px semibold. */
+.action-sheet .sheet-group {
+  border-radius: 14px;
+}
+.action-sheet .sheet-title {
+  padding-block: 14px;
+  font-size: 13px;
+  line-height: 18px;
+}
+.action-sheet .sheet-group :is(button, a):is(.w-full, .block),
+.action-sheet .sheet-group > :is(button, a) {
+  min-height: 52px;
+  padding: 10px 16px;
+  border-radius: 0;
+  font-size: 17px;
+  line-height: 22px;
+}
+.action-sheet .sheet-group a.block {
+  display: flex;
+  align-items: center;
+}
+.action-sheet .sheet-group :is(button, a):is(.w-full, .block) + :is(button, a):is(.w-full, .block),
+.action-sheet .sheet-group > :is(button, a) + :is(button, a),
+.action-sheet .sheet-group li + li > :is(button, a) {
+  border-top: 0.5px solid var(--color-line);
+}
+.action-sheet .sheet-group :is(button, a) > svg.lucide:first-child {
+  width: 20px;
+  height: 20px;
+}
+.action-sheet .sheet-cancel {
+  height: 57px;
+  border-radius: 14px;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 /* The ticked sender picture in email lists pops in (user request 2026-10-06). */
