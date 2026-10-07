@@ -401,12 +401,19 @@ const localDay = (iso: string) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+// The tile's colour is the task's priority (user request 2026-10-07; the row has no priority bar any more).
+const TILE_TONE: Record<Task["priority"], string> = {
+  urgent: "border-urgent/40 bg-urgent-soft text-urgent-ink",
+  high: "border-high/40 bg-high-soft text-high-ink",
+  normal: "border-medium/50 bg-medium-soft text-medium-ink",
+  low: "border-low/40 bg-low-soft text-low-ink",
+};
+
 // The task's day as a small calendar (date over the short weekday): the due date, the reply-by date while
-// waiting, or the day it was completed. Red when overdue, orange today. Tapping selects the task.
-function DateTile({ task, today, selected, onToggle }: { task: Task; today: string; selected: boolean; onToggle: (on: boolean) => void }) {
+// waiting, or the day it was completed, coloured by priority. Tapping selects the task.
+function DateTile({ task, selected, onToggle }: { task: Task; selected: boolean; onToggle: (on: boolean) => void }) {
   const done = task.status === "done";
   const day = done ? (task.completedAt ? localDay(task.completedAt) : null) : isWaiting(task) ? task.replyBy : task.dueDate;
-  const tone = done || !day ? "plain" : day < today ? "late" : day === today ? "today" : "plain";
   return (
     <button
       type="button"
@@ -428,15 +435,15 @@ function DateTile({ task, today, selected, onToggle }: { task: Task; today: stri
         <span
           className={cx(
             "flex size-9 flex-col items-center justify-center rounded-lg border leading-none transition group-hover/tile:ring-2 group-hover/tile:ring-brand-200",
-            tone === "late" ? "border-urgent/30 bg-urgent-soft text-urgent-ink" : tone === "today" ? "border-high/30 bg-high-soft text-high-ink" : "border-line bg-white text-ink",
+            TILE_TONE[task.priority],
             done && "opacity-60",
           )}
         >
           <span className="text-subhead leading-none font-semibold tabular-nums">{Number(day.slice(8))}</span>
-          <span className={cx("mt-0.5 text-caption2 leading-none", tone === "plain" && "text-slate-500")}>{WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]}</span>
+          <span className="mt-0.5 text-caption2 leading-none">{WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]}</span>
         </span>
       ) : (
-        <span className="flex size-9 items-center justify-center rounded-lg border border-line bg-white text-slate-400 transition group-hover/tile:ring-2 group-hover/tile:ring-brand-200">
+        <span className={cx("flex size-9 items-center justify-center rounded-lg border transition group-hover/tile:ring-2 group-hover/tile:ring-brand-200", TILE_TONE[task.priority], done && "opacity-60")}>
           <CalendarDays size={18} />
         </span>
       )}
@@ -679,8 +686,9 @@ function TodoRow({
     >
       {/* A calendar tile with the date instead of a tick (user request 2026-10-07); tapping it selects the task
           for the bar above the list. */}
-      {!swipe && <DateTile task={task} today={today} selected={selected} onToggle={onSelect} />}
-      <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority], a.done && "opacity-40")} aria-hidden />
+      {!swipe && <DateTile task={task} selected={selected} onToggle={onSelect} />}
+      {/* The tile shows the priority on computers (user request 2026-10-07: no colour bar there). */}
+      {swipe && <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority], a.done && "opacity-40")} aria-hidden />}
       <div className="min-w-0 flex-1">
         <button
           onClick={() => onOpen(task)}
