@@ -418,7 +418,7 @@ function DateTile({ task, today, selected, onToggle }: { task: Task; today: stri
         e.stopPropagation();
         onToggle(!selected);
       }}
-      className="group/tile shrink-0 self-start rounded-lg active:scale-90"
+      className="group/tile shrink-0 self-center rounded-lg active:scale-90"
     >
       {selected ? (
         <span className="flex size-9 animate-[pop_160ms_ease-out] items-center justify-center rounded-full bg-brand-600 text-white">
