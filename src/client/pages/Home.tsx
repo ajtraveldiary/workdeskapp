@@ -36,6 +36,7 @@ import {
 } from "../api";
 import { formatDay, formatTime, formatWhen } from "../format";
 import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../components/SwipeRow";
+import { openRemove } from "../components/RemoveChooser";
 import { EmailStatusTags, SectionBackTag } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
@@ -896,7 +897,12 @@ function EmailCard({
           icon: X,
           tone: "urgent",
           hidden: !inQueue,
-          onClick: () => dismiss.mutateAsync(thread.id).then(() => showUndo({ message: "Email removed", undo: { kind: "restore", id: thread.id } })),
+          // Asks first: just remove, or send to a section (user request 2026-10-07).
+          onClick: () =>
+            openRemove({
+              threads: [thread],
+              remove: () => void dismiss.mutateAsync(thread.id).then(() => showUndo({ message: "Email removed", undo: { kind: "restore", id: thread.id } })),
+            }),
         },
       ]}
     >

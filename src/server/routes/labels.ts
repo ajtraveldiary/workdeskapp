@@ -2,14 +2,14 @@
 // Gmail account, keeps labels in WorkDesk only so the feature can be tried.
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { emailThreads, events, gmailAccounts, gmailLabels, reports, tasks, users } from "../db/schema";
 import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, createLabel, deleteLabel, setThreadLabels, updateLabel } from "../lib/gmail";
 import { applyLabelOps, refreshLabels } from "../lib/sync";
-import { labelInput, labelPatch, taskLabelSettingsInput, threadLabelsInput } from "../../shared/schemas";
+import { labelInput, labelPatch, sendToSectionInput, taskLabelSettingsInput, threadLabelsInput } from "../../shared/schemas";
 import { clearMissingTaskLabels, getTaskLabels, importLabel, labelTaskEmails, runLabelRules } from "../lib/taskLabels";
 import { applySectionRules } from "../lib/sections";
 import { LABEL_COLORS } from "../../shared/labelColors";
@@ -205,4 +205,67 @@ export const threadLabelRoute = new Hono<AppEnv>().put("/:id/labels", async (c) 
   // Another section's label takes it out of Pending; removing it brings it back (user request 2026-10-07).
   await applySectionRules(db, userId, [t.gmailThreadId]);
   return c.json({ ok: true });
-});
+})
+  // Remove → Send to a section (user request 2026-10-07): the section's label goes on the emails, in Gmail too,
+  // and they move to Other sections ("With <label>"), as if the label had been added in Gmail. Undo takes the
+  // label off again and brings them back to Pending. Only user labels that are sections (not the task / done
+  // label or an organising one) are accepted.
+  .post("/bulk-section", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { ids, labelId, undo, previous } = sendToSectionInput.parse(await c.req.json());
+    const s = await getTaskLabels(db, userId);
+    if ([s.taskLabelId, s.doneLabelId, ...s.organizeLabelIds].includes(labelId)) throw new HTTPException(400, { message: "That label isn't a section" });
+    const label = (await listLocal(db, userId)).find((l) => l.id === labelId);
+    if (!label) throw new HTTPException(400, { message: "Unknown label" });
+    const picked = await db
+      .select({ id: emailThreads.id, gmailThreadId: emailThreads.gmailThreadId, accountId: emailThreads.accountId, subject: emailThreads.subject })
+      .from(emailThreads)
+      .where(
+        and(
+          eq(emailThreads.userId, userId),
+          inArray(emailThreads.id, ids),
+          undo ? and(eq(emailThreads.state, "elsewhere"), eq(emailThreads.sectionLabelId, labelId)) : inArray(emailThreads.state, ["needs_decision", "elsewhere"]),
+        ),
+      );
+    if (!picked.length) return c.json({ moved: 0 });
+
+    // Gmail first: if it refuses, nothing changes in WorkDesk either.
+    const accountIds = [...new Set(picked.map((t) => t.accountId).filter((x): x is string => !!x))];
+    for (const accountId of accountIds) {
+      const [account] = await db.select().from(gmailAccounts).where(eq(gmailAccounts.id, accountId));
+      const token = await accessTokenFor(c.env, account!);
+      for (const t of picked.filter((x) => x.accountId === accountId)) {
+        await setThreadLabels(token, t.gmailThreadId, undo ? [] : [labelId], undo ? [labelId] : []).catch(permissionError);
+      }
+    }
+    await applyLabelOps(db, userId, picked.map((t) => ({ threadId: t.gmailThreadId, labelId, add: !undo })));
+    const now = new Date();
+    if (!undo) {
+      await db
+        .update(emailThreads)
+        .set({ state: "elsewhere", sectionLabelId: labelId, snoozedUntil: null, stateChangedAt: now, updatedAt: now })
+        .where(inArray(emailThreads.id, picked.map((t) => t.id)));
+    } else {
+      // Back exactly as it was before (default: Pending).
+      const before = new Map(previous.map((p) => [p.id, p]));
+      for (const t of picked) {
+        const p = before.get(t.id);
+        await db
+          .update(emailThreads)
+          .set({ state: p?.state ?? "needs_decision", sectionLabelId: p?.sectionLabelId ?? null, stateChangedAt: now, updatedAt: now })
+          .where(eq(emailThreads.id, t.id));
+      }
+    }
+    await db.insert(events).values(
+      picked.map((t) => ({
+        userId,
+        entityType: "email" as const,
+        entityId: t.id,
+        action: undo ? "email.returned" : "email.elsewhere",
+        summary: undo ? `Undo: ${label.name} label taken off (in Gmail too); back where it was` : `Sent to the ${label.name} section (label added in Gmail too); left Pending`,
+        detail: { subject: t.subject },
+      })),
+    );
+    return c.json({ moved: picked.length });
+  });

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ExternalLink, ListPlus, Undo2, X } from "lucide-react";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
+import { openRemove } from "./RemoveChooser";
 import type { Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useDismiss, useRestore } from "../api";
@@ -58,7 +59,12 @@ export function ThreadRow({
           icon: X,
           tone: "urgent",
           hidden: !inQueue,
-          onClick: () => dismiss.mutateAsync(thread.id).then(() => showUndo({ message: "Email removed", undo: { kind: "restore", id: thread.id } })),
+          // Asks first: just remove, or send to a section (user request 2026-10-07).
+          onClick: () =>
+            openRemove({
+              threads: [thread],
+              remove: () => void dismiss.mutateAsync(thread.id).then(() => showUndo({ message: "Email removed", undo: { kind: "restore", id: thread.id } })),
+            }),
         },
       ]}
     >

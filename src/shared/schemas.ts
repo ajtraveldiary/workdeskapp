@@ -122,6 +122,20 @@ export const labelInput = z.object({
 });
 // Only the fields sent change (labelInput.partial() would turn a missing colour into "no colour").
 export const labelPatch = z.object({ name: labelInput.shape.name, color: labelColor }).partial();
+// Remove → "Send to a section" (user request 2026-10-07): put a section's label on the emails (Gmail too) and
+// move them to Other sections; undo takes it off again. Up to 40 at once (one Gmail call each).
+export const sendToSectionInput = z.object({
+  ids: z.array(z.uuid()).min(1).max(40, "Choose up to 40 emails at a time"),
+  labelId: z.string().regex(/^Label_[\w-]+$/),
+  undo: z.boolean().default(false),
+  // With undo: how each email was before, so it goes back exactly there (Pending, or Pending "Back from" a
+  // section, or another section).
+  previous: z
+    .array(z.object({ id: z.uuid(), state: z.enum(["needs_decision", "elsewhere"]), sectionLabelId: z.string().regex(/^Label_[\w-]+$/).nullable() }))
+    .max(40)
+    .default([]),
+});
+
 export const threadLabelsInput = z.object({
   add: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).default([]),
   remove: z.array(z.string().regex(/^Label_[\w-]+$/)).max(50).default([]),

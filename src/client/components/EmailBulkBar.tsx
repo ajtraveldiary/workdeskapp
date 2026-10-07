@@ -6,6 +6,7 @@ import { ExternalLink, ListPlus, Undo2, X } from "lucide-react";
 import type { Thread } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useBulkDismiss, useBulkRestore, useBulkTask } from "../api";
+import { openRemove } from "./RemoveChooser";
 import { showUndo } from "./SwipeRow";
 import { Button, cx } from "./ui";
 
@@ -61,12 +62,18 @@ export function EmailBulkBar({
       },
     });
   };
+  // Remove asks first: just remove, or send to a section (user request 2026-10-07).
   const dismiss = () =>
-    bulkDismiss.mutate(pending.map((t) => t.id), {
-      onSuccess: (r) => {
-        showUndo({ message: `${plural(r.dismissed, "email")} removed` });
-        clear();
-      },
+    openRemove({
+      threads: pending,
+      remove: () =>
+        bulkDismiss.mutate(pending.map((t) => t.id), {
+          onSuccess: (r) => {
+            showUndo({ message: `${plural(r.dismissed, "email")} removed` });
+            clear();
+          },
+        }),
+      after: clear,
     });
   const restore = () =>
     bulkRestore.mutate(others.map((t) => t.id), {

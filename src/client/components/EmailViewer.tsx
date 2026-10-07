@@ -17,6 +17,7 @@ import { EmailStatusTags, SectionBackTag } from "./EmailStatus";
 import { LabelChips, LabelPicker } from "./LabelChips";
 import { Button, Loading, Modal, Spinner, cx } from "./ui";
 import { showUndo } from "./SwipeRow";
+import { openRemove } from "./RemoveChooser";
 import { usePullToClose } from "./sheet";
 import { MALAYALAM_FONT } from "../fonts";
 import { ADDRESS_LIST_STYLE, collapseAddressLists, plainAddressLines } from "../addressLists";
@@ -179,7 +180,14 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
               <Button size="sm" variant="primary" onClick={() => onCreateTask(thread)}>
                 <ListPlus size={15} /> Create task
               </Button>
-              <Button size="sm" variant="danger" onClick={() => dismiss.mutate(thread.id, { onSuccess: onClose })} disabled={dismiss.isPending} title="Remove from Pending. Gmail is not changed.">
+              <Button
+                size="sm"
+                variant="danger"
+                // Asks first: just remove, or send to a section (user request 2026-10-07).
+                onClick={() => openRemove({ threads: [thread], remove: () => dismiss.mutate(thread.id, { onSuccess: onClose }), after: onClose })}
+                disabled={dismiss.isPending}
+                title="Remove from Pending, or send to a section"
+              >
                 <X size={15} /> Remove
               </Button>
             </>

@@ -106,6 +106,10 @@ export const useDismiss = () => useAction((id: string) => api(`/threads/${id}/di
 export const useBulkDismiss = () =>
   useAction((ids: string[]) => api<{ dismissed: number }>(`/threads/bulk-dismiss`, { method: "POST", body: { ids } }));
 export const useRestore = () => useAction((id: string) => api(`/threads/${id}/restore`, { method: "POST" }));
+// Remove → Send to a section (user request 2026-10-07): adds the section's label (Gmail too) and moves the emails
+// to Other sections; undo: true takes it off again.
+export const useSendToSection = () =>
+  useAction((input: { ids: string[]; labelId: string; undo?: boolean; previous?: { id: string; state: "needs_decision" | "elsewhere"; sectionLabelId: string | null }[] }) => api<{ moved: number }>(`/threads/bulk-section`, { method: "POST", body: input }));
 // Bulk actions for the list toolbars.
 export const useBulkTask = () => useAction((ids: string[]) => api<{ created: number }>(`/threads/bulk-task`, { method: "POST", body: { ids } }));
 export const useBulkRestore = () => useAction((ids: string[]) => api<{ restored: number }>(`/threads/bulk-restore`, { method: "POST", body: { ids } }));
