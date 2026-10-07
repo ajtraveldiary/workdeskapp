@@ -7,7 +7,7 @@ import { ThreadRow } from "../components/ThreadRow";
 import { EmailBulkBar } from "../components/EmailBulkBar";
 import { EmailViewer } from "../components/EmailViewer";
 import { Search } from "lucide-react";
-import { Button, Card, Empty, PageHeader, SkeletonList, Spinner, Tabs, cx } from "../components/ui";
+import { Button, Card, Empty, Fab, PageHeader, SkeletonList, Spinner, Tabs, cx } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 import { LabelFilter } from "../components/LabelChips";
 
@@ -44,7 +44,10 @@ export function InboxPage() {
 
   return (
     <>
-      <PageHeader title="Emails" subtitle="Every email here needs a decision: make it a task or remove it. Deciding never changes Gmail; opening an email marks it read there." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
+      <PageHeader title="Emails" hideOnPhone subtitle="Every email here needs a decision: make it a task or remove it. Deciding never changes Gmail; opening an email marks it read there." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
+
+      {/* Emails has no "new" of its own (WorkDesk never sends mail): its + adds a task, as on Home. */}
+      <Fab label="New task" onClick={() => setDialog({ kind: "new" })} />
 
       <Tabs<StateTab>
         value={state}

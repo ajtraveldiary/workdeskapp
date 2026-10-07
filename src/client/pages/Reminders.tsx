@@ -7,7 +7,7 @@ import { dayLabel, nextOccurrence, remindLabel, repeatText } from "../../shared/
 import { useDeleteReport, useReports, useSetPeriodStatus, useUpdateReport } from "../api";
 import { addDays, formatDay, formatTime } from "../format";
 import { ReminderDialog, type ReminderDialogMode } from "../components/ReminderDialog";
-import { Badge, Button, Card, CheckCircle, Loading, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
+import { Badge, Button, Card, CheckCircle, Fab, Loading, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 export function RemindersPage() {
@@ -28,6 +28,7 @@ export function RemindersPage() {
     <>
       <PageHeader
         title="Reminders"
+        hideOnPhone
         subtitle="Monthly reports, meetings, payment due dates and anything else that comes round again. Each one gets its own task before it is due."
         actions={
           <>
@@ -38,6 +39,8 @@ export function RemindersPage() {
           </>
         }
       />
+
+      <Fab label="New reminder" onClick={() => setDialog({ kind: "new" })} />
 
       {reports.length === 0 ? (
         <Card className="flex flex-col items-center px-6 py-14 text-center">

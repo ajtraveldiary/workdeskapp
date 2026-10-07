@@ -8,7 +8,7 @@ import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { PriorityGrouped } from "../components/PriorityGroups";
-import { Button, Card, Empty, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
+import { Button, Card, Empty, Fab, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 const EMPTY: Record<TaskView, string> = {
@@ -38,6 +38,7 @@ export function TasksPage() {
     <>
       <PageHeader
         title="Tasks"
+        hideOnPhone
         subtitle="Work taken out of the inbox, plus anything you add yourself."
         actions={
           <>
@@ -48,6 +49,8 @@ export function TasksPage() {
           </>
         }
       />
+
+      <Fab label="New task" onClick={() => setDialog({ kind: "new" })} />
 
       <Tabs<TaskView>
         value={view}

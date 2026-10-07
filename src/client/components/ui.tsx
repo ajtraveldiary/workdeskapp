@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { usePhone, usePullToClose } from "./sheet";
-import { Check, MoreVertical, X } from "lucide-react";
+import { Check, MoreVertical, Plus, X } from "lucide-react";
 
 export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
@@ -56,17 +56,35 @@ export function Card({ children, className }: { children: ReactNode; className?:
   return <section className={cx("rounded-xl border border-line bg-white", className)}>{children}</section>;
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({ title, subtitle, actions, hideOnPhone }: { title: string; subtitle?: ReactNode; actions?: ReactNode; hideOnPhone?: boolean }) {
   return (
     // Title on the left, buttons on the right of the same line (never wrapping under a long subtitle); the
     // title's line is as tall as the buttons so both share one centre line (alignment pass 2026-10-06).
-    <header className="mb-3 flex items-start justify-between gap-3 sm:mb-5">
+    // hideOnPhone (Emails, Tasks, Reminders; user request 2026-10-07): phones skip the whole header, since the
+    // tab bar names the page, pull-down refreshes it and the floating + button adds new items.
+    <header className={cx("mb-3 items-start justify-between gap-3 sm:mb-5", hideOnPhone ? "hidden md:flex" : "flex")}>
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-title3 leading-9 font-bold text-ink sm:text-title2 sm:leading-10 sm:font-semibold">{title}</h1>
         {subtitle && <p className="hidden text-sm text-slate-500 sm:block">{subtitle}</p>}
       </div>
       {actions && <div className="flex h-9 shrink-0 items-center gap-2 sm:h-10">{actions}</div>}
     </header>
+  );
+}
+
+// The floating round + button of phone screens (like Home's), above the tab bar; hidden on wider screens,
+// which keep their header buttons, and while typing (.fab in styles.css). .fab-page adds room under the list
+// so the last row scrolls clear of the button.
+export function Fab({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="fab fab-page fixed right-4 bottom-[calc(var(--tabbar-h)+1rem+env(safe-area-inset-bottom))] z-30 flex size-12 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg shadow-brand-600/30 active:scale-90 md:hidden"
+    >
+      <Plus size={24} />
+    </button>
   );
 }
 

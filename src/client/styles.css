@@ -356,6 +356,13 @@ dialog::backdrop {
     display: none;
   }
 }
+/* Pages with the floating + button (Emails, Tasks, Reminders) scroll a button's height further, so the last
+   row's own controls (⋮ menus) aren't left under it. */
+@media (max-width: 767.98px) {
+  main:has(.fab-page) {
+    padding-bottom: calc(var(--tabbar-h) + 5rem + env(safe-area-inset-bottom));
+  }
+}
 /* Menu rows in phone action sheets get app-sized rows (the same menus are compact drop-downs elsewhere). */
 .action-sheet :is(button, a).w-full:not(.sheet-cancel),
 .action-sheet a.block {
