@@ -182,7 +182,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Calendar.tsx` | Month calendar of tasks and reminder dates (app-style on phones), with the chosen day's list. |
 | `History.tsx` | Every decision and change, with Undo where possible. |
 | `Search.tsx` | Search across emails and tasks. |
-| `Settings.tsx` | Settings: Appearance, Notifications, Gmail connection, Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Calendar link. |
+| `Settings.tsx` | Settings in four tabs (the tab is in the address: none, `#mail`, `#employees`, `#calendar`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Calendar link. |
 | `Staff.tsx` | Employees page: due increments, permanent/temporary filter, list by designation, employee card, add/edit form. |
 | `Files.tsx` | File register: one-line list of files with e-file numbers, search, filters, add/edit form. |
 | `ImportExport.tsx` | Import / Export: master backup, CSV export/import with preview, sample CSV links. |

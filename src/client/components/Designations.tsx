@@ -16,7 +16,7 @@ export function EmployeeSettings() {
   const { data, error } = useStaff();
   return (
     <Card className="p-5">
-      <h2 id="employees" className="flex scroll-mt-24 items-center gap-2 font-semibold text-slate-900">
+      <h2 className="flex items-center gap-2 font-semibold text-slate-900">
         <UsersRound size={18} className="text-brand-700" /> Employees
       </h2>
       <p className="mt-1 text-sm text-slate-600">The designations in your office and the types of temporary employees. The Employees page groups people by designation, in this order, and tasks and reminders can be for everyone of a designation.</p>

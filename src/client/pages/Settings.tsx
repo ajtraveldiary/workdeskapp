@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { CalendarDays, Copy, Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Moon, Sun, SunMoon, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
 import { useCalendarLink, useCalendarLinkActions, useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useSnippetActions, useSnippets, useTaskLabelSettings } from "../api";
 import { LABEL_COLORS, type LabelColor } from "../../shared/labelColors";
@@ -7,22 +7,28 @@ import type { Label } from "../../shared/types";
 import { LabelChip } from "../components/LabelChips";
 import { normalizeSenderPattern } from "../../shared/schemas";
 import { formatDateTime } from "../format";
-import { Button, Card, ErrorNote, Loading, PageHeader, Segmented, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Loading, PageHeader, Segmented, Tabs, cx, inputClass } from "../components/ui";
 import { onThemeChoice, setThemeChoice, themeChoice, type ThemeChoice } from "../theme";
 import { RefreshButton } from "../components/RefreshButton";
 import { NotificationSettings } from "../components/NotificationSettings";
 import { EmployeeSettings } from "../components/Designations";
 
+// Settings tabs (user request 2026-10-08, "use tabs to group similar settings"). The tab lives in the address
+// (#mail, #employees, #calendar; none = General), so the existing /settings#… links open their tab.
+type SettingsTab = "general" | "mail" | "employees" | "calendar";
+const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
+  { value: "general", label: "General" },
+  { value: "mail", label: "Mail" },
+  { value: "employees", label: "Employees" },
+  { value: "calendar", label: "Calendar" },
+];
+
 export function SettingsPage() {
   const me = useMe().data;
-  // /settings#employees (or #mail, #calendar) scrolls to that section once the page has settled (the shell
-  // resets <main> to the top on each page change first).
   const { hash } = useLocation();
-  useEffect(() => {
-    if (!hash) return;
-    const t = setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: "smooth", block: "start" }), 350);
-    return () => clearTimeout(t);
-  }, [hash]);
+  const navigate = useNavigate();
+  const tab: SettingsTab = SETTINGS_TABS.find((t) => t.value === hash.slice(1))?.value ?? "general";
+  const openTab = (t: SettingsTab) => navigate({ hash: t === "general" ? "" : t }, { replace: true });
   return (
     <>
       <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"]]} label="Refresh settings" />} />
@@ -42,46 +48,22 @@ export function SettingsPage() {
           <ChevronRight size={18} className="shrink-0 text-slate-400" />
         </Link>
 
-        <Appearance />
-
-        <NotificationSettings />
-
-        <Card className="p-5">
-          <h2 className="font-semibold text-slate-900">Gmail connection</h2>
-          {me?.demo ? (
-            <p className="mt-1 text-sm text-slate-600">
-              Running in demo mode with sample emails. Add Google credentials to <code className="rounded bg-slate-100 px-1">.env</code> to connect Gmail.
-            </p>
-          ) : me?.account ? (
-            <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-[10rem_1fr]">
-              <dt className="text-slate-500">Account</dt>
-              <dd>{me.account.email}</dd>
-              <dt className="text-slate-500">Last synced</dt>
-              <dd>{me.account.lastSyncAt ? formatDateTime(me.account.lastSyncAt) : "Never"}</dd>
-              {me.account.lastSyncError && (
-                <>
-                  <dt className="text-slate-500">Last error</dt>
-                  <dd className="text-urgent-ink">{me.account.lastSyncError}</dd>
-                </>
-              )}
-            </dl>
-          ) : (
-            <p className="mt-1 text-sm text-slate-600">No Gmail account connected.</p>
-          )}
-          <p className="mt-3 flex gap-2 text-sm text-slate-600">
-            <ShieldCheck size={18} className="shrink-0 text-brand-700" />
-            WorkDesk reads your Gmail. It changes Gmail only when you ask: marking an email read when you open it here,
-            and managing your own labels (below and in the email viewer). Removing an email or completing a task only
-            changes WorkDesk; nothing is ever deleted, archived or sent.
-          </p>
-        </Card>
-
-        <MailSettings />
-
-        {/* Employees (user request 2026-10-07): designations, moved here from the Employees page. */}
-        <EmployeeSettings />
-
-        <CalendarLink />
+        <div>
+          <Tabs<SettingsTab> value={tab} onChange={openTab} options={SETTINGS_TABS} />
+          <div key={tab} role="tabpanel" aria-label={SETTINGS_TABS.find((t) => t.value === tab)?.label} className="space-y-6">
+            {tab === "general" && (
+              <>
+                <Appearance />
+                <NotificationSettings />
+                <GmailConnection />
+              </>
+            )}
+            {tab === "mail" && <MailSettings />}
+            {/* Employees (user request 2026-10-07): designations, moved here from the Employees page. */}
+            {tab === "employees" && <EmployeeSettings />}
+            {tab === "calendar" && <CalendarLink />}
+          </div>
+        </div>
 
         <p className="text-xs text-slate-500">
           {/* The title shows the version only for its first 5 seconds (user request 2026-10-07), so it is here too. */}
@@ -89,6 +71,43 @@ export function SettingsPage() {
         </p>
       </div>
     </>
+  );
+}
+
+// Settings > General > Gmail connection: the account, last sync and any sync error (the "Gmail sync failed"
+// notification opens /settings, which is this tab).
+function GmailConnection() {
+  const me = useMe().data;
+  return (
+    <Card className="p-5">
+      <h2 className="font-semibold text-slate-900">Gmail connection</h2>
+      {me?.demo ? (
+        <p className="mt-1 text-sm text-slate-600">
+          Running in demo mode with sample emails. Add Google credentials to <code className="rounded bg-slate-100 px-1">.env</code> to connect Gmail.
+        </p>
+      ) : me?.account ? (
+        <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-[10rem_1fr]">
+          <dt className="text-slate-500">Account</dt>
+          <dd>{me.account.email}</dd>
+          <dt className="text-slate-500">Last synced</dt>
+          <dd>{me.account.lastSyncAt ? formatDateTime(me.account.lastSyncAt) : "Never"}</dd>
+          {me.account.lastSyncError && (
+            <>
+              <dt className="text-slate-500">Last error</dt>
+              <dd className="text-urgent-ink">{me.account.lastSyncError}</dd>
+            </>
+          )}
+        </dl>
+      ) : (
+        <p className="mt-1 text-sm text-slate-600">No Gmail account connected.</p>
+      )}
+      <p className="mt-3 flex gap-2 text-sm text-slate-600">
+        <ShieldCheck size={18} className="shrink-0 text-brand-700" />
+        WorkDesk reads your Gmail. It changes Gmail only when you ask: marking an email read when you open it here,
+        and managing your own labels (in the Mail tab and in the email viewer). Removing an email or completing a task only
+        changes WorkDesk; nothing is ever deleted, archived or sent.
+      </p>
+    </Card>
   );
 }
 
@@ -137,7 +156,7 @@ function CalendarLink() {
   };
   return (
     <Card className="p-5">
-      <h2 id="calendar" className="flex scroll-mt-24 items-center gap-2 font-semibold text-slate-900">
+      <h2 className="flex items-center gap-2 font-semibold text-slate-900">
         <CalendarDays size={18} className="text-brand-700" /> Calendar
       </h2>
       <p className="mt-1 text-sm text-slate-600">
@@ -207,7 +226,7 @@ function MailSettings() {
 
   return (
     <Card className="p-5">
-      <h2 id="mail" className="scroll-mt-24 font-semibold text-slate-900">
+      <h2 className="font-semibold text-slate-900">
         Mail
       </h2>
       <h3 className="mt-3 flex items-center gap-1.5 text-sm font-medium text-ink">
