@@ -116,7 +116,10 @@ function Shell({ children }: { children: ReactNode }) {
         <TopBar />
         <main ref={mainRef} className="app-main relative min-h-0 flex-1 pb-[calc(var(--tabbar-h)+1rem+env(safe-area-inset-bottom))] md:pb-0">
           <PullToRefresh scroller={mainRef} />
-          {children}
+          {/* Each new page slides up and fades in (user request 2026-10-07; .page-in in styles.css). */}
+          <div key={pathname} className="page-in">
+            {children}
+          </div>
         </main>
       </div>
 

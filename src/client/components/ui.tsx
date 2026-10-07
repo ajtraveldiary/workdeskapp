@@ -283,7 +283,7 @@ export type MenuItem = { label: string; onClick?: () => void; href?: string; hid
 // It is a dialog inside the trigger's container, so the container's tap-outside check still sees it as inside.
 export function PopPanel({ onClose, className, title, children }: { onClose: () => void; className: string; title?: string; children: ReactNode }) {
   const phone = usePhone();
-  if (!phone) return <div className={className}>{children}</div>;
+  if (!phone) return <div className={cx(className, "menu-in")}>{children}</div>;
   return (
     <ActionSheet onClose={onClose} title={title}>
       {children}
@@ -388,7 +388,7 @@ export function CheckCircle({ checked, onToggle, label, disabled }: { checked: b
       title={label}
       className={cx(
         "flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90 pointer-coarse:size-6",
-        checked ? "border-low bg-low text-white" : "border-slate-300 text-transparent hover:border-low hover:text-low",
+        checked ? "animate-[pop_200ms_ease-out] border-low bg-low text-white" : "border-slate-300 text-transparent hover:border-low hover:text-low",
       )}
     >
       <Check size={12} strokeWidth={3} />

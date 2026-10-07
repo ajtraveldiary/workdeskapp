@@ -402,3 +402,112 @@ dialog::backdrop {
   position: relative;
   z-index: 1;
 }
+
+/*
+  Motion (user request 2026-10-07: "animations and page transitions so the app feels responsive"). Short and
+  light, like iOS; the device's reduce-motion setting turns it all off (rule at the end).
+  - Pages slide up a little and fade in (.page-in, the wrapper around each page in App.tsx). It moves with
+    `top`, not transform, so the floating + button inside keeps its place on the screen.
+  - List rows ease in one after another the first time they appear (new emails after a sync, a new tab).
+  - Pop-ups: the dimmed backdrop fades in; forms and the email viewer grow in on wider screens (phones keep
+    their slide-up sheets); drop-down menus drop in; the Undo bar rises; the + button pops in.
+  - Tab bar and rail: the icon of the tab you open gives a small bounce. Ticking a task pops its circle.
+  - Tapping a whole row darkens it while pressed.
+*/
+.page-in {
+  position: relative;
+  animation: page-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes page-in {
+  from {
+    opacity: 0;
+    top: 14px;
+  }
+}
+.app-main ul.divide-y > li {
+  animation: row-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.app-main ul.divide-y > li:nth-child(2) { animation-delay: 25ms; }
+.app-main ul.divide-y > li:nth-child(3) { animation-delay: 50ms; }
+.app-main ul.divide-y > li:nth-child(4) { animation-delay: 75ms; }
+.app-main ul.divide-y > li:nth-child(5) { animation-delay: 100ms; }
+.app-main ul.divide-y > li:nth-child(6) { animation-delay: 125ms; }
+.app-main ul.divide-y > li:nth-child(7) { animation-delay: 150ms; }
+.app-main ul.divide-y > li:nth-child(8) { animation-delay: 175ms; }
+.app-main ul.divide-y > li:nth-child(9) { animation-delay: 200ms; }
+.app-main ul.divide-y > li:nth-child(10) { animation-delay: 225ms; }
+.app-main ul.divide-y > li:nth-child(n + 11) {
+  animation-delay: 250ms;
+}
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+dialog[open]::backdrop {
+  animation: fade-in 220ms ease-out;
+}
+@media (min-width: 640px) {
+  dialog.sheet[open] {
+    animation: dialog-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.menu-in {
+  transform-origin: top right;
+  animation: menu-in 160ms ease-out;
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+.toast-in {
+  animation: toast-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+.fab {
+  animation: fab-in 300ms cubic-bezier(0.3, 1.4, 0.6, 1);
+}
+@keyframes fab-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+:is(.tabbar, aside nav) a[aria-current="page"] svg {
+  animation: tab-pop 340ms cubic-bezier(0.3, 1.6, 0.6, 1);
+}
+@keyframes tab-pop {
+  from {
+    transform: scale(0.75);
+  }
+}
+.row-click:has(.row-link:active) {
+  background-color: rgb(241 245 249 / 0.9);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-main ul.divide-y > li {
+    animation: none !important;
+  }
+  .page-in {
+    animation: none !important;
+  }
+}
