@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { Priority, Task, Thread } from "../../shared/types";
+import type { ChecklistItem, Priority, Task, Thread } from "../../shared/types";
 import { findDueDate } from "../../shared/findDates";
 import { useCreateTask, useCreateTaskFromThread, useEmailContent, useMe, useUpdateTask } from "../api";
 import { addDays, formatDay } from "../format";
 import { htmlToText } from "../snippets";
+import { ChecklistEditor } from "./Checklist";
 import { Button, ErrorNote, Field, Modal, Spinner, inputClass } from "./ui";
 
 export type TaskDialogMode = { kind: "new"; dueDate?: string } | { kind: "fromThread"; thread: Thread } | { kind: "edit"; task: Task };
@@ -36,6 +37,7 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
   const [dueTime, setDueTime] = useState(initial.dueTime ?? "");
   const [priority, setPriority] = useState<Priority>(initial.priority);
   const [notes, setNotes] = useState(initial.notes);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(mode.kind === "edit" ? (mode.task.checklist ?? []) : []);
 
   // From an email: a date written in the newest message becomes the due date, unless the user has already
   // set or cleared one (user request 2026-10-06). The email usually comes from the cache (it was just open).
@@ -64,7 +66,8 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority };
+    const steps = checklist.map((i) => ({ ...i, text: i.text.trim() })).filter((i) => i.text);
+    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, checklist: steps };
     if (mode.kind === "edit") await update.mutateAsync({ id: mode.task.id, input });
     else if (mode.kind === "fromThread") await fromThread.mutateAsync({ threadId: mode.thread.id, input });
     else await create.mutateAsync(input);
@@ -153,6 +156,7 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
           onChange={(e) => setNotes(e.target.value)}
         />
       </Field>
+      <ChecklistEditor items={checklist} onChange={setChecklist} />
       <ErrorNote error={error} />
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onDone}>

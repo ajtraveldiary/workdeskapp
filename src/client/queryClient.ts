@@ -39,7 +39,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // Bump to discard everyone's saved copy after a change to the data's shape.
 // 2: tasks and reports carry labelIds instead of categoryId (2026-10-06).
 // 3: reports became reminders (repeat, startDate…) and task-label settings gained autoDoneLabelIds (2026-10-06).
-export const CACHE_VERSION = "3";
+// 4: tasks carry a checklist (2026-10-07).
+export const CACHE_VERSION = "4";
 
 export async function clearSavedData() {
   queryClient.clear();

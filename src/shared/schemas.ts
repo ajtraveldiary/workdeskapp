@@ -4,6 +4,10 @@ import { REPEATS } from "./reminderSchedule";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 // The user's own Gmail labels only (system labels like INBOX are never accepted).
+// A task's checklist: steps ticked one by one (user request 2026-10-07).
+export const checklist = z
+  .array(z.object({ id: z.string().min(1).max(40), text: z.string().trim().min(1, "A step can't be empty").max(300), done: z.boolean() }))
+  .max(50, "Up to 50 steps");
 const userLabelIds = z.array(z.string().regex(/^Label_[\w-]+$/)).max(50);
 export const priority = z.enum(["low", "normal", "high", "urgent"]);
 
@@ -15,6 +19,7 @@ export const taskInput = z.object({
   priority: priority.default("normal"),
   // Kept for tasks without an email; a task made from an email uses the email's labels.
   labelIds: userLabelIds.default([]),
+  checklist: checklist.default([]),
 });
 export type TaskInput = z.input<typeof taskInput>;
 
@@ -28,6 +33,7 @@ export const taskPatch = z
     dueTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM").nullable(),
     priority,
     labelIds: userLabelIds,
+    checklist,
   })
   .partial();
 

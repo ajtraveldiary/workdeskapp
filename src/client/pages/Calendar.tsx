@@ -237,7 +237,7 @@ export function CalendarPage() {
           ) : selectedTasks.length === 0 ? null : (
             <ul className="divide-y divide-line">
               {selectedTasks.map((t) => (
-                <TaskRow key={t.id} task={t} today={today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
+                <TaskRow key={t.id} task={t} today={today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} onDetails={setDetails} />
               ))}
             </ul>
           )}

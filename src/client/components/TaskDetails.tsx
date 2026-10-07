@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import type { Task } from "../../shared/types";
 import { useCompleteTask, useMe, useReopenTask } from "../api";
 import { formatDateTime, formatDay, formatTime } from "../format";
+import { ChecklistTicks } from "./Checklist";
 import { Badge, Button, Modal, PriorityPill, cx } from "./ui";
 
 export function TaskDetails({
@@ -72,6 +73,8 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
           {task.notes ? <span className="select-text whitespace-pre-wrap">{task.notes}</span> : <span className="text-slate-500">No notes</span>}
         </Row>
       </dl>
+
+      <ChecklistTicks key={task.id} task={task} />
 
       <p className="text-xs text-slate-500">
         Created {formatDateTime(task.createdAt)}

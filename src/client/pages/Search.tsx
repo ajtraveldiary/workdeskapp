@@ -63,7 +63,7 @@ export function SearchPage() {
               ) : (
                 <ul className="divide-y divide-line">
                   {taskList.map((t) => (
-                    <TaskRow key={t.id} task={t} today={tasks.data!.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />
+                    <TaskRow key={t.id} task={t} today={tasks.data!.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} onDetails={setDetails} />
                   ))}
                 </ul>
               )}

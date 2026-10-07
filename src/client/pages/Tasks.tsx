@@ -79,10 +79,10 @@ export function TasksPage() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {view === "completed" ? (
-              data.tasks.map((t) => <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />)
+              data.tasks.map((t) => <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} onDetails={setDetails} />)
             ) : (
               <PriorityGrouped tasks={data.tasks}>
-                {(t) => <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} />}
+                {(t) => <TaskRow key={t.id} task={t} today={data.today} onEdit={(task) => setDialog({ kind: "edit", task })} onOpen={openTask} onDetails={setDetails} />}
               </PriorityGrouped>
             )}
           </ul>

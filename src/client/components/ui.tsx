@@ -382,6 +382,7 @@ export function Menu({ items, label = "More actions", trigger }: { items: MenuIt
 export function CheckCircle({ checked, onToggle, label, disabled }: { checked: boolean; onToggle: () => void; label: string; disabled?: boolean }) {
   return (
     <button
+      type="button"
       onClick={onToggle}
       disabled={disabled}
       aria-label={label}

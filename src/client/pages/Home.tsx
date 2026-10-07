@@ -41,6 +41,7 @@ import { EmailBulkBar } from "../components/EmailBulkBar";
 import { SelectAvatar } from "../components/Avatar";
 import { emailLine } from "../components/ThreadRow";
 import { PriorityGrouped } from "../components/PriorityGroups";
+import { ChecklistChip } from "../components/Checklist";
 import { TaskDetails } from "../components/TaskDetails";
 import { EditableDue, dueTone } from "../components/InlineTaskEdit";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
@@ -439,10 +440,10 @@ function TodoPanel({
           <ul className="divide-y divide-line px-3 sm:px-5">
             {tab === "all" ? (
               <PriorityGrouped tasks={tasks}>
-                {(t) => <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} />}
+                {(t) => <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} onDetails={setDetails} />}
               </PriorityGrouped>
             ) : (
-              tasks.map((t) => <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} />)
+              tasks.map((t) => <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} onDetails={setDetails} />)
             )}
           </ul>
         )}
@@ -472,11 +473,13 @@ function TodoRow({
   today,
   onEdit,
   onOpen,
+  onDetails,
 }: {
   task: Task;
   today: string;
   onEdit: (t: Task) => void;
   onOpen: (t: Task) => void;
+  onDetails: (t: Task) => void;
 }) {
   const a = useTaskActions(task);
   const context = task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Reminder" : "Manual task";
@@ -514,6 +517,7 @@ function TodoRow({
           ) : (
             <EditableDue task={task} today={today} layout="joined" />
           )}
+          <ChecklistChip items={task.checklist} onClick={() => onDetails(task)} />
         </div>
       </div>
       {!swipe && (

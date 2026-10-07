@@ -3,6 +3,7 @@ import type { Task } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
 import { daysBetween, formatDateTime, formatDay, formatTime } from "../format";
+import { ChecklistChip } from "./Checklist";
 import { Badge, PRIORITY_BAR, cx } from "./ui";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
 
@@ -11,10 +12,13 @@ export function TaskRow({
   today,
   onEdit,
   onOpen,
+  onDetails,
 }: {
   task: Task;
   today: string;
   onEdit: (t: Task) => void;
+  // Opens the task details card (from the checklist chip, to tick steps).
+  onDetails?: (t: Task) => void;
   // When given, tapping the title opens the task's email (or its details) and editing gets its own button.
   onOpen?: (t: Task) => void;
 }) {
@@ -79,6 +83,7 @@ export function TaskRow({
             </Badge>
           )}
           {done && task.completedAt && <span>Completed {formatDateTime(task.completedAt)}</span>}
+          <ChecklistChip items={task.checklist} onClick={onDetails && (() => onDetails(task))} />
           {task.report && (
             <span className="inline-flex min-w-0 items-center gap-1">
               <CalendarClock size={12} className="shrink-0" />

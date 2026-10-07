@@ -13,6 +13,7 @@ import {
   primaryKey,
 } from "drizzle-orm/pg-core";
 import { REPEATS } from "../../shared/reminderSchedule";
+import type { ChecklistItem } from "../../shared/types";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -172,6 +173,8 @@ export const tasks = pgTable(
     threadId: uuid("thread_id").references(() => emailThreads.id),
     // Set when the task was generated for a recurring report's period.
     reportPeriodId: uuid("report_period_id").references(() => reportPeriods.id, { onDelete: "set null" }),
+    // Steps inside the task, ticked one by one (user request 2026-10-07, v2 idea 4).
+    checklist: jsonb("checklist").$type<ChecklistItem[]>().notNull().default([]),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

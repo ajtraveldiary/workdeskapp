@@ -62,6 +62,7 @@ export function toTask({ task, thread, report }: Row): Task {
     priority: task.priority,
     status: task.status,
     labelIds: thread?.id ? (threadLabels ?? []) : task.labelIds,
+    checklist: task.checklist ?? [],
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
     thread: thread?.id ? (threadInfo as Task["thread"]) : null,
