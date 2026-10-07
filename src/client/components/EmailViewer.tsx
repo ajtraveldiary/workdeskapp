@@ -570,7 +570,7 @@ function FileBody({ attachment: a, url }: { attachment: EmailAttachment; url: st
 // A Google file from a link in the email, shown with Google's own preview page. It shows what the signed-in
 // Google account may see; when the browser keeps Google's sign-in out of other sites (iPhone Safari does),
 // private files only open in Google itself, hence the note and the Google button.
-function DriveFrame({ link, className }: { link: DriveLink; className: string }) {
+export function DriveFrame({ link, className }: { link: DriveLink; className: string }) {
   return (
     <div className={cx("flex flex-col", className)}>
       <p className="mb-2 text-xs text-slate-500">
@@ -587,7 +587,7 @@ function DriveFrame({ link, className }: { link: DriveLink; className: string })
   );
 }
 
-function GoogleButton({ link }: { link: DriveLink }) {
+export function GoogleButton({ link }: { link: DriveLink }) {
   return (
     <a
       href={link.url}
@@ -637,7 +637,7 @@ function SaveButton({ url, downloadUrl, attachment }: { url: string; downloadUrl
 // An attachment full-screen inside WorkDesk, with Back to return to the email (Esc also closes it). Rendered
 // in its own top-layer dialog through a portal, so the email sheet's pull-to-close doesn't react to it.
 // wide: spreadsheets use the whole width; fill: the content (a Google preview) fills the screen itself.
-function AttachmentViewer({
+export function AttachmentViewer({
   open,
   onClose,
   title,

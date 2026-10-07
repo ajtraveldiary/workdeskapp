@@ -147,7 +147,8 @@ export function SearchInput({ value, onChange, placeholder }: { value: string; o
 // close (user request 2026-10-06: every part of the app should act like a mobile app).
 // closeOnBackdrop: a tap outside the box closes it (read-only views such as Task details, user request
 // 2026-10-06); forms leave it off so a stray tap can't lose what was typed.
-export function Modal({ open, onClose, title, children, closeOnBackdrop }: { open: boolean; onClose: () => void; title: string; children: ReactNode; closeOnBackdrop?: boolean }) {
+// wide: a wider box on computers, for content such as a document preview (Reminder details, 2026-10-07).
+export function Modal({ open, onClose, title, children, closeOnBackdrop, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; closeOnBackdrop?: boolean; wide?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -175,7 +176,7 @@ export function Modal({ open, onClose, title, children, closeOnBackdrop }: { ope
       tabIndex={-1}
       aria-label={title}
       data-sheet-scroll
-      className="outline-none m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-white p-0 shadow-xl sheet max-sm:mx-0 max-sm:mt-auto max-sm:mb-0 max-sm:max-h-[92dvh] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0"
+      className={cx("outline-none m-auto w-[calc(100%-2rem)] rounded-2xl border border-line bg-white p-0 shadow-xl sheet max-sm:mx-0 max-sm:mt-auto max-sm:mb-0 max-sm:max-h-[92dvh] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0", wide ? "max-w-3xl" : "max-w-lg")}
     >
       {open && (
         // The safe-area space is inside the content, so a tap there isn't taken as a tap outside.

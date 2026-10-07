@@ -7,6 +7,7 @@ import { dayLabel, nextOccurrence, remindLabel, repeatText } from "../../shared/
 import { useDeleteReport, useReports, useSetPeriodStatus, useUpdateReport } from "../api";
 import { addDays, formatDay, formatTime } from "../format";
 import { LinkChips } from "../components/ReminderLinks";
+import { ReminderDetails } from "../components/ReminderDetails";
 import { ReminderDialog, type ReminderDialogMode } from "../components/ReminderDialog";
 import { Badge, Button, Card, CheckCircle, Fab, Loading, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
@@ -14,6 +15,8 @@ import { RefreshButton } from "../components/RefreshButton";
 export function RemindersPage() {
   const { data, error } = useReports();
   const [dialog, setDialog] = useState<ReminderDialogMode | null>(null);
+  // Reminder details (user request 2026-10-07): by id, so it shows the latest copy after Pause or Edit.
+  const [detailsId, setDetailsId] = useState<string | null>(null);
 
   if (error) return <p className="text-urgent-ink">{error.message}</p>;
   if (!data) return <Loading className="py-24" />;
@@ -81,13 +84,22 @@ export function RemindersPage() {
             <h2 className="border-b border-line px-4 py-3 text-headline font-semibold text-ink sm:px-5 sm:py-3.5">All reminders</h2>
             <ul className="divide-y divide-line">
               {reports.map((r) => (
-                <ReminderRow key={r.id} report={r} today={today} onEdit={() => setDialog({ kind: "edit", report: r })} />
+                <ReminderRow key={r.id} report={r} today={today} onOpen={() => setDetailsId(r.id)} onEdit={() => setDialog({ kind: "edit", report: r })} />
               ))}
             </ul>
           </Card>
         </div>
       )}
 
+      <ReminderDetails
+        report={reports.find((r) => r.id === detailsId) ?? null}
+        today={today}
+        onClose={() => setDetailsId(null)}
+        onEdit={(r) => {
+          setDetailsId(null);
+          setDialog({ kind: "edit", report: r });
+        }}
+      />
       <ReminderDialog mode={dialog} onClose={() => setDialog(null)} />
     </>
   );
@@ -130,7 +142,7 @@ function DueRow({ report, period, today }: { report: Report; period: ReportPerio
   );
 }
 
-function ReminderRow({ report, today, onEdit }: { report: Report; today: string; onEdit: () => void }) {
+function ReminderRow({ report, today, onOpen, onEdit }: { report: Report; today: string; onOpen: () => void; onEdit: () => void }) {
   const update = useUpdateReport();
   const remove = useDeleteReport();
   const next = report.active ? nextOccurrence(report, today) : null;
@@ -139,7 +151,8 @@ function ReminderRow({ report, today, onEdit }: { report: Report; today: string;
   return (
     <li className={cx("row-click flex items-start gap-3 px-4 py-3 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5", !report.active && "opacity-60")}>
       <div className="min-w-0 flex-1">
-      <button onClick={onEdit} className="row-link group/title block w-full text-left">
+      {/* Tapping the card opens Reminder details (user request 2026-10-07); Edit is there and in the ⋮ menu. */}
+      <button onClick={onOpen} className="row-link group/title block w-full text-left">
         <p className="text-subhead font-medium text-ink group-hover/title:text-brand-700">{report.name}</p>
         <p className="text-footnote text-slate-500">{details}</p>
         <p className="mt-0.5 text-footnote text-slate-500">
