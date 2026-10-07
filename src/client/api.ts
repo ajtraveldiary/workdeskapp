@@ -177,6 +177,12 @@ export function useStaffActions() {
     renameDesignation: m(({ id, name }: { id: string; name: string }) => api(`/staff/designations/${id}`, { method: "PATCH", body: { name } })),
     moveDesignation: m(({ id, by }: { id: string; by: number }) => api(`/staff/designations/${id}/move`, { method: "POST", body: { by } })),
     removeDesignation: m((id: string) => api(`/staff/designations/${id}`, { method: "DELETE" })),
+    // Types of temporary employees (user request 2026-10-07).
+    addType: m((name: string) => api<{ id: string }>("/staff/types", { method: "POST", body: { name } })),
+    addCommonTypes: m(() => api<{ added: number }>("/staff/types/common", { method: "POST" })),
+    renameType: m(({ id, name }: { id: string; name: string }) => api(`/staff/types/${id}`, { method: "PATCH", body: { name } })),
+    moveType: m(({ id, by }: { id: string; by: number }) => api(`/staff/types/${id}/move`, { method: "POST", body: { by } })),
+    removeType: m((id: string) => api(`/staff/types/${id}`, { method: "DELETE" })),
     addEmployee: m((input: EmployeeInput) => api<{ id: string }>("/staff/employees", { method: "POST", body: input })),
     saveEmployee: m(({ id, input }: { id: string; input: EmployeeInput }) => api(`/staff/employees/${id}`, { method: "PUT", body: input })),
     setLeft: m(({ id, left }: { id: string; left: boolean }) => api(`/staff/employees/${id}/left`, { method: "POST", body: { left } })),

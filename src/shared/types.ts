@@ -200,6 +200,11 @@ export type Employee = {
   // Permanent or temporary (user request 2026-10-07); engagedTill only for temporary ones.
   permanent: boolean;
   engagedTill: string | null;
+  // Temporary ones only: engagement ("contract" | "daily_wage" | "temporary" | ""), type, contract days, pay per day.
+  engagement: string;
+  typeId: string | null;
+  contractDays: number | null;
+  payPerDay: number | null;
   pen: string;
   phone: string;
   email: string;
@@ -216,7 +221,9 @@ export type Employee = {
   // Left the office on (null = still here). Hidden from the pickers, kept for old tasks.
   leftOn: string | null;
 };
-export type StaffList = { designations: Designation[]; employees: Employee[] };
+// A type of temporary employee (HMC, NHM…), user request 2026-10-07.
+export type EmployeeType = { id: string; name: string; sortOrder: number };
+export type StaffList = { designations: Designation[]; types: EmployeeType[]; employees: Employee[] };
 
 // An employee's increment shown in Home's Due Today (user request 2026-10-07).
 export type IncrementDue = { employeeId: string; name: string; designation: string | null; due: string };

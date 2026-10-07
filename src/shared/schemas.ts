@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { LABEL_COLORS } from "./labelColors";
 import { REPEATS } from "./reminderSchedule";
-import { EMPLOYEE_CATEGORIES, RELATED_KINDS } from "./staff";
+import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, RELATED_KINDS } from "./staff";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 // The user's own Gmail labels only (system labels like INBOX are never accepted).
@@ -181,6 +181,10 @@ export const employeeInput = z.object({
   designationId: z.uuid().nullable().default(null),
   permanent: z.boolean().default(true),
   engagedTill: day.nullable().default(null),
+  engagement: z.union([z.literal(""), z.enum(ENGAGEMENTS)]).default(""),
+  typeId: z.uuid().nullable().default(null),
+  contractDays: z.number().int().min(1, "At least 1 day").max(3650).nullable().default(null),
+  payPerDay: z.number().min(0).max(1_000_000).nullable().default(null),
   pen: z.string().trim().max(20).default(""),
   phone: z.string().trim().max(20).regex(/^[0-9+\-\s()]*$/, "Use digits only").default(""),
   email: z.union([z.literal(""), z.email("Check the email address")]).default(""),

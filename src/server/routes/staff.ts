@@ -5,21 +5,23 @@ import { HTTPException } from "hono/http-exception";
 import { and, asc, count, eq, max, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { designations, employees, events, reports, tasks } from "../db/schema";
+import { designations, employeeTypes, employees, events, reports, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { designationInput, employeeInput } from "../../shared/schemas";
-import { COMMON_DESIGNATIONS, nextYear } from "../../shared/staff";
+import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES, nextYear } from "../../shared/staff";
 import type { Employee, StaffList } from "../../shared/types";
 import { openTaskOrder, selectTasks, toTask } from "./tasks";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
 
-// Temporary employees have no increment, retirement or probation dates; permanent ones no "engaged till".
+// A temporary employee keeps only name, designation, engagement, type, phone, email, category, date of birth,
+// date of joining, contract days, pay per day and contract end date (user request 2026-10-07); a permanent one
+// has none of the temporary details.
 function employeeValues(input: ReturnType<typeof employeeInput.parse>) {
   return input.permanent
-    ? { ...input, engagedTill: null }
-    : { ...input, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null };
+    ? { ...input, engagedTill: null, engagement: "", typeId: null, contractDays: null, payPerDay: null }
+    : { ...input, pen: "", joinedOfficeOn: null, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null, payScale: "", address: "", notes: "" };
 }
 
 function toEmployee(e: typeof employees.$inferSelect): Employee {
@@ -40,6 +42,11 @@ async function loadDesignation(db: DB, userId: string, id: string) {
 async function checkDesignation(db: DB, userId: string, id: string | null) {
   if (id) await loadDesignation(db, userId, id);
 }
+async function loadType(db: DB, userId: string, id: string) {
+  const [t] = await db.select().from(employeeTypes).where(and(eq(employeeTypes.id, id), eq(employeeTypes.userId, userId)));
+  if (!t) throw new HTTPException(404, { message: "Type not found" });
+  return t;
+}
 
 // Tasks and reminders that say they are about this employee / designation.
 async function linkCount(db: DB, kind: "employee" | "designation", id: string) {
@@ -52,11 +59,12 @@ export const staffRoutes = new Hono<AppEnv>()
   .get("/", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const [d, e] = await Promise.all([
+    const [d, t, e] = await Promise.all([
       db.select({ id: designations.id, name: designations.name, sortOrder: designations.sortOrder }).from(designations).where(eq(designations.userId, userId)).orderBy(asc(designations.sortOrder), asc(designations.name)),
+      db.select({ id: employeeTypes.id, name: employeeTypes.name, sortOrder: employeeTypes.sortOrder }).from(employeeTypes).where(eq(employeeTypes.userId, userId)).orderBy(asc(employeeTypes.sortOrder), asc(employeeTypes.name)),
       db.select().from(employees).where(eq(employees.userId, userId)).orderBy(asc(employees.name)),
     ]);
-    return c.json({ designations: d, employees: e.map(toEmployee) } satisfies StaffList);
+    return c.json({ designations: d, types: t, employees: e.map(toEmployee) } satisfies StaffList);
   })
 
   // --- Designations ---
@@ -119,12 +127,69 @@ export const staffRoutes = new Hono<AppEnv>()
     return c.json({ ok: true });
   })
 
+  // --- Types of temporary employees (user request 2026-10-07): HMC, NHM… ---
+  .post("/types", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { name } = designationInput.parse(await c.req.json());
+    const [m] = await db.select({ m: max(employeeTypes.sortOrder) }).from(employeeTypes).where(eq(employeeTypes.userId, userId));
+    const [t] = await db.insert(employeeTypes).values({ userId, name, sortOrder: (m?.m ?? 0) + 1 }).returning();
+    await log(db, userId, "staff.type_added", `Employee type added: ${name}`);
+    return c.json(t, 201);
+  })
+  .post("/types/common", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const have = await db.select({ name: employeeTypes.name, sortOrder: employeeTypes.sortOrder }).from(employeeTypes).where(eq(employeeTypes.userId, userId));
+    const names = new Set(have.map((t) => t.name.trim().toLowerCase()));
+    const start = Math.max(0, ...have.map((t) => t.sortOrder)) + 1;
+    const add = COMMON_EMPLOYEE_TYPES.filter((n) => !names.has(n.toLowerCase()));
+    if (add.length) {
+      await db.insert(employeeTypes).values(add.map((name, i) => ({ userId, name, sortOrder: start + i })));
+      await log(db, userId, "staff.types_common", `Added ${add.length} employee types`);
+    }
+    return c.json({ added: add.length });
+  })
+  .patch("/types/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const t = await loadType(db, userId, c.req.param("id"));
+    const { name } = designationInput.parse(await c.req.json());
+    await db.update(employeeTypes).set({ name }).where(eq(employeeTypes.id, t.id));
+    if (name !== t.name) await log(db, userId, "staff.type_renamed", `Employee type renamed: ${t.name} → ${name}`);
+    return c.json({ ok: true });
+  })
+  .post("/types/:id/move", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { by } = (await c.req.json()) as { by: number };
+    const list = await db.select().from(employeeTypes).where(eq(employeeTypes.userId, userId)).orderBy(asc(employeeTypes.sortOrder), asc(employeeTypes.name));
+    const i = list.findIndex((t) => t.id === c.req.param("id"));
+    const j = i + (by < 0 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= list.length) return c.json({ ok: true });
+    [list[i], list[j]] = [list[j]!, list[i]!];
+    for (const [k, t] of list.entries()) if (t.sortOrder !== k) await db.update(employeeTypes).set({ sortOrder: k }).where(eq(employeeTypes.id, t.id));
+    return c.json({ ok: true });
+  })
+  // Only a type no employee has can be removed.
+  .delete("/types/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const t = await loadType(db, userId, c.req.param("id"));
+    const [e] = await db.select({ n: count() }).from(employees).where(eq(employees.typeId, t.id));
+    if (Number(e?.n ?? 0) > 0) throw new HTTPException(409, { message: `${t.name} has ${e!.n} employee${Number(e!.n) === 1 ? "" : "s"}. Change their type first, or rename it.` });
+    await db.delete(employeeTypes).where(eq(employeeTypes.id, t.id));
+    await log(db, userId, "staff.type_removed", `Employee type removed: ${t.name}`);
+    return c.json({ ok: true });
+  })
+
   // --- Employees ---
   .post("/employees", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
     const input = employeeInput.parse(await c.req.json());
     await checkDesignation(db, userId, input.designationId);
+    if (!input.permanent && input.typeId) await loadType(db, userId, input.typeId);
     const [e] = await db.insert(employees).values({ ...employeeValues(input), userId }).returning();
     await log(db, userId, "staff.employee_added", `Employee added: ${e!.name}`);
     return c.json(toEmployee(e!), 201);
@@ -136,6 +201,7 @@ export const staffRoutes = new Hono<AppEnv>()
     const e = await loadEmployee(db, userId, c.req.param("id"));
     const input = employeeInput.parse(await c.req.json());
     await checkDesignation(db, userId, input.designationId);
+    if (!input.permanent && input.typeId) await loadType(db, userId, input.typeId);
     await db.update(employees).set({ ...employeeValues(input), updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.employee_changed", `Employee details changed: ${input.name}`);
     return c.json({ ok: true });

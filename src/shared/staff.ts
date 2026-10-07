@@ -5,6 +5,21 @@ export type RelatedKind = (typeof RELATED_KINDS)[number];
 
 export const EMPLOYEE_CATEGORIES = ["General", "OBC", "OEC", "SC", "ST", "EWS", "Other"] as const;
 
+// Temporary employees (user request 2026-10-07): how they are engaged, and the starting list of types (who
+// engages or pays them; edited in Settings > Employees).
+export const ENGAGEMENTS = ["contract", "daily_wage", "temporary"] as const;
+export type Engagement = (typeof ENGAGEMENTS)[number];
+export const ENGAGEMENT_LABELS: Record<Engagement, string> = { contract: "Contract", daily_wage: "Daily wage", temporary: "Temporary" };
+export const COMMON_EMPLOYEE_TYPES = ["HMC", "NHM", "Block Panchayath Project", "Gramapanchayath Project"];
+
+// A contract's last day from its first day and length in days (both days count: 179 days from 1 Oct end on
+// 28 Mar).
+export function contractEnd(from: string, days: number): string {
+  const d = new Date(`${from}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 // Posts commonly found in a Kerala Health Services office or hospital, senior first.
 export const COMMON_DESIGNATIONS = [
   "Medical Officer",

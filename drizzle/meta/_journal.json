@@ -169,6 +169,13 @@
       "when": 1791396289773,
       "tag": "0023_employee_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791397777295,
+      "tag": "0024_temporary_employee_details",
+      "breakpoints": true
     }
   ]
 }

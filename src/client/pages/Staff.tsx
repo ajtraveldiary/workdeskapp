@@ -23,7 +23,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import type { Employee, StaffList, Task } from "../../shared/types";
-import { EMPLOYEE_CATEGORIES, incrementDue, incrementOverdue } from "../../shared/staff";
+import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, type Engagement, ENGAGEMENT_LABELS, contractEnd, incrementDue, incrementOverdue } from "../../shared/staff";
 import type { EmployeeInput } from "../../shared/schemas";
 import { useEmployeeWork, useIncrementDone, useMe, useStaff, useStaffActions } from "../api";
 import { showUndo } from "../components/SwipeRow";
@@ -42,6 +42,7 @@ function yearsBetween(a: string, b: string) {
   return y;
 }
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 export function StaffPage() {
   const { data, error } = useStaff();
@@ -167,9 +168,10 @@ function Employees({ staff, onOpen, onAdd, onDesignations }: { staff: StaffList;
   const { addCommon } = useStaffActions();
   const query = q.trim().toLowerCase();
   const desig = new Map(staff.designations.map((d) => [d.id, d.name]));
+  const typeName = new Map(staff.types.map((t) => [t.id, t.name]));
   const match = (e: Employee) =>
     (kind === "all" || e.permanent === (kind === "permanent")) &&
-    (!query || [e.name, e.pen, e.phone, e.email, desig.get(e.designationId ?? "") ?? ""].some((x) => x.toLowerCase().includes(query)));
+    (!query || [e.name, e.pen, e.phone, e.email, desig.get(e.designationId ?? "") ?? "", typeName.get(e.typeId ?? "") ?? ""].some((x) => x.toLowerCase().includes(query)));
   const current = staff.employees.filter((e) => !e.leftOn);
   const temporary = current.filter((e) => !e.permanent).length;
   const here = staff.employees.filter((e) => !e.leftOn && match(e));
@@ -230,7 +232,7 @@ function Employees({ staff, onOpen, onAdd, onDesignations }: { staff: StaffList;
           </h2>
           <ul className="divide-y divide-line">
             {g.people.map((e) => (
-              <EmployeeRow key={e.id} employee={e} onOpen={() => onOpen(e.id)} />
+              <EmployeeRow key={e.id} employee={e} type={typeName.get(e.typeId ?? "")} onOpen={() => onOpen(e.id)} />
             ))}
           </ul>
         </Card>
@@ -245,7 +247,7 @@ function Employees({ staff, onOpen, onAdd, onDesignations }: { staff: StaffList;
           {showLeft && (
             <ul className="divide-y divide-line border-t border-line">
               {left.map((e) => (
-                <EmployeeRow key={e.id} employee={e} designation={desig.get(e.designationId ?? "")} onOpen={() => onOpen(e.id)} />
+                <EmployeeRow key={e.id} employee={e} designation={desig.get(e.designationId ?? "")} type={typeName.get(e.typeId ?? "")} onOpen={() => onOpen(e.id)} />
               ))}
             </ul>
           )}
@@ -255,8 +257,9 @@ function Employees({ staff, onOpen, onAdd, onDesignations }: { staff: StaffList;
   );
 }
 
-function EmployeeRow({ employee: e, designation, onOpen }: { employee: Employee; designation?: string; onOpen: () => void }) {
-  const line = [designation, e.pen && `PEN ${e.pen}`, e.phone].filter(Boolean).join(" · ");
+function EmployeeRow({ employee: e, designation, type, onOpen }: { employee: Employee; designation?: string; type?: string; onOpen: () => void }) {
+  // Temporary ones show how they are engaged and their type (HMC, NHM…) instead of the PEN.
+  const line = [designation, ...(e.permanent ? [e.pen && `PEN ${e.pen}`] : [ENGAGEMENT_LABELS[e.engagement as Engagement], type]), e.phone].filter(Boolean).join(" · ");
   return (
     <li className="row-click flex items-center gap-3 px-4 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5">
       <Avatar name={e.name} size={36} />
@@ -301,25 +304,37 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
   const busy = setLeft.isPending || removeEmployee.isPending;
 
   const ended = !!e.engagedTill && e.engagedTill < today;
-  const rows: [string, ReactNode][] = [
-    ["Employment", e.permanent ? "Permanent" : "Temporary"],
-    ["Engaged till", !e.permanent && e.engagedTill && <span className={cx(ended && "font-medium text-urgent-ink")}>{fullDate(e.engagedTill)}{ended && " (ended)"}</span>],
-    ["PEN", e.pen],
-    ["Phone", e.phone],
-    ["Email", e.email && <a href={`mailto:${e.email}`} className="text-brand-700 hover:underline">{e.email}</a>],
-    ["Date of birth", e.dateOfBirth && `${fullDate(e.dateOfBirth)} (${yearsBetween(e.dateOfBirth, today)} years)`],
-    ["Category", e.category],
-    e.permanent
-      ? ["Joined service", e.joinedServiceOn && `${fullDate(e.joinedServiceOn)} (${plural(yearsBetween(e.joinedServiceOn, today), "year")} of service)`]
-      : ["Engaged from", e.joinedServiceOn && fullDate(e.joinedServiceOn)],
-    ["Joined this office", e.joinedOfficeOn && fullDate(e.joinedOfficeOn)],
-    ["Next increment", e.nextIncrementOn && <span className={cx(e.nextIncrementOn < today && "font-medium text-urgent-ink")}>{fullDate(e.nextIncrementOn)}{e.nextIncrementOn < today && " (passed)"}</span>],
-    ["Retirement", e.retiresOn && `${fullDate(e.retiresOn)}${e.retiresOn > today ? ` (in ${yearsBetween(today, e.retiresOn) > 0 ? plural(yearsBetween(today, e.retiresOn), "year") : "less than a year"})` : ""}`],
-    [e.permanent ? "Pay scale / basic pay" : "Pay / wages", e.payScale],
-    ["Probation declared", e.probationDeclaredOn && fullDate(e.probationDeclaredOn)],
-    ["Home address", e.address && <span className="whitespace-pre-wrap">{e.address}</span>],
-    ["Notes", e.notes && <span className="whitespace-pre-wrap">{e.notes}</span>],
-  ];
+  const typeName = staff.types.find((t) => t.id === e.typeId)?.name;
+  const rows: [string, ReactNode][] = e.permanent
+    ? [
+        ["Employment", "Permanent"],
+        ["PEN", e.pen],
+        ["Phone", e.phone],
+        ["Email", e.email && <a href={`mailto:${e.email}`} className="text-brand-700 hover:underline">{e.email}</a>],
+        ["Date of birth", e.dateOfBirth && `${fullDate(e.dateOfBirth)} (${yearsBetween(e.dateOfBirth, today)} years)`],
+        ["Category", e.category],
+        ["Joined service", e.joinedServiceOn && `${fullDate(e.joinedServiceOn)} (${plural(yearsBetween(e.joinedServiceOn, today), "year")} of service)`],
+        ["Joined this office", e.joinedOfficeOn && fullDate(e.joinedOfficeOn)],
+        ["Next increment", e.nextIncrementOn && <span className={cx(e.nextIncrementOn < today && "font-medium text-urgent-ink")}>{fullDate(e.nextIncrementOn)}{e.nextIncrementOn < today && " (passed)"}</span>],
+        ["Retirement", e.retiresOn && `${fullDate(e.retiresOn)}${e.retiresOn > today ? ` (in ${yearsBetween(today, e.retiresOn) > 0 ? plural(yearsBetween(today, e.retiresOn), "year") : "less than a year"})` : ""}`],
+        ["Pay scale / basic pay", e.payScale],
+        ["Probation declared", e.probationDeclaredOn && fullDate(e.probationDeclaredOn)],
+        ["Home address", e.address && <span className="whitespace-pre-wrap">{e.address}</span>],
+        ["Notes", e.notes && <span className="whitespace-pre-wrap">{e.notes}</span>],
+      ]
+    : // Temporary employees (user request 2026-10-07): only their own details.
+      [
+        ["Employment", ["Temporary", ENGAGEMENT_LABELS[e.engagement as Engagement]].filter(Boolean).join(" · ")],
+        ["Type", typeName],
+        ["Phone", e.phone],
+        ["Email", e.email && <a href={`mailto:${e.email}`} className="text-brand-700 hover:underline">{e.email}</a>],
+        ["Category", e.category],
+        ["Date of birth", e.dateOfBirth && `${fullDate(e.dateOfBirth)} (${yearsBetween(e.dateOfBirth, today)} years)`],
+        ["Date of joining", e.joinedServiceOn && fullDate(e.joinedServiceOn)],
+        ["Contract period", e.contractDays && plural(e.contractDays, "day")],
+        ["Pay per day", e.payPerDay != null && rupees(e.payPerDay)],
+        ["Contract end date", e.engagedTill && <span className={cx(ended && "font-medium text-urgent-ink")}>{fullDate(e.engagedTill)}{ended && " (ended)"}</span>],
+      ];
   const del = () => {
     if (!confirm(`Delete ${e.name}? Use "Left the office" instead to keep them on old tasks.`)) return;
     removeEmployee.mutate(e.id, { onSuccess: onClose });
@@ -460,17 +475,29 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
   const [v, setV] = useState<EmployeeInput>(() => {
     if (!employee) return EMPTY;
     const { id: _id, leftOn: _left, ...rest } = employee;
-    return { ...rest, category: rest.category as EmployeeInput["category"] };
+    return { ...rest, category: rest.category as EmployeeInput["category"], engagement: rest.engagement as EmployeeInput["engagement"] };
   });
   const set = <K extends keyof EmployeeInput>(k: K, value: EmployeeInput[K]) => setV((s) => ({ ...s, [k]: value }));
   const { addEmployee, saveEmployee } = useStaffActions();
   const save = employee ? saveEmployee : addEmployee;
   const submit = async (ev: FormEvent) => {
     ev.preventDefault();
-    if (employee) await saveEmployee.mutateAsync({ id: employee.id, input: v });
-    else await addEmployee.mutateAsync(v);
-    onDone();
+    try {
+      if (employee) await saveEmployee.mutateAsync({ id: employee.id, input: v });
+      else await addEmployee.mutateAsync(v);
+      onDone();
+    } catch {
+      // shown under the form
+    }
   };
+  // Contract end date follows date of joining + contract days while it is empty or still the worked-out one.
+  const setContract = (patch: Pick<EmployeeInput, "joinedServiceOn" | "contractDays">) =>
+    setV((s) => {
+      const auto = (x: EmployeeInput) => (x.joinedServiceOn && x.contractDays ? contractEnd(x.joinedServiceOn, x.contractDays) : null);
+      const next = { ...s, ...patch };
+      return !s.engagedTill || s.engagedTill === auto(s) ? { ...next, engagedTill: auto(next) ?? s.engagedTill ?? null } : next;
+    });
+  const num = (raw: string, int: boolean) => (raw.trim() === "" ? null : int ? Math.round(Number(raw)) : Number(raw));
   const date = (k: "dateOfBirth" | "joinedServiceOn" | "joinedOfficeOn" | "nextIncrementOn" | "retiresOn" | "probationDeclaredOn" | "engagedTill", label: string) => (
     <Field label={label}>
       <input type="date" className={inputClass} value={v[k] ?? ""} onChange={(e) => set(k, e.target.value || null)} />
@@ -479,6 +506,19 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
   const text = (k: "pen" | "phone" | "email" | "payScale", label: string, extra?: Partial<React.InputHTMLAttributes<HTMLInputElement>>) => (
     <Field label={label}>
       <input className={inputClass} value={v[k] ?? ""} onChange={(e) => set(k, e.target.value)} {...extra} />
+    </Field>
+  );
+
+  const category = (
+    <Field label="Category">
+      <select className={inputClass} value={v.category} onChange={(e) => set("category", e.target.value as EmployeeInput["category"])}>
+        <option value="">Not given</option>
+        {EMPLOYEE_CATEGORIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
     </Field>
   );
 
@@ -520,43 +560,91 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
       </Field>
       {staff.designations.length === 0 && <p className="-mt-2 text-footnote text-slate-500">Add designations in Settings › Employees.</p>}
 
-      <Section title="Personal">
-        {text("pen", "PEN", { inputMode: "numeric", maxLength: 20 })}
-        {text("phone", "Phone", { type: "tel", inputMode: "tel", maxLength: 20 })}
-        {text("email", "Email", { type: "email", inputMode: "email", autoCapitalize: "off", maxLength: 200 })}
-        {date("dateOfBirth", "Date of birth")}
-        <Field label="Category">
-          <select className={inputClass} value={v.category} onChange={(e) => set("category", e.target.value as EmployeeInput["category"])}>
-            <option value="">Not given</option>
-            {EMPLOYEE_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </Field>
-      </Section>
-      {/* Temporary employees: no increment, retirement or probation; "Engaged till" instead. */}
-      <Section title="Service">
-        {date("joinedServiceOn", v.permanent ? "Joined service on" : "Engaged from")}
-        {date("joinedOfficeOn", "Joined this office on")}
-        {v.permanent ? (
-          <>
+      {v.permanent ? (
+        <>
+          <Section title="Personal">
+            {text("pen", "PEN", { inputMode: "numeric", maxLength: 20 })}
+            {text("phone", "Phone", { type: "tel", inputMode: "tel", maxLength: 20 })}
+            {text("email", "Email", { type: "email", inputMode: "email", autoCapitalize: "off", maxLength: 200 })}
+            {date("dateOfBirth", "Date of birth")}
+            {category}
+          </Section>
+          <Section title="Service">
+            {date("joinedServiceOn", "Joined service on")}
+            {date("joinedOfficeOn", "Joined this office on")}
             {date("nextIncrementOn", "Next increment date")}
             {date("retiresOn", "Date of retirement")}
             {date("probationDeclaredOn", "Probation declared on")}
-          </>
-        ) : (
-          date("engagedTill", "Engaged till")
-        )}
-        {text("payScale", v.permanent ? "Pay scale / basic pay" : "Pay / wages", { maxLength: 100, placeholder: v.permanent ? "e.g. 35600-75400" : "e.g. 755 per day" })}
-      </Section>
-      <Field label="Home address">
-        <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={v.address} onChange={(e) => set("address", e.target.value)} maxLength={500} />
-      </Field>
-      <Field label="Notes">
-        <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={v.notes} onChange={(e) => set("notes", e.target.value)} maxLength={5000} />
-      </Field>
+            {text("payScale", "Pay scale / basic pay", { maxLength: 100, placeholder: "e.g. 35600-75400" })}
+          </Section>
+          <Field label="Home address">
+            <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={v.address} onChange={(e) => set("address", e.target.value)} maxLength={500} />
+          </Field>
+          <Field label="Notes">
+            <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={v.notes} onChange={(e) => set("notes", e.target.value)} maxLength={5000} />
+          </Field>
+        </>
+      ) : (
+        // Temporary employees (user request 2026-10-07): only these details.
+        <>
+          <div>
+            <span className="mb-1 block text-sm font-medium text-slate-700">Engaged as</span>
+            <div role="radiogroup" aria-label="Engaged as" className="flex flex-wrap gap-1.5">
+              {ENGAGEMENTS.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  role="radio"
+                  aria-checked={v.engagement === g}
+                  onClick={() => set("engagement", v.engagement === g ? "" : g)}
+                  className="inline-flex h-9 items-center rounded-lg border border-line px-3 text-sm text-slate-600 enabled:hover:bg-slate-50 active:scale-[0.97] aria-checked:border-brand-200 aria-checked:bg-tint aria-checked:font-medium aria-checked:text-brand-800"
+                >
+                  {ENGAGEMENT_LABELS[g]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Field label="Type">
+            <select className={inputClass} value={v.typeId ?? ""} onChange={(e) => set("typeId", e.target.value || null)}>
+              <option value="">Not given</option>
+              {staff.types.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {staff.types.length === 0 && <p className="-mt-2 text-footnote text-slate-500">Add types (HMC, NHM…) in Settings › Employees.</p>}
+          <Section title="Personal">
+            {text("phone", "Phone", { type: "tel", inputMode: "tel", maxLength: 20 })}
+            {text("email", "Email", { type: "email", inputMode: "email", autoCapitalize: "off", maxLength: 200 })}
+            {category}
+            {date("dateOfBirth", "Date of birth")}
+          </Section>
+          <Section title="Contract">
+            <Field label="Date of joining">
+              <input type="date" className={inputClass} value={v.joinedServiceOn ?? ""} onChange={(e) => setContract({ joinedServiceOn: e.target.value || null, contractDays: v.contractDays ?? null })} />
+            </Field>
+            <Field label="Contract period (days)">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={3650}
+                step={1}
+                className={inputClass}
+                value={v.contractDays ?? ""}
+                onChange={(e) => setContract({ joinedServiceOn: v.joinedServiceOn ?? null, contractDays: num(e.target.value, true) })}
+                placeholder="e.g. 179"
+              />
+            </Field>
+            <Field label="Pay per day (₹)">
+              <input type="number" inputMode="decimal" min={0} step="0.01" className={inputClass} value={v.payPerDay ?? ""} onChange={(e) => set("payPerDay", num(e.target.value, false))} placeholder="e.g. 755" />
+            </Field>
+            {date("engagedTill", "Contract end date")}
+          </Section>
+        </>
+      )}
       <ErrorNote error={save.error} />
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onDone}>

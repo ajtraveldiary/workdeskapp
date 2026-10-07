@@ -7,7 +7,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { COMMON_DESIGNATIONS, incrementDue, incrementOnHome, nextYear } from "../src/shared/staff";
+import { COMMON_DESIGNATIONS, contractEnd, incrementDue, incrementOnHome, nextYear } from "../src/shared/staff";
 import type { Report, StaffList, Summary, Task } from "../src/shared/types";
 
 const NAME = "ശ്രീമതി. ലക്ഷ്മി കുട്ടി അമ്മ കെ. എസ്. (ജൂനിയർ പബ്ലിക് ഹെൽത്ത് നഴ്സ്, പ്രാഥമികാരോഗ്യ കേന്ദ്രം)";
@@ -83,6 +83,35 @@ describe("staff", () => {
     expect((await staff()).employees.find((e) => e.id === id)).toMatchObject({ permanent: true, engagedTill: null, retiresOn: "2040-05-31" });
     // Old clients that don't send it get a permanent employee.
     expect((await call("POST", "/staff/employees", { name: "x" })).json).toMatchObject({ permanent: true });
+  });
+
+  it("temporary employees: engagement, type, contract days, pay per day; types are edited in Settings", async () => {
+    expect(contractEnd("2026-10-01", 179)).toBe("2027-03-28");
+    expect((await call("POST", "/staff/types/common")).json).toEqual({ added: 4 });
+    expect((await call("POST", "/staff/types/common")).json).toEqual({ added: 0 });
+    const types = (await staff()).types;
+    expect(types.map((t) => t.name)).toEqual(["HMC", "NHM", "Block Panchayath Project", "Gramapanchayath Project"]);
+    const nhm = types[1]!.id;
+    const id = (
+      await call("POST", "/staff/employees", {
+        name: NAME, permanent: false, engagement: "daily_wage", typeId: nhm, contractDays: 179, payPerDay: 755.5,
+        joinedServiceOn: "2026-10-01", engagedTill: "2027-03-28", pen: "999", address: "Somewhere", notes: "x", payScale: "y",
+      })
+    ).json.id as string;
+    // Only the temporary details are kept.
+    expect((await staff()).employees.find((e) => e.id === id)).toMatchObject({ engagement: "daily_wage", typeId: nhm, contractDays: 179, payPerDay: 755.5, pen: "", address: "", notes: "", payScale: "" });
+    // A type an employee has can't be removed; renaming and moving are fine.
+    expect((await call("DELETE", `/staff/types/${nhm}`)).status).toBe(409);
+    await call("PATCH", `/staff/types/${nhm}`, { name: "National Health Mission" });
+    await call("POST", `/staff/types/${nhm}/move`, { by: -1 });
+    expect((await staff()).types.slice(0, 2).map((t) => t.name)).toEqual(["National Health Mission", "HMC"]);
+    expect((await call("DELETE", `/staff/types/${types[0]!.id}`)).status).toBe(200);
+    // Bad values are refused; a permanent employee keeps none of the temporary details.
+    expect((await call("POST", "/staff/employees", { name: "x", permanent: false, engagement: "casual" })).status).toBe(400);
+    expect((await call("POST", "/staff/employees", { name: "x", permanent: false, contractDays: 0 })).status).toBe(400);
+    await call("PUT", `/staff/employees/${id}`, { name: NAME, permanent: true, engagement: "contract", typeId: nhm, contractDays: 10, payPerDay: 1 });
+    expect((await staff()).employees.find((e) => e.id === id)).toMatchObject({ engagement: "", typeId: null, contractDays: null, payPerDay: null });
+    expect(JSON.stringify((await call("GET", "/history")).json)).toContain("Employee type renamed");
   });
 
   it("a reminder's tasks carry what it is about, and follow a change", async () => {

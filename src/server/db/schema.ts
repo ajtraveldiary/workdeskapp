@@ -8,6 +8,7 @@ import {
   boolean,
   date,
   jsonb,
+  numeric,
   uniqueIndex,
   index,
   primaryKey,
@@ -285,6 +286,16 @@ export const designations = pgTable("designations", {
   createdAt: createdAt(),
 });
 
+// Types of temporary employees (user request 2026-10-07): HMC, NHM, Block Panchayath Project… Edited in
+// Settings > Employees, in this order.
+export const employeeTypes = pgTable("employee_types", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+});
+
 export const employees = pgTable("employees", {
   id: id(),
   userId: uuid("user_id").notNull().references(() => users.id),
@@ -293,7 +304,14 @@ export const employees = pgTable("employees", {
   // Permanent or temporary (user request 2026-10-07). Temporary staff have no increment, retirement or
   // probation dates (cleared on save) and may have an "engaged till" date instead.
   permanent: boolean("permanent").notNull().default(true),
+  // Contract end date for temporary ones.
   engagedTill: date("engaged_till"),
+  // Temporary ones only (user request 2026-10-07): contract / daily_wage / temporary ("" = not given), their
+  // type, the contract period in days and the pay per day in rupees. Date of joining is joined_service_on.
+  engagement: text("engagement").notNull().default(""),
+  typeId: uuid("type_id").references(() => employeeTypes.id),
+  contractDays: integer("contract_days"),
+  payPerDay: numeric("pay_per_day", { precision: 10, scale: 2, mode: "number" }),
   pen: text("pen").notNull().default(""),
   phone: text("phone").notNull().default(""),
   email: text("email").notNull().default(""),
