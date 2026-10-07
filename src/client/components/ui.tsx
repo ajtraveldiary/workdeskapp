@@ -292,7 +292,7 @@ export function PopPanel({ onClose, className, title, children }: { onClose: () 
   );
 }
 
-function ActionSheet({ onClose, title, children }: { onClose: () => void; title?: string; children: ReactNode }) {
+export function ActionSheet({ onClose, title, children }: { onClose: () => void; title?: string; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;

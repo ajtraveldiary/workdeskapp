@@ -184,7 +184,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
                 size="sm"
                 variant="danger"
                 // Asks first: just remove, or send to a section (user request 2026-10-07).
-                onClick={() => openRemove({ threads: [thread], remove: () => dismiss.mutate(thread.id, { onSuccess: onClose }), after: onClose })}
+                onClick={(e) => openRemove({ anchor: e.currentTarget, threads: [thread], remove: () => dismiss.mutate(thread.id, { onSuccess: onClose }), after: onClose })}
                 disabled={dismiss.isPending}
                 title="Remove from Pending, or send to a section"
               >

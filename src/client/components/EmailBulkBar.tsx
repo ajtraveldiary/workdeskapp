@@ -63,8 +63,9 @@ export function EmailBulkBar({
     });
   };
   // Remove asks first: just remove, or send to a section (user request 2026-10-07).
-  const dismiss = () =>
+  const dismiss = (e: React.MouseEvent<HTMLElement>) =>
     openRemove({
+      anchor: e.currentTarget,
       threads: pending,
       remove: () =>
         bulkDismiss.mutate(pending.map((t) => t.id), {

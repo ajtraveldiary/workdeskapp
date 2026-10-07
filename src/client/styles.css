@@ -481,6 +481,16 @@ dialog[open]::backdrop {
     transform: translateY(-4px) scale(0.97);
   }
 }
+/* The Remove menu grows out of the Remove button (user request 2026-10-07); transform-origin is set inline. */
+.grow-in {
+  animation: grow-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes grow-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
 .toast-in {
   animation: toast-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -594,12 +604,14 @@ html.dark .row-click:has(.row-link:active) {
    may be wider than the box, and a form taller than the screen still scrolls by swiping or the wheel. */
 dialog,
 dialog :not(.scroll-thin),
-.menu-in {
+.menu-in,
+[popover] {
   scrollbar-width: none;
 }
 dialog::-webkit-scrollbar,
 dialog :not(.scroll-thin)::-webkit-scrollbar,
-.menu-in::-webkit-scrollbar {
+.menu-in::-webkit-scrollbar,
+[popover]::-webkit-scrollbar {
   display: none;
 }
 /* The one exception: a spreadsheet preview's wide table (.scroll-thin) keeps its thin bar so a mouse can scroll it. */
