@@ -2,7 +2,7 @@
 // employees, permanent or temporary, and designations. Tasks and reminders can be
 // about an employee, a designation or the general office (Related.tsx). Reached from the side rail on wider
 // screens and from the profile menu on phones. Only WorkDesk's database changes; History records each change.
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   CalendarClock,
@@ -26,9 +26,9 @@ import {
 import type { Employee, StaffList, Task } from "../../shared/types";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, type Engagement, ENGAGEMENT_LABELS, contractEnd, incrementDue, incrementOverdue } from "../../shared/staff";
 import type { EmployeeInput } from "../../shared/schemas";
-import { useEmployeeWork, useIncrementDone, useMe, useRetiring, useStaff, useStaffActions } from "../api";
+import { useEmployeeWork, useMe, useRetiring, useStaff, useStaffActions } from "../api";
+import { openIncrement } from "../components/IncrementDialog";
 import { ChecklistChip } from "../components/Checklist";
-import { showUndo } from "../components/SwipeRow";
 import { formatDay, formatTime } from "../format";
 import { Avatar } from "../components/Avatar";
 import { RefreshButton } from "../components/RefreshButton";
@@ -109,23 +109,13 @@ export function StaffPage() {
 // Home's Due Today shows the same ones from the 20th of the month.
 function DueIncrements({ staff, onOpen }: { staff: StaffList; onOpen: (id: string) => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
-  const done = useIncrementDone();
   const desig = new Map(staff.designations.map((d) => [d.id, d.name]));
   const due = staff.employees
     .filter((e) => !e.leftOn && e.permanent && incrementDue(e.nextIncrementOn, today))
     .sort((a, b) => a.nextIncrementOn!.localeCompare(b.nextIncrementOn!) || a.name.localeCompare(b.name));
   if (!due.length) return null;
-  const markDone = (e: Employee) =>
-    done.mutate(
-      { id: e.id },
-      {
-        onSuccess: (r) =>
-          showUndo({
-            message: `Increment done: ${e.name}${r.next ? ` · next ${fullDate(r.next)}` : ""}`,
-            onUndo: () => r.previous && done.mutate({ id: e.id, undoTo: r.previous }),
-          }),
-      },
-    );
+  // Asks for the new basic pay first (user request 2026-10-08); the dialog marks it done, with Undo.
+  const markDone = (e: Employee) => openIncrement({ employeeId: e.id, name: e.name, due: e.nextIncrementOn!, basicPay: e.basicPay ?? null });
   return (
     <Card className="overflow-hidden">
       <h2 className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-footnote font-semibold text-slate-600 sm:px-5">
@@ -149,14 +139,13 @@ function DueIncrements({ staff, onOpen }: { staff: StaffList; onOpen: (id: strin
                   </span>
                 </span>
               </button>
-              <Button size="sm" onClick={() => markDone(e)} disabled={done.isPending} className="shrink-0">
+              <Button size="sm" onClick={() => markDone(e)} className="shrink-0">
                 <Check size={15} /> Mark done
               </Button>
             </li>
           );
         })}
       </ul>
-      <ErrorNote error={done.error} />
     </Card>
   );
 }
@@ -244,12 +233,17 @@ function Employees({ staff, onOpen, onAdd, onDesignations }: { staff: StaffList;
   const [showLeft, setShowLeft] = useState(false);
   // All / Permanent / Temporary (user request 2026-10-07).
   const [kind, setKind] = useState<"all" | "permanent" | "temporary">("all");
+  // Computers (1024px and wider, user request 2026-10-08): a table, permanent and temporary staff apart, with a
+  // switch between them; narrower screens keep the list grouped by designation.
+  const wide = useWide();
+  const [table, setTable] = useState<"permanent" | "temporary">("permanent");
   const { addCommon } = useStaffActions();
   const query = q.trim().toLowerCase();
   const desig = new Map(staff.designations.map((d) => [d.id, d.name]));
   const typeName = new Map(staff.types.map((t) => [t.id, t.name]));
+  const shown = wide ? table : kind;
   const match = (e: Employee) =>
-    (kind === "all" || e.permanent === (kind === "permanent")) &&
+    (shown === "all" || e.permanent === (shown === "permanent")) &&
     (!query || [e.name, e.pen, e.phone, e.email, desig.get(e.designationId ?? "") ?? "", typeName.get(e.typeId ?? "") ?? ""].some((x) => x.toLowerCase().includes(query)));
   const current = staff.employees.filter((e) => !e.leftOn);
   const temporary = current.filter((e) => !e.permanent).length;
@@ -284,12 +278,66 @@ function Employees({ staff, onOpen, onAdd, onDesignations }: { staff: StaffList;
       </Card>
     );
 
+  const search = (
+    <label className="relative block">
+      <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, PEN, phone or designation" aria-label="Search employees" className={cx(inputClass, "pl-9")} />
+    </label>
+  );
+
+  if (wide) {
+    // Designation order (senior first), then name, as in the list.
+    const order = new Map(staff.designations.map((d, i) => [d.id, i]));
+    const sorted = (list: Employee[]) =>
+      [...list].sort((a, b) => (order.get(a.designationId ?? "") ?? 1e9) - (order.get(b.designationId ?? "") ?? 1e9) || a.name.localeCompare(b.name));
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-64 flex-1">{search}</div>
+          {/* The switch between the two tables (permanent and temporary are never in the same table). */}
+          <div role="radiogroup" aria-label="Which employees" className="inline-flex shrink-0 rounded-lg border border-line bg-white p-0.5">
+            {([
+              ["permanent", "Permanent", current.length - temporary],
+              ["temporary", "Temporary", temporary],
+            ] as const).map(([value, label, count]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={table === value}
+                onClick={() => setTable(value)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm text-slate-600 enabled:hover:text-ink active:scale-[0.97] aria-checked:bg-tint aria-checked:font-medium aria-checked:text-brand-800"
+              >
+                {label} <span className="tabular-nums text-slate-500">{count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {here.length === 0 && left.length === 0 ? (
+          <Card className="py-10 text-center text-sm text-slate-500">{query ? `No one matches “${q.trim()}”.` : table === "temporary" ? "No temporary employees." : "No permanent employees."}</Card>
+        ) : (
+          here.length > 0 && <EmployeeTable people={sorted(here)} permanent={table === "permanent"} staff={staff} onOpen={onOpen} />
+        )}
+        {left.length > 0 && (
+          <div>
+            <button onClick={() => setShowLeft((s) => !s)} aria-expanded={showLeft} className="flex items-center gap-2 rounded-lg px-1 py-1 text-footnote font-semibold text-slate-600 hover:text-ink">
+              Left the office <span className="font-normal text-slate-500">{left.length}</span>
+              <ChevronDown size={16} className={cx("transition", showLeft && "rotate-180")} />
+            </button>
+            {showLeft && (
+              <div className="mt-2">
+                <EmployeeTable people={sorted(left)} permanent={table === "permanent"} staff={staff} onOpen={onOpen} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <label className="relative block">
-        <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, PEN, phone or designation" aria-label="Search employees" className={cx(inputClass, "pl-9")} />
-      </label>
+      {search}
       <Segmented
         value={kind}
         onChange={setKind}
@@ -352,6 +400,95 @@ function EmployeeRow({ employee: e, designation, type, onOpen }: { employee: Emp
   );
 }
 
+// --- Employees table (computers, user request 2026-10-08) ---
+// Permanent: name, PEN, designation, basic pay, phone, date of birth, joined service, retirement, address.
+// Temporary: name, designation, type, engaged as, phone, date of joining, contract end, contract days, pay per
+// day. Tapping a row opens the employee's card (all details, Edit, Left the office, Delete, their work).
+const WIDE = "(min-width: 1024px)";
+function useWide() {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = window.matchMedia(WIDE);
+      m.addEventListener("change", cb);
+      return () => m.removeEventListener("change", cb);
+    },
+    () => window.matchMedia(WIDE).matches,
+    () => false,
+  );
+}
+
+// dd/mm/yyyy, the way office registers write dates (and narrow enough for the table).
+const shortDate = (day: string | null) => (day ? `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}` : "");
+
+function EmployeeTable({ people, permanent, staff, onOpen }: { people: Employee[]; permanent: boolean; staff: StaffList; onOpen: (id: string) => void }) {
+  const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
+  const desig = new Map(staff.designations.map((d) => [d.id, d.name]));
+  const typeName = new Map(staff.types.map((t) => [t.id, t.name]));
+  type Col = { head: string; cell: (e: Employee) => ReactNode; className?: string };
+  const date = (k: "dateOfBirth" | "joinedServiceOn" | "retiresOn"): Col["cell"] => (e) => shortDate(e[k]);
+  const cols: Col[] = permanent
+    ? [
+        { head: "PEN", cell: (e) => e.pen, className: "tabular-nums whitespace-nowrap" },
+        { head: "Designation", cell: (e) => desig.get(e.designationId ?? "") },
+        { head: "Basic pay", cell: (e) => e.basicPay != null && rupees(e.basicPay), className: "text-right tabular-nums whitespace-nowrap" },
+        { head: "Phone", cell: (e) => e.phone, className: "tabular-nums whitespace-nowrap" },
+        // Narrow laptops (under 1280px): no room for date of birth and address; the card has them.
+        { head: "Date of birth", cell: date("dateOfBirth"), className: "whitespace-nowrap tabular-nums max-xl:hidden" },
+        { head: "Joined service", cell: date("joinedServiceOn"), className: "whitespace-nowrap tabular-nums" },
+        { head: "Retirement", cell: (e) => <span className={cx(!!e.retiresOn && e.retiresOn < today && "text-urgent-ink")}>{shortDate(e.retiresOn)}</span>, className: "whitespace-nowrap tabular-nums" },
+        { head: "Address", cell: (e) => <span className="line-clamp-2">{e.address}</span>, className: "max-xl:hidden" },
+      ]
+    : [
+        { head: "Designation", cell: (e) => desig.get(e.designationId ?? "") },
+        { head: "Type", cell: (e) => typeName.get(e.typeId ?? "") },
+        { head: "Engaged as", cell: (e) => ENGAGEMENT_LABELS[e.engagement as Engagement], className: "whitespace-nowrap" },
+        { head: "Phone", cell: (e) => e.phone, className: "tabular-nums whitespace-nowrap" },
+        { head: "Joined", cell: date("joinedServiceOn"), className: "whitespace-nowrap tabular-nums" },
+        {
+          head: "Contract ends",
+          cell: (e) => <span className={cx(!!e.engagedTill && e.engagedTill < today && "font-medium text-urgent-ink")}>{shortDate(e.engagedTill)}</span>,
+          className: "whitespace-nowrap tabular-nums",
+        },
+        { head: "Days", cell: (e) => e.contractDays, className: "text-right tabular-nums" },
+        { head: "Pay per day", cell: (e) => e.payPerDay != null && rupees(e.payPerDay), className: "text-right tabular-nums whitespace-nowrap" },
+      ];
+  return (
+    <Card className="overflow-hidden">
+      <table className="w-full text-left text-footnote">
+        <thead className="border-b border-line bg-canvas-soft text-caption font-semibold text-slate-500">
+          <tr>
+            <th scope="col" className="px-4 py-2 font-semibold">
+              Name
+            </th>
+            {cols.map((c) => (
+              <th key={c.head} scope="col" className={cx("px-2.5 py-2 font-semibold", c.className?.replace(/whitespace-nowrap/g, ""))}>
+                {c.head}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-line">
+          {people.map((e) => (
+            <tr key={e.id} className="row-click align-top text-slate-700 transition-colors has-[.row-link:hover]:bg-slate-50/80">
+              <td className="px-4 py-2.5">
+                <button onClick={() => onOpen(e.id)} className="row-link group/title min-w-32 text-left" aria-label={`Open ${e.name}`}>
+                  <span className="line-clamp-2 font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{e.name}</span>
+                </button>
+                {e.leftOn && <span className="mt-0.5 block text-caption text-slate-500">Left {fullDate(e.leftOn)}</span>}
+              </td>
+              {cols.map((c) => (
+                <td key={c.head} className={cx("px-2.5 py-2.5", c.className)}>
+                  {c.cell(e) || <span className="text-slate-300">—</span>}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
 function TemporaryTag({ className }: { className?: string }) {
   return (
     <span className={cx("inline-flex shrink-0 items-center gap-1 rounded-full bg-high-soft px-2 py-0.5 text-caption font-medium text-high-ink", className)}>
@@ -396,7 +533,8 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
         ["Joined this office", e.joinedOfficeOn && fullDate(e.joinedOfficeOn)],
         ["Next increment", e.nextIncrementOn && <span className={cx(e.nextIncrementOn < today && "font-medium text-urgent-ink")}>{fullDate(e.nextIncrementOn)}{e.nextIncrementOn < today && " (passed)"}</span>],
         ["Retirement", e.retiresOn && `${fullDate(e.retiresOn)}${e.retiresOn > today ? ` (in ${yearsBetween(today, e.retiresOn) > 0 ? plural(yearsBetween(today, e.retiresOn), "year") : "less than a year"})` : ""}`],
-        ["Pay scale / basic pay", e.payScale],
+        ["Basic pay", e.basicPay != null && rupees(e.basicPay)],
+        ["Pay scale", e.payScale],
         ["Probation declared", e.probationDeclaredOn && fullDate(e.probationDeclaredOn)],
         ["Home address", e.address && <span className="whitespace-pre-wrap">{e.address}</span>],
         ["Notes", e.notes && <span className="whitespace-pre-wrap">{e.notes}</span>],
@@ -537,6 +675,7 @@ const EMPTY: EmployeeInput = {
   nextIncrementOn: null,
   retiresOn: null,
   payScale: "",
+  basicPay: null,
   probationDeclaredOn: null,
   address: "",
   notes: "",
@@ -654,7 +793,11 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
             {date("nextIncrementOn", "Next increment date")}
             {date("retiresOn", "Date of retirement")}
             {date("probationDeclaredOn", "Probation declared on")}
-            {text("payScale", "Pay scale / basic pay", { maxLength: 100, placeholder: "e.g. 35600-75400" })}
+            {text("payScale", "Pay scale", { maxLength: 100, placeholder: "e.g. 35600-75400" })}
+            {/* Basic pay on its own (user request 2026-10-08): in the Employees table, asked for again at each increment. */}
+            <Field label="Basic pay (₹)">
+              <input type="number" inputMode="decimal" min={0} step="1" className={inputClass} value={v.basicPay ?? ""} onChange={(e) => set("basicPay", num(e.target.value, false))} placeholder="e.g. 41300" />
+            </Field>
           </Section>
           <Field label="Home address">
             <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={v.address} onChange={(e) => set("address", e.target.value)} maxLength={500} />

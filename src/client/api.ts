@@ -208,8 +208,13 @@ export function useOfficeFileActions() {
 export function useIncrementDone() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, undoTo }: { id: string; undoTo?: string }) =>
-      api<{ previous: string | null; next: string | null }>(`/staff/employees/${id}/increment`, { method: "POST", body: undoTo ? { undoTo } : {} }),
+    // basicPay: the new basic pay saved with the increment (user request 2026-10-08); restoreBasicPay (with undoTo):
+    // the basic pay to put back on Undo.
+    mutationFn: ({ id, undoTo, basicPay, restoreBasicPay }: { id: string; undoTo?: string; basicPay?: number | null; restoreBasicPay?: number | null }) =>
+      api<{ previous: string | null; next: string | null; previousBasicPay: number | null; basicPay: number | null }>(`/staff/employees/${id}/increment`, {
+        method: "POST",
+        body: undoTo ? { undoTo, ...(restoreBasicPay !== undefined ? { restoreBasicPay } : {}) } : basicPay !== undefined ? { basicPay } : {},
+      }),
     onSettled: () => qc.invalidateQueries({ predicate: (q) => ["staff", "summary", "history"].includes(q.queryKey[0] as string) }),
   });
 }

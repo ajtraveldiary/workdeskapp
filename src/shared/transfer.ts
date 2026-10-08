@@ -13,6 +13,8 @@ export type CsvColumn = {
   sample: [string, string];
   // Only in exports; ignored on import.
   exportOnly?: boolean;
+  // Older headers still read on import (e.g. a column that was renamed).
+  aliases?: string[];
   required?: boolean;
 };
 
@@ -47,7 +49,9 @@ export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
     { key: "nextIncrementOn", header: "Next increment date", sample: ["2027-06-01", ""] },
     { key: "retiresOn", header: "Date of retirement", sample: ["2036-05-31", ""] },
     { key: "probationDeclaredOn", header: "Probation declared on", sample: ["2010-06-02", ""] },
-    { key: "payScale", header: "Pay scale / basic pay", sample: ["35600-75400", ""] },
+    // Basic pay got its own column (user request 2026-10-08); files with the old "Pay scale / basic pay" header still import.
+    { key: "payScale", header: "Pay scale", aliases: ["Pay scale / basic pay"], sample: ["35600-75400", ""] },
+    { key: "basicPay", header: "Basic pay", sample: ["41300", ""] },
     { key: "address", header: "Home address", sample: ["Thiruvananthapuram", ""] },
     { key: "notes", header: "Notes", sample: ["", ""] },
     { key: "engagement", header: "Engaged as", sample: ["", "Daily wage"] },
@@ -119,6 +123,7 @@ export function mapHeaders(kind: CsvKind, headers: string[]): { keys: (string | 
   for (const c of CSV_COLUMNS[kind]) {
     byName.set(normHeader(c.header), c.key);
     byName.set(normHeader(c.key), c.key);
+    for (const a of c.aliases ?? []) byName.set(normHeader(a), c.key);
   }
   const keys = headers.map((h) => byName.get(normHeader(h)) ?? null);
   return { keys, unknown: headers.filter((h, i) => h.trim() && !keys[i]) };

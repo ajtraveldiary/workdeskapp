@@ -24,7 +24,7 @@ const log = (db: DB, userId: string, action: string, summary: string) => db.inse
 export function employeeValues(input: ReturnType<typeof employeeInput.parse>) {
   return input.permanent
     ? { ...input, engagedTill: null, engagement: "", typeId: null, contractDays: null, payPerDay: null }
-    : { ...input, pen: "", joinedOfficeOn: null, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null, payScale: "", address: "", notes: "" };
+    : { ...input, pen: "", joinedOfficeOn: null, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null, payScale: "", basicPay: null, address: "", notes: "" };
 }
 
 function toEmployee(e: typeof employees.$inferSelect): Employee {
@@ -241,25 +241,37 @@ export const staffRoutes = new Hono<AppEnv>()
     await log(db, userId, left ? "staff.employee_left" : "staff.employee_back", left ? `${e.name} left the office` : `${e.name} is back in the office`);
     return c.json({ ok: true });
   })
-  // Increment done (user request 2026-10-07): the next increment date moves a year on. Undo sends the date it
-  // was ("undoTo"), which is put back only if nothing changed it since.
+  // Increment done (user request 2026-10-07): the next increment date moves a year on, and (user request
+  // 2026-10-08) the new basic pay asked for when marking it is saved too ("basicPay"; left as it is when not
+  // sent). Undo sends the date it was ("undoTo"), put back only if nothing changed it since, and the basic pay
+  // it was ("restoreBasicPay", when sent).
   .post("/employees/:id/increment", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
     const e = await loadEmployee(db, userId, c.req.param("id"));
-    const { undoTo } = (await c.req.json().catch(() => ({}))) as { undoTo?: string };
+    const body = (await c.req.json().catch(() => ({}))) as { undoTo?: string; basicPay?: number | null; restoreBasicPay?: number | null };
+    const pay = (x: unknown) => {
+      if (x === null) return null;
+      if (typeof x !== "number" || !Number.isFinite(x) || x < 0 || x > 10_000_000) throw new HTTPException(400, { message: "Enter the basic pay in rupees" });
+      return x;
+    };
+    const rupees = (x: number | null) => (x == null ? "not given" : `₹${x.toLocaleString("en-IN")}`);
+    const { undoTo } = body;
     if (undoTo !== undefined) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(undoTo)) throw new HTTPException(400, { message: "Use YYYY-MM-DD" });
-      if (e.nextIncrementOn !== nextYear(undoTo)) return c.json({ previous: e.nextIncrementOn, next: e.nextIncrementOn });
-      await db.update(employees).set({ nextIncrementOn: undoTo, updatedAt: new Date() }).where(eq(employees.id, e.id));
+      if (e.nextIncrementOn !== nextYear(undoTo)) return c.json({ previous: e.nextIncrementOn, next: e.nextIncrementOn, previousBasicPay: e.basicPay, basicPay: e.basicPay });
+      const restore = "restoreBasicPay" in body ? { basicPay: pay(body.restoreBasicPay) } : {};
+      await db.update(employees).set({ nextIncrementOn: undoTo, ...restore, updatedAt: new Date() }).where(eq(employees.id, e.id));
       await log(db, userId, "staff.increment_undone", `Increment for ${e.name} not done after all; due ${undoTo} again`);
-      return c.json({ previous: e.nextIncrementOn, next: undoTo });
+      return c.json({ previous: e.nextIncrementOn, next: undoTo, previousBasicPay: e.basicPay, basicPay: "restoreBasicPay" in body ? restore.basicPay : e.basicPay });
     }
     if (!e.nextIncrementOn) throw new HTTPException(400, { message: `${e.name} has no increment date` });
     const next = nextYear(e.nextIncrementOn);
-    await db.update(employees).set({ nextIncrementOn: next, updatedAt: new Date() }).where(eq(employees.id, e.id));
-    await log(db, userId, "staff.increment_done", `Increment for ${e.name} (due ${e.nextIncrementOn}) marked done; next due ${next}`);
-    return c.json({ previous: e.nextIncrementOn, next });
+    const newPay = "basicPay" in body ? pay(body.basicPay) : e.basicPay;
+    await db.update(employees).set({ nextIncrementOn: next, basicPay: newPay, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    const payNote = newPay !== e.basicPay ? `; basic pay ${rupees(e.basicPay)} → ${rupees(newPay)}` : "";
+    await log(db, userId, "staff.increment_done", `Increment for ${e.name} (due ${e.nextIncrementOn}) marked done; next due ${next}${payNote}`);
+    return c.json({ previous: e.nextIncrementOn, next, previousBasicPay: e.basicPay, basicPay: newPay });
   })
   // Contract ending (user request 2026-10-08), from ticking its "Contract ends" task, which both complete. Renew: the contract runs the same number
   // of days again from the day after it ends. Undo sends the end date it was ("undoTo"), put back only if

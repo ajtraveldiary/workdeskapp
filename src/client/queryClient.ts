@@ -56,7 +56,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 14: tasks carry madeBySystem (Pension papers tasks, 2026-10-08).
 // 15: tasks carry systemKind; the summary no longer lists contractsEnding (they are tasks now), 2026-10-08.
 // 16: task systemKind can be "probation" (2026-10-08).
-export const CACHE_VERSION = "16";
+// 17: employees and increments due carry basicPay (2026-10-08).
+export const CACHE_VERSION = "17";
 
 export async function clearSavedData() {
   queryClient.clear();

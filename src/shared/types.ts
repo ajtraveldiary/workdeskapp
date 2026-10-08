@@ -221,6 +221,8 @@ export type Employee = {
   nextIncrementOn: string | null;
   retiresOn: string | null;
   payScale: string;
+  // Basic pay in ₹ (permanent staff; user request 2026-10-08).
+  basicPay: number | null;
   probationDeclaredOn: string | null;
   address: string;
   notes: string;
@@ -232,7 +234,7 @@ export type EmployeeType = { id: string; name: string; sortOrder: number };
 export type StaffList = { designations: Designation[]; types: EmployeeType[]; employees: Employee[] };
 
 // An employee's increment shown in Home's Due Today (user request 2026-10-07).
-export type IncrementDue = { employeeId: string; name: string; designation: string | null; due: string };
+export type IncrementDue = { employeeId: string; name: string; designation: string | null; due: string; basicPay: number | null };
 
 // An employee retiring within 12 months (user request 2026-10-08), with the Pension papers task WorkDesk made
 // for them (null: not made yet, e.g. already past the date, or deleted).

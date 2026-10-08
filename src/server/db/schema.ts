@@ -330,6 +330,9 @@ export const employees = pgTable("employees", {
   nextIncrementOn: date("next_increment_on"),
   retiresOn: date("retires_on"),
   payScale: text("pay_scale").notNull().default(""),
+  // Basic pay in rupees, permanent staff only (user request 2026-10-08): shown in the Employees table and asked
+  // for again when an increment is marked done.
+  basicPay: numeric("basic_pay", { precision: 10, scale: 2, mode: "number" }),
   probationDeclaredOn: date("probation_declared_on"),
   address: text("address").notNull().default(""),
   notes: text("notes").notNull().default(""),

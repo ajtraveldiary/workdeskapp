@@ -67,6 +67,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0026_tasks_made_by_system.sql` | Marks tasks WorkDesk makes itself ("Made by system"), including Pension papers tasks already made. |
 | `0027_contract_tasks.sql` | Kind of system task (pension / contract) and the Contract ends task kept for each temporary employee. |
 | `0028_probation_tasks.sql` | Remembers the Probation declaration task made for an employee. |
+| `0029_basic_pay.sql` | Basic pay (₹) for permanent employees, separate from the pay scale. |
 
 ## `src/server/` — the API (Cloudflare Worker, or Node when run locally)
 
@@ -190,7 +191,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `History.tsx` | Every decision and change, with Undo where possible. |
 | `Search.tsx` | Search across emails and tasks. |
 | `Settings.tsx` | Settings in four tabs (the tab is in the address: none, `#mail`, `#employees`, `#calendar`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Calendar link. |
-| `Staff.tsx` | Employees page: due increments, retiring within 12 months (with Pension papers progress), permanent/temporary filter, list by designation, employee card, add/edit form. |
+| `Staff.tsx` | Employees page: due increments (Mark done asks the new basic pay), retiring within 12 months (with Pension papers progress), on computers (1024px+) a Permanent or Temporary table with a switch, on narrower screens the permanent/temporary filter, list by designation, employee card, add/edit form. |
 | `Files.tsx` | File register: one-line list of files with e-file numbers, search, filters, add/edit form. |
 | `ImportExport.tsx` | Import / Export: master backup, CSV export/import with preview, sample CSV links. |
 | `Login.tsx` | Sign in with Google. |
@@ -219,6 +220,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `TaskRow.tsx` | One task row on the Tasks page (a Contract ends or Probation declaration task's tick asks instead). |
 | `TaskDialog.tsx` | Add / edit task form. |
 | `TaskDetails.tsx` | Task details card: where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete (Renew or end / Declare or extend for Contract ends / Probation declaration tasks) / Reopen. |
+| `IncrementDialog.tsx` | "Increment done": asks the new basic pay before marking an increment done (Home and the Employees page), with Undo; lives once in the shell. |
 | `SystemTaskChooser.tsx` | The choice a system task asks for when ticked or swiped anywhere: Renew / Contract ended for "Contract ends", Probation declared / Change due date for "Probation declaration"; lives once in the shell. |
 | `InlineTaskEdit.tsx` | Change a task's date/time or priority straight from its chip. |
 | `PriorityGroups.tsx` | Sorts task lists Urgent → High → Medium → Low, earliest first. |

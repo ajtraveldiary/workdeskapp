@@ -29,7 +29,6 @@ import { gmailThreadUrl } from "../../shared/gmailUrl";
 import {
   useCompleteTask,
   useDismiss,
-  useIncrementDone,
   useMarkSeen,
   useReopenTask,
   useRestore,
@@ -41,6 +40,7 @@ import {
 import { formatDay, formatTime, formatWhen } from "../format";
 import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../components/SwipeRow";
 import { openRemove } from "../components/RemoveChooser";
+import { openIncrement } from "../components/IncrementDialog";
 import { asksChoice, choiceLabel, openTaskChoice } from "../components/SystemTaskChooser";
 import { EmailStatusTags, SectionBackTag } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
@@ -446,17 +446,11 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
 // An employee's increment due (Staff, user request 2026-10-07): tick (computers) or swipe right (phones) marks
 // it done, which moves their next increment date a year on, with Undo; tapping opens the employee's card.
 function IncrementRow({ item, today }: { item: IncrementDue; today: string }) {
-  const done = useIncrementDone();
   const navigate = useNavigate();
   const swipe = useSwipeMode();
   const late = incrementOverdue(item.due, today);
-  const markDone = () =>
-    done.mutateAsync({ id: item.employeeId }).then((r) =>
-      showUndo({
-        message: `Increment done: ${item.name}${r.next ? ` · next ${formatDay(r.next, today)}` : ""}`,
-        onUndo: () => r.previous && done.mutate({ id: item.employeeId, undoTo: r.previous }),
-      }),
-    );
+  // Asks for the new basic pay first (user request 2026-10-08); the dialog marks it done, with Undo.
+  const markDone = () => openIncrement({ employeeId: item.employeeId, name: item.name, due: item.due, basicPay: item.basicPay ?? null });
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
@@ -465,7 +459,7 @@ function IncrementRow({ item, today }: { item: IncrementDue; today: string }) {
     >
       {!swipe && (
         <div className="pt-px">
-          <CheckCircle checked={false} onToggle={() => void markDone()} disabled={done.isPending} label={`Mark increment done: ${item.name}`} />
+          <CheckCircle checked={false} onToggle={markDone} label={`Mark increment done: ${item.name}`} />
         </div>
       )}
       <span className="w-[3px] shrink-0 self-stretch rounded-full bg-brand-500" aria-hidden />

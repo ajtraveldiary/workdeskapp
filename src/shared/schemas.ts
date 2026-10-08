@@ -195,6 +195,8 @@ export const employeeInput = z.object({
   nextIncrementOn: day.nullable().default(null),
   retiresOn: day.nullable().default(null),
   payScale: z.string().trim().max(100).default(""),
+  // Basic pay in ₹ (user request 2026-10-08). Optional so an older form that doesn't send it leaves it alone.
+  basicPay: z.number().min(0).max(10_000_000).nullable().optional(),
   probationDeclaredOn: day.nullable().default(null),
   address: z.string().trim().max(500).default(""),
   notes: z.string().max(5_000).default(""),

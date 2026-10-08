@@ -297,7 +297,7 @@ async function planEmployees(db: DB, userId: string, rows: Row[], result: Import
       if (k && !g) errors.push(`Engaged as: "${c.get("engagement")}" should be Contract, Daily wage or Temporary`);
       else v.engagement = g ?? "";
     }
-    for (const [key, header] of [["contractDays", "Contract period (days)"], ["payPerDay", "Pay per day"]] as const) {
+    for (const [key, header] of [["contractDays", "Contract period (days)"], ["payPerDay", "Pay per day"], ["basicPay", "Basic pay"]] as const) {
       if (!c.has(key)) continue;
       const n = num(c.get(key)!, key === "contractDays");
       if (n === undefined) errors.push(`${header}: "${c.get(key)}" is not a number`);

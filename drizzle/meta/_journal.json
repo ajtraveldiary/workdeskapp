@@ -204,6 +204,13 @@
       "when": 1791428473191,
       "tag": "0028_probation_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791437411919,
+      "tag": "0029_basic_pay",
+      "breakpoints": true
     }
   ]
 }

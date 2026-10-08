@@ -154,7 +154,7 @@ describe("staff", () => {
     expect(s.counts.incrementsDue).toBe(1);
 
     const r = (await call("POST", `/staff/employees/${late}/increment`)).json;
-    expect(r).toEqual({ previous: overdueDay, next: nextYear(overdueDay) });
+    expect(r).toMatchObject({ previous: overdueDay, next: nextYear(overdueDay) });
     s = await summary();
     expect(s.incrementsDue).toEqual([]);
     expect(JSON.stringify((await call("GET", "/history")).json)).toContain("marked done");
@@ -224,5 +224,36 @@ describe("staff", () => {
     // Permanent employees have no contract.
     const perm = (await call("POST", "/staff/employees", { name: "Permanent" })).json.id as string;
     expect((await call("POST", `/staff/employees/${perm}/contract/ended`)).status).toBe(400);
+  });
+
+  it("basic pay: its own field, saved with an increment and put back by Undo; shown with increments due", async () => {
+    const today = (await call("GET", "/me")).json.today as string;
+    const lastMonth = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
+    lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
+    const due = lastMonth.toISOString().slice(0, 10);
+    const id = (await call("POST", "/staff/employees", { name: NAME, payScale: "35600-75400", basicPay: 41300, nextIncrementOn: due })).json.id as string;
+    const emp = async () => (await staff()).employees.find((e) => e.id === id)!;
+    expect(await emp()).toMatchObject({ payScale: "35600-75400", basicPay: 41300 });
+    expect(((await call("GET", "/summary")).json as Summary).incrementsDue[0]).toMatchObject({ employeeId: id, basicPay: 41300 });
+
+    // Done with the new basic pay; Undo puts back both.
+    const r = (await call("POST", `/staff/employees/${id}/increment`, { basicPay: 42500 })).json;
+    expect(r).toEqual({ previous: due, next: nextYear(due), previousBasicPay: 41300, basicPay: 42500 });
+    expect(await emp()).toMatchObject({ nextIncrementOn: nextYear(due), basicPay: 42500 });
+    expect(JSON.stringify((await call("GET", "/history")).json)).toContain("basic pay ₹41,300 → ₹42,500");
+    await call("POST", `/staff/employees/${id}/increment`, { undoTo: due, restoreBasicPay: 41300 });
+    expect(await emp()).toMatchObject({ nextIncrementOn: due, basicPay: 41300 });
+    // Done without sending a basic pay leaves it alone; a bad one is refused.
+    await call("POST", `/staff/employees/${id}/increment`);
+    expect((await emp()).basicPay).toBe(41300);
+    expect((await call("POST", `/staff/employees/${id}/increment`, { basicPay: -5 })).status).toBe(400);
+
+    // An older form that doesn't send basicPay doesn't clear it; temporary staff have none.
+    const e = await emp();
+    const { basicPay: _b, ...rest } = e;
+    await call("PUT", `/staff/employees/${id}`, rest);
+    expect((await emp()).basicPay).toBe(41300);
+    await call("PUT", `/staff/employees/${id}`, { ...e, permanent: false });
+    expect((await emp()).basicPay).toBeNull();
   });
 });

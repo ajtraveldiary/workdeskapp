@@ -1,0 +1,1 @@
+ALTER TABLE "employees" ADD COLUMN "basic_pay" numeric(10, 2);

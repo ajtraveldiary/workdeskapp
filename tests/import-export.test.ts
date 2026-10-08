@@ -71,6 +71,8 @@ describe("import / export", () => {
     expect(parseTime("2:05 PM")).toBe("14:05");
     expect(parseTime("25:00")).toBeUndefined();
     expect(mapHeaders("files", ["e-file NUMBER", "Subject", "Colour"])).toEqual({ keys: ["efileNumber", "subject", null], unknown: ["Colour"] });
+    // Basic pay got its own column (2026-10-08); the old "Pay scale / basic pay" header still means the pay scale.
+    expect(mapHeaders("employees", ["Pay scale / basic pay", "Pay scale", "Basic pay"]).keys).toEqual(["payScale", "payScale", "basicPay"]);
     // Formula-looking text is kept as text; phone numbers are left alone.
     expect(toCsv([["=SUM(A1)", "+91 9447012345", 'a "b", c']])).toBe('﻿\'=SUM(A1),+91 9447012345,"a ""b"", c"\r\n');
     for (const kind of ["files", "employees", "tasks", "reminders"] as const) {

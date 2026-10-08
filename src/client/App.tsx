@@ -34,6 +34,7 @@ import { UndoBar, showUndo } from "./components/SwipeRow";
 import { WaitDialogHost } from "./components/Waiting";
 import { RemoveChooserHost } from "./components/RemoveChooser";
 import { SystemTaskChooserHost } from "./components/SystemTaskChooser";
+import { IncrementDialogHost } from "./components/IncrementDialog";
 import { SidePanel } from "./components/SidePanel";
 import { usePhone } from "./components/sheet";
 import { refreshPushSubscription, setIconBadge } from "./push";
@@ -143,6 +144,7 @@ function Shell({ children }: { children: ReactNode }) {
       <WaitDialogHost />
       <RemoveChooserHost />
       <SystemTaskChooserHost />
+      <IncrementDialogHost />
       <IconBadge />
       {/* Labelled icon rail */}
       <aside className="sticky top-0 hidden h-dvh w-[104px] shrink-0 flex-col border-r border-line bg-white md:flex">

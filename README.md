@@ -10,7 +10,7 @@ What's in it:
 - **Tasks:** due dates and times, priorities, checklists, waiting for a reply, "for" an employee or designation.
 - **Reminders:** repeating dates (reports, meetings, payments) with links to Google files; each date becomes a task.
 - **Calendar:** month view, plus a private calendar link for Apple / Google Calendar.
-- **Employees:** permanent and temporary staff with their details, designations, due increments; a week before a temporary contract ends, a Contract ends task (made by the system) that asks to renew or end it; 12 months before someone retires, a Pension papers task with the pension checklist, and a Retiring within 12 months list; near 2 years of service without probation declared, a Probation declaration task (declared, or change its date).
+- **Employees:** permanent and temporary staff with their details (on computers as a permanent or a temporary table), designations, due increments (marking one done asks the new basic pay); a week before a temporary contract ends, a Contract ends task (made by the system) that asks to renew or end it; 12 months before someone retires, a Pension papers task with the pension checklist, and a Retiring within 12 months list; near 2 years of service without probation declared, a Probation declaration task (declared, or change its date).
 - **File register:** physical files and e-files with their numbers.
 - **Import / Export:** a master backup of everything, and CSV import/export (with sample files) for the file register, employees, tasks and reminders.
 - **Phone notifications**, dark mode, offline viewing, and Malayalam everywhere.

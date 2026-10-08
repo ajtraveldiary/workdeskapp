@@ -104,7 +104,7 @@ export const miscRoutes = new Hono<AppEnv>()
     // Increments due (Staff, user request 2026-10-07), shown in Due Today: this month's from the 20th.
     const incrementsDue = (
       await db
-        .select({ employeeId: employees.id, name: employees.name, designation: designations.name, due: employees.nextIncrementOn })
+        .select({ employeeId: employees.id, name: employees.name, designation: designations.name, due: employees.nextIncrementOn, basicPay: employees.basicPay })
         .from(employees)
         .leftJoin(designations, eq(employees.designationId, designations.id))
         .where(and(eq(employees.userId, userId), sql`${employees.leftOn} is null`, sql`${employees.nextIncrementOn} is not null`))
