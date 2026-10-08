@@ -166,7 +166,7 @@ describe("staff", () => {
     expect((await call("POST", `/staff/employees/${none}/increment`)).status).toBe(400);
   });
 
-  it("contracts ending: on Home from 7 days before, renew for the same period or end, both with Undo", async () => {
+  it("contracts ending: a Contract ends task from 7 days before; renew or end completes it, Undo reopens it", async () => {
     expect(contractOnHome("2026-10-15", "2026-10-08")).toBe(true); // 7 days ahead
     expect(contractOnHome("2026-10-16", "2026-10-08")).toBe(false);
     expect(contractOnHome("2026-09-30", "2026-10-08")).toBe(true); // past, not dealt with
@@ -181,28 +181,42 @@ describe("staff", () => {
     const temp = (await call("POST", "/staff/employees", { name: NAME, permanent: false, engagement: "contract", contractDays: 179, joinedServiceOn: "2026-04-01", engagedTill: soon })).json.id as string;
     const noDays = (await call("POST", "/staff/employees", { name: "No period", permanent: false, engagedTill: soon })).json.id as string;
     await call("POST", "/staff/employees", { name: "Not yet", permanent: false, contractDays: 30, engagedTill: later });
-    const summary = async () => (await call("GET", "/summary")).json as Summary;
-    let s = await summary();
-    expect(s.contractsEnding.map((c) => c.name).sort()).toEqual([NAME, "No period"].sort());
-    expect(s.contractsEnding.find((c) => c.employeeId === temp)).toMatchObject({ end: soon, days: 179 });
-    expect(s.counts.contractsEnding).toBe(2);
+    const contractTasks = async () => ((await call("GET", "/tasks?view=any")).json.tasks as Task[]).filter((t) => t.systemKind === "contract");
+    const open = async () => (await contractTasks()).filter((t) => t.status === "open").map((t) => t.relatedId).sort();
+    let tasks = await contractTasks();
+    expect(tasks.map((t) => t.title).sort()).toEqual([`Contract ends: ${NAME}`, "Contract ends: No period"].sort());
+    expect(tasks.find((t) => t.relatedId === temp)).toMatchObject({ dueDate: soon, priority: "high", madeBySystem: true, relatedKind: "employee", status: "open" });
+    expect(tasks.find((t) => t.relatedId === temp)!.notes).toContain("179 days");
+    // The old Home rows are gone: the summary counts them as tasks (upcoming here).
+    expect((await call("GET", "/summary")).json).not.toHaveProperty("contractsEnding");
 
-    // Renew: the same 179 days again from the day after it ends; Undo puts the old end date back.
+    // Renew: the same 179 days again from the day after it ends, and the task is completed; Undo puts the old
+    // end date back and reopens it. No second task is made for the same end date.
     const r = (await call("POST", `/staff/employees/${temp}/contract/renew`)).json;
     expect(r).toEqual({ previous: soon, next: renewedEnd(soon, 179) });
-    s = await summary();
-    expect(s.contractsEnding.map((c) => c.employeeId)).toEqual([noDays]);
+    expect(await open()).toEqual([noDays]);
     await call("POST", `/staff/employees/${temp}/contract/renew`, { undoTo: soon });
     expect((await staff()).employees.find((e) => e.id === temp)!.engagedTill).toBe(soon);
+    expect(await open()).toEqual([noDays, temp].sort());
+    await call("POST", "/maintain");
+    expect(await contractTasks()).toHaveLength(2);
     // No contract period: renew is refused (set it on the employee first).
     expect((await call("POST", `/staff/employees/${noDays}/contract/renew`)).status).toBe(400);
 
-    // Ended: left the office on the end date, off Home; Undo brings them back.
+    // Ended: left the office on the end date and the task completed; Undo brings them back and reopens it.
     expect((await call("POST", `/staff/employees/${noDays}/contract/ended`)).json).toEqual({ leftOn: soon });
     expect((await staff()).employees.find((e) => e.id === noDays)!.leftOn).toBe(soon);
-    expect((await summary()).contractsEnding.map((c) => c.employeeId)).toEqual([temp]);
+    expect(await open()).toEqual([temp]);
     await call("POST", `/staff/employees/${noDays}/contract/ended`, { undo: true });
     expect((await staff()).employees.find((e) => e.id === noDays)!.leftOn).toBeNull();
+    expect(await open()).toEqual([noDays, temp].sort());
+
+    // An edited end date moves the open task to it; one beyond 7 days still keeps it (now upcoming).
+    const e = (await staff()).employees.find((x) => x.id === temp)!;
+    await call("PUT", `/staff/employees/${temp}`, { ...e, engagedTill: later });
+    tasks = await contractTasks();
+    expect(tasks.filter((t) => t.relatedId === temp)).toHaveLength(1);
+    expect(tasks.find((t) => t.relatedId === temp)!.dueDate).toBe(later);
 
     const history = JSON.stringify((await call("GET", "/history")).json);
     expect(history).toContain("renewed for 179 days");

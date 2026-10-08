@@ -5,12 +5,12 @@
 A personal office dashboard on top of Gmail, built for a section of the Kerala Health Services. Every email that comes in needs a decision: turn it into a task, send it to another section, or remove it. Tasks keep a link back to their email, and a History screen records every decision. It works in a computer's browser and as an iPhone home-screen app.
 
 What's in it:
-- **Home:** Pending emails, pending jobs, today's work (with overdue items, due increments and temporary contracts ending) and upcoming reminders at a glance.
+- **Home:** Pending emails, pending jobs, today's work (with overdue items and due increments) and upcoming reminders at a glance.
 - **Emails:** Pending / Other sections / Removed; read emails with previews of PDF, Excel, Word and Google Docs attachments; share an email to WhatsApp; Gmail labels; sections of the office.
 - **Tasks:** due dates and times, priorities, checklists, waiting for a reply, "for" an employee or designation.
 - **Reminders:** repeating dates (reports, meetings, payments) with links to Google files; each date becomes a task.
 - **Calendar:** month view, plus a private calendar link for Apple / Google Calendar.
-- **Employees:** permanent and temporary staff with their details, designations, due increments; a temporary contract shows in Due Today from a week before it ends, to renew or end it; 12 months before someone retires, a Pension papers task with the pension checklist, and a Retiring within 12 months list.
+- **Employees:** permanent and temporary staff with their details, designations, due increments; a week before a temporary contract ends, a Contract ends task (made by the system) that asks to renew or end it; 12 months before someone retires, a Pension papers task with the pension checklist, and a Retiring within 12 months list.
 - **File register:** physical files and e-files with their numbers.
 - **Import / Export:** a master backup of everything, and CSV import/export (with sample files) for the file register, employees, tasks and reminders.
 - **Phone notifications**, dark mode, offline viewing, and Malayalam everywhere.

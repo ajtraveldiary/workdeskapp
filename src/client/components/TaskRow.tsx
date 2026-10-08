@@ -1,4 +1,4 @@
-import { Check, Eye, ExternalLink, CalendarClock, Hourglass, Mail, Pencil, RotateCcw } from "lucide-react";
+import { Check, Eye, ExternalLink, CalendarClock, FileClock, Hourglass, Mail, Pencil, RotateCcw } from "lucide-react";
 import type { Task } from "../../shared/types";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useCompleteTask, useMarkSeen, useReopenTask } from "../api";
@@ -8,6 +8,7 @@ import { RelatedTag } from "./Related";
 import { WaitingBadge, canWait, isWaiting, openWait } from "./Waiting";
 import { Badge, PRIORITY_BAR, cx } from "./ui";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
+import { isContractTask, openContract } from "./ContractChooser";
 
 export function TaskRow({
   task,
@@ -29,6 +30,8 @@ export function TaskRow({
   const seen = useMarkSeen();
   const done = task.status === "done";
   const waiting = isWaiting(task);
+  // A "Contract ends" task asks Renew or Contract ended instead of being ticked (user request 2026-10-08).
+  const contract = isContractTask(task);
   const overdue = !done && !waiting && task.dueDate !== null && task.dueDate < today;
   const gmailUrl = task.thread && gmailThreadUrl(task.thread.accountEmail, task.thread.gmailThreadId);
   // Phones: swipe right to complete (or reopen), left for Gmail / seen / edit; the side buttons go away.
@@ -41,7 +44,9 @@ export function TaskRow({
       leading={
         done
           ? { label: "Reopen", icon: RotateCcw, tone: "neutral", onClick: () => reopen.mutateAsync(task.id) }
-          : {
+          : contract
+            ? { label: "Contract", icon: FileClock, tone: "high", onClick: () => openContract(task) }
+            : {
               label: "Done",
               icon: Check,
               tone: "low",
@@ -58,7 +63,7 @@ export function TaskRow({
     >
       {!swipe && (
       <button
-        onClick={() => (done ? reopen.mutate(task.id) : complete.mutate(task.id))}
+        onClick={() => (done ? reopen.mutate(task.id) : contract ? openContract(task) : complete.mutate(task.id))}
         disabled={complete.isPending || reopen.isPending}
         aria-label={done ? "Reopen task" : "Mark task complete"}
         title={done ? "Reopen" : "Mark complete"}

@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router";
 import {
   CalendarClock,
-  CalendarX2,
   FileClock,
-  RefreshCw,
   ArrowRight,
   CalendarDays,
   Check,
@@ -26,12 +23,11 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { ContractEnding, IncrementDue, Task, TaskView, Thread } from "../../shared/types";
-import { contractOver, incrementOverdue, renewedEnd } from "../../shared/staff";
+import type { IncrementDue, Task, TaskView, Thread } from "../../shared/types";
+import { incrementOverdue } from "../../shared/staff";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import {
   useCompleteTask,
-  useContractAction,
   useDismiss,
   useIncrementDone,
   useMarkSeen,
@@ -44,8 +40,8 @@ import {
 } from "../api";
 import { formatDay, formatTime, formatWhen } from "../format";
 import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../components/SwipeRow";
-import { AnchoredMenu, openRemove } from "../components/RemoveChooser";
-import { usePhone } from "../components/sheet";
+import { openRemove } from "../components/RemoveChooser";
+import { isContractTask, openContract } from "../components/ContractChooser";
 import { EmailStatusTags, SectionBackTag } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
@@ -60,7 +56,7 @@ import { WaitingBadge, canWait, isWaiting, openWait } from "../components/Waitin
 import { TaskDetails } from "../components/TaskDetails";
 import { EditableDue, dueTone } from "../components/InlineTaskEdit";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
-import { ActionSheet, Button, CheckCircle, ErrorNote, Loading as PageLoading, Menu, PRIORITY_BAR, Segmented, SkeletonList, Spinner, TONE, cx, type Tone } from "../components/ui";
+import { Button, CheckCircle, Loading as PageLoading, Menu, PRIORITY_BAR, Segmented, SkeletonList, Spinner, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 export function HomePage() {
@@ -97,7 +93,7 @@ export function HomePage() {
         <StatCard
           to={counts.overdue ? "/tasks?view=overdue" : "/tasks?view=today"}
           icon={counts.overdue ? TriangleAlert : CircleCheck}
-          value={counts.dueToday + counts.overdue + (counts.incrementsDue ?? 0) + (counts.contractsEnding ?? 0)}
+          value={counts.dueToday + counts.overdue + (counts.incrementsDue ?? 0)}
           label="Pending today"
           note={
             counts.overdue
@@ -106,11 +102,9 @@ export function HomePage() {
                 ? "Due today"
                 : counts.incrementsDue
                   ? `${counts.incrementsDue} increment${counts.incrementsDue === 1 ? "" : "s"}`
-                  : counts.contractsEnding
-                    ? `${counts.contractsEnding} contract${counts.contractsEnding === 1 ? "" : "s"} ending`
-                    : "Nothing due today"
+                  : "Nothing due today"
           }
-          tone={counts.overdue ? "urgent" : counts.dueToday || counts.incrementsDue || counts.contractsEnding ? "high" : "low"}
+          tone={counts.overdue ? "urgent" : counts.dueToday || counts.incrementsDue ? "high" : "low"}
         />
         <StatCard
           to="/reminders"
@@ -294,8 +288,6 @@ function CommandCenter({
   }, [data, tab, overdueList]);
   // Increments due (Staff, user request 2026-10-07): in the Today tab from the 20th of their month.
   const increments = tab === "today" ? (summary.incrementsDue ?? []) : [];
-  // Temporary employees' contracts ending within 7 days or already past (user request 2026-10-08), Today tab.
-  const contracts = tab === "today" ? (summary.contractsEnding ?? []) : [];
 
   return (
     <Panel hiddenOnPhone={hiddenOnPhone}>
@@ -316,7 +308,7 @@ function CommandCenter({
           value={tab}
           onChange={setTab}
           options={[
-            { value: "today", label: "Today", count: counts.dueToday + counts.overdue + (counts.incrementsDue ?? 0) + (counts.contractsEnding ?? 0), tone: "high" },
+            { value: "today", label: "Today", count: counts.dueToday + counts.overdue + (counts.incrementsDue ?? 0), tone: "high" },
             { value: "overdue", label: "Overdue", count: counts.overdue, tone: "urgent" },
             { value: "upcoming", label: "Upcoming", count: counts.upcoming, tone: "info" },
             ...(phone ? [] : [{ value: "reports" as const, label: "Reminders", count: counts.reportTasks }]),
@@ -330,15 +322,12 @@ function CommandCenter({
           <Empty icon={CalendarClock} title="No reminder tasks open">
             Each reminder's task appears here ahead of its date. <Link to="/reminders" className="font-medium text-brand-700 hover:underline">Set up reminders</Link>
           </Empty>
-        ) : tasks.length === 0 && increments.length === 0 && contracts.length === 0 ? (
+        ) : tasks.length === 0 && increments.length === 0 ? (
           <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today or overdue" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
             {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
           </Empty>
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
-            {contracts.map((c) => (
-              <ContractRow key={c.employeeId} item={c} today={today} />
-            ))}
             {increments.map((i) => (
               <IncrementRow key={i.employeeId} item={i} today={today} />
             ))}
@@ -378,9 +367,18 @@ function useTaskActions(task: Task) {
   const seen = useMarkSeen();
   const done = task.status === "done";
   const gmailUrl = task.thread ? gmailThreadUrl(task.thread.accountEmail, task.thread.gmailThreadId) : null;
-  const toggle = () => (done ? reopen.mutate(task.id) : complete.mutate(task.id));
-  const toggleAsync = () => (done ? reopen.mutateAsync(task.id) : complete.mutateAsync(task.id));
-  return { done, toggle, toggleAsync, busy: complete.isPending || reopen.isPending, gmailUrl, markSeen: () => task.thread && seen.mutate(task.thread.id) };
+  // A "Contract ends" task (user request 2026-10-08) isn't simply ticked: it asks Renew or Contract ended, which
+  // complete it. toggleAsync resolves to whether it completed or reopened the task (false: the choice opened).
+  const contract = isContractTask(task);
+  const toggleAsync = (): Promise<boolean> => {
+    if (contract) {
+      openContract(task);
+      return Promise.resolve(false);
+    }
+    return (done ? reopen.mutateAsync(task.id) : complete.mutateAsync(task.id)).then(() => true);
+  };
+  const toggle = () => void toggleAsync();
+  return { done, contract, toggle, toggleAsync, busy: complete.isPending || reopen.isPending, gmailUrl, markSeen: () => task.thread && seen.mutate(task.thread.id) };
 }
 
 // Phones: swipe right to complete (or reopen), left for Gmail / seen / edit.
@@ -388,7 +386,9 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
   return {
     leading: a.done
       ? { label: "Reopen", icon: RotateCcw, tone: "neutral", onClick: a.toggleAsync }
-      : { label: "Done", icon: Check, tone: "low", onClick: () => a.toggleAsync().then(() => showUndo({ message: "Task completed", undo: { kind: "reopen", id: task.id } })) },
+      : a.contract
+        ? { label: "Contract", icon: FileClock, tone: "high", onClick: a.toggle }
+        : { label: "Done", icon: Check, tone: "low", onClick: () => a.toggleAsync().then((did) => did && showUndo({ message: "Task completed", undo: { kind: "reopen", id: task.id } })) },
     trailing: [
       { label: "Gmail", icon: ExternalLink, tone: "info", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
       { label: "Seen", icon: Eye, tone: "brand", onClick: a.markSeen, hidden: !task.thread?.hasNewActivity || a.done },
@@ -421,7 +421,7 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
         <div className="pt-px">
           <CheckCircle
             checked={false}
-            onToggle={() => a.toggleAsync().then(() => showUndo({ message: "Task completed", undo: { kind: "reopen", id: task.id } }))}
+            onToggle={() => a.toggleAsync().then((did) => did && showUndo({ message: "Task completed", undo: { kind: "reopen", id: task.id } }))}
             disabled={a.busy}
             label={`Mark complete: ${task.title}`}
           />
@@ -479,130 +479,6 @@ function IncrementRow({ item, today }: { item: IncrementDue; today: string }) {
       </button>
       <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{formatDay(item.due, today)}</span>
     </SwipeRow>
-  );
-}
-
-// A temporary employee's contract ending (user request 2026-10-08; user's choices: from 7 days before, and the
-// tick asks Renew or Contract ended). The tick (computers) opens a small menu growing out of it; swiping right
-// (phones) opens an action sheet. Renew runs the contract the same number of days again from the day after it
-// ends; Contract ended marks them left the office on the end date. Both have Undo; tapping the name opens the
-// employee's card (where the end date or contract period can be edited).
-function ContractRow({ item, today }: { item: ContractEnding; today: string }) {
-  const navigate = useNavigate();
-  const swipe = useSwipeMode();
-  const phone = usePhone();
-  const [chooser, setChooser] = useState<HTMLElement | "sheet" | null>(null);
-  const tickRef = useRef<HTMLDivElement>(null);
-  const late = contractOver(item.end, today);
-  const close = () => setChooser(null);
-  const choices = <ContractChoices item={item} today={today} onDone={close} />;
-  return (
-    <>
-      <SwipeRow
-        className="-mx-3 sm:-mx-5"
-        contentClassName="row-click flex items-start gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2"
-        leading={{ label: "Contract", icon: FileClock, tone: "high", onClick: () => setChooser("sheet") }}
-      >
-        {!swipe && (
-          <div ref={tickRef} className="pt-px">
-            <CheckCircle checked={false} onToggle={() => setChooser((c) => (c ? null : (tickRef.current ?? "sheet")))} label={`Contract ending: ${item.name}. Renew or end`} />
-          </div>
-        )}
-        <span className="w-[3px] shrink-0 self-stretch rounded-full bg-high" aria-hidden />
-        <button
-          onClick={() => navigate(`/employees?employee=${item.employeeId}`)}
-          className="row-link line-clamp-3 min-w-0 flex-1 text-left text-subhead leading-snug font-medium text-ink [overflow-wrap:anywhere] hover:text-brand-700 hover:underline sm:text-sm"
-          aria-label={`Contract ${late ? "ended" : "ending"}: ${item.name}. Open employee`}
-        >
-          <FileClock size={14} className="mr-1 inline -translate-y-px text-high-ink" aria-hidden />
-          Contract {late ? "ended" : "ends"}: {item.name}
-          {item.designation && <span className="font-normal text-slate-500"> · {item.designation}</span>}
-        </button>
-        <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{formatDay(item.end, today)}</span>
-      </SwipeRow>
-      {/* Outside the row (and portalled), so touches in the menu never reach the row's swipe. */}
-      {chooser &&
-        (phone || chooser === "sheet" || !chooser.isConnected ? (
-          createPortal(
-            <ActionSheet onClose={close} title={`Contract of ${item.name}`}>
-              {choices}
-            </ActionSheet>,
-            document.body,
-          )
-        ) : (
-          <AnchoredMenu anchor={chooser} onClose={close} label={`Contract of ${item.name}`}>
-            {choices}
-          </AnchoredMenu>
-        ))}
-    </>
-  );
-}
-
-function ContractChoices({ item, today, onDone }: { item: ContractEnding; today: string; onDone: () => void }) {
-  const act = useContractAction();
-  const navigate = useNavigate();
-  const rowClass = "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm enabled:hover:bg-slate-50 enabled:active:bg-slate-100 disabled:opacity-50 pointer-coarse:py-2.5";
-  // mutateAsync, not mutate's callbacks: the row (and this menu) is gone once the summary reloads.
-  const renew = () =>
-    act
-      .mutateAsync({ id: item.employeeId, action: "renew" })
-      .then((r) => {
-        onDone();
-        showUndo({
-          message: `Contract renewed: ${item.name}${r.next ? ` · ends ${formatDay(r.next, today)}` : ""}`,
-          onUndo: () => r.previous && act.mutate({ id: item.employeeId, action: "renew", undoTo: r.previous }),
-        });
-      })
-      .catch(() => {});
-  const ended = () =>
-    act
-      .mutateAsync({ id: item.employeeId, action: "ended" })
-      .then(() => {
-        onDone();
-        showUndo({ message: `Contract ended: ${item.name} left the office`, onUndo: () => act.mutate({ id: item.employeeId, action: "ended", undo: true }) });
-      })
-      .catch(() => {});
-  return (
-    <div className="p-1">
-      {item.days ? (
-        <button type="button" onClick={renew} disabled={act.isPending} className={rowClass}>
-          <RefreshCw size={16} className="shrink-0 text-brand-700" />
-          <span className="min-w-0 flex-1">
-            Renew for {item.days} days
-            <span className="block text-caption text-slate-500">Ends {formatDay(renewedEnd(item.end, item.days), today)}</span>
-          </span>
-          {act.isPending && act.variables?.action === "renew" && <Spinner size={14} />}
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => {
-            onDone();
-            navigate(`/employees?employee=${item.employeeId}`);
-          }}
-          className={rowClass}
-        >
-          <RefreshCw size={16} className="shrink-0 text-slate-400" />
-          <span className="min-w-0 flex-1">
-            Renew
-            <span className="block text-caption text-slate-500">No contract period set: open the employee to set it or a new end date</span>
-          </span>
-        </button>
-      )}
-      <button type="button" onClick={ended} disabled={act.isPending} className={cx(rowClass, "text-urgent-ink")}>
-        <CalendarX2 size={16} className="shrink-0" />
-        <span className="min-w-0 flex-1">
-          Contract ended
-          <span className="block text-caption text-slate-500">Left the office on {formatDay(item.end, today)}</span>
-        </span>
-        {act.isPending && act.variables?.action === "ended" && <Spinner size={14} />}
-      </button>
-      {act.error ? (
-        <div className="px-1 pt-1">
-          <ErrorNote error={act.error} />
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -935,7 +811,7 @@ function TodoRow({
         <Menu
           items={[
             { label: "Edit", onClick: () => onEdit(task) },
-            { label: a.done ? "Reopen" : "Mark complete", onClick: a.toggle },
+            { label: a.done ? "Reopen" : a.contract ? "Renew or end contract" : "Mark complete", onClick: a.toggle },
             { label: isWaiting(task) ? "Waiting for reply…" : "Wait for reply…", onClick: () => openWait(task), hidden: !canWait(task) },
             { label: "Open email in Gmail", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
           ]}

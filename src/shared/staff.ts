@@ -75,11 +75,12 @@ export function nextYear(day: string): string {
 }
 
 // --- Contract endings (user request 2026-10-08) ---
-// A temporary employee's contract end date (engagedTill) shows in Home's Due Today from 7 days before it, and
-// stays (red once past) until it is dealt with: Renew for the same number of days again (the contract period),
-// or Contract ended (left the office on the end date).
+// From 7 days before a temporary employee's contract end date (engagedTill), WorkDesk makes a "Contract ends"
+// task due on that date (server/lib/contracts.ts); ticking it asks Renew for the same number of days again (the
+// contract period) or Contract ended (left the office on the end date).
 
 export const CONTRACT_HOME_DAYS = 7;
+export const contractTaskTitle = (name: string) => `Contract ends: ${name}`;
 
 const plusDays = (day: string, n: number) => contractEnd(day, n + 1);
 

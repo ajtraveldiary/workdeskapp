@@ -13,6 +13,7 @@ import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES, nextYear, renewedEnd, retir
 import type { Employee, RetiringEmployee, StaffList } from "../../shared/types";
 import { openTaskOrder, selectTasks, toTask } from "./tasks";
 import { ensurePensionTasks } from "../lib/pension";
+import { ensureContractTasks } from "../lib/contracts";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
 
@@ -28,6 +29,18 @@ export function employeeValues(input: ReturnType<typeof employeeInput.parse>) {
 function toEmployee(e: typeof employees.$inferSelect): Employee {
   const { userId: _u, createdAt: _c, updatedAt: _up, ...rest } = e;
   return rest;
+}
+
+// The employee's "Contract ends" task (user request 2026-10-08) is completed by Renew / Contract ended and
+// reopened by their Undo, with the same History entries as ticking a task.
+async function setContractTask(db: DB, userId: string, taskId: string | null, done: boolean) {
+  if (!taskId) return;
+  const [t] = await db
+    .update(tasks)
+    .set(done ? { status: "done", completedAt: new Date(), waitingSince: null, replyBy: null, updatedAt: new Date() } : { status: "open", completedAt: null, updatedAt: new Date() })
+    .where(and(eq(tasks.id, taskId), eq(tasks.userId, userId), eq(tasks.status, done ? "open" : "done")))
+    .returning({ id: tasks.id, title: tasks.title });
+  if (t) await db.insert(events).values({ userId, entityType: "task", entityId: t.id, action: done ? "task.completed" : "task.reopened", summary: done ? "Completed" : "Reopened", detail: { title: t.title } });
 }
 
 async function loadEmployee(db: DB, userId: string, id: string) {
@@ -193,8 +206,10 @@ export const staffRoutes = new Hono<AppEnv>()
     if (!input.permanent && input.typeId) await loadType(db, userId, input.typeId);
     const [e] = await db.insert(employees).values({ ...employeeValues(input), userId }).returning();
     await log(db, userId, "staff.employee_added", `Employee added: ${e!.name}`);
-    // Retiring within 12 months: their Pension papers task straight away (user request 2026-10-08).
+    // Retiring within 12 months: their Pension papers task straight away (user request 2026-10-08); a contract
+    // ending within 7 days: its Contract ends task.
     await ensurePensionTasks(db, todayIn(timezone(c.env)), userId);
+    await ensureContractTasks(db, todayIn(timezone(c.env)), userId);
     return c.json(toEmployee(e!), 201);
   })
   // The form sends every detail.
@@ -208,6 +223,7 @@ export const staffRoutes = new Hono<AppEnv>()
     await db.update(employees).set({ ...employeeValues(input), updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.employee_changed", `Employee details changed: ${input.name}`);
     await ensurePensionTasks(db, todayIn(timezone(c.env)), userId);
+    await ensureContractTasks(db, todayIn(timezone(c.env)), userId);
     return c.json({ ok: true });
   })
   // Left the office (transfer, retirement…) or back again.
@@ -241,7 +257,7 @@ export const staffRoutes = new Hono<AppEnv>()
     await log(db, userId, "staff.increment_done", `Increment for ${e.name} (due ${e.nextIncrementOn}) marked done; next due ${next}`);
     return c.json({ previous: e.nextIncrementOn, next });
   })
-  // Contract ending (user request 2026-10-08), from Home's Due Today. Renew: the contract runs the same number
+  // Contract ending (user request 2026-10-08), from ticking its "Contract ends" task, which both complete. Renew: the contract runs the same number
   // of days again from the day after it ends. Undo sends the end date it was ("undoTo"), put back only if
   // nothing changed it since.
   .post("/employees/:id/contract/renew", async (c) => {
@@ -256,12 +272,14 @@ export const staffRoutes = new Hono<AppEnv>()
       if (e.engagedTill !== renewedEnd(undoTo, e.contractDays)) return c.json({ previous: e.engagedTill, next: e.engagedTill });
       await db.update(employees).set({ engagedTill: undoTo, updatedAt: new Date() }).where(eq(employees.id, e.id));
       await log(db, userId, "staff.contract_renew_undone", `Contract of ${e.name} not renewed after all; ends ${undoTo} again`);
+      if (e.contractTaskFor === undoTo) await setContractTask(db, userId, e.contractTaskId, false);
       return c.json({ previous: e.engagedTill, next: undoTo });
     }
     if (!e.engagedTill) throw new HTTPException(400, { message: `${e.name} has no contract end date` });
     const next = renewedEnd(e.engagedTill, e.contractDays);
     await db.update(employees).set({ engagedTill: next, updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.contract_renewed", `Contract of ${e.name} (ended ${e.engagedTill}) renewed for ${e.contractDays} days; now ends ${next}`);
+    if (e.contractTaskFor === e.engagedTill) await setContractTask(db, userId, e.contractTaskId, true);
     return c.json({ previous: e.engagedTill, next });
   })
   // Contract ended: the employee left the office on the contract's end date. Undo ({ undo: true }) brings them
@@ -277,10 +295,12 @@ export const staffRoutes = new Hono<AppEnv>()
       if (e.leftOn !== e.engagedTill) return c.json({ leftOn: e.leftOn });
       await db.update(employees).set({ leftOn: null, updatedAt: new Date() }).where(eq(employees.id, e.id));
       await log(db, userId, "staff.contract_end_undone", `Contract of ${e.name} not ended after all; back in the office`);
+      if (e.contractTaskFor === e.engagedTill) await setContractTask(db, userId, e.contractTaskId, false);
       return c.json({ leftOn: null });
     }
     await db.update(employees).set({ leftOn: e.engagedTill, updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.contract_ended", `Contract of ${e.name} ended on ${e.engagedTill}; left the office`);
+    if (e.contractTaskFor === e.engagedTill) await setContractTask(db, userId, e.contractTaskId, true);
     return c.json({ leftOn: e.engagedTill });
   })
   // Retiring within 12 months (user request 2026-10-08): permanent employees still in the office whose

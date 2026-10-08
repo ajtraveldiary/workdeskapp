@@ -3,6 +3,7 @@ import { ensureReportPeriods } from "./reports";
 import { wakeSnoozed } from "./sync";
 import { applySectionRules } from "./sections";
 import { ensurePensionTasks } from "./pension";
+import { ensureContractTasks } from "./contracts";
 
 // Housekeeping that read endpoints used to run on every request (waking snoozed emails, creating report
 // periods). It now runs at most once per INTERVAL per user from page loads, which saves database round trips.
@@ -20,4 +21,6 @@ export async function maintain(db: DB, userId: string, today: string, force = fa
   await applySectionRules(db, userId);
   // Pension papers tasks for employees retiring within 12 months (user request 2026-10-08).
   await ensurePensionTasks(db, today, userId);
+  // Contract ends tasks from 7 days before a temporary contract ends (user request 2026-10-08).
+  await ensureContractTasks(db, today, userId);
 }

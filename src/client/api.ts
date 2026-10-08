@@ -214,7 +214,8 @@ export function useIncrementDone() {
   });
 }
 
-// Contract ending (user request 2026-10-08): renew for the same period, or ended (left on the end date).
+// Contract ending (user request 2026-10-08): renew for the same period, or ended (left on the end date); either
+// completes the employee's "Contract ends" task.
 export function useContractAction() {
   const qc = useQueryClient();
   return useMutation({
@@ -223,7 +224,8 @@ export function useContractAction() {
         method: "POST",
         body: action === "renew" ? (undoTo ? { undoTo } : {}) : undo ? { undo: true } : {},
       }),
-    onSettled: () => qc.invalidateQueries({ predicate: (q) => ["staff", "summary", "history"].includes(q.queryKey[0] as string) }),
+    // They also complete (or, on Undo, reopen) the "Contract ends" task: refresh everything but labels.
+    onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "labels" }),
   });
 }
 

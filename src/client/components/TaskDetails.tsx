@@ -1,6 +1,6 @@
 // Read-only view of a task, with what was entered when it was created. Opened from task lists; for a task
 // made from an email it also names the email, and its title opens it (onOpenEmail).
-import { CalendarDays, Check, Clock, CalendarClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote, UserRound } from "lucide-react";
+import { CalendarDays, Check, Clock, CalendarClock, FileClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote, UserRound } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { Task } from "../../shared/types";
 import { useCompleteTask, useMe, useReopenTask, useUpdateTask } from "../api";
@@ -9,6 +9,7 @@ import { ChecklistTicks } from "./Checklist";
 import { LinkChips } from "./ReminderLinks";
 import { canWait, isWaiting, openWait, waitingText } from "./Waiting";
 import { RelatedLine, type RelatedValue } from "./Related";
+import { isContractTask, openContract } from "./ContractChooser";
 import { Badge, Button, Modal, PriorityPill, cx } from "./ui";
 
 export function TaskDetails({
@@ -160,6 +161,11 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
         {done ? (
           <Button onClick={() => reopen.mutate(task.id, { onSuccess: onClose })} disabled={reopen.isPending}>
             <RotateCcw size={15} /> Reopen
+          </Button>
+        ) : isContractTask(task) ? (
+          // A "Contract ends" task asks Renew or Contract ended instead (user request 2026-10-08).
+          <Button variant="primary" onClick={() => openContract(task, onClose)}>
+            <FileClock size={15} /> Renew or end
           </Button>
         ) : (
           <Button variant="primary" onClick={() => complete.mutate(task.id, { onSuccess: onClose })} disabled={complete.isPending}>
