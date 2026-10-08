@@ -14,6 +14,7 @@ import type { Employee, RetiringEmployee, StaffList } from "../../shared/types";
 import { openTaskOrder, selectTasks, toTask } from "./tasks";
 import { ensurePensionTasks } from "../lib/pension";
 import { ensureContractTasks } from "../lib/contracts";
+import { ensureProbationTasks } from "../lib/probation";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
 
@@ -31,8 +32,9 @@ function toEmployee(e: typeof employees.$inferSelect): Employee {
   return rest;
 }
 
-// The employee's "Contract ends" task (user request 2026-10-08) is completed by Renew / Contract ended and
-// reopened by their Undo, with the same History entries as ticking a task.
+// The employee's "Contract ends" or "Probation declaration" task (user request 2026-10-08) is completed by
+// Renew / Contract ended / Probation declared and reopened by their Undo, with the same History entries as
+// ticking a task.
 async function setContractTask(db: DB, userId: string, taskId: string | null, done: boolean) {
   if (!taskId) return;
   const [t] = await db
@@ -207,9 +209,10 @@ export const staffRoutes = new Hono<AppEnv>()
     const [e] = await db.insert(employees).values({ ...employeeValues(input), userId }).returning();
     await log(db, userId, "staff.employee_added", `Employee added: ${e!.name}`);
     // Retiring within 12 months: their Pension papers task straight away (user request 2026-10-08); a contract
-    // ending within 7 days: its Contract ends task.
+    // ending within 7 days: its Contract ends task; 2 years of service near: its Probation declaration task.
     await ensurePensionTasks(db, todayIn(timezone(c.env)), userId);
     await ensureContractTasks(db, todayIn(timezone(c.env)), userId);
+    await ensureProbationTasks(db, todayIn(timezone(c.env)), userId);
     return c.json(toEmployee(e!), 201);
   })
   // The form sends every detail.
@@ -224,6 +227,7 @@ export const staffRoutes = new Hono<AppEnv>()
     await log(db, userId, "staff.employee_changed", `Employee details changed: ${input.name}`);
     await ensurePensionTasks(db, todayIn(timezone(c.env)), userId);
     await ensureContractTasks(db, todayIn(timezone(c.env)), userId);
+    await ensureProbationTasks(db, todayIn(timezone(c.env)), userId);
     return c.json({ ok: true });
   })
   // Left the office (transfer, retirement…) or back again.
@@ -302,6 +306,28 @@ export const staffRoutes = new Hono<AppEnv>()
     await log(db, userId, "staff.contract_ended", `Contract of ${e.name} ended on ${e.engagedTill}; left the office`);
     if (e.contractTaskFor === e.engagedTill) await setContractTask(db, userId, e.contractTaskId, true);
     return c.json({ leftOn: e.engagedTill });
+  })
+  // Probation declared (user request 2026-10-08), from ticking the employee's "Probation declaration" task:
+  // records today as the declared date and completes the task. Undo ({ undo: true }) clears the date (only if
+  // it is still the one recorded, sent as "declaredOn") and reopens the task.
+  .post("/employees/:id/probation", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("id"));
+    const { undo, declaredOn } = (await c.req.json().catch(() => ({}))) as { undo?: boolean; declaredOn?: string };
+    if (!e.permanent) throw new HTTPException(400, { message: `${e.name} is a temporary employee` });
+    if (undo) {
+      if (!declaredOn || e.probationDeclaredOn !== declaredOn) return c.json({ declaredOn: e.probationDeclaredOn });
+      await db.update(employees).set({ probationDeclaredOn: null, updatedAt: new Date() }).where(eq(employees.id, e.id));
+      await log(db, userId, "staff.probation_undone", `Probation of ${e.name} not declared after all`);
+      await setContractTask(db, userId, e.probationTaskId, false);
+      return c.json({ declaredOn: null });
+    }
+    const today = todayIn(timezone(c.env));
+    await db.update(employees).set({ probationDeclaredOn: today, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await log(db, userId, "staff.probation_declared", `Probation of ${e.name} declared on ${today}`);
+    await setContractTask(db, userId, e.probationTaskId, true);
+    return c.json({ declaredOn: today });
   })
   // Retiring within 12 months (user request 2026-10-08): permanent employees still in the office whose
   // retirement date is within a year (or already past), soonest first, each with their Pension papers task.

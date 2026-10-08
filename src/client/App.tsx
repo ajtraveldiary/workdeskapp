@@ -33,7 +33,7 @@ import { Avatar } from "./components/Avatar";
 import { UndoBar, showUndo } from "./components/SwipeRow";
 import { WaitDialogHost } from "./components/Waiting";
 import { RemoveChooserHost } from "./components/RemoveChooser";
-import { ContractChooserHost } from "./components/ContractChooser";
+import { SystemTaskChooserHost } from "./components/SystemTaskChooser";
 import { SidePanel } from "./components/SidePanel";
 import { usePhone } from "./components/sheet";
 import { refreshPushSubscription, setIconBadge } from "./push";
@@ -142,7 +142,7 @@ function Shell({ children }: { children: ReactNode }) {
       <UndoBar />
       <WaitDialogHost />
       <RemoveChooserHost />
-      <ContractChooserHost />
+      <SystemTaskChooserHost />
       <IconBadge />
       {/* Labelled icon rail */}
       <aside className="sticky top-0 hidden h-dvh w-[104px] shrink-0 flex-col border-r border-line bg-white md:flex">

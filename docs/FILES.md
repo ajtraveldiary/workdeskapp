@@ -66,6 +66,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0025_pension_tasks.sql` | Remembers the Pension papers task made for an employee retiring within 12 months. |
 | `0026_tasks_made_by_system.sql` | Marks tasks WorkDesk makes itself ("Made by system"), including Pension papers tasks already made. |
 | `0027_contract_tasks.sql` | Kind of system task (pension / contract) and the Contract ends task kept for each temporary employee. |
+| `0028_probation_tasks.sql` | Remembers the Probation declaration task made for an employee. |
 
 ## `src/server/` — the API (Cloudflare Worker, or Node when run locally)
 
@@ -95,7 +96,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `reports.ts` | Reminders (stored as reports): list with their dates, create, edit, pause/resume, delete, mark a date done or not done. |
 | `labels.ts` | Gmail labels: list, create, rename/recolour, delete, change an email's labels, task/done label settings, Send to a section (`/threads/bulk-section`). |
 | `misc.ts` | `/me`, Home summary counts (with increments), History, hidden senders, hidden text, housekeeping (`/maintain`) and Sync now. |
-| `staff.ts` | Employees page: designations, types of temporary employees, employees (add/edit, left the office, delete), an employee's open work, increment done, contract renewed / ended (with Undo; both complete the Contract ends task), retiring within 12 months (`/retiring`, with each one's Pension papers task); adding or editing an employee makes their Pension papers task when due. `employeeValues` keeps only the fields that fit permanent or temporary staff. |
+| `staff.ts` | Employees page: designations, types of temporary employees, employees (add/edit, left the office, delete), an employee's open work, increment done, contract renewed / ended (with Undo; both complete the Contract ends task), probation declared (with Undo; completes the Probation declaration task), retiring within 12 months (`/retiring`, with each one's Pension papers task); adding or editing an employee makes their Pension papers task when due. `employeeValues` keeps only the fields that fit permanent or temporary staff. |
 | `files.ts` | File register: list, add, edit, remove; one entry per e-file number. |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
@@ -107,19 +108,20 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 |---|---|
 | `gmail.ts` | The only code that talks to Gmail: read-only GETs from an allowlist, mark read, and the user's own labels. Enforced by `tests/gmail-safety.test.ts`. |
 | `gmailAuth.ts` | Gets a fresh Gmail access token from the stored (encrypted) refresh token. |
-| `sync.ts` | Gmail sync: first 30 days, then Gmail's change log; each message downloaded once; labels kept up to date; cron sync for all users (also makes due reminder dates, Pension papers and Contract ends tasks). |
+| `sync.ts` | Gmail sync: first 30 days, then Gmail's change log; each message downloaded once; labels kept up to date; cron sync for all users (also makes due reminder dates, Pension papers, Contract ends and Probation declaration tasks). |
 | `threadRules.ts` | What a new message does to an email that was removed, made a task, or sent to another section. |
 | `taskLabels.ts` | Keeps the task/done Gmail labels and WorkDesk tasks in step both ways; catches up emails missing their label. |
 | `sections.ts` | Sections of the office: moves emails with another section's label to "Other sections" and back. |
 | `reports.ts` | Creates each reminder date and its task when it is due; marks a date and its task done together. |
 | `emailContent.ts` | Reads an email's body and attachments from Gmail for the viewer (never stored); demo content. |
 | `muted.ts` | Checks whether an email's sender is hidden from Pending. |
-| `maintenance.ts` | Housekeeping on page loads, at most every few minutes: returns any old snoozed email to Pending, creates due reminder dates, applies section rules, makes Pension papers and Contract ends tasks. |
+| `maintenance.ts` | Housekeeping on page loads, at most every few minutes: returns any old snoozed email to Pending, creates due reminder dates, applies section rules, makes Pension papers, Contract ends and Probation declaration tasks. |
 | `ics.ts` | Builds the calendar file (`.ics`) for the calendar link, with Malayalam-safe line folding. |
 | `notify.ts` | Decides which phone notifications are due (morning summary, due-time notes, badge count) and sends them. |
 | `webpush.ts` | Web Push with WebCrypto only: encrypts a message for a device and signs it (VAPID). |
 | `staff.ts` | Checks what a task or reminder is "for" (employee, designation, office) and names it for History. |
 | `contracts.ts` | Makes the "Contract ends" task 7 days before a temporary contract ends (one per end date; moves it when the date is edited). |
+| `probation.ts` | Makes the "Probation declaration" task 7 days before 2 years of service when probation isn't declared (recent joinings only); completes it when a declared date is entered. |
 | `pension.ts` | Makes the Pension papers task (with the pension checklist) 12 months before a permanent employee retires, once per employee. |
 | `users.ts` | Creates the user on first sign-in; demo mailbox and demo reminders. |
 | `audit.ts` | Writes a History (`events`) row. |
@@ -134,7 +136,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `types.ts` | The shapes of data the API sends to the app (Thread, Task, Report, Employee, OfficeFile, Summary…). |
 | `schemas.ts` | Checks on everything the app sends (Zod): tasks, reminders, labels, staff, files, notifications, hidden text. |
 | `reminderSchedule.ts` | Reminder date maths: repeats, next dates, "remind me" lead days, labels like "Every month". |
-| `staff.ts` | Employee lists and rules: categories, engaged as, common designations and types, contract end date, increment due dates, contracts ending (Contract ends task from 7 days before, its title, renewed end date), retiring within 12 months (a year before, Pension papers title and checklist). |
+| `staff.ts` | Employee lists and rules: categories, engaged as, common designations and types, contract end date, increment due dates, contracts ending (Contract ends task from 7 days before, its title, renewed end date), retiring within 12 months (a year before, Pension papers title and checklist), probation (2 years from joining, task title). |
 | `transfer.ts` | Import / Export: CSV columns of each list, sample files, CSV writing, reading dates/times/priorities, backup tables. |
 | `findDates.ts` | Finds a due date written in an email (Indian day-first formats) for a new task. |
 | `addressLists.ts` | Counts and names addresses for folding long To/Cc lists. |
@@ -214,10 +216,10 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `DocxPreview.tsx` | Word .docx attachments as a page (mammoth). |
 | `LabelChips.tsx` | Gmail label chips, the label picker and the label filter. |
 | `RemoveChooser.tsx` | Remove: "Just remove" or send to a section; also `AnchoredMenu` (menus that grow from a button). |
-| `TaskRow.tsx` | One task row on the Tasks page (a Contract ends task's tick asks Renew or end). |
+| `TaskRow.tsx` | One task row on the Tasks page (a Contract ends or Probation declaration task's tick asks instead). |
 | `TaskDialog.tsx` | Add / edit task form. |
-| `TaskDetails.tsx` | Task details card: where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete (Renew or end for a Contract ends task) / Reopen. |
-| `ContractChooser.tsx` | Renew / Contract ended choice for a "Contract ends" task, opened from any tick or swipe; lives once in the shell. |
+| `TaskDetails.tsx` | Task details card: where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete (Renew or end / Declare or extend for Contract ends / Probation declaration tasks) / Reopen. |
+| `SystemTaskChooser.tsx` | The choice a system task asks for when ticked or swiped anywhere: Renew / Contract ended for "Contract ends", Probation declared / Change due date for "Probation declaration"; lives once in the shell. |
 | `InlineTaskEdit.tsx` | Change a task's date/time or priority straight from its chip. |
 | `PriorityGroups.tsx` | Sorts task lists Urgent → High → Medium → Low, earliest first. |
 | `Checklist.tsx` | Task steps: editor in the form, ticks in details, "2/5" chip on rows. |
@@ -257,6 +259,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `calendar-feed.test.ts` | The calendar link's `.ics` file. |
 | `push.test.ts` | Push encryption, VAPID signature, notification schedule. |
 | `staff.test.ts` | Designations, employees (permanent/temporary), types, increments, Contract ends tasks (renew / ended complete them, Undo reopens), "For" links. |
+| `probation.test.ts` | Probation declaration tasks (made once, recent joinings only), declared with Undo, changed due date, declared in the form. |
 | `pension.test.ts` | Pension papers tasks 12 months before retirement (made once, checklist, "For" the employee) and the Retiring within 12 months list. |
 | `file-register.test.ts` | File register entries and e-file numbers. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |

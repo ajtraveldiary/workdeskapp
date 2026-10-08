@@ -8,7 +8,7 @@ import { RelatedTag } from "./Related";
 import { WaitingBadge, canWait, isWaiting, openWait } from "./Waiting";
 import { Badge, PRIORITY_BAR, cx } from "./ui";
 import { SwipeRow, showUndo, useSwipeMode } from "./SwipeRow";
-import { isContractTask, openContract } from "./ContractChooser";
+import { asksChoice, choiceLabel, openTaskChoice } from "./SystemTaskChooser";
 
 export function TaskRow({
   task,
@@ -30,8 +30,8 @@ export function TaskRow({
   const seen = useMarkSeen();
   const done = task.status === "done";
   const waiting = isWaiting(task);
-  // A "Contract ends" task asks Renew or Contract ended instead of being ticked (user request 2026-10-08).
-  const contract = isContractTask(task);
+  // A "Contract ends" or "Probation declaration" task asks instead of being ticked (user requests 2026-10-08).
+  const contract = asksChoice(task);
   const overdue = !done && !waiting && task.dueDate !== null && task.dueDate < today;
   const gmailUrl = task.thread && gmailThreadUrl(task.thread.accountEmail, task.thread.gmailThreadId);
   // Phones: swipe right to complete (or reopen), left for Gmail / seen / edit; the side buttons go away.
@@ -45,7 +45,7 @@ export function TaskRow({
         done
           ? { label: "Reopen", icon: RotateCcw, tone: "neutral", onClick: () => reopen.mutateAsync(task.id) }
           : contract
-            ? { label: "Contract", icon: FileClock, tone: "high", onClick: () => openContract(task) }
+            ? { label: choiceLabel(task), icon: FileClock, tone: "high", onClick: () => openTaskChoice(task) }
             : {
               label: "Done",
               icon: Check,
@@ -63,7 +63,7 @@ export function TaskRow({
     >
       {!swipe && (
       <button
-        onClick={() => (done ? reopen.mutate(task.id) : contract ? openContract(task) : complete.mutate(task.id))}
+        onClick={() => (done ? reopen.mutate(task.id) : contract ? openTaskChoice(task) : complete.mutate(task.id))}
         disabled={complete.isPending || reopen.isPending}
         aria-label={done ? "Reopen task" : "Mark task complete"}
         title={done ? "Reopen" : "Mark complete"}

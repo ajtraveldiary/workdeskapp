@@ -9,7 +9,7 @@ import { ChecklistTicks } from "./Checklist";
 import { LinkChips } from "./ReminderLinks";
 import { canWait, isWaiting, openWait, waitingText } from "./Waiting";
 import { RelatedLine, type RelatedValue } from "./Related";
-import { isContractTask, openContract } from "./ContractChooser";
+import { asksChoice, openTaskChoice } from "./SystemTaskChooser";
 import { Badge, Button, Modal, PriorityPill, cx } from "./ui";
 
 export function TaskDetails({
@@ -162,10 +162,10 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
           <Button onClick={() => reopen.mutate(task.id, { onSuccess: onClose })} disabled={reopen.isPending}>
             <RotateCcw size={15} /> Reopen
           </Button>
-        ) : isContractTask(task) ? (
-          // A "Contract ends" task asks Renew or Contract ended instead (user request 2026-10-08).
-          <Button variant="primary" onClick={() => openContract(task, onClose)}>
-            <FileClock size={15} /> Renew or end
+        ) : asksChoice(task) ? (
+          // A "Contract ends" / "Probation declaration" task asks instead (user requests 2026-10-08).
+          <Button variant="primary" onClick={() => openTaskChoice(task, onClose)}>
+            <FileClock size={15} /> {task.systemKind === "probation" ? "Declare or extend" : "Renew or end"}
           </Button>
         ) : (
           <Button variant="primary" onClick={() => complete.mutate(task.id, { onSuccess: onClose })} disabled={complete.isPending}>

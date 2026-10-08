@@ -229,6 +229,17 @@ export function useContractAction() {
   });
 }
 
+// Probation declared (user request 2026-10-08): records today on the employee and completes their Probation
+// declaration task; undo (with the date it recorded) clears it and reopens the task.
+export function useProbationAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, undo, declaredOn }: { id: string; undo?: boolean; declaredOn?: string }) =>
+      api<{ declaredOn: string | null }>(`/staff/employees/${id}/probation`, { method: "POST", body: undo ? { undo: true, declaredOn } : {} }),
+    onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== "labels" }),
+  });
+}
+
 // Phone notifications (user request 2026-10-07): the settings apply to every device; on/off is per device.
 export type PushSettings = { publicKey: string; summaryOn: boolean; summaryTime: string; dueOn: boolean; devices: number };
 export const usePushSettings = () => useQuery({ queryKey: ["push"], queryFn: () => api<PushSettings>("/push") });

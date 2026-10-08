@@ -120,3 +120,14 @@ export const PENSION_CHECKLIST = [
   "Declaration in Form 117-A",
   "Forwarded to the pension sanctioning authority",
 ];
+
+// --- Probation pending (user request 2026-10-08) ---
+// Probation is normally declared after 2 years of service. From 7 days before a permanent employee completes 2
+// years from joining service, with no probation declared date, WorkDesk makes a task "Probation declaration:
+// <name>" due on that date (server/lib/probation.ts). Ticking it asks: Probation declared (records today's date)
+// or Change due date (e.g. probation extended by leave). Only for 2-year dates in the last
+// PROBATION_LOOKBACK_YEARS years, so old staff whose declaration date was never entered don't each get a task.
+export const PROBATION_YEARS = 2;
+export const PROBATION_LOOKBACK_YEARS = 2;
+export const probationDue = (joinedServiceOn: string) => nextYear(nextYear(joinedServiceOn));
+export const probationTaskTitle = (name: string) => `Probation declaration: ${name}`;

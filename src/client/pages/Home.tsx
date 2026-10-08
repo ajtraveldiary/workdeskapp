@@ -41,7 +41,7 @@ import {
 import { formatDay, formatTime, formatWhen } from "../format";
 import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../components/SwipeRow";
 import { openRemove } from "../components/RemoveChooser";
-import { isContractTask, openContract } from "../components/ContractChooser";
+import { asksChoice, choiceLabel, openTaskChoice } from "../components/SystemTaskChooser";
 import { EmailStatusTags, SectionBackTag } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
@@ -367,12 +367,13 @@ function useTaskActions(task: Task) {
   const seen = useMarkSeen();
   const done = task.status === "done";
   const gmailUrl = task.thread ? gmailThreadUrl(task.thread.accountEmail, task.thread.gmailThreadId) : null;
-  // A "Contract ends" task (user request 2026-10-08) isn't simply ticked: it asks Renew or Contract ended, which
-  // complete it. toggleAsync resolves to whether it completed or reopened the task (false: the choice opened).
-  const contract = isContractTask(task);
+  // A "Contract ends" or "Probation declaration" task (user requests 2026-10-08) isn't simply ticked: it asks
+  // (Renew / Contract ended, Declared / Change due date). toggleAsync resolves to whether it completed or
+  // reopened the task (false: the choice opened).
+  const contract = asksChoice(task);
   const toggleAsync = (): Promise<boolean> => {
     if (contract) {
-      openContract(task);
+      openTaskChoice(task);
       return Promise.resolve(false);
     }
     return (done ? reopen.mutateAsync(task.id) : complete.mutateAsync(task.id)).then(() => true);
@@ -387,7 +388,7 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
     leading: a.done
       ? { label: "Reopen", icon: RotateCcw, tone: "neutral", onClick: a.toggleAsync }
       : a.contract
-        ? { label: "Contract", icon: FileClock, tone: "high", onClick: a.toggle }
+        ? { label: choiceLabel(task), icon: FileClock, tone: "high", onClick: a.toggle }
         : { label: "Done", icon: Check, tone: "low", onClick: () => a.toggleAsync().then((did) => did && showUndo({ message: "Task completed", undo: { kind: "reopen", id: task.id } })) },
     trailing: [
       { label: "Gmail", icon: ExternalLink, tone: "info", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
@@ -811,7 +812,7 @@ function TodoRow({
         <Menu
           items={[
             { label: "Edit", onClick: () => onEdit(task) },
-            { label: a.done ? "Reopen" : a.contract ? "Renew or end contract" : "Mark complete", onClick: a.toggle },
+            { label: a.done ? "Reopen" : a.contract ? (task.systemKind === "probation" ? "Probation declared or change date" : "Renew or end contract") : "Mark complete", onClick: a.toggle },
             { label: isWaiting(task) ? "Waiting for reply…" : "Wait for reply…", onClick: () => openWait(task), hidden: !canWait(task) },
             { label: "Open email in Gmail", href: a.gmailUrl ?? undefined, hidden: !a.gmailUrl },
           ]}

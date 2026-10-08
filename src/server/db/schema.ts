@@ -210,9 +210,10 @@ export const tasks = pgTable(
     // Made by WorkDesk itself, not by hand, an email or a reminder (user request 2026-10-08): e.g. the Pension
     // papers task 12 months before retirement. Task details label it "Made by system".
     madeBySystem: boolean("made_by_system").notNull().default(false),
-    // Which kind of system task (user request 2026-10-08): "pension" (Pension papers) or "contract" (a temporary
-    // employee's contract ending: ticking it asks Renew or Contract ended). Null for every other task.
-    systemKind: text("system_kind", { enum: ["pension", "contract"] }),
+    // Which kind of system task (user request 2026-10-08): "pension" (Pension papers), "contract" (a temporary
+    // employee's contract ending: ticking it asks Renew or Contract ended) or "probation" (probation declaration
+    // pending: ticking it asks Declared or Change due date). Null for every other task.
+    systemKind: text("system_kind", { enum: ["pension", "contract", "probation"] }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -341,6 +342,9 @@ export const employees = pgTable("employees", {
   // for: a new end date (renewed or edited) gets its own task; the same one never gets a second.
   contractTaskId: uuid("contract_task_id"),
   contractTaskFor: date("contract_task_for"),
+  // The "Probation" task made when 2 years of service are near and probation isn't declared (user request
+  // 2026-10-08); set once, so a deleted task isn't made again.
+  probationTaskId: uuid("probation_task_id"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
