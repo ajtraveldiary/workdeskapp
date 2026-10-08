@@ -176,6 +176,8 @@ export const pushSettingsInput = z.object({
 
 // Staff page (user request 2026-10-07). Every detail but the name is optional.
 export const designationInput = z.object({ name: z.string().trim().min(1, "Name is required").max(80) });
+// A list arranged by drag and drop (user request 2026-10-08): its ids in the new order.
+export const orderInput = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
 export const employeeInput = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
   designationId: z.uuid().nullable().default(null),

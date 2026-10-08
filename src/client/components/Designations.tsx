@@ -1,14 +1,16 @@
 // Settings > Employees (user request 2026-10-07: "add a section in settings for employees, move designation
 // editing to there"): the office's designations, which the Employees page groups by and the "For" picker lists,
 // and the types of temporary employees (HMC, NHM, Block Panchayath Project…, user request 2026-10-07). Both
-// lists: add, rename, move up/down, remove when unused, and add the usual ones in one tap.
+// lists: add, rename, arrange by drag and drop (user request 2026-10-08, replacing the up/down arrows), remove
+// when unused, and add the usual ones in one tap.
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router";
-import { ArrowDown, ArrowUp, ChevronRight, ListPlus, Pencil, Plus, Trash2, UsersRound } from "lucide-react";
+import { ChevronRight, ListPlus, Pencil, Plus, Trash2, UsersRound } from "lucide-react";
 import type { StaffList } from "../../shared/types";
 import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES } from "../../shared/staff";
 import { useStaff, useStaffActions } from "../api";
 import { Button, Card, ErrorNote, Loading, cx, inputClass } from "./ui";
+import { SortableList } from "./SortableList";
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
@@ -56,7 +58,7 @@ function Lists({ staff }: { staff: StaffList }) {
         add={a.addDesignation}
         addCommon={a.addCommon}
         rename={a.renameDesignation}
-        move={a.moveDesignation}
+        order={a.orderDesignations}
         remove={a.removeDesignation}
       />
       <NameList
@@ -72,7 +74,7 @@ function Lists({ staff }: { staff: StaffList }) {
         add={a.addType}
         addCommon={a.addCommonTypes}
         rename={a.renameType}
-        move={a.moveType}
+        order={a.orderTypes}
         remove={a.removeType}
       />
     </>
@@ -94,14 +96,14 @@ function NameList(p: {
   add: Mut<string>;
   addCommon: Mut<void>;
   rename: Mut<{ id: string; name: string }>;
-  move: Mut<{ id: string; by: number }>;
+  order: Mut<string[]>;
   remove: Mut<string>;
 }) {
   const [name, setName] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const have = new Set(p.items.map((d) => d.name.toLowerCase()));
   const missing = p.common.filter((n) => !have.has(n.toLowerCase())).length;
-  const error = p.add.error ?? p.addCommon.error ?? p.rename.error ?? p.move.error ?? p.remove.error;
+  const error = p.add.error ?? p.addCommon.error ?? p.rename.error ?? p.order.error ?? p.remove.error;
 
   const add = (ev: FormEvent) => {
     ev.preventDefault();
@@ -132,42 +134,34 @@ function NameList(p: {
           {p.items.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-slate-500">None yet.</p>
           ) : (
-            <ul className="divide-y divide-line">
-              {p.items.map((d, i) => (
-                <li key={d.id} className="flex items-center gap-2 py-1.5 pr-2 pl-3">
-                  {editing?.id === d.id ? (
-                    <form onSubmit={saveRename} className="flex min-w-0 flex-1 flex-wrap items-center gap-2 py-1">
-                      <input className={cx(inputClass, "min-w-0 flex-1")} value={editing.name} onChange={(e) => setEditing({ id: d.id, name: e.target.value })} autoFocus maxLength={80} aria-label={`${p.label} name`} />
-                      <Button size="sm" type="submit" variant="primary" disabled={p.rename.isPending}>
-                        Save
-                      </Button>
-                      <Button size="sm" type="button" variant="ghost" onClick={() => setEditing(null)}>
-                        Cancel
-                      </Button>
-                    </form>
-                  ) : (
-                    <>
-                      <span className="min-w-0 flex-1 text-sm text-ink [overflow-wrap:anywhere]">
-                        {d.name}
-                        {p.counts.get(d.id) ? <span className="text-slate-500"> · {plural(p.counts.get(d.id)!, "employee")}</span> : null}
-                      </span>
-                      <IconButton label={`Move ${d.name} up`} disabled={i === 0} onClick={() => p.move.mutate({ id: d.id, by: -1 })}>
-                        <ArrowUp size={16} />
-                      </IconButton>
-                      <IconButton label={`Move ${d.name} down`} disabled={i === p.items.length - 1} onClick={() => p.move.mutate({ id: d.id, by: 1 })}>
-                        <ArrowDown size={16} />
-                      </IconButton>
-                      <IconButton label={`Rename ${d.name}`} onClick={() => setEditing({ id: d.id, name: d.name })}>
-                        <Pencil size={16} />
-                      </IconButton>
-                      <IconButton label={`Remove ${d.name}`} onClick={() => remove(d)} danger>
-                        <Trash2 size={16} />
-                      </IconButton>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <SortableList items={p.items} label={(d) => d.name} onReorder={(ids) => p.order.mutate(ids)} rowClassName="py-1.5 pr-2 pl-1.5">
+              {(d) =>
+                editing?.id === d.id ? (
+                  <form onSubmit={saveRename} className="flex min-w-0 flex-1 flex-wrap items-center gap-2 py-1">
+                    <input className={cx(inputClass, "min-w-0 flex-1")} value={editing.name} onChange={(e) => setEditing({ id: d.id, name: e.target.value })} autoFocus maxLength={80} aria-label={`${p.label} name`} />
+                    <Button size="sm" type="submit" variant="primary" disabled={p.rename.isPending}>
+                      Save
+                    </Button>
+                    <Button size="sm" type="button" variant="ghost" onClick={() => setEditing(null)}>
+                      Cancel
+                    </Button>
+                  </form>
+                ) : (
+                  <>
+                    <span className="min-w-0 flex-1 text-sm text-ink [overflow-wrap:anywhere]">
+                      {d.name}
+                      {p.counts.get(d.id) ? <span className="text-slate-500"> · {plural(p.counts.get(d.id)!, "employee")}</span> : null}
+                    </span>
+                    <IconButton label={`Rename ${d.name}`} onClick={() => setEditing({ id: d.id, name: d.name })}>
+                      <Pencil size={16} />
+                    </IconButton>
+                    <IconButton label={`Remove ${d.name}`} onClick={() => remove(d)} danger>
+                      <Trash2 size={16} />
+                    </IconButton>
+                  </>
+                )
+              }
+            </SortableList>
           )}
           <form onSubmit={add} className="flex gap-2 border-t border-line bg-slate-50/60 p-2.5">
             <input className={cx(inputClass, "min-w-0 flex-1")} value={name} onChange={(e) => setName(e.target.value)} placeholder={p.placeholder} aria-label={`New ${p.label}`} maxLength={80} />

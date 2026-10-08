@@ -8,7 +8,7 @@ import type { DB } from "../db";
 import { designations, employeeTypes, employees, events, reports, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
-import { designationInput, employeeInput } from "../../shared/schemas";
+import { designationInput, employeeInput, orderInput } from "../../shared/schemas";
 import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES, nextYear, renewedEnd, retiringSoon } from "../../shared/staff";
 import type { Employee, RetiringEmployee, StaffList } from "../../shared/types";
 import { openTaskOrder, selectTasks, toTask } from "./tasks";
@@ -17,6 +17,23 @@ import { ensureContractTasks } from "../lib/contracts";
 import { ensureProbationTasks } from "../lib/probation";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
+
+// Saves a list's order after drag and drop (user request 2026-10-08): the ids sent come first, in that order;
+// any the app didn't send (added meanwhile) keep their order after them. One UPDATE for the whole list.
+// Returns true when something moved.
+async function saveOrder(db: DB, table: typeof designations | typeof employeeTypes, userId: string, sent: string[]) {
+  const list = await db.select({ id: table.id, sortOrder: table.sortOrder }).from(table).where(eq(table.userId, userId)).orderBy(asc(table.sortOrder), asc(table.name));
+  const have = new Set(list.map((r) => r.id));
+  const first = [...new Set(sent)].filter((id) => have.has(id));
+  const firstSet = new Set(first);
+  const ids = [...first, ...list.map((r) => r.id).filter((id) => !firstSet.has(id))];
+  const was = new Map(list.map((r) => [r.id, r.sortOrder]));
+  const changed = ids.map((id, k) => ({ id, k })).filter(({ id, k }) => was.get(id) !== k);
+  if (!changed.length) return false;
+  const cases = sql.join(changed.map(({ id, k }) => sql`when ${id}::uuid then ${k}::int`), sql` `);
+  await db.update(table).set({ sortOrder: sql`case ${table.id} ${cases} end` }).where(and(eq(table.userId, userId), inArray(table.id, changed.map((x) => x.id))));
+  return list.some((r, k) => ids[k] !== r.id);
+}
 
 // A temporary employee keeps only name, designation, engagement, type, phone, email, category, date of birth,
 // date of joining, contract days, pay per day and contract end date (user request 2026-10-07); a permanent one
@@ -116,6 +133,14 @@ export const staffRoutes = new Hono<AppEnv>()
     if (name !== d.name) await log(db, userId, "staff.designation_renamed", `Designation renamed: ${d.name} → ${name}`);
     return c.json({ ok: true });
   })
+  // Arranged by drag and drop in Settings > Employees (user request 2026-10-08).
+  .post("/designations/order", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { ids } = orderInput.parse(await c.req.json());
+    if (await saveOrder(db, designations, userId, ids)) await log(db, userId, "staff.designations_ordered", "Designations rearranged");
+    return c.json({ ok: true });
+  })
   // Moves a designation one place up or down the list.
   .post("/designations/:id/move", async (c) => {
     const db = c.get("db");
@@ -173,6 +198,13 @@ export const staffRoutes = new Hono<AppEnv>()
     const { name } = designationInput.parse(await c.req.json());
     await db.update(employeeTypes).set({ name }).where(eq(employeeTypes.id, t.id));
     if (name !== t.name) await log(db, userId, "staff.type_renamed", `Employee type renamed: ${t.name} → ${name}`);
+    return c.json({ ok: true });
+  })
+  .post("/types/order", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { ids } = orderInput.parse(await c.req.json());
+    if (await saveOrder(db, employeeTypes, userId, ids)) await log(db, userId, "staff.types_ordered", "Employee types rearranged");
     return c.json({ ok: true });
   })
   .post("/types/:id/move", async (c) => {

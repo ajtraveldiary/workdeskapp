@@ -97,7 +97,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `reports.ts` | Reminders (stored as reports): list with their dates, create, edit, pause/resume, delete, mark a date done or not done. |
 | `labels.ts` | Gmail labels: list, create, rename/recolour, delete, change an email's labels, task/done label settings, Send to a section (`/threads/bulk-section`). |
 | `misc.ts` | `/me`, Home summary counts (with increments), History, hidden senders, hidden text, housekeeping (`/maintain`) and Sync now. |
-| `staff.ts` | Employees page: designations, types of temporary employees, employees (add/edit, left the office, delete), an employee's open work, increment done, contract renewed / ended (with Undo; both complete the Contract ends task), probation declared (with Undo; completes the Probation declaration task), retiring within 12 months (`/retiring`, with each one's Pension papers task); an employee's page (`/employees/:id/profile`: tasks open and completed, reminders, History); adding or editing an employee makes their Pension papers task when due. `employeeValues` keeps only the fields that fit permanent or temporary staff. |
+| `staff.ts` | Employees page: designations and types of temporary employees (order saved after drag and drop), employees (add/edit, left the office, delete), an employee's open work, increment done, contract renewed / ended (with Undo; both complete the Contract ends task), probation declared (with Undo; completes the Probation declaration task), retiring within 12 months (`/retiring`, with each one's Pension papers task); an employee's page (`/employees/:id/profile`: tasks open and completed, reminders, History); adding or editing an employee makes their Pension papers task when due. `employeeValues` keeps only the fields that fit permanent or temporary staff. |
 | `files.ts` | File register: list, add, edit, remove; one entry per e-file number. |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
@@ -231,7 +231,8 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `ReminderDetails.tsx` | Reminder details card with document preview and Edit / Pause / Delete / Mark done. |
 | `ReminderLinks.tsx` | Link chips on reminders and the links editor. |
 | `Related.tsx` | "For" an employee, designation or the office: picker, tag and line. |
-| `Designations.tsx` | Settings › Employees: designations and types of temporary employees lists. |
+| `Designations.tsx` | Settings › Employees: designations and types of temporary employees lists (add, rename, drag to arrange, remove). |
+| `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |
 | `NotificationSettings.tsx` | Settings › Notifications. |
 
 ## `tests/` — automatic checks (`npm test`)
@@ -261,7 +262,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `reminder-links.test.ts` | Links on reminders. |
 | `calendar-feed.test.ts` | The calendar link's `.ics` file. |
 | `push.test.ts` | Push encryption, VAPID signature, notification schedule. |
-| `staff.test.ts` | Designations, employees (permanent/temporary), types, increments, basic pay, the employee page's tasks / reminders / History, Contract ends tasks (renew / ended complete them, Undo reopens), "For" links. |
+| `staff.test.ts` | Designations (and their drag-and-drop order), employees (permanent/temporary), types, increments, basic pay, the employee page's tasks / reminders / History, Contract ends tasks (renew / ended complete them, Undo reopens), "For" links. |
 | `probation.test.ts` | Probation declaration tasks (made once, recent joinings only), declared with Undo, changed due date, declared in the form. |
 | `pension.test.ts` | Pension papers tasks 12 months before retirement (made once, checklist, "For" the employee) and the Retiring within 12 months list. |
 | `file-register.test.ts` | File register entries and e-file numbers. |

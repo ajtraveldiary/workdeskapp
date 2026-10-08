@@ -32,6 +32,27 @@ describe("staff", () => {
     expect((await staff()).designations.map((d) => d.name)).toEqual(COMMON_DESIGNATIONS);
   });
 
+  it("drag and drop saves a list's whole order; ids it didn't send stay after, in order", async () => {
+    const ml = "ജൂനിയർ പബ്ലിക് ഹെൽത്ത് നഴ്സ് ഗ്രേഡ് II (പ്രാഥമികാരോഗ്യ കേന്ദ്രം)";
+    const add = async (path: string, name: string) => (await call("POST", path, { name })).json.id as string;
+    const [a, b, c, d] = [await add("/staff/designations", "A"), await add("/staff/designations", "B"), await add("/staff/designations", ml), await add("/staff/designations", "D")];
+    const names = async () => (await staff()).designations.map((x) => x.name);
+    expect(await names()).toEqual(["A", "B", ml, "D"]);
+    // Dragged: ml first, then D, A; B (not sent, e.g. added on another device) keeps its place after them.
+    expect((await call("POST", "/staff/designations/order", { ids: [c, d, a] })).json).toEqual({ ok: true });
+    expect(await names()).toEqual([ml, "D", "A", "B"]);
+    expect(JSON.stringify((await call("GET", "/history")).json)).toContain("Designations rearranged");
+    // Unknown ids are ignored; bad ones are refused.
+    await call("POST", "/staff/designations/order", { ids: ["00000000-0000-4000-8000-000000000000", b, c, d, a] });
+    expect(await names()).toEqual(["B", ml, "D", "A"]);
+    expect((await call("POST", "/staff/designations/order", { ids: ["nope"] })).status).toBe(400);
+    expect((await call("POST", "/staff/designations/order", { ids: [] })).status).toBe(400);
+
+    const t = [await add("/staff/types", "HMC"), await add("/staff/types", "NHM"), await add("/staff/types", ml)];
+    await call("POST", "/staff/types/order", { ids: [t[2], t[0], t[1]] });
+    expect((await staff()).types.map((x) => x.name)).toEqual([ml, "HMC", "NHM"]);
+  });
+
   it("links tasks to an employee, a designation or the office, and shows an employee's work", async () => {
     const jphn = (await call("POST", "/staff/designations", { name: "JPHN" })).json.id as string;
     const emp = (await call("POST", "/staff/employees", { name: NAME, designationId: jphn, pen: "123456", category: "OBC", dateOfBirth: "1980-05-31", nextIncrementOn: "2027-03-01" })).json;

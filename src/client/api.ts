@@ -177,17 +177,34 @@ export function useStaffActions() {
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "staff" || q.queryKey[0] === "history" });
   const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
+  // Drag and drop (user request 2026-10-08): the list shows the new order at once, then the server saves it.
+  const order = (key: "designations" | "types", path: string) =>
+    useMutation({
+      mutationFn: (ids: string[]) => api(path, { method: "POST", body: { ids } }),
+      onMutate: async (ids: string[]) => {
+        await qc.cancelQueries({ queryKey: ["staff"], exact: true });
+        qc.setQueryData<StaffList>(["staff"], (old) => {
+          if (!old) return old;
+          const at = new Map(ids.map((id, k) => [id, k]));
+          const list = [...old[key]].sort((a, b) => (at.get(a.id) ?? Infinity) - (at.get(b.id) ?? Infinity));
+          return { ...old, [key]: list.map((x, k) => ({ ...x, sortOrder: k })) };
+        });
+      },
+      onSettled: refresh,
+    });
   return {
     addDesignation: m((name: string) => api<{ id: string }>("/staff/designations", { method: "POST", body: { name } })),
     addCommon: m(() => api<{ added: number }>("/staff/designations/common", { method: "POST" })),
     renameDesignation: m(({ id, name }: { id: string; name: string }) => api(`/staff/designations/${id}`, { method: "PATCH", body: { name } })),
     moveDesignation: m(({ id, by }: { id: string; by: number }) => api(`/staff/designations/${id}/move`, { method: "POST", body: { by } })),
+    orderDesignations: order("designations", "/staff/designations/order"),
     removeDesignation: m((id: string) => api(`/staff/designations/${id}`, { method: "DELETE" })),
     // Types of temporary employees (user request 2026-10-07).
     addType: m((name: string) => api<{ id: string }>("/staff/types", { method: "POST", body: { name } })),
     addCommonTypes: m(() => api<{ added: number }>("/staff/types/common", { method: "POST" })),
     renameType: m(({ id, name }: { id: string; name: string }) => api(`/staff/types/${id}`, { method: "PATCH", body: { name } })),
     moveType: m(({ id, by }: { id: string; by: number }) => api(`/staff/types/${id}/move`, { method: "POST", body: { by } })),
+    orderTypes: order("types", "/staff/types/order"),
     removeType: m((id: string) => api(`/staff/types/${id}`, { method: "DELETE" })),
     addEmployee: m((input: EmployeeInput) => api<{ id: string }>("/staff/employees", { method: "POST", body: input })),
     saveEmployee: m(({ id, input }: { id: string; input: EmployeeInput }) => api(`/staff/employees/${id}`, { method: "PUT", body: input })),
