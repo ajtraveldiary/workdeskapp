@@ -77,7 +77,16 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <PriorityPill priority={task.priority} />
           {done ? <Badge tone="low">Completed</Badge> : waiting ? <Badge tone="snooze">Waiting for reply</Badge> : overdue ? <Badge tone="urgent">Overdue</Badge> : <Badge>Open</Badge>}
-          {task.report ? <Badge tone="info">Reminder</Badge> : task.thread ? <Badge tone="info">From email</Badge> : <Badge>Created by hand</Badge>}
+          {task.report ? (
+            <Badge tone="info">Reminder</Badge>
+          ) : task.thread ? (
+            <Badge tone="info">From email</Badge>
+          ) : task.madeBySystem ? (
+            // Made by WorkDesk itself, e.g. Pension papers (user request 2026-10-08).
+            <Badge tone="info">Made by system</Badge>
+          ) : (
+            <Badge>Created by hand</Badge>
+          )}
         </div>
       </div>
 

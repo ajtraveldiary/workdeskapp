@@ -207,6 +207,9 @@ export const tasks = pgTable(
     relatedId: uuid("related_id"),
     // "YYYY-MM-DD HH:MM" the phone was last notified for (at the due time); a new date or time notifies again.
     pushNotifiedFor: text("push_notified_for"),
+    // Made by WorkDesk itself, not by hand, an email or a reminder (user request 2026-10-08): e.g. the Pension
+    // papers task 12 months before retirement. Task details label it "Made by system".
+    madeBySystem: boolean("made_by_system").notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

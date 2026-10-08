@@ -183,6 +183,13 @@
       "when": 1791425342110,
       "tag": "0025_pension_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791425835646,
+      "tag": "0026_tasks_made_by_system",
+      "breakpoints": true
     }
   ]
 }

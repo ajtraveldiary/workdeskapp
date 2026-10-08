@@ -69,6 +69,7 @@ export function toTask({ task, thread, report }: Row): Task {
     replyBy: task.replyBy,
     relatedKind: task.relatedKind,
     relatedId: task.relatedId,
+    madeBySystem: task.madeBySystem,
     completedAt: task.completedAt?.toISOString() ?? null,
     createdAt: task.createdAt.toISOString(),
     thread: thread?.id ? (threadInfo as Task["thread"]) : null,

@@ -59,6 +59,10 @@ describe("pension tasks", () => {
     expect(made[0]).toMatchObject({ dueDate: yearBefore(soon), priority: "high", status: "open", relatedKind: "employee", relatedId: id });
     expect(made[0]!.checklist.map((s) => s.text)).toEqual(PENSION_CHECKLIST);
     expect(made[0]!.notes).toContain("Retires on");
+    // Labelled "Made by system" in Task details; tasks made by hand aren't.
+    expect(made[0]!.madeBySystem).toBe(true);
+    const handMade = (await call("POST", "/tasks", { title: "By hand" })).json.id as string;
+    expect((await allTasks()).find((t) => t.id === handMade)!.madeBySystem).toBe(false);
 
     // Made once: running again, or deleting the task, never makes another.
     await ensurePensionTasks(db, today);

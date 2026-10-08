@@ -64,6 +64,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0023_employee_kinds.sql` | Permanent or temporary employees, contract end date. |
 | `0024_temporary_employee_details.sql` | Types of temporary employees (HMC, NHM…), engaged as, contract days, pay per day. |
 | `0025_pension_tasks.sql` | Remembers the Pension papers task made for an employee retiring within 12 months. |
+| `0026_tasks_made_by_system.sql` | Marks tasks WorkDesk makes itself ("Made by system"), including Pension papers tasks already made. |
 
 ## `src/server/` — the API (Cloudflare Worker, or Node when run locally)
 
@@ -213,7 +214,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `RemoveChooser.tsx` | Remove: "Just remove" or send to a section; also `AnchoredMenu` (menus that grow from a button). |
 | `TaskRow.tsx` | One task row on the Tasks page. |
 | `TaskDialog.tsx` | Add / edit task form. |
-| `TaskDetails.tsx` | Task details card: steps, waiting, For, Edit, Mark complete / Reopen. |
+| `TaskDetails.tsx` | Task details card: where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete / Reopen. |
 | `InlineTaskEdit.tsx` | Change a task's date/time or priority straight from its chip. |
 | `PriorityGroups.tsx` | Sorts task lists Urgent → High → Medium → Low, earliest first. |
 | `Checklist.tsx` | Task steps: editor in the form, ticks in details, "2/5" chip on rows. |

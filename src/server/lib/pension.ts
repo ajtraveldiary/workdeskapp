@@ -38,6 +38,7 @@ export async function ensurePensionTasks(db: DB, today: string, userId?: string)
         checklist: PENSION_CHECKLIST.map((text, i) => ({ id: `pension-${i + 1}`, text, done: false })),
         relatedKind: "employee",
         relatedId: e.id,
+        madeBySystem: true,
       })
       .returning({ id: tasks.id, title: tasks.title });
     // Only the run that sets it keeps its task (two runs at once: the other one's task is removed).
