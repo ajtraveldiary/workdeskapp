@@ -23,13 +23,32 @@ type RemoveRequest = {
   after?: () => void;
   // The Remove button that was tapped: the menu grows out of it (wider screens).
   anchor?: HTMLElement | null;
+  // Where that button was, and the pop-up it sat in, when Remove was tapped (filled in by openRemove), so the
+  // menu still opens there if the list re-renders the button meanwhile.
+  at?: AnchorPlace;
 };
+
+// A menu's place on screen: the tapped button's rectangle and the pop-up (dialog) it is inside, if any.
+export type AnchorPlace = { rect: DOMRect; container: HTMLElement | null };
+
+// Where the last mouse / finger press was: a menu opened without a button (e.g. from a swipe) starts there.
+let lastPress: DOMRect | null = null;
+if (typeof document !== "undefined")
+  document.addEventListener("pointerdown", (e) => (lastPress = new DOMRect(e.clientX, e.clientY, 0, 0)), true);
+// A button that is gone or hidden has no place of its own.
+const shown = (el?: HTMLElement | null): el is HTMLElement => !!el?.isConnected && el.getClientRects().length > 0;
+export const placeOf = (anchor?: HTMLElement | null): AnchorPlace | undefined =>
+  shown(anchor)
+    ? { rect: anchor.getBoundingClientRect(), container: anchor.closest("dialog") }
+    : lastPress
+      ? { rect: lastPress, container: (document.querySelector("dialog[open]") as HTMLElement | null) ?? null }
+      : undefined;
 
 const MAX = 40; // emails sent to a section at once (one Gmail change each)
 const WIDTH = 272;
 
 let opener: ((r: RemoveRequest) => void) | null = null;
-export const openRemove = (r: RemoveRequest) => (opener ? opener(r) : r.remove());
+export const openRemove = (r: RemoveRequest) => (opener ? opener({ ...r, at: r.at ?? placeOf(r.anchor) }) : r.remove());
 
 export function RemoveChooserHost() {
   const [req, setReq] = useState<RemoveRequest | null>(null);
@@ -44,8 +63,10 @@ export function RemoveChooserHost() {
   const close = () => setReq(null);
   const key = req.threads.map((t) => t.id).join();
   const single = req.threads.length === 1 ? req.threads[0]! : null;
-  // Phones, and a swipe action (its button is gone once tapped): a compact action sheet.
-  if (phone || !req.anchor?.isConnected)
+  // Phones (where swipe actions live too): a compact action sheet. Wider screens always get the small menu
+  // growing out of the Remove button (2026-10-08: the action sheet showed on a computer when the button had
+  // been re-rendered by the time the menu opened); it uses where the button was when tapped.
+  if (phone || !req.at)
     return (
       <ActionSheet onClose={close} title={single ? single.subject || "(no subject)" : `${req.threads.length} emails`}>
         <div className="overflow-hidden rounded-xl bg-white">
@@ -54,7 +75,7 @@ export function RemoveChooserHost() {
       </ActionSheet>
     );
   return (
-    <AnchoredMenu key={key} anchor={req.anchor} onClose={close}>
+    <AnchoredMenu key={key} anchor={req.anchor ?? null} at={req.at} onClose={close}>
       <Choices req={req} onDone={close} />
     </AnchoredMenu>
   );
@@ -63,7 +84,8 @@ export function RemoveChooserHost() {
 // A small menu under (or above) the Remove button, growing out of it. It is a popover in the top layer and,
 // for a button inside a pop-up (the email viewer), lives inside that pop-up so it isn't covered or blocked.
 // Also used by the Staff picker (Related.tsx).
-export function AnchoredMenu({ anchor, onClose, children, label = "Remove" }: { anchor: HTMLElement; onClose: () => void; children: ReactNode; label?: string }) {
+// at: where the button was when it was tapped, used once the button itself is gone (re-rendered).
+export function AnchoredMenu({ anchor, at, onClose, children, label = "Remove" }: { anchor: HTMLElement | null; at?: AnchorPlace; onClose: () => void; children: ReactNode; label?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; origin: string } | null>(null);
   useLayoutEffect(() => {
@@ -71,7 +93,7 @@ export function AnchoredMenu({ anchor, onClose, children, label = "Remove" }: { 
     if (!el) return;
     el.showPopover?.();
     const place = () => {
-      const r = anchor.getBoundingClientRect();
+      const r = shown(anchor) ? anchor.getBoundingClientRect() : (at?.rect ?? new DOMRect(window.innerWidth / 2, window.innerHeight / 3, 0, 0));
       const h = el.offsetHeight;
       // Line up with the button's left edge, or its right edge when that keeps it on screen better.
       const fitsRight = r.left + WIDTH <= window.innerWidth - 8;
@@ -87,9 +109,9 @@ export function AnchoredMenu({ anchor, onClose, children, label = "Remove" }: { 
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [anchor]);
+  }, [anchor, at]);
   useEffect(() => {
-    const outside = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && !anchor.contains(e.target as Node) && onClose();
+    const outside = (e: PointerEvent) => !ref.current?.contains(e.target as Node) && !anchor?.contains(e.target as Node) && onClose();
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.preventDefault(); // closes the menu only, not the email viewer under it
@@ -113,7 +135,7 @@ export function AnchoredMenu({ anchor, onClose, children, label = "Remove" }: { 
     >
       {children}
     </div>,
-    anchor.closest("dialog") ?? document.body,
+    (shown(anchor) ? anchor.closest("dialog") : at?.container?.isConnected ? at.container : null) ?? document.body,
   );
 }
 

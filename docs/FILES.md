@@ -217,7 +217,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `SheetPreview.tsx` | Excel/CSV attachments as a table (SheetJS). |
 | `DocxPreview.tsx` | Word .docx attachments as a page (mammoth). |
 | `LabelChips.tsx` | Gmail label chips, the label picker and the label filter. |
-| `RemoveChooser.tsx` | Remove: "Just remove" or send to a section; also `AnchoredMenu` (menus that grow from a button). |
+| `RemoveChooser.tsx` | Remove: "Just remove" or send to a section (a menu from the button on computers, an action sheet on phones); also `AnchoredMenu` (menus that grow from a button, or from where it was if it re-rendered). |
 | `TaskRow.tsx` | One task row on the Tasks page (a Contract ends or Probation declaration task's tick asks instead). |
 | `TaskDialog.tsx` | Add / edit task form. |
 | `TaskDetails.tsx` | Task details card: where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete (Renew or end / Declare or extend for Contract ends / Probation declaration tasks) / Reopen. |
