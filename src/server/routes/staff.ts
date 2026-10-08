@@ -2,16 +2,17 @@
 // an employee. Only WorkDesk's database changes; every change is in History.
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, count, eq, max, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, max, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { designations, employeeTypes, employees, events, reports, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { designationInput, employeeInput } from "../../shared/schemas";
-import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES, nextYear, renewedEnd } from "../../shared/staff";
-import type { Employee, StaffList } from "../../shared/types";
+import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES, nextYear, renewedEnd, retiringSoon } from "../../shared/staff";
+import type { Employee, RetiringEmployee, StaffList } from "../../shared/types";
 import { openTaskOrder, selectTasks, toTask } from "./tasks";
+import { ensurePensionTasks } from "../lib/pension";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
 
@@ -192,6 +193,8 @@ export const staffRoutes = new Hono<AppEnv>()
     if (!input.permanent && input.typeId) await loadType(db, userId, input.typeId);
     const [e] = await db.insert(employees).values({ ...employeeValues(input), userId }).returning();
     await log(db, userId, "staff.employee_added", `Employee added: ${e!.name}`);
+    // Retiring within 12 months: their Pension papers task straight away (user request 2026-10-08).
+    await ensurePensionTasks(db, todayIn(timezone(c.env)), userId);
     return c.json(toEmployee(e!), 201);
   })
   // The form sends every detail.
@@ -204,6 +207,7 @@ export const staffRoutes = new Hono<AppEnv>()
     if (!input.permanent && input.typeId) await loadType(db, userId, input.typeId);
     await db.update(employees).set({ ...employeeValues(input), updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.employee_changed", `Employee details changed: ${input.name}`);
+    await ensurePensionTasks(db, todayIn(timezone(c.env)), userId);
     return c.json({ ok: true });
   })
   // Left the office (transfer, retirement…) or back again.
@@ -278,6 +282,26 @@ export const staffRoutes = new Hono<AppEnv>()
     await db.update(employees).set({ leftOn: e.engagedTill, updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.contract_ended", `Contract of ${e.name} ended on ${e.engagedTill}; left the office`);
     return c.json({ leftOn: e.engagedTill });
+  })
+  // Retiring within 12 months (user request 2026-10-08): permanent employees still in the office whose
+  // retirement date is within a year (or already past), soonest first, each with their Pension papers task.
+  .get("/retiring", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const today = todayIn(timezone(c.env));
+    const people = (
+      await db
+        .select({ employeeId: employees.id, name: employees.name, designation: designations.name, retiresOn: employees.retiresOn, pensionTaskId: employees.pensionTaskId })
+        .from(employees)
+        .leftJoin(designations, eq(employees.designationId, designations.id))
+        .where(and(eq(employees.userId, userId), eq(employees.permanent, true), sql`${employees.leftOn} is null`, sql`${employees.retiresOn} is not null`))
+        .orderBy(asc(employees.retiresOn), asc(employees.name))
+    ).filter((e) => retiringSoon(e.retiresOn, today));
+    const ids = people.map((p) => p.pensionTaskId).filter((x): x is string => !!x);
+    const found = ids.length ? (await selectTasks(db).where(and(eq(tasks.userId, userId), inArray(tasks.id, ids)))).map(toTask) : [];
+    const byId = new Map(found.map((t) => [t.id, t]));
+    const retiring: RetiringEmployee[] = people.map(({ pensionTaskId, ...p }) => ({ ...p, retiresOn: p.retiresOn!, task: (pensionTaskId && byId.get(pensionTaskId)) || null }));
+    return c.json({ today, retiring });
   })
   // Only an employee no task or reminder is about can be deleted; otherwise "Left the office" keeps the name.
   .delete("/employees/:id", async (c) => {

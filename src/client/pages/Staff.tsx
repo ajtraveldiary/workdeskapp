@@ -9,6 +9,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  Hourglass,
   ListPlus,
   Mail,
   MessageCircle,
@@ -25,7 +26,8 @@ import {
 import type { Employee, StaffList, Task } from "../../shared/types";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, type Engagement, ENGAGEMENT_LABELS, contractEnd, incrementDue, incrementOverdue } from "../../shared/staff";
 import type { EmployeeInput } from "../../shared/schemas";
-import { useEmployeeWork, useIncrementDone, useMe, useStaff, useStaffActions } from "../api";
+import { useEmployeeWork, useIncrementDone, useMe, useRetiring, useStaff, useStaffActions } from "../api";
+import { ChecklistChip } from "../components/Checklist";
 import { showUndo } from "../components/SwipeRow";
 import { formatDay, formatTime } from "../format";
 import { Avatar } from "../components/Avatar";
@@ -80,6 +82,7 @@ export function StaffPage() {
         <div className="space-y-4">
           {/* Designations are edited in Settings > Employees (moved there by user request 2026-10-07). */}
           <DueIncrements staff={data} onOpen={setOpenId} />
+          <RetiringSoon onOpen={setOpenId} />
           <Employees staff={data} onOpen={setOpenId} onAdd={add} onDesignations={() => navigate("/settings#employees")} />
         </div>
       )}
@@ -156,6 +159,82 @@ function DueIncrements({ staff, onOpen }: { staff: StaffList; onOpen: (id: strin
       <ErrorNote error={done.error} />
     </Card>
   );
+}
+
+// --- Retiring within 12 months (user request 2026-10-08; user's choices: a Pension papers task, and this list) ---
+// Permanent employees still here who retire within a year, soonest first: the retirement date and how far
+// away it is, and their Pension papers task (made 12 months before; its checklist progress, or "Papers sent"
+// once completed). The name opens the employee's card; the progress opens the task.
+function RetiringSoon({ onOpen }: { onOpen: (id: string) => void }) {
+  const { data, error } = useRetiring();
+  const [task, setTask] = useState<Task | null>(null);
+  const [taskForm, setTaskForm] = useState<TaskDialogMode | null>(null);
+  if (error) return <ErrorNote error={error} />;
+  if (!data?.retiring.length) return null;
+  const { today } = data;
+  return (
+    <Card className="overflow-hidden">
+      <h2 className="flex items-center gap-2 border-b border-line px-4 py-2.5 text-footnote font-semibold text-slate-600 sm:px-5">
+        <Hourglass size={15} className="text-brand-700" />
+        <span className="flex-1">Retiring within 12 months</span>
+        <span className="font-normal text-slate-500">{data.retiring.length}</span>
+      </h2>
+      <ul className="divide-y divide-line">
+        {data.retiring.map((r) => {
+          const past = r.retiresOn < today;
+          const done = r.task?.status === "done";
+          return (
+            <li key={r.employeeId} className="row-click flex items-center gap-3 px-4 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5">
+              <button onClick={() => onOpen(r.employeeId)} className="row-link group/title min-w-0 flex-1 text-left">
+                <span className="line-clamp-2 text-subhead font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{r.name}</span>
+                <span className="block text-footnote text-slate-500">
+                  {r.designation ? `${r.designation} · ` : ""}
+                  <span className={cx(past && "font-medium text-urgent-ink")}>
+                    {past ? "Retired on " : "Retires "}
+                    {fullDate(r.retiresOn)}
+                    {!past && ` · ${untilText(today, r.retiresOn)}`}
+                  </span>
+                </span>
+              </button>
+              {r.task &&
+                (done ? (
+                  <button
+                    type="button"
+                    onClick={() => setTask(r.task)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-line bg-white px-1.5 py-px text-footnote font-medium text-low-ink enabled:hover:bg-slate-50 active:scale-[0.97]"
+                    aria-label={`Pension papers sent for ${r.name}. Show task`}
+                  >
+                    <Check size={12} /> Papers sent
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-footnote">
+                    <ChecklistChip items={r.task.checklist} onClick={() => setTask(r.task)} />
+                  </span>
+                ))}
+            </li>
+          );
+        })}
+      </ul>
+      <TaskDetails
+        task={task}
+        onClose={() => setTask(null)}
+        onEdit={(t) => {
+          setTask(null);
+          setTaskForm({ kind: "edit", task: t });
+        }}
+      />
+      <TaskDialog mode={taskForm} onClose={() => setTaskForm(null)} />
+    </Card>
+  );
+}
+
+// "in 8 months", "in 3 weeks", "in 5 days", "today".
+function untilText(today: string, day: string) {
+  const days = Math.round((Date.parse(`${day}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  if (days <= 0) return "today";
+  if (days < 14) return `in ${plural(days, "day")}`;
+  if (days < 60) return `in ${plural(Math.round(days / 7), "week")}`;
+  return `in ${plural(Math.round(days / 30.44), "month")}`;
 }
 
 // --- Employees ---

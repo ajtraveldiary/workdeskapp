@@ -176,6 +176,13 @@
       "when": 1791397777295,
       "tag": "0024_temporary_employee_details",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1791425342110,
+      "tag": "0025_pension_tasks",
+      "breakpoints": true
     }
   ]
 }

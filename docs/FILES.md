@@ -63,6 +63,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0022_file_register.sql` | File register (physical files and e-files). |
 | `0023_employee_kinds.sql` | Permanent or temporary employees, contract end date. |
 | `0024_temporary_employee_details.sql` | Types of temporary employees (HMC, NHM…), engaged as, contract days, pay per day. |
+| `0025_pension_tasks.sql` | Remembers the Pension papers task made for an employee retiring within 12 months. |
 
 ## `src/server/` — the API (Cloudflare Worker, or Node when run locally)
 
@@ -92,7 +93,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `reports.ts` | Reminders (stored as reports): list with their dates, create, edit, pause/resume, delete, mark a date done or not done. |
 | `labels.ts` | Gmail labels: list, create, rename/recolour, delete, change an email's labels, task/done label settings, Send to a section (`/threads/bulk-section`). |
 | `misc.ts` | `/me`, Home summary counts (with increments and contracts ending), History, hidden senders, hidden text, housekeeping (`/maintain`) and Sync now. |
-| `staff.ts` | Employees page: designations, types of temporary employees, employees (add/edit, left the office, delete), an employee's open work, increment done, contract renewed / ended (with Undo). `employeeValues` keeps only the fields that fit permanent or temporary staff. |
+| `staff.ts` | Employees page: designations, types of temporary employees, employees (add/edit, left the office, delete), an employee's open work, increment done, contract renewed / ended (with Undo), retiring within 12 months (`/retiring`, with each one's Pension papers task); adding or editing an employee makes their Pension papers task when due. `employeeValues` keeps only the fields that fit permanent or temporary staff. |
 | `files.ts` | File register: list, add, edit, remove; one entry per e-file number. |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
@@ -104,18 +105,19 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 |---|---|
 | `gmail.ts` | The only code that talks to Gmail: read-only GETs from an allowlist, mark read, and the user's own labels. Enforced by `tests/gmail-safety.test.ts`. |
 | `gmailAuth.ts` | Gets a fresh Gmail access token from the stored (encrypted) refresh token. |
-| `sync.ts` | Gmail sync: first 30 days, then Gmail's change log; each message downloaded once; labels kept up to date; cron sync for all users. |
+| `sync.ts` | Gmail sync: first 30 days, then Gmail's change log; each message downloaded once; labels kept up to date; cron sync for all users (also makes due reminder dates and Pension papers tasks). |
 | `threadRules.ts` | What a new message does to an email that was removed, made a task, or sent to another section. |
 | `taskLabels.ts` | Keeps the task/done Gmail labels and WorkDesk tasks in step both ways; catches up emails missing their label. |
 | `sections.ts` | Sections of the office: moves emails with another section's label to "Other sections" and back. |
 | `reports.ts` | Creates each reminder date and its task when it is due; marks a date and its task done together. |
 | `emailContent.ts` | Reads an email's body and attachments from Gmail for the viewer (never stored); demo content. |
 | `muted.ts` | Checks whether an email's sender is hidden from Pending. |
-| `maintenance.ts` | Housekeeping on page loads, at most every few minutes: returns any old snoozed email to Pending, creates due reminder dates, applies section rules. |
+| `maintenance.ts` | Housekeeping on page loads, at most every few minutes: returns any old snoozed email to Pending, creates due reminder dates, applies section rules, makes Pension papers tasks. |
 | `ics.ts` | Builds the calendar file (`.ics`) for the calendar link, with Malayalam-safe line folding. |
 | `notify.ts` | Decides which phone notifications are due (morning summary, due-time notes, badge count) and sends them. |
 | `webpush.ts` | Web Push with WebCrypto only: encrypts a message for a device and signs it (VAPID). |
 | `staff.ts` | Checks what a task or reminder is "for" (employee, designation, office) and names it for History. |
+| `pension.ts` | Makes the Pension papers task (with the pension checklist) 12 months before a permanent employee retires, once per employee. |
 | `users.ts` | Creates the user on first sign-in; demo mailbox and demo reminders. |
 | `audit.ts` | Writes a History (`events`) row. |
 | `crypto.ts` | Signs the session cookie, encrypts refresh tokens and the push key (AES-GCM). |
@@ -129,7 +131,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `types.ts` | The shapes of data the API sends to the app (Thread, Task, Report, Employee, OfficeFile, Summary…). |
 | `schemas.ts` | Checks on everything the app sends (Zod): tasks, reminders, labels, staff, files, notifications, hidden text. |
 | `reminderSchedule.ts` | Reminder date maths: repeats, next dates, "remind me" lead days, labels like "Every month". |
-| `staff.ts` | Employee lists and rules: categories, engaged as, common designations and types, contract end date, increment due dates, contracts ending (on Home from 7 days before, renewed end date). |
+| `staff.ts` | Employee lists and rules: categories, engaged as, common designations and types, contract end date, increment due dates, contracts ending (on Home from 7 days before, renewed end date), retiring within 12 months (a year before, Pension papers title and checklist). |
 | `transfer.ts` | Import / Export: CSV columns of each list, sample files, CSV writing, reading dates/times/priorities, backup tables. |
 | `findDates.ts` | Finds a due date written in an email (Indian day-first formats) for a new task. |
 | `addressLists.ts` | Counts and names addresses for folding long To/Cc lists. |
@@ -183,7 +185,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `History.tsx` | Every decision and change, with Undo where possible. |
 | `Search.tsx` | Search across emails and tasks. |
 | `Settings.tsx` | Settings in four tabs (the tab is in the address: none, `#mail`, `#employees`, `#calendar`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Calendar link. |
-| `Staff.tsx` | Employees page: due increments, permanent/temporary filter, list by designation, employee card, add/edit form. |
+| `Staff.tsx` | Employees page: due increments, retiring within 12 months (with Pension papers progress), permanent/temporary filter, list by designation, employee card, add/edit form. |
 | `Files.tsx` | File register: one-line list of files with e-file numbers, search, filters, add/edit form. |
 | `ImportExport.tsx` | Import / Export: master backup, CSV export/import with preview, sample CSV links. |
 | `Login.tsx` | Sign in with Google. |
@@ -251,6 +253,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `calendar-feed.test.ts` | The calendar link's `.ics` file. |
 | `push.test.ts` | Push encryption, VAPID signature, notification schedule. |
 | `staff.test.ts` | Designations, employees (permanent/temporary), types, increments, contracts ending (renew / ended), "For" links. |
+| `pension.test.ts` | Pension papers tasks 12 months before retirement (made once, checklist, "For" the employee) and the Retiring within 12 months list. |
 | `file-register.test.ts` | File register entries and e-file numbers. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |
 | `db-errors.test.ts` | Database problems explained in plain words. |

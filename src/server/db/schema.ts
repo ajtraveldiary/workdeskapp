@@ -328,6 +328,9 @@ export const employees = pgTable("employees", {
   notes: text("notes").notNull().default(""),
   // Left the office (transfer, retirement…): hidden from the pickers, kept for old tasks.
   leftOn: date("left_on"),
+  // The "Pension papers" task WorkDesk made 12 months before retirement (user request 2026-10-08); set once,
+  // so a task the user deletes isn't made again. No foreign key: the task may be deleted.
+  pensionTaskId: uuid("pension_task_id"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

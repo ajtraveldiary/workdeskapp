@@ -5,6 +5,7 @@ import type { Env } from "../env";
 import { requireEnv, timezone } from "../env";
 import { todayIn } from "./dates";
 import { ensureReportPeriods } from "./reports";
+import { ensurePensionTasks } from "./pension";
 import { clearMissingTaskLabels, getTaskLabels, labelTaskEmails, runLabelRules, watchedLabels } from "./taskLabels";
 import { applySectionRules } from "./sections";
 import { decryptSecret } from "./crypto";
@@ -502,6 +503,7 @@ export async function syncUser(db: DB, env: Env, userId: string): Promise<SyncRe
 export async function scheduledSync(db: DB, env: Env) {
   await wakeSnoozed(db);
   await ensureReportPeriods(db, todayIn(timezone(env)));
+  await ensurePensionTasks(db, todayIn(timezone(env)));
   const accounts = await db.select().from(gmailAccounts);
   for (const a of accounts) {
     if (!a.refreshTokenEnc) continue;

@@ -88,3 +88,34 @@ export const contractOnHome = (end: string | null, today: string) => !!end && en
 export const contractOver = (end: string | null, today: string) => !!end && end < today;
 // Renewed for the same period: the new contract starts the day after the old one ends.
 export const renewedEnd = (end: string, days: number) => contractEnd(plusDays(end, 1), days);
+
+// --- Retiring within 12 months (user request 2026-10-08) ---
+// The pension application should go in at least a year before retirement (AG Kerala), so 12 months before an
+// employee retires WorkDesk makes a "Pension papers" task about them, due on that date, with the checklist
+// below; the Employees page lists everyone retiring within 12 months.
+
+// The same day a year earlier (29 Feb → 28 Feb).
+export function yearBefore(day: string): string {
+  const y = Number(day.slice(0, 4)) - 1;
+  const m = day.slice(5, 7);
+  const last = Number(monthEnd(`${y}-${m}-01`).slice(8, 10));
+  return `${y}-${m}-${String(Math.min(Number(day.slice(8, 10)), last)).padStart(2, "0")}`;
+}
+
+// Retires within the next 12 months (or already past the date while still in the office).
+export const retiringSoon = (retiresOn: string | null, today: string) => !!retiresOn && retiresOn <= nextYear(today);
+
+export const pensionTaskTitle = (name: string) => `Pension papers: ${name}`;
+
+// The steps of a pension application (AG Kerala's checklist for the online application via PRISM).
+export const PENSION_CHECKLIST = [
+  "Service book updated and attested",
+  "Pension application entered in PRISM",
+  "Joint photo with spouse",
+  "Identification particulars",
+  "Specimen signature",
+  "Nomination for lifetime arrears, gratuity and commutation",
+  "Details of family",
+  "Declaration in Form 117-A",
+  "Forwarded to the pension sanctioning authority",
+];

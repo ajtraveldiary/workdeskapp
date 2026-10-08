@@ -233,6 +233,10 @@ export type IncrementDue = { employeeId: string; name: string; designation: stri
 
 // A temporary employee's contract ending, shown in Home's Due Today (user request 2026-10-08). days = the
 // contract period (null: not given, so Renew needs it set on the employee first).
+// An employee retiring within 12 months (user request 2026-10-08), with the Pension papers task WorkDesk made
+// for them (null: not made yet, e.g. already past the date, or deleted).
+export type RetiringEmployee = { employeeId: string; name: string; designation: string | null; retiresOn: string; task: Task | null };
+
 export type ContractEnding = { employeeId: string; name: string; designation: string | null; end: string; days: number | null };
 
 // File register (user request 2026-10-07): a physical file and/or an e-file. efileNumber "" = e-file not created yet.

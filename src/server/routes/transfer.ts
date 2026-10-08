@@ -24,6 +24,7 @@ import {
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { ensureReportPeriods } from "../lib/reports";
+import { ensurePensionTasks } from "../lib/pension";
 import { employeeInput, officeFileInput, reminderLinks, reportInput, reportPatch, taskInput, taskPatch } from "../../shared/schemas";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, ENGAGEMENT_LABELS, contractEnd, type Engagement } from "../../shared/staff";
 import { REPEATS, REPEAT_LABEL } from "../../shared/reminderSchedule";
@@ -715,6 +716,7 @@ export const transferRoutes = new Hono<AppEnv>()
     if (!body.dryRun && (result.added || result.updated)) {
       await plan.write();
       if (kind === "reminders") await ensureReportPeriods(db, todayIn(timezone(c.env)), userId);
+      if (kind === "employees") await ensurePensionTasks(db, todayIn(timezone(c.env)), userId);
       await log(db, userId, `data.${kind}_imported`, `${CSV_TITLES[kind]} imported: ${result.added} added, ${result.updated} updated`);
     }
     return c.json(result);
