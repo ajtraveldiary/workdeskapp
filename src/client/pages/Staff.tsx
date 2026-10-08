@@ -83,7 +83,8 @@ export function StaffPage() {
           {/* Designations are edited in Settings > Employees (moved there by user request 2026-10-07). */}
           <DueIncrements staff={data} onOpen={setOpenId} />
           <RetiringSoon onOpen={setOpenId} />
-          <Employees staff={data} onOpen={setOpenId} onAdd={add} onDesignations={() => navigate("/settings#employees")} />
+          {/* A row of the list or table opens the employee's own page (user request 2026-10-08). */}
+          <Employees staff={data} onOpen={(id) => navigate(`/employees/${id}`)} onAdd={add} onDesignations={() => navigate("/settings#employees")} />
         </div>
       )}
       {data && (
@@ -489,7 +490,7 @@ function EmployeeTable({ people, permanent, staff, onOpen }: { people: Employee[
   );
 }
 
-function TemporaryTag({ className }: { className?: string }) {
+export function TemporaryTag({ className }: { className?: string }) {
   return (
     <span className={cx("inline-flex shrink-0 items-center gap-1 rounded-full bg-high-soft px-2 py-0.5 text-caption font-medium text-high-ink", className)}>
       <Clock size={12} /> Temporary
@@ -681,7 +682,7 @@ const EMPTY: EmployeeInput = {
   notes: "",
 };
 
-function EmployeeDialog({ open, employee, staff, onClose }: { open: boolean; employee: Employee | null; staff: StaffList; onClose: () => void }) {
+export function EmployeeDialog({ open, employee, staff, onClose }: { open: boolean; employee: Employee | null; staff: StaffList; onClose: () => void }) {
   return (
     <Modal open={open} onClose={onClose} title={employee ? "Edit employee" : "Add employee"}>
       {open && <EmployeeForm employee={employee} staff={staff} onDone={onClose} />}

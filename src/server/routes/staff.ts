@@ -2,7 +2,7 @@
 // an employee. Only WorkDesk's database changes; every change is in History.
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, count, eq, inArray, max, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, max, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { designations, employeeTypes, employees, events, reports, tasks } from "../db/schema";
@@ -388,4 +388,46 @@ export const staffRoutes = new Hono<AppEnv>()
       db.select({ id: reports.id, name: reports.name, active: reports.active, relatedKind: reports.relatedKind }).from(reports).where(and(eq(reports.userId, userId), about(reports))).orderBy(asc(reports.name)),
     ]);
     return c.json({ tasks: open.map(toTask), reminders: rems, today });
+  })
+  // Everything about an employee for their own page (user request 2026-10-08): open and completed tasks about
+  // them or their designation, every such reminder, and History (their tasks' entries and staff changes that
+  // name them), newest first.
+  .get("/employees/:id/profile", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("id"));
+    const today = todayIn(timezone(c.env));
+    const about = (t: typeof tasks | typeof reports) =>
+      or(and(eq(t.relatedKind, "employee"), eq(t.relatedId, e.id)), e.designationId ? and(eq(t.relatedKind, "designation"), eq(t.relatedId, e.designationId)) : sql`false`);
+    const [open, done, rems] = await Promise.all([
+      selectTasks(db)
+        .where(and(eq(tasks.userId, userId), eq(tasks.status, "open"), about(tasks)))
+        .orderBy(...openTaskOrder)
+        .limit(200),
+      selectTasks(db)
+        .where(and(eq(tasks.userId, userId), eq(tasks.status, "done"), about(tasks)))
+        .orderBy(desc(tasks.completedAt))
+        .limit(100),
+      db
+        .select({ id: reports.id, name: reports.name, active: reports.active, relatedKind: reports.relatedKind })
+        .from(reports)
+        .where(and(eq(reports.userId, userId), about(reports)))
+        .orderBy(asc(reports.name)),
+    ]);
+    const taskIds = [...open, ...done].map((t) => t.task.id);
+    const history = await db
+      .select({ id: events.id, entityType: events.entityType, entityId: events.entityId, action: events.action, summary: events.summary, detail: events.detail, createdAt: events.createdAt })
+      .from(events)
+      .where(
+        and(
+          eq(events.userId, userId),
+          or(
+            taskIds.length ? and(eq(events.entityType, "task"), inArray(events.entityId, taskIds)) : sql`false`,
+            and(sql`${events.action} like 'staff.%'`, sql`position(${e.name} in ${events.summary}) > 0`),
+          ),
+        ),
+      )
+      .orderBy(desc(events.createdAt))
+      .limit(100);
+    return c.json({ today, open: open.map(toTask), done: done.map(toTask), reminders: rems, history: history.map((h) => ({ ...h, emailState: null })) });
   });

@@ -256,4 +256,26 @@ describe("staff", () => {
     await call("PUT", `/staff/employees/${id}`, { ...e, permanent: false });
     expect((await emp()).basicPay).toBeNull();
   });
+
+  it("an employee's page: open and completed tasks about them or their designation, reminders, History", async () => {
+    const jphn = (await call("POST", "/staff/designations", { name: "JPHN" })).json.id as string;
+    const id = (await call("POST", "/staff/employees", { name: NAME, designationId: jphn })).json.id as string;
+    const other = (await call("POST", "/staff/employees", { name: "Someone else" })).json.id as string;
+    const mine = (await call("POST", "/tasks", { title: "Service book verification", relatedKind: "employee", relatedId: id })).json.id as string;
+    await call("POST", "/tasks", { title: "JPHN duty roster", relatedKind: "designation", relatedId: jphn });
+    await call("POST", "/tasks", { title: "Not theirs", relatedKind: "employee", relatedId: other });
+    await call("POST", `/tasks/${mine}/complete`);
+    await call("POST", "/reports", { name: "Monthly JPHN report", startDate: "2026-11-01", relatedKind: "designation", relatedId: jphn });
+    await call("POST", `/staff/employees/${id}/left`, { left: true });
+
+    const p = (await call("GET", `/staff/employees/${id}/profile`)).json;
+    expect(p.open.map((t: Task) => t.title)).toEqual(["JPHN duty roster"]);
+    expect(p.done.map((t: Task) => t.title)).toEqual(["Service book verification"]);
+    expect(p.reminders.map((r: { name: string }) => r.name)).toEqual(["Monthly JPHN report"]);
+    const said = p.history.map((h: { summary: string }) => h.summary).join(" | ");
+    expect(said).toContain(`Employee added: ${NAME}`);
+    expect(said).toContain(`${NAME} left the office`);
+    expect(said).toContain("Completed");
+    expect(said).not.toContain("Someone else");
+  });
 });

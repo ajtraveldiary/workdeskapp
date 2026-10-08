@@ -46,6 +46,7 @@ import { CalendarPage } from "./pages/Calendar";
 import { SearchPage } from "./pages/Search";
 import { HistoryPage } from "./pages/History";
 import { StaffPage } from "./pages/Staff";
+import { EmployeePage } from "./pages/EmployeePage";
 import { ImportExportPage } from "./pages/ImportExport";
 import { FilesPage } from "./pages/Files";
 import { RemindersPage } from "./pages/Reminders";
@@ -79,6 +80,8 @@ export function App() {
         <Route path="/search" element={<Page><SearchPage /></Page>} />
         <Route path="/settings" element={<Page><SettingsPage /></Page>} />
         <Route path="/employees" element={<Page><StaffPage /></Page>} />
+        {/* An employee's own page (user request 2026-10-08), opened from the Employees list or table. */}
+        <Route path="/employees/:id" element={<Page wide><EmployeePage /></Page>} />
         <Route path="/import-export" element={<Page><ImportExportPage /></Page>} />
         {/* Was /staff before the page was renamed Employees (user request 2026-10-07). */}
         <Route path="/staff" element={<StaffRedirect />} />

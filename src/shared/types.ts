@@ -238,6 +238,14 @@ export type IncrementDue = { employeeId: string; name: string; designation: stri
 
 // An employee retiring within 12 months (user request 2026-10-08), with the Pension papers task WorkDesk made
 // for them (null: not made yet, e.g. already past the date, or deleted).
+// Everything about an employee for their own page (user request 2026-10-08).
+export type EmployeeProfile = {
+  today: string;
+  open: Task[];
+  done: Task[];
+  reminders: { id: string; name: string; active: boolean; relatedKind: string | null }[];
+  history: AuditEvent[];
+};
 export type RetiringEmployee = { employeeId: string; name: string; designation: string | null; retiresOn: string; task: Task | null };
 
 // A temporary employee's contract ending, as the Renew / Contract ended chooser shows it (user request

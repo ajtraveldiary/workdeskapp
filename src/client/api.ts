@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, EmailContent, Label, RangeTasks, EmailState, Me, MutedSender, OfficeFile, Report, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeFile, Report, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, OfficeFileInput, ReportInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -170,6 +170,9 @@ export const useEmployeeWork = (id: string | null) =>
 // Retiring within 12 months, with each one's Pension papers task (user request 2026-10-08). Task changes
 // refetch it (they refresh everything but labels); so do staff changes ("staff" prefix).
 export const useRetiring = () => useQuery({ queryKey: ["staff", "retiring"], queryFn: () => api<{ today: string; retiring: RetiringEmployee[] }>("/staff/retiring") });
+// An employee's own page (user request 2026-10-08): their tasks, reminders and History. Under "staff", so staff
+// changes refresh it; task changes refresh everything but labels.
+export const useEmployeeProfile = (id: string) => useQuery({ queryKey: ["staff", "profile", id], queryFn: () => api<EmployeeProfile>(`/staff/employees/${id}/profile`) });
 export function useStaffActions() {
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "staff" || q.queryKey[0] === "history" });
