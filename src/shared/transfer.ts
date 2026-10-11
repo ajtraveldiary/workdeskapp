@@ -34,6 +34,7 @@ export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
     { key: "kind", header: "Kind", sample: ["Physical file", "E-file"] },
     { key: "efileNumber", header: "E-file number", sample: ["255/2026", "340/2026"] },
     { key: "notes", header: "Notes", sample: ["Rack 3", ""] },
+    { key: "tags", header: "Tags", sample: ["Audit", "Salary, Establishment"] },
   ],
   employees: [
     { key: "name", header: "Name", required: true, sample: ["Lakshmi K S", "Anitha Kumari"] },

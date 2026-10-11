@@ -101,7 +101,10 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
   const out = (o: Record<string, string>) => cols.map((c) => o[c.key] ?? "");
   if (kind === "files") {
     const rows = await db.select().from(officeFiles).where(eq(officeFiles.userId, userId)).orderBy(asc(officeFiles.subject));
-    return rows.map((f) => out({ subject: f.subject, kind: f.physical ? "Physical file" : "E-file", efileNumber: f.efileNumber, notes: f.notes }));
+    const fileTag = await tagNames(db, userId);
+    return rows.map((f) =>
+      out({ subject: f.subject, kind: f.physical ? "Physical file" : "E-file", efileNumber: f.efileNumber, notes: f.notes, tags: (f.tagIds ?? []).map((id) => fileTag.get(id)).filter(Boolean).join(", ") }),
+    );
   }
   if (kind === "employees") {
     const [rows, d, t] = await Promise.all([
@@ -207,7 +210,8 @@ function setDay(row: Row, key: string, header: string, into: Record<string, unkn
 
 async function planFiles(db: DB, userId: string, rows: Row[], result: ImportResult): Promise<Plan> {
   const existing = await db.select().from(officeFiles).where(eq(officeFiles.userId, userId));
-  type Entry = { id: string | null; subject: string; physical: boolean; efileNumber: string; notes: string; line: number };
+  // tags: names from the Tags column (made into tags when written); undefined = the column wasn't in the file.
+  type Entry = { id: string | null; subject: string; physical: boolean; efileNumber: string; notes: string; line: number; tags?: string[] };
   const entries: Entry[] = existing.map((f) => ({ id: f.id, subject: f.subject, physical: f.physical, efileNumber: f.efileNumber, notes: f.notes, line: 0 }));
   const touched = new Set<Entry>();
   for (const row of rows) {
@@ -226,6 +230,7 @@ async function planFiles(db: DB, userId: string, rows: Row[], result: ImportResu
         continue;
       }
     }
+    if (c.has("tags")) next.tags = splitTagNames(c.get("tags")!);
     const parsed = officeFileInput.safeParse(next);
     if (!parsed.success) {
       problem(result, row, zodMessage(parsed.error));
@@ -236,12 +241,13 @@ async function planFiles(db: DB, userId: string, rows: Row[], result: ImportResu
       problem(result, row, `E-file number ${parsed.data.efileNumber} is already on "${clash.subject}"`);
       continue;
     }
+    const { tagIds: _t, ...fileData } = parsed.data;
     if (match) {
-      Object.assign(match, parsed.data);
+      Object.assign(match, fileData, next.tags ? { tags: next.tags } : {});
       if (match.id && !touched.has(match)) result.updated++;
       touched.add(match);
     } else {
-      const e = { id: null, line: row.line, ...parsed.data };
+      const e: Entry = { id: null, line: row.line, ...fileData, tags: next.tags };
       entries.push(e);
       touched.add(e);
       result.added++;
@@ -251,8 +257,10 @@ async function planFiles(db: DB, userId: string, rows: Row[], result: ImportResu
     result,
     write: async () => {
       const add = [...touched].filter((e) => !e.id);
-      for (const e of touched) if (e.id) await db.update(officeFiles).set({ subject: e.subject, physical: e.physical, efileNumber: e.efileNumber, notes: e.notes, updatedAt: new Date() }).where(eq(officeFiles.id, e.id));
-      if (add.length) await db.insert(officeFiles).values(add.map((e) => ({ userId, subject: e.subject, physical: e.physical, efileNumber: e.efileNumber, notes: e.notes })));
+      const ids = await ensureTagsByName(db, userId, [...touched].flatMap((e) => e.tags ?? []));
+      const tagSet = (e: Entry) => (e.tags ? { tagIds: e.tags.map((n) => ids.get(n.toLowerCase())).filter((x): x is string => !!x) } : {});
+      for (const e of touched) if (e.id) await db.update(officeFiles).set({ subject: e.subject, physical: e.physical, efileNumber: e.efileNumber, notes: e.notes, ...tagSet(e), updatedAt: new Date() }).where(eq(officeFiles.id, e.id));
+      if (add.length) await db.insert(officeFiles).values(add.map((e) => ({ userId, subject: e.subject, physical: e.physical, efileNumber: e.efileNumber, notes: e.notes, ...tagSet(e) })));
     },
   };
 }

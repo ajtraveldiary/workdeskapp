@@ -216,7 +216,8 @@ export function useStaffActions() {
 export const useOfficeFiles = () => useQuery({ queryKey: ["files"], queryFn: () => api<{ files: OfficeFile[] }>("/files") });
 export function useOfficeFileActions() {
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "files" || q.queryKey[0] === "history" });
+  // Tags (shared with tasks and reminders) count their files, so the tag list refreshes too.
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "files" || q.queryKey[0] === "history" || q.queryKey[0] === "tags" });
   return {
     add: useMutation({ mutationFn: (input: OfficeFileInput) => api<OfficeFile>("/files", { method: "POST", body: input }), onSettled: refresh }),
     save: useMutation({ mutationFn: ({ id, input }: { id: string; input: OfficeFileInput }) => api(`/files/${id}`, { method: "PUT", body: input }), onSettled: refresh }),
@@ -226,7 +227,7 @@ export function useOfficeFileActions() {
 
 // Tags for tasks and reminders (user request 2026-10-11). Changing or deleting one also refreshes the task and
 // reminder lists that show it.
-export const useTags = () => useQuery({ queryKey: ["tags"], queryFn: () => api<{ tags: Tag[] }>("/tags"), select: (d) => d.tags, staleTime: 60 * 60_000 });
+export const useTags = () => useQuery({ queryKey: ["tags"], queryFn: () => api<{ tags: Tag[] }>("/tags"), select: (d) => d.tags });
 export function useTagActions() {
   const qc = useQueryClient();
   const refresh = (all = false) =>

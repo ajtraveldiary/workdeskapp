@@ -212,6 +212,81 @@ export function TagFilterButton({ value, onChange }: { value: string; onChange: 
   );
 }
 
+// Several tags at once (File register, user request 2026-10-11): a "Tags" button with a menu of tags to tick; items
+// with any ticked tag show. The button shows how many are ticked. Phones get the menu as a sheet (PopPanel).
+export function TagMultiFilterButton({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
+  const tags = useTags().data ?? [];
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: globalThis.KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  // Only ticks of tags that still exist count.
+  const ticked = value.filter((id) => tags.some((t) => t.id === id));
+  const toggle = (id: string) => onChange(ticked.includes(id) ? ticked.filter((x) => x !== id) : [...ticked, id]);
+  const item = "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 active:bg-slate-100 pointer-coarse:py-2.5";
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={ticked.length ? `Filter by tags: ${ticked.length} chosen` : "Filter by tags"}
+        className={cx(
+          "inline-flex h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition active:scale-[0.97] pointer-coarse:h-9",
+          ticked.length ? "border-brand-200 bg-tint text-brand-700" : "border-line bg-white text-slate-600 hover:bg-slate-50 hover:text-ink aria-expanded:bg-slate-100",
+        )}
+      >
+        <ListFilter size={16} /> Tags
+        {ticked.length > 0 && <span className="rounded-full bg-brand-600 px-1.5 text-caption2 leading-4 font-semibold text-white tabular-nums">{ticked.length}</span>}
+      </button>
+      {open && (
+        <PopPanel onClose={() => setOpen(false)} title="Filter by tags" className="absolute right-0 z-30 mt-1 max-h-80 w-60 overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg">
+          {tags.length === 0 ? (
+            <p className="px-3 py-2 text-footnote text-slate-500">
+              No tags yet. Add them in a file&apos;s form or in{" "}
+              <Link to="/settings#tags" className="font-medium text-brand-700 underline">
+                Settings › Tags
+              </Link>
+              .
+            </p>
+          ) : (
+            <>
+              {tags.map((t) => {
+                const on = ticked.includes(t.id);
+                return (
+                  <button key={t.id} type="button" onClick={() => toggle(t.id)} className={item} aria-pressed={on}>
+                    <span className={cx("flex size-4 shrink-0 items-center justify-center rounded border", on ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300")}>
+                      {on && <Check size={11} strokeWidth={3} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <TagChip tag={t} className="py-0.5 text-caption" />
+                    </span>
+                  </button>
+                );
+              })}
+              {ticked.length > 0 && (
+                <button type="button" onClick={() => onChange([])} className={cx(item, "border-t border-line text-brand-700")}>
+                  Clear tags
+                </button>
+              )}
+            </>
+          )}
+        </PopPanel>
+      )}
+    </div>
+  );
+}
+
 // --- Settings > Tags ---
 
 function ColorDots({ value, onChange }: { value: TagColor; onChange: (c: TagColor) => void }) {
@@ -255,7 +330,7 @@ export function TagSettings() {
     save.mutate(editing, { onSuccess: () => setEditing(null) });
   };
   const del = (t: Tag) => {
-    const used = [t.tasks && plural(t.tasks, "open task"), t.reminders && plural(t.reminders, "reminder")].filter(Boolean).join(" and ");
+    const used = [t.tasks && plural(t.tasks, "open task"), t.reminders && plural(t.reminders, "reminder"), t.files && plural(t.files, "file")].filter(Boolean).join(", ");
     if (confirm(`Delete the tag "${t.name}"?${used ? ` It comes off ${used}; they stay.` : ""}`)) remove.mutate(t.id);
   };
 
@@ -265,7 +340,7 @@ export function TagSettings() {
         <TagsIcon size={18} className="text-brand-700" /> Tags
       </h2>
       <p className="mt-1 text-sm text-slate-600">
-        Your own tags for tasks and reminders (separate from Gmail labels). Make one here or straight from a task or reminder form; a reminder's tags go on its tasks. Drag to arrange.
+        Your own tags for tasks, reminders and files (separate from Gmail labels). Make one here or straight from a task or reminder form; a reminder's tags go on its tasks. Drag to arrange.
       </p>
       <ErrorNote error={error ?? save.error ?? remove.error ?? order.error} />
       {!tags ? (
@@ -292,7 +367,7 @@ export function TagSettings() {
               <>
                 <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
                   <TagChip tag={t} className="py-0.5 text-caption" />
-                  <span className="text-footnote text-slate-500">{[t.tasks && plural(t.tasks, "open task"), t.reminders && plural(t.reminders, "reminder")].filter(Boolean).join(" · ") || "Not used"}</span>
+                  <span className="text-footnote text-slate-500">{[t.tasks && plural(t.tasks, "open task"), t.reminders && plural(t.reminders, "reminder"), t.files && plural(t.files, "file")].filter(Boolean).join(" · ") || "Not used"}</span>
                 </span>
                 <RowButton label={`Edit ${t.name}`} onClick={() => setEditing({ id: t.id, name: t.name, color: t.color })}>
                   <Pencil size={16} />

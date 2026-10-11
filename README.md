@@ -82,7 +82,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   checklist.
 
 ### File register
-- **Every file of the section:** paper files and e-files with their file numbers. Search, and tap a number to copy it.
+- **Every file of the section:** paper files and e-files, listed by file number then subject. Search, filter by
+  status or by tags (the same tags as tasks and reminders), and tap a number to copy it.
 
 ### Logins
 - **Saved logins for work websites:** for example each employee's login to a payroll or HR portal, or a shared

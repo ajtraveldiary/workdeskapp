@@ -7,6 +7,7 @@ import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { events, officeFiles } from "../db/schema";
 import { officeFileInput } from "../../shared/schemas";
+import { checkTags } from "../lib/tags";
 import type { OfficeFile } from "../../shared/types";
 
 const toFile = (f: typeof officeFiles.$inferSelect): OfficeFile => ({
@@ -15,6 +16,7 @@ const toFile = (f: typeof officeFiles.$inferSelect): OfficeFile => ({
   physical: f.physical,
   efileNumber: f.efileNumber,
   notes: f.notes,
+  tagIds: f.tagIds ?? [],
   updatedAt: f.updatedAt.toISOString(),
 });
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
@@ -45,6 +47,7 @@ export const fileRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const input = officeFileInput.parse(await c.req.json());
+    input.tagIds = (await checkTags(db, userId, input.tagIds))!;
     await checkUnique(db, userId, input.efileNumber);
     const [f] = await db.insert(officeFiles).values({ ...input, userId }).returning();
     await log(db, userId, "files.added", `File added to the register: ${label(f!)}`);
@@ -55,6 +58,7 @@ export const fileRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const f = await load(db, userId, c.req.param("id"));
     const input = officeFileInput.parse(await c.req.json());
+    input.tagIds = (await checkTags(db, userId, input.tagIds))!;
     await checkUnique(db, userId, input.efileNumber, f.id);
     await db.update(officeFiles).set({ ...input, updatedAt: new Date() }).where(eq(officeFiles.id, f.id));
     const created = !f.efileNumber && !!input.efileNumber;

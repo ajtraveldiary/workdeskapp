@@ -225,6 +225,8 @@ export const officeFileInput = z.object({
   physical: z.boolean().default(true),
   efileNumber: z.string().trim().max(50).default(""),
   notes: z.string().max(2_000).default(""),
+  // Tags (user request 2026-10-11), shared with tasks and reminders.
+  tagIds: tagIds.default([]),
 });
 export type OfficeFileInput = z.input<typeof officeFileInput>;
 

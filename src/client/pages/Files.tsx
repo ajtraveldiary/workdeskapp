@@ -9,6 +9,7 @@ import type { OfficeFileInput } from "../../shared/schemas";
 import { useOfficeFileActions, useOfficeFiles } from "../api";
 import { RefreshButton } from "../components/RefreshButton";
 import { Button, Card, ErrorNote, Fab, Field, Modal, PageHeader, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
+import { TagMultiFilterButton, TagPicker } from "../components/Tags";
 
 type Filter = "all" | "pending" | "efiles";
 
@@ -16,12 +17,15 @@ export function FilesPage() {
   const { data, error } = useOfficeFiles();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  // Tag filter (user request 2026-10-11): files with any of these tags.
+  const [tags, setTags] = useState<string[]>([]);
   const [form, setForm] = useState<{ file: OfficeFile | null } | null>(null);
   const files = data?.files ?? [];
   const pending = files.filter((f) => !f.efileNumber);
   const query = q.trim().toLowerCase();
   const shown = files
     .filter((f) => (filter === "pending" ? !f.efileNumber : filter === "efiles" ? !!f.efileNumber : true))
+    .filter((f) => !tags.length || tags.some((id) => f.tagIds?.includes(id)))
     .filter((f) => !query || [f.subject, f.efileNumber, f.notes].some((x) => x.toLowerCase().includes(query)));
   const add = () => setForm({ file: null });
 
@@ -59,10 +63,14 @@ export function FilesPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          <label className="relative block">
-            <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search subject or file number" aria-label="Search files" className={cx(inputClass, "pl-9")} />
-          </label>
+          {/* Search, and the tag filter beside it (user request 2026-10-11). */}
+          <div className="flex items-center gap-2">
+            <label className="relative block min-w-0 flex-1">
+              <Search size={16} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search subject or file number" aria-label="Search files" className={cx(inputClass, "pl-9")} />
+            </label>
+            <TagMultiFilterButton value={tags} onChange={setTags} />
+          </div>
           <Segmented<Filter>
             value={filter}
             onChange={setFilter}
@@ -75,9 +83,11 @@ export function FilesPage() {
           />
           <Card className="overflow-hidden">
             {shown.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-slate-500">{query ? `No file matches “${q.trim()}”.` : "Nothing here."}</p>
+              <p className="px-5 py-8 text-center text-sm text-slate-500">{query ? `No file matches “${q.trim()}”.` : tags.length ? "No file has these tags here." : "Nothing here."}</p>
             ) : (
-              <ul className="divide-y divide-line">
+              // One grid for all rows (user request 2026-10-11): icon, then the e-file number column (as wide as the
+              // longest number, so every subject starts in the same place), then the subject.
+              <ul className="grid grid-cols-[auto_minmax(0,auto)_minmax(0,1fr)] divide-y divide-line">
                 {shown.map((f) => (
                   <FileRow key={f.id} file={f} onOpen={() => setForm({ file: f })} />
                 ))}
@@ -102,35 +112,37 @@ function FileRow({ file: f, onOpen }: { file: OfficeFile; onOpen: () => void }) 
     });
   const Icon = f.physical ? FolderClosed : FileText;
   // One line per file (user request 2026-10-07: "very compact, it's just a long list of files"): the icon shows
-  // the kind (folder = physical file, page = e-file), the subject is cut to one line (whole in the edit form and
-  // on hover), and the e-file number, or "No e-file", sits at the right. Notes are only in the edit form.
+  // the kind (folder = physical file, page = e-file); then the e-file number, or "No e-file", and right after it
+  // the subject (number first so the two sit together, user request 2026-10-11). The subject is cut to one line
+  // (whole in the edit form and on hover). Notes and tags are only in the edit form. The row is a subgrid of the
+  // list's grid, so the numbers form one column.
   return (
-    <li className="row-click flex items-center gap-2.5 px-3 py-1.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-4">
+    <li className="row-click col-span-3 grid grid-cols-subgrid items-center gap-x-2.5 px-3 py-1.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-4">
       <Icon size={15} className={cx("shrink-0", f.physical ? "text-medium-ink" : "text-brand-700")} aria-label={f.physical ? "Physical file" : "E-file"} />
-      <button onClick={onOpen} title={f.subject} className="row-link group/title min-w-0 flex-1 truncate text-left text-subhead text-ink group-hover/title:text-brand-700 sm:text-sm">
-        {f.subject}
-      </button>
       {f.efileNumber ? (
         // Tap the number to copy it (for searching in e-office).
         <button
           onClick={copy}
-          title="Copy e-file number"
+          title={`Copy e-file number ${f.efileNumber}`}
           aria-label={`Copy e-file number ${f.efileNumber}`}
-          className="inline-flex shrink-0 items-center gap-1 rounded text-footnote font-medium text-brand-700 tabular-nums hover:underline active:scale-95"
+          className="inline-flex max-w-[10rem] min-w-0 items-center gap-1 justify-self-start rounded text-footnote font-medium text-brand-700 tabular-nums hover:underline active:scale-95"
         >
-          {copied && <Check size={13} />}
-          {f.efileNumber}
+          {copied && <Check size={13} className="shrink-0" />}
+          <span className="truncate">{f.efileNumber}</span>
         </button>
       ) : (
-        <span className="shrink-0 text-footnote text-high-ink">No e-file</span>
+        <span className="justify-self-start text-footnote whitespace-nowrap text-high-ink">No e-file</span>
       )}
+      <button onClick={onOpen} title={f.subject} className="row-link group/title min-w-0 truncate text-left text-subhead text-ink group-hover/title:text-brand-700 sm:text-sm">
+        {f.subject}
+      </button>
     </li>
   );
 }
 
 function FileForm({ file, onDone }: { file: OfficeFile | null; onDone: () => void }) {
   const [v, setV] = useState<Required<OfficeFileInput>>(
-    file ? { subject: file.subject, physical: file.physical, efileNumber: file.efileNumber, notes: file.notes } : { subject: "", physical: true, efileNumber: "", notes: "" },
+    file ? { subject: file.subject, physical: file.physical, efileNumber: file.efileNumber, notes: file.notes, tagIds: file.tagIds ?? [] } : { subject: "", physical: true, efileNumber: "", notes: "", tagIds: [] },
   );
   const set = <K extends keyof OfficeFileInput>(k: K, value: Required<OfficeFileInput>[K]) => setV((s) => ({ ...s, [k]: value }));
   const { add, save, remove } = useOfficeFileActions();
@@ -188,6 +200,11 @@ function FileForm({ file, onDone }: { file: OfficeFile | null; onDone: () => voi
       <Field label="E-file number">
         <input className={inputClass} value={v.efileNumber} onChange={(e) => set("efileNumber", e.target.value)} maxLength={50} placeholder={v.physical ? "e.g. 255/2026 (empty = not yet created)" : "e.g. 340/2026"} />
       </Field>
+      {/* Tags (user request 2026-10-11), the same ones as tasks and reminders. Not a <Field>: the picker has buttons. */}
+      <div>
+        <span className="mb-1 block text-sm font-medium text-slate-700">Tags</span>
+        <TagPicker value={v.tagIds} onChange={(ids) => set("tagIds", ids)} />
+      </div>
       <Field label="Notes (optional)">
         <textarea className={cx(inputClass, "h-auto py-2")} rows={2} value={v.notes} onChange={(e) => set("notes", e.target.value)} maxLength={2000} placeholder="e.g. kept in rack 3, older volumes" />
       </Field>

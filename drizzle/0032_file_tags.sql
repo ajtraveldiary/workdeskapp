@@ -1,0 +1,1 @@
+ALTER TABLE "office_files" ADD COLUMN "tag_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL;

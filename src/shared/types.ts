@@ -258,7 +258,7 @@ export type ContractEnding = { employeeId: string; name: string; designation: st
 
 // File register (user request 2026-10-07): a physical file and/or an e-file. efileNumber "" = e-file not created yet.
 // A tag for tasks and reminders (user request 2026-10-11), with how many open tasks / reminders use it.
-export type Tag = { id: string; name: string; color: import("./tags").TagColor; sortOrder: number; tasks: number; reminders: number };
+export type Tag = { id: string; name: string; color: import("./tags").TagColor; sortOrder: number; tasks: number; reminders: number; files: number };
 
 // A saved website login (user request 2026-10-11). The password itself is never in this shape: hasPassword
 // says whether one is saved, and it is fetched only when the user taps Show or Copy.
@@ -275,4 +275,4 @@ export type SiteLogin = {
   updatedAt: string;
 };
 
-export type OfficeFile = { id: string; subject: string; physical: boolean; efileNumber: string; notes: string; updatedAt: string };
+export type OfficeFile = { id: string; subject: string; physical: boolean; efileNumber: string; notes: string; tagIds: string[]; updatedAt: string };

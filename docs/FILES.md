@@ -70,6 +70,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0028_probation_tasks.sql` | Remembers the Probation declaration task made for an employee. |
 | `0029_basic_pay.sql` | Basic pay (₹) for permanent employees, separate from the pay scale. |
 | `0030_site_logins.sql` | Saved website logins (SPARK, BiMS…): website, link, employee or role, user ID, encrypted password, remarks. |
+| `0032_file_tags.sql` | Tags on File register entries (`tag_ids` on `office_files`). |
 | `0031_tags.sql` | Tags for tasks and reminders: the `tags` table (name unique per user whatever its capitals, colour, order) and `tag_ids` on tasks and reminders. |
 
 ## `src/server/` — the API (Cloudflare Worker, or Node when run locally)
@@ -101,7 +102,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `labels.ts` | Gmail labels: list, create, rename/recolour, delete, change an email's labels, task/done label settings, Send to a section (`/threads/bulk-section`). |
 | `misc.ts` | `/me`, Home summary counts (with increments), History, hidden senders, hidden text, housekeeping (`/maintain`) and Sync now. |
 | `staff.ts` | Employees page: designations and types of temporary employees (order saved after drag and drop), employees (add/edit, left the office, delete), an employee's open work, increment done, contract renewed / ended (with Undo; both complete the Contract ends task), probation declared (with Undo; completes the Probation declaration task), retiring within 12 months (`/retiring`, with each one's Pension papers task); an employee's page (`/employees/:id/profile`: tasks open and completed, reminders, History); adding or editing an employee makes their Pension papers task when due. `employeeValues` keeps only the fields that fit permanent or temporary staff. |
-| `files.ts` | File register: list, add, edit, remove; one entry per e-file number. |
+| `files.ts` | File register: list, add, edit, remove (with tags); one entry per e-file number. |
 | `logins.ts` | Saved website logins: list (never with passwords), add, edit, remove, and reveal one password for Show / Copy (noted in History). Passwords encrypted with `TOKEN_ENC_KEY`. |
 | `tags.ts` | Tags for tasks and reminders: list (with how many use each), make or reuse by name, rename / recolour, delete (taken off everything), reorder. |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
@@ -200,7 +201,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Settings.tsx` | Settings in four tabs (the tab is in the address: none, `#mail`, `#employees`, `#calendar`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Calendar link. |
 | `Staff.tsx` | Employees page: due increments (Mark done asks the new basic pay), retiring within 12 months (with Pension papers progress), on computers (1024px+) a Permanent or Temporary table with a switch, on narrower screens the permanent/temporary filter, list by designation, employee card, add/edit form. |
 | `EmployeePage.tsx` | An employee's own page (`/employees/<id>`, opened from the list or table): at a glance (pay, increment, probation, retirement / contract), every detail, tasks open and completed, reminders, their website logins, History; Edit, Left the office, Delete. |
-| `Files.tsx` | File register: one-line list of files with e-file numbers, search, filters, add/edit form. |
+| `Files.tsx` | File register: one-line list (icon, e-file number column, subject), search, status filters and a Tags filter (several at once), add/edit form with tags. |
 | `Logins.tsx` | Logins page: saved website logins grouped by website, search, + button, add/edit form. |
 | `ImportExport.tsx` | Import / Export: master backup, CSV export/import with preview, sample CSV links. |
 | `Login.tsx` | Sign in with Google. |
@@ -240,7 +241,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `ReminderDetails.tsx` | Reminder details card with document preview and Edit / Pause / Delete / Mark done. |
 | `ReminderLinks.tsx` | Link chips on reminders and the links editor. |
 | `Logins.tsx` | Saved website logins: grouped list, a login row with Show / Copy (password fetched only then; shown for 30s), the add/edit form. Used by the Logins page and an employee's page. |
-| `Tags.tsx` | Tags: chips (compact on rows, at most 2 on phones), the picker in task and reminder forms (most-used first, type to make one), the All tags filter, the tag filter icon on the home cards, Settings › Tags (rename, colour, delete, drag to arrange). |
+| `Tags.tsx` | Tags: chips (compact on rows, at most 2 on phones), the picker in task and reminder forms (most-used first, type to make one), the All tags filter, the tag filter icon on the home cards, the several-tags filter (File register), Settings › Tags (rename, colour, delete, drag to arrange). |
 | `Related.tsx` | "For" an employee, designation or the office: picker, tag and line. |
 | `Designations.tsx` | Settings › Employees: designations and types of temporary employees lists (add, rename, drag to arrange, remove). |
 | `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |

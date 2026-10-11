@@ -89,7 +89,25 @@ describe("tags", () => {
     expect((await reminders()).find((r) => r.name === "Tagged reminder")!.tagIds).toEqual([]);
     expect((await tagList()).map((t) => t.name)).toEqual(["Keep"]);
     const history = ((await call("GET", "/history")).json.events as { summary: string }[]).map((e) => e.summary);
-    expect(history).toContain("Tag deleted: Old (tasks and reminders kept)");
+    expect(history).toContain("Tag deleted: Old (tasks, reminders and files kept)");
+  });
+
+  it("are shared with the File register: counted, cleaned up on delete, and in its CSV", async () => {
+    const audit = await makeTag("Audit");
+    const keep = await makeTag("Keep");
+    const { json: f } = await call("POST", "/files", { subject: "Professional Tax", efileNumber: "255/2026", tagIds: [audit, keep] });
+    const files = async () => (await call("GET", "/files")).json.files as { id: string; subject: string; tagIds: string[] }[];
+    expect((await files()).find((x) => x.id === f.id)!.tagIds).toEqual([audit, keep]);
+    expect((await tagList()).find((t) => t.id === audit)!.files).toBe(1);
+    expect((await call("POST", "/files", { subject: "x", tagIds: ["00000000-0000-4000-8000-000000000000"] })).status).toBe(400);
+    // CSV: export has the names; import makes new ones and replaces the file's tags.
+    expect((await call("GET", "/transfer/files/csv")).text).toContain("Audit, Keep");
+    const res = (await call("POST", "/transfer/files/import", { headers: ["Subject", "E-file number", "Tags"], rows: [["Professional Tax", "255/2026", "Keep; Returns"]] })).json;
+    expect(res).toMatchObject({ updated: 1, problems: [] });
+    const names = new Map((await tagList()).map((t) => [t.id, t.name]));
+    expect((await files())[0]!.tagIds.map((id) => names.get(id))).toEqual(["Keep", "Returns"]);
+    await call("DELETE", `/tags/${keep}`);
+    expect((await files())[0]!.tagIds.map((id) => names.get(id))).toEqual(["Returns"]);
   });
 
   it("round-trip through the Tasks CSV, new names becoming tags", async () => {

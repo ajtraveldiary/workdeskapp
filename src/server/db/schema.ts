@@ -366,6 +366,8 @@ export const officeFiles = pgTable("office_files", {
   physical: boolean("physical").notNull().default(true),
   efileNumber: text("efile_number").notNull().default(""),
   notes: text("notes").notNull().default(""),
+  // The same WorkDesk tags as tasks and reminders (user request 2026-10-11).
+  tagIds: uuid("tag_ids").array().notNull().default(sql`'{}'::uuid[]`),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
