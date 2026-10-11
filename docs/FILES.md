@@ -17,7 +17,7 @@ Cron every 10 min (src/server/worker.ts): Gmail sync, then phone notifications
 
 | File | What it does |
 |---|---|
-| `README.md` | Who WorkDesk is for, every feature in a sentence or two, how to run it locally, connect Gmail and deploy. |
+| `README.md` | For newcomers: who WorkDesk is for (HR staff, government establishment sections), every feature in a line, privacy, how to run it, connect Gmail and deploy. No personal details. |
 | `CLAUDE.md` | Rules for working on the code: Gmail safety, touch-first design, and every feature decision the user made. |
 | `AGENTS.md` | Short pointer for other AI coding agents: the rules are in CLAUDE.md. |
 | `docs/FILES.md` | This file: every file and its job. |

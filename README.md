@@ -2,246 +2,260 @@
 
 *Every email accounted for. Every task tracked.*
 
+WorkDesk turns a Gmail inbox into a work desk. Every email that asks you to do something becomes a decision, every
+decision becomes a task or a record, and nothing gets lost in the inbox.
+
 ## Who it's for
 
-WorkDesk is for **anyone whose work arrives by email**: someone who is assigned jobs, requests, circulars and
-reminders through their Gmail inbox and has to make sure nothing is forgotten. It was built for a section of the
-Kerala Health Services (letters from the District Medical Office, HMIS, NHM, HMC, pharmacy…), but it suits any office
-desk run from a Gmail inbox.
+WorkDesk is for people **whose work is assigned to them by email**, especially:
 
-## The problem it solves
+- **HR staff in private companies**: joining formalities, leave and salary queries, appraisals, contract renewals,
+  exits, statutory returns and requests from managers.
+- **The establishment section of a government office**: circulars, orders and letters from higher offices, staff
+  service matters (increments, probation, retirement and pension papers), periodic returns and replies with deadlines.
 
-In a busy inbox, important requests get buried, deadlines are missed and "did I reply to that?" is hard to answer.
-WorkDesk sits on top of Gmail and turns the inbox into a **to-do system**:
+If your day starts with an inbox full of requests, each with its own deadline, and you also look after a list of
+employees, WorkDesk is built for you. It is a **personal tool for one person**: only the owner's Google account can
+sign in.
 
-1. Every new email lands in **Pending** and waits for a decision.
-2. You decide: **make it a task** (with a due date), **send it to another section**, or **remove** it.
-3. Tasks stay linked to their email, and **History** records every decision, so you can always see what happened.
+## How it works, in three steps
 
-It is a single-person app: only the owner's Google account can sign in. It runs in a computer's browser and as an
-app on the iPhone home screen, and it speaks Malayalam as well as English.
+1. **Every new email waits in Pending** until you decide what to do with it.
+2. **You decide:** turn it into a **task** (with a due date), **send it to another section/team**, or **remove** it.
+3. **Nothing is lost:** tasks stay linked to their email, a new reply on a task's email is flagged, and **History**
+   records every decision.
+
+WorkDesk runs in any computer browser and can be installed on a phone's home screen, where it behaves like an app.
 
 ## Features
 
-### Home
-- **At a glance:** four counters: pending emails, pending jobs, work due today, upcoming reminders.
-- **Due Today:** today's tasks with overdue ones first, plus upcoming tasks and reminders (tabs), increments due.
-- **To-do:** your open tasks, tasks waiting for a reply, and completed ones; tick several to act on them together.
-- **Pending emails:** the emails still waiting for a decision.
-- **Tag filter:** a small filter icon on the Due Today and To-do cards shows only tasks with one tag.
+### Home: the day at a glance
+- **Counters:** emails waiting for a decision, pending jobs, work due today, upcoming reminders.
+- **Due Today:** today's tasks with overdue ones first, plus tabs for overdue, upcoming and reminder tasks, and
+  staff increments that fall due.
+- **To-do:** open tasks, tasks waiting for a reply, and completed tasks. Select several to complete or change them
+  together.
+- **Pending emails:** the inbox items still waiting for a decision.
+- **Tag filter:** a filter icon on the Due Today and To-do cards narrows them to one tag.
 
 ### Emails
-- **Pending / Other sections / Removed** tabs, plus All emails, with search and Unread / label filters.
-- **Read inside WorkDesk:** the whole conversation, with long address lists folded and repeated signatures hidden
-  (**Hidden text**). Opening an email marks it read in Gmail too.
-- **Attachment previews:** PDF, pictures, Excel/CSV, Word and PowerPoint (slide text), and Google Docs/Sheets/Drive
-  links found in the email. Old .doc/.ppt files explain why they can't be shown, with Download.
-- **Decide in one tap:** Create task, Remove (or **send to another section**), Restore; select many at once.
-- **Share** an email with its attachments, e.g. to WhatsApp.
-- **Hide senders:** newsletters and similar senders can skip Pending (they stay under All emails).
+- **Tabs:** Pending, Other sections, Removed, and All emails, with search, an unread filter and a label filter.
+- **Read inside WorkDesk:** the whole conversation, with long address lists folded and repeated signatures or
+  disclaimers hidden. Opening an email also marks it read in Gmail.
+- **Attachment previews:** PDF, pictures, Excel/CSV, Word, PowerPoint (slide text), and Google Docs/Sheets/Drive
+  links in the email. Old Word/PowerPoint formats (.doc, .ppt) explain why they can't be shown and offer Download.
+- **One-tap decisions:** Create task, Remove (or send to another section), Restore. Select many emails at once.
+- **Share:** send an email and its attachments to another app, such as WhatsApp.
+- **Hide senders:** newsletters and other routine senders can skip Pending; they still appear under All emails.
 
 ### Tasks
-- **Due date and time, priority, notes**; lists run Urgent → High → Medium → Low.
-- **Checklist:** steps inside a task, ticked off one by one.
-- **Waiting for a reply:** park a task with the date a reply is expected; it shows in Due Today when that day comes or the reply is late.
+- **The basics:** title, due date and time, priority, notes. Lists are ordered Urgent → High → Medium → Low.
+- **Checklist:** break a task into steps and tick them off.
+- **Waiting for a reply:** set the date a reply is expected; the task comes back to Due Today on that day or when
+  the reply is late.
 - **"For":** link a task to an employee, a designation or the whole office.
-- **Tags:** your own coloured tags (e.g. Salary, Audit); filter and search by them.
-- **Quick edits:** change the date, time or priority straight from the task's chips; on phones, swipe right to
-  complete and swipe left for more, with Undo.
-- **New reply:** a task is flagged when its email gets a new message.
-- **Automatic tasks:** WorkDesk makes tasks for contracts ending, probation declarations and pension papers (see
-  Employees).
+- **Tags:** your own coloured tags (e.g. *Payroll*, *Audit*, *Recruitment*); filter and search by them.
+- **Quick edits:** change the date, time or priority straight from a task's chips.
+- **New reply alert:** a task is flagged when its email gets a new message.
+- **Automatic tasks:** WorkDesk creates tasks for contracts ending, probation declarations and retirement paperwork
+  (see Employees).
 
 ### Reminders
-- **Anything that comes round again:** monthly reports, meetings, bill payments: a date, optional time, repeat
-  (daily to yearly), an end date and "remind me" days before.
-- **Each date becomes a task** ahead of time; ticking either one ticks both.
-- **Links** to the Google Sheet, Doc or folder you need, **tags**, and a link to an employee or designation.
-- **Pause / resume**, and a details view with past and next dates.
+- **Anything that repeats:** monthly returns, meetings, renewals, bill payments: a date, optional time, repeat
+  (daily to yearly), an end date and how many days ahead to remind you.
+- **Each date becomes a task** in time; completing either one completes both.
+- **Links** to the spreadsheet, document or folder you need, **tags**, and a link to an employee or designation.
+- **Pause and resume**, and a details view with past and upcoming dates.
 
 ### Calendar
-- **Month view** of tasks and reminders; tap a day for its list.
-- **Private calendar link** to see everything in Apple Calendar, Google Calendar or Outlook (read-only copy).
+- **Month view** of tasks and reminders; tap a day to see its list.
+- **Private calendar link:** see everything in Apple Calendar, Google Calendar or Outlook (a read-only copy).
 
 ### Employees
-- **Permanent and temporary staff** with their details (PEN, phone, dates of birth, joining, increment, retirement,
-  pay, contract…), grouped by **designation** (drag to arrange).
-- **Each employee's own page:** every detail, their tasks, reminders, saved website logins and history.
-- **Increments:** due increments show on Home; "Mark done" asks the new basic pay and moves the date a year on.
-- **Contracts ending:** a week before, a task asks to renew or end the contract.
-- **Probation:** near two years of service, a task to declare probation or change the date.
-- **Retiring within 12 months:** a list, and a Pension papers task with the pension checklist.
+- **Staff records:** permanent and temporary employees with ID number, contact details, date of birth, joining
+  date, increment date, retirement date, pay and contract details, grouped by designation (drag to arrange).
+- **An employee's own page:** every detail, their open and completed tasks, reminders, saved logins and history.
+- **Increments:** due increments appear on Home; marking one done asks for the new pay and moves the date a year on.
+- **Contracts ending:** a week before a temporary contract ends, a task asks whether to renew or end it.
+- **Probation:** when an employee nears the end of probation, a task to declare it or change the date.
+- **Retirement:** a list of everyone retiring within 12 months, and a retirement/pension paperwork task with a
+  checklist.
 
 ### File register
-- **The office's files:** old physical files and e-files with their numbers; search, and tap a number to copy it.
+- **Every file of the section:** paper files and e-files with their file numbers. Search, and tap a number to copy it.
 
 ### Logins
-- **Saved logins for office websites:** e.g. each employee's SPARK login, or the shared DDO and section clerk
-  logins for BiMS. One website can have many logins.
+- **Saved logins for work websites:** for example each employee's login to a payroll or HR portal, or a shared
+  login used by a role (such as the drawing officer or the section clerk). One website can have many logins.
 - **Safe by design:** passwords are stored encrypted, stay hidden until you tap Show or Copy, hide again after 30
-  seconds, and each Show or Copy is noted in History.
+  seconds, and every Show or Copy is recorded in History.
 
 ### Search and History
-- **Search** across emails and tasks (title, notes, subject, sender, tag names).
-- **History:** every decision and change (emails decided, tasks completed, labels changed, passwords shown…), with
-  Restore for removed emails.
+- **Search** across emails and tasks: titles, notes, subjects, senders and tag names.
+- **History:** a record of every decision and change (emails decided, tasks completed, labels changed, passwords
+  shown…). Removed emails can be restored from here.
 
 ### Gmail labels and sections
 - **Labels:** create, rename, recolour and delete your Gmail labels, and add or remove them on an email.
-- **Task and done labels:** emails that are tasks (or done) get a chosen label in Gmail, and the other way round.
-- **Sections of the office:** an email with another section's label moves to "Other sections".
+- **Task and done labels:** emails that are tasks (or done) get a chosen label in Gmail, and labelling an email in
+  Gmail makes it a task (or completes it) in WorkDesk.
+- **Sections:** each of your other labels stands for another section or team; an email carrying one moves to
+  "Other sections".
 
 ### Notifications
-- **Bell** in the top bar: overdue, due today, new replies.
-- **Phone notifications** (iPhone home-screen app): a morning summary at a time you choose, a note when a task is
-  due, and the app icon's badge.
+- **Bell:** overdue tasks, tasks due today and new replies.
+- **Phone notifications** (home-screen app): a morning summary at a time you choose, a note when a task is due,
+  and a count on the app icon.
 
-### Import / Export
-- **Master backup** of everything WorkDesk keeps, and a restore that only adds what's missing.
-- **CSV import/export** (with sample files) for the file register, employees, tasks and reminders (with tags).
+### Import and Export
+- **Full backup** of everything WorkDesk keeps, and a restore that only adds what is missing.
+- **Spreadsheet (CSV) import and export**, with sample files, for the file register, employees, tasks and reminders.
 
 ### Settings
-- **General:** light / dark / automatic appearance, phone notifications, the Gmail connection.
-- **Mail:** hidden senders, hidden text, task/done labels, sections, your Gmail labels.
+- **General:** light, dark or automatic appearance; phone notifications; the Gmail connection.
+- **Mail:** hidden senders, hidden text (signatures, disclaimers), task/done labels, sections, Gmail labels.
 - **Employees:** designations and types of temporary employees.
-- **Tags:** rename, recolour, delete and arrange your tags.
+- **Tags:** rename, recolour, delete and arrange tags.
 - **Calendar:** the private calendar link.
 
-### Works like a phone app
-- **Install** it on the iPhone home screen; swipe actions, bottom sheets, pull down to refresh.
-- **Offline viewing** of what was last loaded; it updates itself when a new version is deployed.
-- **Safety nets:** if one page or one attachment preview fails, only that part shows a message.
+### Phone app
+- **Install it on your phone's home screen.** Swipe a row to act on it (with Undo), pull down to refresh, and
+  pop-ups open as bottom sheets.
+- **Offline viewing** of what you last loaded, and automatic updates when a new version is deployed.
+- **Any language:** text in other scripts (for example Malayalam) displays correctly, including in previews.
+- **Safety nets:** if one page or one attachment preview fails, only that part shows a message; the rest keeps
+  working.
 
-## What WorkDesk does and doesn't do to Gmail
+## Privacy and what WorkDesk does to Gmail
 
-**Gmail is only changed in the ways the owner approved (2026-10-06):** opening an email in WorkDesk marks that
-conversation read, and the owner's own labels can be created / renamed / recoloured / deleted and added to or removed
-from an email. System labels (Inbox, Trash, Spam, Unread…) can't be touched. WorkDesk asks for `gmail.modify`, but the
-code has no way to delete or trash emails, archive, or send anything, and `tests/gmail-safety.test.ts` fails if any such
-code is added. Removing an email, completing a task, tags and importing data never touch Gmail.
+- **Gmail is changed in only two ways:** opening an email marks it read, and your own labels can be managed and
+  added to or removed from emails. System labels (Inbox, Trash, Spam, Unread…) can't be touched. The code has **no
+  way to delete, trash, archive or send email**, and an automatic test (`tests/gmail-safety.test.ts`) fails if such
+  code is ever added. Removing an email, completing a task, tags and imports change only WorkDesk.
+- **What is stored:** for each email only the subject, sender, Gmail's short snippet, dates and IDs; message bodies
+  are never stored. Gmail access tokens, the notification key and saved website passwords are encrypted. Passwords
+  are never included in lists, offline copies or exports.
+- **Tags vs labels:** Gmail labels belong to emails (and mark sections). Tags belong to WorkDesk's tasks and
+  reminders and never reach Gmail.
 
 ## Run it locally
 
+You need [Node.js](https://nodejs.org) 24 or later.
+
 ```bash
 npm install
+```
+
+```bash
 npm run dev
 ```
 
-Open http://localhost:5173. You don't need any accounts for this. With no `.env` file, WorkDesk:
-- keeps its database in `./.data` (PGlite, an embedded Postgres), and
-- signs you in as a demo user with sample emails and reminders. In demo mode, **Simulate new email** stands in for Sync.
+Open http://localhost:5173. No accounts are needed to try it. With no `.env` file, WorkDesk:
+- keeps its database in `./.data` (PGlite, a built-in Postgres), and
+- signs you in as a demo user with sample emails and reminders. In demo mode, **Simulate new email** stands in for
+  checking Gmail.
 
 To start again with fresh demo data, stop the server and delete `.data`.
 
 | Command | What it does |
 |---|---|
-| `npm run dev` | API on :8787 plus the dashboard on :5173 |
-| `npm test` | Unit tests, including the Gmail safety check (at most 8 test files at a time, see `vitest.config.ts`) |
+| `npm run dev` | API on :8787 plus the app on :5173 |
+| `npm test` | Automatic checks, including the Gmail safety check |
 | `npm run typecheck` | TypeScript check |
 | `npm run db:generate` | Create a migration after changing `src/server/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations to Neon (if `DATABASE_URL` is set) or to the local database |
-| `npm run deploy` | Build the dashboard and deploy the Worker |
+| `npm run deploy` | Build the app and deploy it to Cloudflare |
 
-## Connect real Gmail
+## Use it with your own Gmail
 
-### 1. Google Cloud OAuth client
+### 1. Google Cloud sign-in
 1. In https://console.cloud.google.com, create a project (for example "WorkDesk").
-2. Go to **APIs & Services → Library**, find **Gmail API**, and enable it.
-3. Under **Google Auth Platform → Branding / Audience**, set up the consent screen. If your mailbox is a Google Workspace account, choose **Internal**. If it's an ordinary @gmail.com account, choose **External** and add yourself as a test user.
-4. Under **Data access**, add the scope `.../auth/gmail.modify` (reading, plus marking opened emails read).
-5. Under **Clients**, create a **Web application** client with these authorized redirect URIs:
+2. Under **APIs & Services → Library**, enable the **Gmail API**.
+3. Under **Google Auth Platform → Branding / Audience**, set up the consent screen. For a Google Workspace mailbox
+   choose **Internal**; for an ordinary @gmail.com account choose **External** and add yourself as a test user.
+4. Under **Data access**, add the scope `.../auth/gmail.modify` (reading, marking read, and labels).
+5. Under **Clients**, create a **Web application** client with these redirect URIs:
    - `http://localhost:5173/api/auth/google/callback`
    - `https://<your-worker>.workers.dev/api/auth/google/callback` (add this once it's deployed)
 
-> **Heads-up:** while an *External* app is in **Testing** status, Google expires its refresh tokens after 7 days, so you'd have to sign in again every week. Internal (Workspace) apps don't have this limit. Check Google's current rules for restricted scopes before you publish an External app: https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification
+> While an *External* app is in **Testing**, Google expires its sign-in after 7 days, so you sign in again weekly.
+> Internal (Workspace) apps don't have this limit. Check Google's rules for restricted scopes before publishing an
+> External app: https://developers.google.com/identity/protocols/oauth2/production-readiness/restricted-scope-verification
 
-### 2. Local `.env`
-Copy `.env.example` to `.env`, then fill in `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OWNER_EMAIL` (your Gmail address; nobody else can sign in), and two random secrets:
+### 2. Settings file (`.env`)
+Copy `.env.example` to `.env`, then fill in `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OWNER_EMAIL` (the only
+Gmail address allowed to sign in), and two random secrets. Make each secret with:
 
 ```bash
 node -e "console.log(crypto.randomBytes(32).toString('base64'))"
 ```
 
-Run that twice: once for `SESSION_SECRET` and once for `TOKEN_ENC_KEY`. Then restart `npm run dev` and sign in.
+Use one for `SESSION_SECRET` and another for `TOKEN_ENC_KEY` (this key encrypts tokens and saved passwords; keep it
+safe and don't change it later). Restart `npm run dev` and sign in.
 
-### 3. Neon database
-Create a project at https://neon.tech, put its connection string in `DATABASE_URL`, and run `npm run db:migrate`.
+### 3. Database (Neon)
+Create a free project at https://neon.tech, put its connection string in `DATABASE_URL`, and run
+`npm run db:migrate`.
 
-### 4. Deploy to Cloudflare
+### 4. Put it online (Cloudflare Workers)
 ```bash
 npx wrangler login
 ```
 ```bash
 npx wrangler secret put DATABASE_URL
 ```
-Do the same for `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OWNER_EMAIL`, `SESSION_SECRET`, `TOKEN_ENC_KEY`, and `APP_URL` (your `https://….workers.dev` address). Then:
+Repeat the second command for `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OWNER_EMAIL`, `SESSION_SECRET`,
+`TOKEN_ENC_KEY` and `APP_URL` (your `https://….workers.dev` address). Then:
 ```bash
 npm run deploy
 ```
-One Worker serves both the dashboard and the API, and a cron trigger syncs Gmail and sends due phone notifications every 10 minutes. Phone notifications need no extra secret: WorkDesk makes its own key pair the first time.
+One Worker serves both the app and its API. A timer checks Gmail and sends due phone notifications every 10 minutes.
+Phone notifications need no extra setup.
 
-### 5. Automatic deploys from GitHub
-Every push to `master` deploys itself through `.github/workflows/deploy.yml`. It runs the typecheck and tests (a failing check stops the deploy), applies database migrations to Neon, builds the dashboard, and publishes the Worker. Add three secrets once under the GitHub repository's **Settings → Secrets and variables → Actions**:
+### 5. Automatic deploys from GitHub (optional)
+`.github/workflows/deploy.yml` deploys every push to `master`: it runs the checks (a failure stops the deploy),
+updates the database, builds the app and publishes it. Add three secrets under the repository's **Settings → Secrets
+and variables → Actions**:
 
 | Secret | Value |
 |---|---|
 | `CLOUDFLARE_API_TOKEN` | From https://dash.cloudflare.com/profile/api-tokens, using the **Edit Cloudflare Workers** template |
-| `CLOUDFLARE_ACCOUNT_ID` | Your account ID (`npx wrangler whoami` shows it) |
-| `DATABASE_URL` | The Neon connection string from `.env.production` |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID (`npx wrangler whoami` shows it) |
+| `DATABASE_URL` | Your Neon connection string |
 
-You can follow each run in the repository's **Actions** tab, and start one by hand with **Run workflow**. `npm run deploy` still works for a manual deploy from your PC.
+## How it's built
 
-## How it fits together
+React + Vite + Tailwind (the app), Hono (the API) on Cloudflare Workers, Neon Postgres with Drizzle, and the Gmail API.
 
 ```
 src/
-  client/   React app: pages/ (one file per screen), components/ (shared parts), api.ts (calls to the server)
-  server/   Hono API: app.ts (sign-in, routes), routes/ (endpoints), lib/ (Gmail, sync, reminders, notifications…),
-            db/schema.ts (tables), worker.ts (Cloudflare + cron), dev.ts (local)
-  shared/   Rules and types used by both sides (reminder dates, staff, import/export columns, checks)
+  client/   The app: pages/ (one file per screen), components/ (shared parts), api.ts (calls to the server)
+  server/   The API: app.ts (sign-in, routes), routes/ (endpoints), lib/ (Gmail, sync, reminders, notifications…),
+            db/schema.ts (tables), worker.ts (Cloudflare + timer), dev.ts (local)
+  shared/   Rules and types used by both sides
   sw/       Service worker: offline copy and phone notifications
 drizzle/    Database migrations, applied in order
-tests/      Automatic checks (npm test), including the Gmail safety check
+tests/      Automatic checks (npm test)
 ```
 
-**Every file and what it does is listed in [docs/FILES.md](docs/FILES.md).**
+Every file and what it does is listed in **[docs/FILES.md](docs/FILES.md)**. The rules for changing the code are in
+**[CLAUDE.md](CLAUDE.md)**.
 
-**Email states:** *Pending* (needs a decision), *task*, *Other sections* (another section's label is on it), or *Removed*. These rules keep work from getting lost:
-- If a new message arrives in a removed conversation, or one handled by another section, it goes back to Pending.
-- If a new message arrives in a conversation whose task is still open, the task is flagged "New reply".
-- If a new message arrives after the task was completed, the conversation goes back to Pending.
-- A removed email can be restored from History or from the Emails page's Removed tab.
+**How emails move:** *Pending* (needs a decision) → *task*, *Other sections*, or *Removed*.
+- A new message in a removed email, or in one handled by another section, brings it back to Pending.
+- A new message on an open task flags the task "New reply"; after the task is completed it returns to Pending.
 
-**Easy on Gmail and the database:** the first sync lists the last 30 days; after that only Gmail's change log is read, and each message is downloaded once (read/unread changes need no download). The browser keeps a saved copy of loaded screens, so pages open without database reads and can be viewed offline; every screen refreshes on demand (refresh button, or pull down on phones).
-
-**Task labels (Settings → Mail):** pick one Gmail label for emails that are tasks and one for emails whose task is done. WorkDesk keeps them in step both ways: turning an email into a task adds the task label in Gmail, completing it swaps in the done label (reopening swaps back), and any email that gets either label, in Gmail or in WorkDesk, becomes an open or completed task. Every other label of yours is another section of the office, unless you tick it as only for organising mail.
-
-**What's stored:** for each email, only the subject, sender, Gmail snippet, dates, and IDs. Message bodies are never stored. Refresh tokens, the notification key and saved website passwords are encrypted with AES-GCM (`TOKEN_ENC_KEY`); passwords are never part of lists, the offline copy or Import/Export.
-
-**Tags vs labels:** Gmail labels belong to emails (and mark the office's sections). Tags are WorkDesk's own, for tasks and reminders only, and never reach Gmail. Manage them in Settings → Tags.
+**Light on Gmail and the database:** the first check covers the last 30 days; after that only Gmail's change log is
+read, and each message is downloaded once. The browser keeps a copy of loaded screens, so pages open instantly and
+work offline; every screen can be refreshed on demand.
 
 ## Version number
 
-The version (e.g. **v1.154**) shows in small grey next to "WorkDesk" for a few seconds after the app opens (then the sync status takes its place; tap it to see the version again), at the bottom of Settings and on the sign-in page. It is worked out from git when the dashboard is built (`vite.config.ts`):
+The version (e.g. **v1.150**) shows briefly next to "WorkDesk" after the app opens, at the bottom of Settings and
+on the sign-in page. It is worked out from git when the app is built:
 
-- **MINOR** goes up by one with every commit.
-- **MAJOR** changes only on a major update. Mark one with a tag, then deploy; the version restarts at `.0` and counts on from there:
+- **The second number** goes up by one with every commit.
+- **The first number** changes only for a major release. Mark one with a tag before deploying; the count restarts:
   ```bash
   git tag v2
   ```
-- With no tag yet, the major number is 1.
-
-The live site shows the version it was deployed with, so commit before `npm run deploy`. The local dev server picks up a new number when it restarts.
-
-## Roadmap
-- [x] Gmail queue: Create task / Remove / Restore / Open in Gmail, with History
-- [x] Tasks with due dates, times, priorities, notes, checklists and waiting for a reply
-- [x] Reminders: date, time, repeat (daily to yearly), end repeat and "remind me", with links to Google files
-- [x] Gmail labels, task/done labels and sections of the office
-- [x] Calendar page and private calendar link
-- [x] Phone app: swipe actions, sheets, offline viewing, notifications, dark mode
-- [x] Employees (permanent and temporary), designations, increments; file register
-- [x] Import / Export: master backup and CSV
-- [x] Saved website logins (encrypted passwords)
-- [x] Tags for tasks and reminders
-- [x] Attachment previews: PDF, pictures, Excel, Word, PowerPoint (text)
