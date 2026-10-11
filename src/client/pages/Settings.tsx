@@ -12,14 +12,17 @@ import { onThemeChoice, setThemeChoice, themeChoice, type ThemeChoice } from "..
 import { RefreshButton } from "../components/RefreshButton";
 import { NotificationSettings } from "../components/NotificationSettings";
 import { EmployeeSettings } from "../components/Designations";
+import { TagSettings } from "../components/Tags";
 
 // Settings tabs (user request 2026-10-08, "use tabs to group similar settings"). The tab lives in the address
-// (#mail, #employees, #calendar; none = General), so the existing /settings#… links open their tab.
-type SettingsTab = "general" | "mail" | "employees" | "calendar";
+// (#mail, #employees, #tags, #calendar; none = General), so the existing /settings#… links open their tab.
+type SettingsTab = "general" | "mail" | "employees" | "tags" | "calendar";
 const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   { value: "general", label: "General" },
   { value: "mail", label: "Mail" },
   { value: "employees", label: "Employees" },
+  // Tags for tasks and reminders (user request 2026-10-11).
+  { value: "tags", label: "Tags" },
   { value: "calendar", label: "Calendar" },
 ];
 
@@ -31,7 +34,7 @@ export function SettingsPage() {
   const openTab = (t: SettingsTab) => navigate({ hash: t === "general" ? "" : t }, { replace: true });
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"], ["tags"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         {/* Phones: History moved here from the bottom bar (user request 2026-10-06); wider screens keep it in the side rail. */}
         <Link
@@ -61,6 +64,7 @@ export function SettingsPage() {
             {tab === "mail" && <MailSettings />}
             {/* Employees (user request 2026-10-07): designations, moved here from the Employees page. */}
             {tab === "employees" && <EmployeeSettings />}
+            {tab === "tags" && <TagSettings />}
             {tab === "calendar" && <CalendarLink />}
           </div>
         </div>

@@ -58,6 +58,7 @@ import { EditableDue, dueTone } from "../components/InlineTaskEdit";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Button, CheckCircle, Loading as PageLoading, Menu, PRIORITY_BAR, Segmented, SkeletonList, Spinner, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
+import { TagChips } from "../components/Tags";
 
 export function HomePage() {
   const { data: summary, error } = useSummary();
@@ -429,15 +430,19 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
         </div>
       )}
       <span className={cx("w-[3px] shrink-0 self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
-      <button
-        onClick={() => onOpen(task)}
-        className="row-link line-clamp-3 min-w-0 flex-1 text-left text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
-        aria-label={`Show details: ${task.title}`}
-      >
-        {task.report && <CalendarClock size={14} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
-        {waiting && <Hourglass size={14} className="mr-1 inline -translate-y-px text-snooze" aria-label="Waiting for reply" />}
-        {task.title}
-      </button>
+      <div className="min-w-0 flex-1">
+        <button
+          onClick={() => onOpen(task)}
+          className="row-link line-clamp-3 w-full text-left text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
+          aria-label={`Show details: ${task.title}`}
+        >
+          {task.report && <CalendarClock size={14} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
+          {waiting && <Hourglass size={14} className="mr-1 inline -translate-y-px text-snooze" aria-label="Waiting for reply" />}
+          {task.title}
+        </button>
+        {/* Tags (user request 2026-10-11): a second line only when the task has some. */}
+        <TagChips ids={task.tagIds} className="mt-1" />
+      </div>
       {when && <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
     </SwipeRow>
   );
@@ -781,6 +786,8 @@ function TodoRow({
         >
           <span className={cx("line-clamp-2 text-subhead leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
         </button>
+        {/* Tags (user request 2026-10-11): their own line, only when the task has some. */}
+        <TagChips ids={task.tagIds} className="mt-1" />
         <div className="mt-1 flex min-w-0 items-center gap-2">
           {a.done ? (
             <>

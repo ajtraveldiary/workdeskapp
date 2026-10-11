@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeFile, Report, SiteLogin, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -65,12 +65,12 @@ export const useThreads = (f: ThreadFilter, enabled = true) =>
     placeholderData: (prev) => prev,
   });
 
-export type TaskFilter = { view: TaskView; q?: string; label?: string };
+export type TaskFilter = { view: TaskView; q?: string; label?: string; tag?: string };
 export const useTasks = (f: TaskFilter, enabled = true) =>
   useQuery({
     enabled,
     queryKey: ["tasks", f],
-    queryFn: () => api<{ tasks: Task[]; today: string }>(`/tasks${qs({ view: f.view, q: f.q, label: f.label })}`),
+    queryFn: () => api<{ tasks: Task[]; today: string }>(`/tasks${qs({ view: f.view, q: f.q, label: f.label, tag: f.tag })}`),
     placeholderData: (prev) => prev,
   });
 
@@ -221,6 +221,21 @@ export function useOfficeFileActions() {
     add: useMutation({ mutationFn: (input: OfficeFileInput) => api<OfficeFile>("/files", { method: "POST", body: input }), onSettled: refresh }),
     save: useMutation({ mutationFn: ({ id, input }: { id: string; input: OfficeFileInput }) => api(`/files/${id}`, { method: "PUT", body: input }), onSettled: refresh }),
     remove: useMutation({ mutationFn: (id: string) => api(`/files/${id}`, { method: "DELETE" }), onSettled: refresh }),
+  };
+}
+
+// Tags for tasks and reminders (user request 2026-10-11). Changing or deleting one also refreshes the task and
+// reminder lists that show it.
+export const useTags = () => useQuery({ queryKey: ["tags"], queryFn: () => api<{ tags: Tag[] }>("/tags"), select: (d) => d.tags, staleTime: 60 * 60_000 });
+export function useTagActions() {
+  const qc = useQueryClient();
+  const refresh = (all = false) =>
+    qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "tags" || q.queryKey[0] === "history" || (all && (q.queryKey[0] === "tasks" || q.queryKey[0] === "reports")) });
+  return {
+    create: useMutation({ mutationFn: (input: { name: string; color?: Tag["color"] }) => api<{ id: string; name: string; color: Tag["color"] }>("/tags", { method: "POST", body: input }), onSettled: () => refresh() }),
+    save: useMutation({ mutationFn: ({ id, ...input }: { id: string; name?: string; color?: Tag["color"] }) => api(`/tags/${id}`, { method: "PATCH", body: input }), onSettled: () => refresh() }),
+    remove: useMutation({ mutationFn: (id: string) => api(`/tags/${id}`, { method: "DELETE" }), onSettled: () => refresh(true) }),
+    order: useMutation({ mutationFn: (ids: string[]) => api("/tags/order", { method: "POST", body: { ids } }), onSettled: () => refresh() }),
   };
 }
 

@@ -55,6 +55,8 @@ export async function ensureReportPeriods(db: DB, today: string, userId?: string
           // What the reminder is about (Staff, user request 2026-10-07).
           relatedKind: r.relatedKind,
           relatedId: r.relatedId,
+          // Its tags (user request 2026-10-11).
+          tagIds: r.tagIds ?? [],
         };
       }),
     )

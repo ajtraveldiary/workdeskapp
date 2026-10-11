@@ -10,6 +10,7 @@ import { todayIn } from "../lib/dates";
 import { setPeriodStatus } from "../lib/reports";
 import { clearTaskLabels, reconcileThreadLabels } from "../lib/taskLabels";
 import { checkRelated, relatedName } from "../lib/staff";
+import { checkTags, tagNameMatches } from "../lib/tags";
 import { bulkIds, taskInput, taskPatch } from "../../shared/schemas";
 import type { Task, TaskView } from "../../shared/types";
 
@@ -64,6 +65,7 @@ export function toTask({ task, thread, report }: Row): Task {
     priority: task.priority,
     status: task.status,
     labelIds: thread?.id ? (threadLabels ?? []) : task.labelIds,
+    tagIds: task.tagIds ?? [],
     checklist: task.checklist ?? [],
     waitingSince: task.waitingSince?.toISOString() ?? null,
     replyBy: task.replyBy,
@@ -141,7 +143,10 @@ export const taskRoutes = new Hono<AppEnv>()
     const today = todayIn(timezone(c.env));
     const where: (SQL | undefined)[] = [eq(tasks.userId, c.get("userId")), viewFilter(view, today)];
     const q = c.req.query("q")?.trim();
-    if (q) where.push(or(ilike(tasks.title, `%${q}%`), ilike(tasks.notes, `%${q}%`), ilike(emailThreads.subject, `%${q}%`)));
+    if (q) where.push(or(ilike(tasks.title, `%${q}%`), ilike(tasks.notes, `%${q}%`), ilike(emailThreads.subject, `%${q}%`), tagNameMatches(tasks.tagIds, `%${q}%`)));
+    // Tag filter (user request 2026-10-11).
+    const tag = c.req.query("tag");
+    if (tag && /^[0-9a-f-]{36}$/i.test(tag)) where.push(sql`${tag}::uuid = any(${tasks.tagIds})`);
     // Label filter: the email's labels for tasks from an email, the task's own otherwise.
     const label = c.req.query("label");
     if (label) where.push(sql`${label} = any(coalesce(${emailThreads.labelIds}, ${tasks.labelIds}))`);
@@ -158,6 +163,7 @@ export const taskRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const { waiting, replyBy, relatedKind, relatedId, ...input } = taskInput.parse(await c.req.json());
     const related = await checkRelated(db, userId, relatedKind, relatedId);
+    input.tagIds = (await checkTags(db, userId, input.tagIds))!;
     const [task] = await db
       .insert(tasks)
       .values({ ...input, ...related, userId, ...waitingFields(waiting, replyBy) })
@@ -172,6 +178,7 @@ export const taskRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const { waiting, replyBy, relatedKind, relatedId, ...input } = taskPatch.parse(await c.req.json());
     const t = await loadTask(db, userId, c.req.param("id"));
+    if (input.tagIds !== undefined) input.tagIds = await checkTags(db, userId, input.tagIds);
     // What the task is about (Staff, user request 2026-10-07): only when sent.
     const relatedSent = relatedKind !== undefined || relatedId !== undefined;
     const related = relatedSent ? await checkRelated(db, userId, relatedKind !== undefined ? relatedKind : t.relatedKind, relatedId !== undefined ? relatedId : t.relatedId) : null;

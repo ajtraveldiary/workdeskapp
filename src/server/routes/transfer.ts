@@ -19,6 +19,7 @@ import {
   officeFiles,
   reportPeriods,
   reports,
+  tags,
   tasks,
 } from "../db/schema";
 import { timezone } from "../env";
@@ -50,6 +51,8 @@ import {
   type ImportResult,
 } from "../../shared/transfer";
 import { employeeValues } from "./staff";
+import { ensureTagsByName, tagNames } from "../lib/tags";
+import { splitTagNames } from "../../shared/tags";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
 const lower = (s: string) => s.trim().toLowerCase();
@@ -119,6 +122,8 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
     );
   }
   const staff = await staffNames(db, userId);
+  const tagName = await tagNames(db, userId);
+  const tagList = (ids: string[] | null) => (ids ?? []).map((id) => tagName.get(id)).filter(Boolean).join(", ");
   if (kind === "tasks") {
     const rows = await db
       .select({ t: tasks, subject: emailThreads.subject, reminder: reports.name })
@@ -139,6 +144,7 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
         status: t.status === "done" ? "Completed" : "Open",
         checklist: checklistText(t.checklist ?? []),
         for: forName(staff, t.relatedKind, t.relatedId),
+        tags: tagList(t.tagIds),
         email: t.threadId ? subject || "(no subject)" : "",
         reminder: reminder ?? "",
         waitingSince: dayOf(t.waitingSince, tz),
@@ -169,6 +175,7 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
       notes: r.notes,
       links: (r.links ?? []).map((l) => (l.name ? `${l.name} | ${l.url}` : l.url)).join("\n"),
       for: forName(staff, r.relatedKind, r.relatedId),
+      tags: tagList(r.tagIds),
       nextDue: next,
       lastDone: done,
     });
@@ -395,7 +402,9 @@ async function planTasks(db: DB, userId: string, rows: Row[], result: ImportResu
   ]);
   const byId = new Map(byIdRows.map((t) => [t.id, t]));
   const updates = new Map<string, Record<string, unknown>>();
-  const inserts: { title: string; values: Record<string, unknown> }[] = [];
+  const inserts: { title: string; values: Record<string, unknown>; tags?: string[] }[] = [];
+  // Tag names from the Tags column, turned into tags (made if new) when the import is written.
+  const updateTags = new Map<string, string[]>();
   const today = todayIn("UTC");
 
   for (const row of rows) {
@@ -455,6 +464,7 @@ async function planTasks(db: DB, userId: string, rows: Row[], result: ImportResu
       }
       if (!updates.has(matchId)) result.updated++;
       updates.set(matchId, { ...(updates.get(matchId) ?? {}), ...parsed.data });
+      if (c.has("tags")) updateTags.set(matchId, splitTagNames(c.get("tags")!));
       continue;
     }
     const parsed = taskInput.safeParse(pendingInsert ? { ...pendingInsert.values, ...v } : v);
@@ -463,17 +473,23 @@ async function planTasks(db: DB, userId: string, rows: Row[], result: ImportResu
       continue;
     }
     const { waiting: _w, replyBy: _r, labelIds: _l, ...values } = parsed.data;
-    if (pendingInsert) Object.assign(pendingInsert, { title: lower(values.title), values: { ...values, status, completedAt } });
+    const rowTags = c.has("tags") ? splitTagNames(c.get("tags")!) : undefined;
+    if (pendingInsert) Object.assign(pendingInsert, { title: lower(values.title), values: { ...values, status, completedAt }, tags: rowTags ?? pendingInsert.tags });
     else {
-      inserts.push({ title: lower(values.title), values: { ...values, status, completedAt } });
+      inserts.push({ title: lower(values.title), values: { ...values, status, completedAt }, tags: rowTags });
       result.added++;
     }
   }
   return {
     result,
     write: async () => {
-      for (const [id, set] of updates) await db.update(tasks).set({ ...set, updatedAt: new Date() }).where(eq(tasks.id, id));
-      if (inserts.length) await db.insert(tasks).values(inserts.map((i) => ({ ...(i.values as typeof tasks.$inferInsert), userId })));
+      const ids = await ensureTagsByName(db, userId, [...[...updateTags.values()].flat(), ...inserts.flatMap((i) => i.tags ?? [])]);
+      const toIds = (names: string[]) => names.map((n) => ids.get(n.toLowerCase())).filter((x): x is string => !!x);
+      for (const [id, set] of updates) {
+        const names = updateTags.get(id);
+        await db.update(tasks).set({ ...set, ...(names ? { tagIds: toIds(names) } : {}), updatedAt: new Date() }).where(eq(tasks.id, id));
+      }
+      if (inserts.length) await db.insert(tasks).values(inserts.map((i) => ({ ...(i.values as typeof tasks.$inferInsert), ...(i.tags ? { tagIds: toIds(i.tags) } : {}), userId })));
     },
   };
 }
@@ -492,8 +508,8 @@ function parseLinks(v: string): { url: string; name: string }[] {
 
 async function planReminders(db: DB, userId: string, rows: Row[], result: ImportResult): Promise<Plan> {
   const [existing, staff] = await Promise.all([db.select().from(reports).where(eq(reports.userId, userId)), staffNames(db, userId)]);
-  const updates = new Map<string, { set: Record<string, unknown>; before: typeof reports.$inferSelect }>();
-  const inserts: { name: string; values: Record<string, unknown> }[] = [];
+  const updates = new Map<string, { set: Record<string, unknown>; before: typeof reports.$inferSelect; tags?: string[] }>();
+  const inserts: { name: string; values: Record<string, unknown>; tags?: string[] }[] = [];
 
   for (const row of rows) {
     const c = row.cells;
@@ -556,7 +572,8 @@ async function planReminders(db: DB, userId: string, rows: Row[], result: Import
         continue;
       }
       if (!updates.has(match.id)) result.updated++;
-      updates.set(match.id, { set: { ...(updates.get(match.id)?.set ?? {}), ...parsed.data }, before: match });
+      const prev = updates.get(match.id);
+      updates.set(match.id, { set: { ...(prev?.set ?? {}), ...parsed.data }, before: match, tags: c.has("tags") ? splitTagNames(c.get("tags")!) : prev?.tags });
       continue;
     }
     const parsed = reportInput.safeParse(pendingInsert ? { ...pendingInsert.values, ...v } : v);
@@ -564,9 +581,12 @@ async function planReminders(db: DB, userId: string, rows: Row[], result: Import
       problem(result, row, zodMessage(parsed.error).replace("startDate", "Date"));
       continue;
     }
-    if (pendingInsert) pendingInsert.values = parsed.data;
-    else {
-      inserts.push({ name: lower(parsed.data.name), values: parsed.data });
+    const rowTags = c.has("tags") ? splitTagNames(c.get("tags")!) : undefined;
+    if (pendingInsert) {
+      pendingInsert.values = parsed.data;
+      if (rowTags) pendingInsert.tags = rowTags;
+    } else {
+      inserts.push({ name: lower(parsed.data.name), values: parsed.data, tags: rowTags });
       result.added++;
     }
   }
@@ -574,8 +594,18 @@ async function planReminders(db: DB, userId: string, rows: Row[], result: Import
   return {
     result,
     write: async () => {
-      for (const [id, { set, before }] of updates) {
-        await db.update(reports).set({ ...set, ...(typeof set.startDate === "string" ? { dueDay: dueDay(set.startDate) } : {}), updatedAt: new Date() }).where(eq(reports.id, id));
+      const tagIds = await ensureTagsByName(db, userId, [...[...updates.values()].flatMap((u) => u.tags ?? []), ...inserts.flatMap((i) => i.tags ?? [])]);
+      const toIds = (names: string[]) => names.map((n) => tagIds.get(n.toLowerCase())).filter((x): x is string => !!x);
+      for (const [id, { set, before, tags: names }] of updates) {
+        const tagSet = names ? { tagIds: toIds(names) } : {};
+        await db.update(reports).set({ ...set, ...tagSet, ...(typeof set.startDate === "string" ? { dueDay: dueDay(set.startDate) } : {}), updatedAt: new Date() }).where(eq(reports.id, id));
+        // Its open tasks follow new tags, as in the reminder form.
+        if (names) {
+          await db
+            .update(tasks)
+            .set({ tagIds: toIds(names) })
+            .where(and(eq(tasks.status, "open"), inArray(tasks.reportPeriodId, db.select({ id: reportPeriods.id }).from(reportPeriods).where(eq(reportPeriods.reportId, id)))));
+        }
         // Its open tasks follow a change of what it is about, as in the reminder form.
         if ("relatedKind" in set && (set.relatedKind !== before.relatedKind || set.relatedId !== before.relatedId)) {
           const periodIds = (await db.select({ id: reportPeriods.id }).from(reportPeriods).where(eq(reportPeriods.reportId, id))).map((p) => p.id);
@@ -585,7 +615,7 @@ async function planReminders(db: DB, userId: string, rows: Row[], result: Import
       if (inserts.length) {
         await db.insert(reports).values(inserts.map((i) => {
           const r = i.values as ReturnType<typeof reportInput.parse>;
-          return { ...r, userId, dueDay: dueDay(r.startDate) };
+          return { ...r, ...(i.tags ? { tagIds: toIds(i.tags) } : {}), userId, dueDay: dueDay(r.startDate) };
         }));
       }
     },
@@ -607,6 +637,7 @@ const BACKUP: Record<BackupTable, TableInfo> = {
   employeeTypes: { table: employeeTypes as never },
   employees: { table: employees as never, refs: { designationId: { table: designations }, typeId: { table: employeeTypes } } },
   officeFiles: { table: officeFiles as never },
+  tags: { table: tags as never },
   reports: { table: reports as never },
   reportPeriods: { table: reportPeriods as never, refs: { reportId: { table: reports, required: true } } },
   tasks: { table: tasks as never, refs: { threadId: { table: emailThreads }, reportPeriodId: { table: reportPeriods } } },

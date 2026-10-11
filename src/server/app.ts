@@ -22,6 +22,7 @@ import { pushRoutes } from "./routes/push";
 import { staffRoutes } from "./routes/staff";
 import { fileRoutes } from "./routes/files";
 import { loginRoutes } from "./routes/logins";
+import { tagRoutes } from "./routes/tags";
 import { transferRoutes } from "./routes/transfer";
 
 export type AppEnv = {
@@ -163,6 +164,7 @@ export function createApp(opts: Options) {
   app.route("/staff", staffRoutes);
   app.route("/files", fileRoutes);
   app.route("/logins", loginRoutes);
+  app.route("/tags", tagRoutes);
   app.route("/transfer", transferRoutes);
   app.route("/", miscRoutes);
   app.route("/", calendarSettingsRoutes);

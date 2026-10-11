@@ -661,3 +661,28 @@ dialog :not(.scroll-thin)::-webkit-scrollbar,
 dialog {
   overflow-x: hidden;
 }
+
+/*
+  Tag colours (user request 2026-10-11; components/Tags.tsx, TAG_COLORS in src/shared/tags.ts): soft pastel chips
+  with dark text, redone for dark mode. Kept apart from the priority tones on purpose (lighter, rounded-full, #).
+*/
+.tag-chip { background: var(--tag-bg); color: var(--tag-ink); }
+.tag-dot { background: var(--tag-dot); }
+[data-tag-color="grey"] { --tag-bg: #eef0f3; --tag-ink: #4a4f57; --tag-dot: #8e949c; }
+[data-tag-color="red"] { --tag-bg: #fde8e8; --tag-ink: #a12a2a; --tag-dot: #e05252; }
+[data-tag-color="orange"] { --tag-bg: #fdeedf; --tag-ink: #9a4a0b; --tag-dot: #ec8a2f; }
+[data-tag-color="yellow"] { --tag-bg: #fdf5d3; --tag-ink: #7d6100; --tag-dot: #e0b400; }
+[data-tag-color="green"] { --tag-bg: #e2f6e9; --tag-ink: #1d6b3d; --tag-dot: #3fae6a; }
+[data-tag-color="teal"] { --tag-bg: #ddf4f2; --tag-ink: #0f6660; --tag-dot: #2aa79c; }
+[data-tag-color="blue"] { --tag-bg: #e3edfd; --tag-ink: #1f4f9c; --tag-dot: #4f86e0; }
+[data-tag-color="purple"] { --tag-bg: #efe7fd; --tag-ink: #5b2fa3; --tag-dot: #9563e0; }
+[data-tag-color="pink"] { --tag-bg: #fce6f1; --tag-ink: #9b2465; --tag-dot: #e05a9f; }
+html.dark [data-tag-color="grey"] { --tag-bg: #3a3c40; --tag-ink: #d4d6da; }
+html.dark [data-tag-color="red"] { --tag-bg: #4a2224; --tag-ink: #f5b3b3; }
+html.dark [data-tag-color="orange"] { --tag-bg: #4a2f18; --tag-ink: #f6c08f; }
+html.dark [data-tag-color="yellow"] { --tag-bg: #443a12; --tag-ink: #f2dc87; }
+html.dark [data-tag-color="green"] { --tag-bg: #1c3a28; --tag-ink: #a7e2bd; }
+html.dark [data-tag-color="teal"] { --tag-bg: #163b39; --tag-ink: #9fe0d8; }
+html.dark [data-tag-color="blue"] { --tag-bg: #1b2d4d; --tag-ink: #adc8f5; }
+html.dark [data-tag-color="purple"] { --tag-bg: #2f2347; --tag-ink: #cfb6f5; }
+html.dark [data-tag-color="pink"] { --tag-bg: #462036; --tag-ink: #f3b2d4; }

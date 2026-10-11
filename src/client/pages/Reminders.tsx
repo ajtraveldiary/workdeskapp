@@ -8,6 +8,7 @@ import { useDeleteReport, useReports, useSetPeriodStatus, useUpdateReport } from
 import { addDays, formatDay, formatTime } from "../format";
 import { LinkChips } from "../components/ReminderLinks";
 import { RelatedTag } from "../components/Related";
+import { TagChips, TagFilter } from "../components/Tags";
 import { ReminderDetails } from "../components/ReminderDetails";
 import { ReminderDialog, type ReminderDialogMode } from "../components/ReminderDialog";
 import { Badge, Button, Card, CheckCircle, Fab, Loading, Menu, PageHeader, TONE, cx, type Tone } from "../components/ui";
@@ -18,10 +19,13 @@ export function RemindersPage() {
   const [dialog, setDialog] = useState<ReminderDialogMode | null>(null);
   // Reminder details (user request 2026-10-07): by id, so it shows the latest copy after Pause or Edit.
   const [detailsId, setDetailsId] = useState<string | null>(null);
+  // Tag filter (user request 2026-10-11): both lists show only reminders with this tag.
+  const [tag, setTag] = useState("");
 
   if (error) return <p className="text-urgent-ink">{error.message}</p>;
   if (!data) return <Loading className="py-24" />;
-  const { reports, today } = data;
+  const { reports: all, today } = data;
+  const reports = tag ? all.filter((r) => r.tagIds?.includes(tag)) : all;
 
   const pending = reports.flatMap((r) => r.periods.filter((p) => p.status === "pending").map((p) => ({ report: r, period: p })));
   const overdue = pending.filter((x) => x.period.dueDate < today);
@@ -47,7 +51,7 @@ export function RemindersPage() {
 
       <Fab label="New reminder" onClick={() => setDialog({ kind: "new" })} />
 
-      {reports.length === 0 ? (
+      {all.length === 0 ? (
         <Card className="flex flex-col items-center px-6 py-14 text-center">
           <span className="flex size-12 items-center justify-center rounded-xl bg-info text-white">
             <CalendarClock size={22} />
@@ -62,6 +66,9 @@ export function RemindersPage() {
         </Card>
       ) : (
         <div className="space-y-5">
+          <div className="flex justify-end empty:hidden">
+            <TagFilter value={tag} onChange={setTag} />
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <Tile icon={TriangleAlert} value={overdue.length} label="Overdue" tone={overdue.length ? "urgent" : "low"} />
             <Tile icon={Clock} value={next30.length} label="Due in 30 days" tone={next30.length ? "high" : "low"} />
@@ -83,6 +90,7 @@ export function RemindersPage() {
 
           <Card>
             <h2 className="border-b border-line px-4 py-3 text-headline font-semibold text-ink sm:px-5 sm:py-3.5">All reminders</h2>
+            {reports.length === 0 && <p className="px-5 py-8 text-center text-sm text-slate-500">No reminder has this tag.</p>}
             <ul className="divide-y divide-line">
               {reports.map((r) => (
                 <ReminderRow key={r.id} report={r} today={today} onOpen={() => setDetailsId(r.id)} onEdit={() => setDialog({ kind: "edit", report: r })} />
@@ -93,7 +101,7 @@ export function RemindersPage() {
       )}
 
       <ReminderDetails
-        report={reports.find((r) => r.id === detailsId) ?? null}
+        report={all.find((r) => r.id === detailsId) ?? null}
         today={today}
         onClose={() => setDetailsId(null)}
         onEdit={(r) => {
@@ -137,6 +145,7 @@ function DueRow({ report, period, today }: { report: Report; period: ReportPerio
           {/* Old report periods say which month they cover ("Sep 2026"); newer labels are just the date. */}
           {period.label !== dayLabel(period.dueDate) && <span className="text-slate-400"> · {period.label}</span>}
         </p>
+        <TagChips ids={report.tagIds} className="mt-1" />
         <LinkChips links={report.links} className="mt-1.5" />
       </div>
     </li>
@@ -157,6 +166,7 @@ function ReminderRow({ report, today, onOpen, onEdit }: { report: Report; today:
         <p className="text-subhead font-medium text-ink group-hover/title:text-brand-700">{report.name}</p>
         <p className="text-footnote text-slate-500">{details}</p>
         <RelatedTag value={report} className="max-w-full! text-footnote" />
+        <TagChips ids={report.tagIds} className="mt-1" />
         <p className="mt-0.5 text-footnote text-slate-500">
           {!report.active ? <Badge>Paused</Badge> : next ? <>Next: <span className="font-medium text-ink">{formatDay(next, today)}</span></> : "No more dates"}
         </p>

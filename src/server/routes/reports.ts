@@ -9,6 +9,7 @@ import { todayIn } from "../lib/dates";
 import { ensureReportPeriods, setPeriodStatus } from "../lib/reports";
 import { maintain } from "../lib/maintenance";
 import { checkRelated, relatedName } from "../lib/staff";
+import { checkTags } from "../lib/tags";
 import { reportInput, reportPatch } from "../../shared/schemas";
 import type { Report } from "../../shared/types";
 
@@ -58,6 +59,7 @@ export const reportRoutes = new Hono<AppEnv>()
       priority: r.priority,
       active: r.active,
       links: r.links ?? [],
+      tagIds: r.tagIds ?? [],
       relatedKind: r.relatedKind,
       relatedId: r.relatedId,
       periods: periods
@@ -80,6 +82,7 @@ export const reportRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const { relatedKind, relatedId, ...input } = reportInput.parse(await c.req.json());
     const related = await checkRelated(db, userId, relatedKind, relatedId);
+    input.tagIds = (await checkTags(db, userId, input.tagIds))!;
     const [r] = await db
       .insert(reports)
       .values({ ...input, ...related, userId, dueDay: dueDayOf(input.startDate) })
@@ -95,6 +98,7 @@ export const reportRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const { relatedKind, relatedId, ...input } = reportPatch.parse(await c.req.json());
     const r = await loadReport(db, userId, c.req.param("id"));
+    if (input.tagIds !== undefined) input.tagIds = await checkTags(db, userId, input.tagIds);
     const merged = { ...r, ...input };
     // What it is about (Staff, user request 2026-10-07): only when sent; its open tasks follow.
     const relatedSent = relatedKind !== undefined || relatedId !== undefined;
@@ -105,6 +109,13 @@ export const reportRoutes = new Hono<AppEnv>()
       const periodIds = (await db.select({ id: reportPeriods.id }).from(reportPeriods).where(eq(reportPeriods.reportId, r.id))).map((p) => p.id);
       if (periodIds.length) await db.update(tasks).set(related).where(and(inArray(tasks.reportPeriodId, periodIds), eq(tasks.status, "open")));
       await db.insert(events).values({ userId, entityType: "report", entityId: r.id, action: "report.related", summary: related.relatedKind ? `For: ${await relatedName(db, related)}` : "No longer linked to staff", detail: { title: merged.name } });
+    }
+    // New tags also go on its open tasks (completed ones keep theirs), user's choice 2026-10-11.
+    if (input.tagIds !== undefined && input.tagIds.join() !== (r.tagIds ?? []).join()) {
+      await db
+        .update(tasks)
+        .set({ tagIds: input.tagIds, updatedAt: new Date() })
+        .where(and(eq(tasks.status, "open"), inArray(tasks.reportPeriodId, db.select({ id: reportPeriods.id }).from(reportPeriods).where(eq(reportPeriods.reportId, r.id)))));
     }
     const action = input.active === false && r.active ? "report.paused" : input.active === true && !r.active ? "report.resumed" : "report.updated";
     const summary = action === "report.paused" ? "Paused" : action === "report.resumed" ? "Resumed" : "Reminder changed";

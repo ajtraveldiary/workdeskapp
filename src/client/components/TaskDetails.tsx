@@ -1,6 +1,7 @@
 // Read-only view of a task, with what was entered when it was created. Opened from task lists; for a task
 // made from an email it also names the email, and its title opens it (onOpenEmail).
-import { CalendarDays, Check, Clock, CalendarClock, FileClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote, UserRound } from "lucide-react";
+import { CalendarDays, Check, Clock, CalendarClock, FileClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote, Tags as TagsIcon, UserRound } from "lucide-react";
+import { TagChips } from "./Tags";
 import { useState, type ReactNode } from "react";
 import type { Task } from "../../shared/types";
 import { useCompleteTask, useMe, useReopenTask, useUpdateTask } from "../api";
@@ -137,6 +138,10 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
               update.mutate({ id: task.id, input: v }, { onError: () => setRelated(before) });
             }}
           />
+        </Row>
+        {/* Tags (user request 2026-10-11); changed with Edit. */}
+        <Row icon={TagsIcon} label="Tags">
+          {task.tagIds?.length ? <TagChips ids={task.tagIds} max={20} /> : <span className="text-slate-500">None</span>}
         </Row>
         <Row icon={StickyNote} label="Notes">
           {task.notes ? <span className="select-text whitespace-pre-wrap">{task.notes}</span> : <span className="text-slate-500">No notes</span>}

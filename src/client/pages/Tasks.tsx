@@ -10,6 +10,7 @@ import { TaskRow } from "../components/TaskRow";
 import { PriorityGrouped } from "../components/PriorityGroups";
 import { Button, Card, Empty, Fab, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
+import { TagFilter } from "../components/Tags";
 
 const EMPTY: Record<TaskView, string> = {
   today: "Nothing due today",
@@ -27,8 +28,10 @@ export function TasksPage() {
   const [params, setParams] = useSearchParams();
   const view = (params.get("view") as TaskView) ?? "all";
   const [q, setQ] = useState("");
+  // Tag filter (user request 2026-10-11).
+  const [tag, setTag] = useState("");
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
-  const { data, error, isFetching } = useTasks({ view, q });
+  const { data, error, isFetching } = useTasks({ view, q, tag: tag || undefined });
   const waitingCount = useSummary().data?.counts.waiting;
   // Tapping a task opens the email it came from, or (for tasks without one) its details.
   const [emailId, setEmailId] = useState<string | null>(null);
@@ -71,6 +74,7 @@ export function TasksPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <SearchInput value={q} onChange={setQ} placeholder="Search tasks…" />
+        <TagFilter value={tag} onChange={setTag} />
         {isFetching && <span className="text-xs text-slate-400">Updating…</span>}
       </div>
 

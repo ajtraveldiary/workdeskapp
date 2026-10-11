@@ -8,6 +8,7 @@ import { formatDay, formatTime } from "../format";
 import { LinksEditor } from "./ReminderLinks";
 import { NO_RELATED, TitleWithRelated, type RelatedValue } from "./Related";
 import { Button, ErrorNote, Field, Modal, inputClass } from "./ui";
+import { TagPicker } from "./Tags";
 
 export type ReminderDialogMode = { kind: "new" } | { kind: "edit"; report: Report };
 
@@ -35,6 +36,8 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
   const [priority, setPriority] = useState<Priority>(r?.priority ?? "normal");
   const [notes, setNotes] = useState(r?.notes ?? "");
   const [links, setLinks] = useState<ReminderLink[]>(r?.links ?? []);
+  // Tags (user request 2026-10-11): also go on this reminder's tasks.
+  const [tagIds, setTagIds] = useState<string[]>(r?.tagIds ?? []);
   // A link pasted but not yet added is saved too.
   const [draftLink, setDraftLink] = useState<ReminderLink | null>(null);
   // What it is about (Staff, user request 2026-10-07); its tasks carry it too.
@@ -50,7 +53,7 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const input = { name, notes, repeat, startDate, dueTime: dueTime || null, endDate: rule.endDate, leadDays, priority, links: draftLink ? [...links, draftLink] : links, ...related };
+    const input = { name, notes, repeat, startDate, dueTime: dueTime || null, endDate: rule.endDate, leadDays, priority, links: draftLink ? [...links, draftLink] : links, tagIds, ...related };
     if (r) {
       const { startDate: _, ...rest } = input;
       await update.mutateAsync({ id: r.id, input: startDate === shownDate ? rest : input });
@@ -141,6 +144,11 @@ function ReminderForm({ mode, onDone }: { mode: ReminderDialogMode; onDone: () =
       </Field>
 
       <LinksEditor links={links} onChange={setLinks} onDraft={setDraftLink} />
+
+      <div>
+        <span className="mb-1 block text-sm font-medium text-slate-700">Tags</span>
+        <TagPicker value={tagIds} onChange={setTagIds} />
+      </div>
 
       <div className="rounded-lg bg-tint px-3.5 py-2.5 text-footnote text-slate-600">
         <p className="font-medium text-ink">

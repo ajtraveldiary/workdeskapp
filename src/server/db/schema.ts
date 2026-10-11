@@ -190,6 +190,8 @@ export const tasks = pgTable(
     // The user's Gmail labels on a task that has no email (made by hand or for a report), kept in WorkDesk only.
     // A task from an email uses its email's labels instead (email_threads.label_ids), so this stays empty.
     labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
+    // WorkDesk-only tags (user request 2026-10-11; `tags`). A reminder's task gets the reminder's tags.
+    tagIds: uuid("tag_ids").array().notNull().default(sql`'{}'::uuid[]`),
     threadId: uuid("thread_id").references(() => emailThreads.id),
     // Set when the task was generated for a recurring report's period.
     reportPeriodId: uuid("report_period_id").references(() => reportPeriods.id, { onDelete: "set null" }),
@@ -251,6 +253,8 @@ export const reports = pgTable("reports", {
   relatedId: uuid("related_id"),
   // No longer set from the app (reminders have no labels, user request 2026-10-06); old values are ignored.
   labelIds: text("label_ids").array().notNull().default(sql`'{}'::text[]`),
+  // WorkDesk-only tags (user request 2026-10-11), copied to each occurrence's task.
+  tagIds: uuid("tag_ids").array().notNull().default(sql`'{}'::uuid[]`),
   active: boolean("active").notNull().default(true),
   // Legacy report fields, no longer used: the period rule old reports were converted from, and "responsible".
   responsible: text("responsible"),
@@ -365,6 +369,21 @@ export const officeFiles = pgTable("office_files", {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+// Tags for tasks and reminders (user request 2026-10-11): made once, reused anywhere. WorkDesk-only (not Gmail
+// labels). The name is unique per user whatever its capitals; colour is a TAG_COLORS name (src/shared/tags.ts).
+export const tags = pgTable(
+  "tags",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    name: text("name").notNull(),
+    color: text("color").notNull().default("blue"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("tags_user_name").on(t.userId, sql`lower(${t.name})`)],
+);
 
 // Saved logins for office websites (user request 2026-10-11), e.g. SPARK (one login per employee) or BiMS (shared
 // DDO / section clerk logins). One website can have many logins. The password is AES-GCM encrypted with

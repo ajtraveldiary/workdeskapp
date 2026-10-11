@@ -12,6 +12,7 @@ import { accessTokenFor } from "../lib/gmailAuth";
 import { GmailError, canMarkRead, getAttachment, getMessageFull, getThreadFull, markThreadRead } from "../lib/gmail";
 import { decodeBase64Url, demoContent, demoPdf, findPart, parseMessage } from "../lib/emailContent";
 import { bulkIds, taskInput } from "../../shared/schemas";
+import { checkTags } from "../lib/tags";
 import { waitingFields, waitingSummary } from "./tasks";
 import { checkRelated } from "../lib/staff";
 import { events } from "../db/schema";
@@ -261,10 +262,11 @@ export const threadRoutes = new Hono<AppEnv>()
     const { waiting, replyBy, relatedKind, relatedId, ...input } = taskInput.parse(await c.req.json());
     const t = await loadThread(db, userId, c.req.param("id"));
     const related = await checkRelated(db, userId, relatedKind, relatedId);
+    const tagIds = (await checkTags(db, userId, input.tagIds))!;
     const [task] = await db
       .insert(tasks)
-      // Its labels are the email's labels (Gmail), so none are stored on the task itself.
-      .values({ ...input, ...related, labelIds: [], userId, threadId: t.id, ...waitingFields(waiting, replyBy) })
+      // Its labels are the email's labels (Gmail), so none are stored on the task itself. Tags are WorkDesk's own.
+      .values({ ...input, ...related, tagIds, labelIds: [], userId, threadId: t.id, ...waitingFields(waiting, replyBy) })
       .returning();
     await db
       .update(emailThreads)

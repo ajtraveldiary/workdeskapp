@@ -5,6 +5,7 @@ import { useCreateTask, useCreateTaskFromThread, useEmailContent, useMe, useUpda
 import { addDays, formatDay } from "../format";
 import { htmlToText } from "../snippets";
 import { ChecklistEditor } from "./Checklist";
+import { TagPicker } from "./Tags";
 import { Hourglass } from "lucide-react";
 import { canWait, isWaiting } from "./Waiting";
 import { NO_RELATED, TitleWithRelated, type RelatedValue } from "./Related";
@@ -41,6 +42,8 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
   const [priority, setPriority] = useState<Priority>(initial.priority);
   const [notes, setNotes] = useState(initial.notes);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(mode.kind === "edit" ? (mode.task.checklist ?? []) : []);
+  // Tags (user request 2026-10-11).
+  const [tagIds, setTagIds] = useState<string[]>(mode.kind === "edit" ? (mode.task.tagIds ?? []) : []);
   // Waiting for a reply (user request 2026-10-07), with the optional day a reply is expected by.
   const [waiting, setWaiting] = useState(mode.kind === "edit" ? isWaiting(mode.task) : false);
   const [replyBy, setReplyBy] = useState(mode.kind === "edit" && isWaiting(mode.task) ? (mode.task.replyBy ?? "") : "");
@@ -77,7 +80,7 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
     e.preventDefault();
     const steps = checklist.map((i) => ({ ...i, text: i.text.trim() })).filter((i) => i.text);
     const wait = waitAllowed ? { waiting, replyBy: (waiting && replyBy) || null } : {};
-    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, checklist: steps, ...wait, ...related };
+    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, checklist: steps, tagIds, ...wait, ...related };
     if (mode.kind === "edit") await update.mutateAsync({ id: mode.task.id, input });
     else if (mode.kind === "fromThread") await fromThread.mutateAsync({ threadId: mode.thread.id, input });
     else await create.mutateAsync(input);
@@ -186,6 +189,11 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
           onChange={(e) => setNotes(e.target.value)}
         />
       </Field>
+      {/* Not a <Field> (label): the picker has its own buttons. */}
+      <div>
+        <span className="mb-1 block text-sm font-medium text-slate-700">Tags</span>
+        <TagPicker value={tagIds} onChange={setTagIds} />
+      </div>
       <ChecklistEditor items={checklist} onChange={setChecklist} />
       <ErrorNote error={error} />
       <div className="flex justify-end gap-2">

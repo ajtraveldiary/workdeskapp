@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { LABEL_COLORS } from "./labelColors";
+import { MAX_TAGS_PER_ITEM, MAX_TAG_NAME, TAG_COLORS } from "./tags";
 import { REPEATS } from "./reminderSchedule";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, RELATED_KINDS } from "./staff";
 
@@ -14,6 +15,15 @@ export const priority = z.enum(["low", "normal", "high", "urgent"]);
 
 const relatedKind = z.enum(RELATED_KINDS);
 
+// Tags (user request 2026-10-11): WorkDesk tag ids on a task or reminder.
+export const tagIds = z.array(z.uuid()).max(MAX_TAGS_PER_ITEM, `Up to ${MAX_TAGS_PER_ITEM} tags`);
+export const tagInput = z.object({
+  name: z.string().trim().min(1, "Tag name is required").max(MAX_TAG_NAME).transform((v) => v.replace(/\s+/g, " ")),
+  // Left out (a tag made from a task or reminder form): the next colour round the palette.
+  color: z.enum(TAG_COLORS).optional(),
+});
+export const tagPatch = z.object({ name: tagInput.shape.name, color: z.enum(TAG_COLORS) }).partial();
+
 export const taskInput = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   notes: z.string().max(10_000).default(""),
@@ -23,6 +33,7 @@ export const taskInput = z.object({
   // Kept for tasks without an email; a task made from an email uses the email's labels.
   labelIds: userLabelIds.default([]),
   checklist: checklist.default([]),
+  tagIds: tagIds.default([]),
   // Waiting for a reply, with the optional day a reply is expected by (user request 2026-10-07).
   waiting: z.boolean().default(false),
   replyBy: day.nullable().default(null),
@@ -43,6 +54,7 @@ export const taskPatch = z
     priority,
     labelIds: userLabelIds,
     checklist,
+    tagIds,
     waiting: z.boolean(),
     replyBy: day.nullable(),
     relatedKind: relatedKind.nullable(),
@@ -75,6 +87,7 @@ export const reportInput = z.object({
   priority: priority.default("normal"),
   active: z.boolean().default(true),
   links: reminderLinks.default([]),
+  tagIds: tagIds.default([]),
   relatedKind: relatedKind.nullable().default(null),
   relatedId: z.uuid().nullable().default(null),
 });
@@ -93,6 +106,7 @@ export const reportPatch = z
     priority,
     active: z.boolean(),
     links: reminderLinks,
+    tagIds,
     relatedKind: relatedKind.nullable(),
     relatedId: z.uuid().nullable(),
   })

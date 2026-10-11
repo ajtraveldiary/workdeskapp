@@ -57,6 +57,8 @@ export type Task = {
   // Gmail labels: the email's own labels for a task from an email (changing them changes Gmail), or the
   // task's WorkDesk-only labels for one without an email.
   labelIds: string[];
+  // WorkDesk-only tags (user request 2026-10-11; not Gmail labels).
+  tagIds: string[];
   checklist: ChecklistItem[];
   // Waiting for a reply since (null = not waiting), and the day a reply is expected by (optional).
   waitingSince: string | null;
@@ -164,6 +166,8 @@ export type Report = {
   priority: Priority;
   active: boolean;
   links: ReminderLink[];
+  // WorkDesk-only tags (user request 2026-10-11), copied to each occurrence's task.
+  tagIds: string[];
   relatedKind: RelatedKind | null;
   relatedId: string | null;
   // Created occurrences, newest first.
@@ -253,6 +257,9 @@ export type RetiringEmployee = { employeeId: string; name: string; designation: 
 export type ContractEnding = { employeeId: string; name: string; designation: string | null; end: string; days: number | null };
 
 // File register (user request 2026-10-07): a physical file and/or an e-file. efileNumber "" = e-file not created yet.
+// A tag for tasks and reminders (user request 2026-10-11), with how many open tasks / reminders use it.
+export type Tag = { id: string; name: string; color: import("./tags").TagColor; sortOrder: number; tasks: number; reminders: number };
+
 // A saved website login (user request 2026-10-11). The password itself is never in this shape: hasPassword
 // says whether one is saved, and it is fetched only when the user taps Show or Copy.
 export type SiteLogin = {
