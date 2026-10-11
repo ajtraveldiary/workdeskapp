@@ -2,14 +2,15 @@
 // a reminder's tags copied to its tasks, a Tags column in the CSV). A tag is made once and reused: the picker
 // offers the most-used ones first and makes a new one from whatever is typed. WorkDesk-only, separate from the
 // Gmail labels on emails. Colours: .tag-chip / [data-tag-color] in styles.css.
-import { useMemo, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
-import { Check, Pencil, Plus, Tags as TagsIcon, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import { Link } from "react-router";
+import { Check, ListFilter, Pencil, Plus, Tags as TagsIcon, Trash2, X } from "lucide-react";
 import type { Tag } from "../../shared/types";
 import { MAX_TAGS_PER_ITEM, MAX_TAG_NAME, TAG_COLORS, TAG_COLOR_NAMES, tagKey, tidyTagName, type TagColor } from "../../shared/tags";
 import { useTagActions, useTags } from "../api";
 import { usePhone } from "./sheet";
 import { SortableList } from "./SortableList";
-import { Button, Card, ErrorNote, Loading, cx, inputClass } from "./ui";
+import { Button, Card, ErrorNote, Loading, PopPanel, cx, inputClass } from "./ui";
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
@@ -138,6 +139,76 @@ export function TagFilter({ value, onChange, className }: { value: string; onCha
         </option>
       ))}
     </select>
+  );
+}
+
+// A small filter icon (home Due Today and To-do cards, user request 2026-10-11): a menu of tags; with one chosen the
+// icon turns blue with the tag's colour dot. Phones get the menu as a sheet from the bottom (PopPanel).
+export function TagFilterButton({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const tags = useTags().data ?? [];
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: globalThis.KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const active = tags.find((t) => t.id === value);
+  const pick = (id: string) => {
+    onChange(id);
+    setOpen(false);
+  };
+  const item = "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 active:bg-slate-100 pointer-coarse:py-2.5";
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={active ? `Filtered by tag ${active.name}. Change filter` : "Filter by tag"}
+        title={active ? `Tag: ${active.name}` : "Filter by tag"}
+        className={cx(
+          "relative flex size-8 items-center justify-center rounded-lg border transition active:scale-90 pointer-coarse:size-9",
+          active ? "border-brand-200 bg-tint text-brand-700" : "border-line text-slate-500 hover:bg-slate-50 hover:text-ink aria-expanded:bg-slate-100",
+        )}
+      >
+        <ListFilter size={16} />
+        {active && <span data-tag-color={active.color} className="tag-dot absolute -top-1 -right-1 size-2.5 rounded-full ring-2 ring-white" aria-hidden />}
+      </button>
+      {open && (
+        <PopPanel onClose={() => setOpen(false)} title="Filter by tag" className="absolute left-0 z-30 mt-1 max-h-80 w-60 overflow-y-auto rounded-xl border border-line bg-white p-1 shadow-lg">
+          <button type="button" onClick={() => pick("")} className={item} aria-pressed={!value}>
+            <span className="flex-1">All tasks</span>
+            {!value && <Check size={15} className="text-brand-600" />}
+          </button>
+          {tags.length === 0 ? (
+            <p className="px-3 py-2 text-footnote text-slate-500">
+              No tags yet. Add them in a task form or in{" "}
+              <Link to="/settings#tags" className="font-medium text-brand-700 underline">
+                Settings › Tags
+              </Link>
+              .
+            </p>
+          ) : (
+            tags.map((t) => (
+              <button key={t.id} type="button" onClick={() => pick(t.id)} className={item} aria-pressed={value === t.id}>
+                <span className="min-w-0 flex-1">
+                  <TagChip tag={t} className="py-0.5 text-caption" />
+                </span>
+                {value === t.id && <Check size={15} className="shrink-0 text-brand-600" />}
+              </button>
+            ))
+          )}
+        </PopPanel>
+      )}
+    </div>
   );
 }
 

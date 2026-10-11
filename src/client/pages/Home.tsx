@@ -58,7 +58,7 @@ import { EditableDue, dueTone } from "../components/InlineTaskEdit";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Button, CheckCircle, Loading as PageLoading, Menu, PRIORITY_BAR, Segmented, SkeletonList, Spinner, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
-import { TagChips } from "../components/Tags";
+import { TagChips, TagFilterButton } from "../components/Tags";
 
 export function HomePage() {
   const { data: summary, error } = useSummary();
@@ -202,9 +202,11 @@ function PanelHeader({ title, subtitle, action }: { title: string; subtitle?: st
 }
 
 // A panel's tabs, plus (on phones only) the panel's buttons on the same row.
-function TabsRow({ children, mobileActions, end }: { children: ReactNode; mobileActions: ReactNode; end?: ReactNode }) {
+// start: before the tabs (the tag filter icon, user request 2026-10-11), outside the clipped tab strip so its menu shows.
+function TabsRow({ children, mobileActions, end, start }: { children: ReactNode; mobileActions: ReactNode; end?: ReactNode; start?: ReactNode }) {
   return (
     <div className="mt-3 flex items-center gap-2 px-3 sm:mt-4 sm:px-5">
+      {start}
       <div className="min-w-0 flex-1 overflow-hidden">{children}</div>
       <div className="flex shrink-0 items-center gap-2 md:hidden">{mobileActions}</div>
       {end && <div className="flex shrink-0 items-center max-md:hidden">{end}</div>}
@@ -281,14 +283,16 @@ function CommandCenter({
   const overdueList = useTasks({ view: "overdue" }).data;
   // Today = overdue + due today, in priority order with the oldest first within each priority.
   const data = tab === "today" ? (viewData && overdueList ? viewData : undefined) : viewData;
+  // Tag filter (user request 2026-10-11): only tasks with this tag; increments (not tasks) are left out meanwhile.
+  const [tag, setTag] = useState("");
   const tasks = useMemo(() => {
     const list = data?.tasks ?? [];
-    if (tab !== "today") return list;
     const seen = new Set(list.map((t) => t.id));
-    return [...(overdueList?.tasks ?? []).filter((t) => !seen.has(t.id)), ...list];
-  }, [data, tab, overdueList]);
+    const all = tab !== "today" ? list : [...(overdueList?.tasks ?? []).filter((t) => !seen.has(t.id)), ...list];
+    return tag ? all.filter((t) => t.tagIds?.includes(tag)) : all;
+  }, [data, tab, overdueList, tag]);
   // Increments due (Staff, user request 2026-10-07): in the Today tab from the 20th of their month.
-  const increments = tab === "today" ? (summary.incrementsDue ?? []) : [];
+  const increments = tab === "today" && !tag ? (summary.incrementsDue ?? []) : [];
 
   return (
     <Panel hiddenOnPhone={hiddenOnPhone}>
@@ -302,6 +306,7 @@ function CommandCenter({
         }
       />
       <TabsRow
+        start={<TagFilterButton value={tag} onChange={setTag} />}
         mobileActions={phone ? null : <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Due Today" />}
       >
         <Segmented<CommandTab>
@@ -323,6 +328,8 @@ function CommandCenter({
           <Empty icon={CalendarClock} title="No reminder tasks open">
             Each reminder's task appears here ahead of its date. <Link to="/reminders" className="font-medium text-brand-700 hover:underline">Set up reminders</Link>
           </Empty>
+        ) : tag && tasks.length === 0 ? (
+          <Empty icon={CircleCheck} title="No tasks with this tag here" />
         ) : tasks.length === 0 && increments.length === 0 ? (
           <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today or overdue" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
             {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
@@ -652,7 +659,9 @@ function TodoPanel({
   const { data } = useTasks({ view: tab });
   // Tasks being deleted (Undo still possible) are already gone from the list.
   const hidden = useHiddenTasks();
-  const tasks = (data?.tasks ?? []).filter((t) => !hidden.has(t.id));
+  // Tag filter (user request 2026-10-11).
+  const [tag, setTag] = useState("");
+  const tasks = (data?.tasks ?? []).filter((t) => !hidden.has(t.id) && (!tag || t.tagIds?.includes(tag)));
   // Selected with the calendar tiles (user request 2026-10-07); cleared when the tab changes.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   useEffect(() => setSelected(new Set()), [tab]);
@@ -686,6 +695,7 @@ function TodoPanel({
         <TodoSelectionBar tab={tab} tasks={tasks} picked={picked} onSelectAll={(all) => setSelected(new Set(all ? tasks.map((t) => t.id) : []))} onClear={() => setSelected(new Set())} />
       ) : (
       <TabsRow
+        start={<TagFilterButton value={tag} onChange={setTag} />}
         end={<ViewAll to="/tasks" />}
         mobileActions={
           <>
@@ -713,7 +723,7 @@ function TodoPanel({
         {!data ? (
           <Loading />
         ) : tasks.length === 0 ? (
-          <Empty icon={ListPlus} title={tab === "all" ? "No open tasks" : tab === "waiting" ? "Nothing waiting for a reply" : "Nothing completed yet"} />
+          <Empty icon={ListPlus} title={tag ? "No tasks with this tag here" : tab === "all" ? "No open tasks" : tab === "waiting" ? "Nothing waiting for a reply" : "Nothing completed yet"} />
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
             {tab === "all" ? (

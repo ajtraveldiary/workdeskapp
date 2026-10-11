@@ -238,7 +238,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `ReminderDetails.tsx` | Reminder details card with document preview and Edit / Pause / Delete / Mark done. |
 | `ReminderLinks.tsx` | Link chips on reminders and the links editor. |
 | `Logins.tsx` | Saved website logins: grouped list, a login row with Show / Copy (password fetched only then; shown for 30s), the add/edit form. Used by the Logins page and an employee's page. |
-| `Tags.tsx` | Tags: chips (compact on rows, at most 2 on phones), the picker in task and reminder forms (most-used first, type to make one), the All tags filter, Settings › Tags (rename, colour, delete, drag to arrange). |
+| `Tags.tsx` | Tags: chips (compact on rows, at most 2 on phones), the picker in task and reminder forms (most-used first, type to make one), the All tags filter, the tag filter icon on the home cards, Settings › Tags (rename, colour, delete, drag to arrange). |
 | `Related.tsx` | "For" an employee, designation or the office: picker, tag and line. |
 | `Designations.tsx` | Settings › Employees: designations and types of temporary employees lists (add, rename, drag to arrange, remove). |
 | `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |
