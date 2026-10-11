@@ -1,6 +1,7 @@
 // If a screen crashes, show a way back instead of a blank page. The usual cause is data saved in this browser
 // by an older version of WorkDesk, so the saved copy is cleared straight away and Reload starts fresh.
 import { Component, type ReactNode } from "react";
+import { FileWarning } from "lucide-react";
 import { clearSavedData } from "../queryClient";
 import { Button } from "./ui";
 
@@ -58,6 +59,32 @@ export class PageErrorBoundary extends Component<{ children: ReactNode }, { fail
         <Button variant="primary" className="mt-2" onClick={() => clearSavedData().finally(() => this.setState({ failed: false }))}>
           Try again
         </Button>
+      </div>
+    );
+  }
+}
+
+// Attachment previews (user request 2026-10-11): if a PDF, picture, spreadsheet or Word preview crashes, or its
+// viewer can't be downloaded (offline, or a new version was deployed since the app opened), only the preview shows
+// this message; the email stays readable. Keyed by the file in EmailViewer, so choosing another attachment clears it.
+export class PreviewErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error(error);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div role="alert" className="py-16 text-center text-sm text-slate-500">
+        <FileWarning size={32} className="mx-auto mb-2 text-slate-300" />
+        <p className="font-medium text-slate-700">Couldn't preview this file</p>
+        <p className="mt-1">Use Download to open it. Reopening the email may also help.</p>
       </div>
     );
   }

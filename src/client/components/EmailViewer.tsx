@@ -21,6 +21,7 @@ import { openRemove } from "./RemoveChooser";
 import { usePullToClose } from "./sheet";
 import { MALAYALAM_FONT } from "../fonts";
 import { ADDRESS_LIST_STYLE, collapseAddressLists, plainAddressLines } from "../addressLists";
+import { PreviewErrorBoundary } from "./ErrorBoundary";
 
 const PdfPreview = lazy(() => import("./PdfPreview"));
 
@@ -546,8 +547,17 @@ function Preview({ threadId, selected, empty, inline }: { threadId: string; sele
   );
 }
 
-// The attachment itself: PDF pages, the picture, the spreadsheet as a table or the Word document as text.
-function FileBody({ attachment: a, url }: { attachment: EmailAttachment; url: string }) {
+// The attachment itself: PDF pages, the picture, the spreadsheet as a table or the Word document as text. A preview
+// that fails shows a message in its place instead of taking the email (or the page) down with it.
+function FileBody({ attachment, url }: { attachment: EmailAttachment; url: string }) {
+  return (
+    <PreviewErrorBoundary key={url}>
+      <FileContent attachment={attachment} url={url} />
+    </PreviewErrorBoundary>
+  );
+}
+
+function FileContent({ attachment: a, url }: { attachment: EmailAttachment; url: string }) {
   if (isPdf(a))
     return (
       <Suspense fallback={<Loading label="Loading PDF…" />}>
