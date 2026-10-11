@@ -36,6 +36,7 @@ import { RemoveChooserHost } from "./components/RemoveChooser";
 import { SystemTaskChooserHost } from "./components/SystemTaskChooser";
 import { IncrementDialogHost } from "./components/IncrementDialog";
 import { SidePanel } from "./components/SidePanel";
+import { PageErrorBoundary } from "./components/ErrorBoundary";
 import { usePhone } from "./components/sheet";
 import { refreshPushSubscription, setIconBadge } from "./push";
 import { PopPanel, Spinner, Splash, TONE, cx, type Tone } from "./components/ui";
@@ -172,7 +173,7 @@ function Shell({ children }: { children: ReactNode }) {
           <PullToRefresh scroller={mainRef} />
           {/* Each new page slides up and fades in (user request 2026-10-07; .page-in in styles.css). */}
           <div key={pathname} className="page-in">
-            {children}
+            <PageErrorBoundary>{children}</PageErrorBoundary>
           </div>
         </main>
       </div>
