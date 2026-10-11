@@ -5,13 +5,14 @@
 // reminders and a History of every change about them, with Edit, Left the office and Delete.
 import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { BadgeCheck, CalendarClock, ChevronLeft, FileClock, Hourglass, ListChecks, Mail, MessageCircle, Pencil, Phone, Trash2, TrendingUp, UserMinus, UserPlus, Wallet } from "lucide-react";
+import { BadgeCheck, CalendarClock, ChevronLeft, FileClock, Hourglass, KeyRound, ListChecks, Mail, MessageCircle, Pencil, Phone, Plus, Trash2, TrendingUp, UserMinus, UserPlus, Wallet } from "lucide-react";
 import type { AuditEvent, Employee, StaffList, Task } from "../../shared/types";
 import { ENGAGEMENT_LABELS, PROBATION_LOOKBACK_YEARS, incrementDue, probationDue, type Engagement } from "../../shared/staff";
-import { useEmployeeProfile, useMe, useStaff, useStaffActions } from "../api";
+import { useEmployeeProfile, useLogins, useMe, useStaff, useStaffActions } from "../api";
 import { formatDateTime } from "../format";
 import { Avatar } from "../components/Avatar";
 import { ChecklistChip } from "../components/Checklist";
+import { LoginDialog, LoginRow, type LoginFormState } from "../components/Logins";
 import { openIncrement } from "../components/IncrementDialog";
 import { RefreshButton } from "../components/RefreshButton";
 import { asksChoice, openTaskChoice } from "../components/SystemTaskChooser";
@@ -145,6 +146,7 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
         </div>
         <div className="space-y-4">
           <Work profile={profile.data} loading={profile.isLoading} designation={designation} />
+          <Logins employeeId={e.id} />
           <HistoryCard events={profile.data?.history} loading={profile.isLoading} />
         </div>
       </div>
@@ -442,6 +444,39 @@ function HistoryCard({ events, loading }: { events?: AuditEvent[]; loading: bool
           )}
         </>
       )}
+    </Card>
+  );
+}
+
+// --- Their website logins (user request 2026-10-11): SPARK and the like; Show / Copy as on the Logins page ---
+
+function Logins({ employeeId }: { employeeId: string }) {
+  const { data } = useLogins(employeeId);
+  const [form, setForm] = useState<LoginFormState>(null);
+  const logins = data?.logins ?? [];
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center border-b border-line pr-2">
+        <h2 className="flex flex-1 items-center gap-2 px-4 py-2.5 text-footnote font-semibold text-slate-600 sm:px-5">
+          <KeyRound size={15} className="text-brand-700" />
+          Logins
+        </h2>
+        <Button size="sm" variant="ghost" onClick={() => setForm({ login: null, preset: { employeeId } })}>
+          <Plus size={15} /> Add
+        </Button>
+      </div>
+      {!data ? (
+        <p className="px-4 py-4 text-sm text-slate-400 sm:px-5">Loading…</p>
+      ) : logins.length === 0 ? (
+        <p className="px-4 py-4 text-sm text-slate-500 sm:px-5">No website logins saved for them (for example SPARK).</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {logins.map((l) => (
+            <LoginRow key={l.id} login={l} onEdit={() => setForm({ login: l })} titleBy="website" />
+          ))}
+        </ul>
+      )}
+      <LoginDialog state={form} onClose={() => setForm(null)} />
     </Card>
   );
 }

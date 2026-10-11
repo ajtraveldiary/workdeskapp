@@ -211,6 +211,13 @@
       "when": 1791437411919,
       "tag": "0029_basic_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791725701405,
+      "tag": "0030_site_logins",
+      "breakpoints": true
     }
   ]
 }

@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeFile, Report, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
-import type { EmployeeInput, OfficeFileInput, ReportInput, TaskInput } from "../shared/schemas";
+import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeFile, Report, SiteLogin, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { EmployeeInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
   constructor(
@@ -223,6 +223,22 @@ export function useOfficeFileActions() {
     remove: useMutation({ mutationFn: (id: string) => api(`/files/${id}`, { method: "DELETE" }), onSettled: refresh }),
   };
 }
+
+// Saved website logins (user request 2026-10-11). The list never has passwords; revealPassword asks for one
+// when the user taps Show or Copy. It is a plain request (not a query or mutation) so the password is never kept
+// in the query cache, the browser's saved copy or the offline copy.
+export const useLogins = (employeeId?: string) =>
+  useQuery({ queryKey: ["logins", employeeId ?? "all"], queryFn: () => api<{ logins: SiteLogin[] }>(`/logins${employeeId ? `?employee=${employeeId}` : ""}`) });
+export function useLoginActions() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "logins" || q.queryKey[0] === "history" });
+  return {
+    add: useMutation({ mutationFn: (input: SiteLoginInput) => api<{ id: string }>("/logins", { method: "POST", body: input }), onSettled: refresh }),
+    save: useMutation({ mutationFn: ({ id, input }: { id: string; input: SiteLoginInput }) => api(`/logins/${id}`, { method: "PUT", body: input }), onSettled: refresh }),
+    remove: useMutation({ mutationFn: (id: string) => api(`/logins/${id}`, { method: "DELETE" }), onSettled: refresh }),
+  };
+}
+export const revealPassword = (id: string, copy: boolean) => api<{ password: string }>(`/logins/${id}/reveal`, { method: "POST", body: { copy } }).then((r) => r.password);
 
 // Increment done (user request 2026-10-07): the date moves a year on; undoTo puts the old date back.
 export function useIncrementDone() {

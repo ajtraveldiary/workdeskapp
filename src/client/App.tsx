@@ -13,6 +13,7 @@ import {
   History as HistoryIcon,
   UsersRound,
   FolderOpen,
+  KeyRound,
   X,
   House,
   ListChecks,
@@ -50,6 +51,7 @@ import { StaffPage } from "./pages/Staff";
 import { EmployeePage } from "./pages/EmployeePage";
 import { ImportExportPage } from "./pages/ImportExport";
 import { FilesPage } from "./pages/Files";
+import { LoginsPage } from "./pages/Logins";
 import { RemindersPage } from "./pages/Reminders";
 import { SettingsPage } from "./pages/Settings";
 import { LoginPage } from "./pages/Login";
@@ -87,6 +89,7 @@ export function App() {
         {/* Was /staff before the page was renamed Employees (user request 2026-10-07). */}
         <Route path="/staff" element={<StaffRedirect />} />
         <Route path="/files" element={<Page><FilesPage /></Page>} />
+        <Route path="/logins" element={<Page><LoginsPage /></Page>} />
         <Route path="*" element={<Page><p className="text-slate-500">Page not found.</p></Page>} />
       </Routes>
     </Shell>
@@ -117,6 +120,8 @@ const NAV: NavItem[] = [
   { to: "/employees", label: "Employees", icon: UsersRound },
   // File register (user request 2026-10-07), next to Staff: rail on wider screens, profile menu on phones.
   { to: "/files", label: "Files", icon: FolderOpen },
+  // Saved website logins (user request 2026-10-11), after Files: rail on wider screens, profile menu on phones.
+  { to: "/logins", label: "Logins", icon: KeyRound },
   // Import / Export (user request 2026-10-07): rail on wider screens, profile menu on phones.
   { to: "/import-export", label: "Import/Export", icon: ArrowDownUp },
 ];
@@ -181,7 +186,7 @@ function Shell({ children }: { children: ReactNode }) {
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
           corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
       <nav className="tabbar fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
-        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/import-export" && n.to !== "/files").map((n) => (
+        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/logins").map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -587,6 +592,7 @@ function UserMenu() {
         {[
           { to: "/employees", label: "Employees", icon: UsersRound },
           { to: "/files", label: "File register", icon: FolderOpen },
+          { to: "/logins", label: "Logins", icon: KeyRound },
           { to: "/import-export", label: "Import / Export", icon: ArrowDownUp },
           { to: "/settings", label: "Settings", icon: SettingsIcon },
         ].map((l) => (
@@ -623,6 +629,9 @@ function UserMenu() {
           </Link>
           <Link to="/files" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <FolderOpen size={16} /> File register
+          </Link>
+          <Link to="/logins" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
+            <KeyRound size={16} /> Logins
           </Link>
           <Link to="/import-export" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <ArrowDownUp size={16} /> Import / Export

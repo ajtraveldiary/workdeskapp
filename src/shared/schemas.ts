@@ -213,3 +213,21 @@ export const officeFileInput = z.object({
   notes: z.string().max(2_000).default(""),
 });
 export type OfficeFileInput = z.input<typeof officeFileInput>;
+
+// Saved website logins (user request 2026-10-11). assignedTo is a role or name typed in (DDO, Section clerk);
+// with an employee picked it is ignored (their name is used). password: left out = unchanged, "" or null = removed.
+export const siteLoginInput = z.object({
+  website: z.string().trim().min(1, "Website name is required").max(100),
+  url: z
+    .string()
+    .trim()
+    .max(500)
+    .default("")
+    .transform((v) => (v && !/^https?:\/\//i.test(v) ? `https://${v}` : v)),
+  employeeId: z.uuid().nullable().default(null),
+  assignedTo: z.string().trim().max(100).default(""),
+  loginId: z.string().trim().max(200).default(""),
+  password: z.string().max(500).nullable().optional(),
+  remarks: z.string().trim().max(2000).default(""),
+});
+export type SiteLoginInput = z.input<typeof siteLoginInput>;

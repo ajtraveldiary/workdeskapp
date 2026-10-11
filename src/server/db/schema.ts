@@ -366,6 +366,25 @@ export const officeFiles = pgTable("office_files", {
   updatedAt: updatedAt(),
 });
 
+// Saved logins for office websites (user request 2026-10-11), e.g. SPARK (one login per employee) or BiMS (shared
+// DDO / section clerk logins). One website can have many logins. The password is AES-GCM encrypted with
+// TOKEN_ENC_KEY and is only ever sent to the browser when the user taps Show or Copy (POST /logins/:id/reveal).
+export const siteLogins = pgTable("site_logins", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  website: text("website").notNull(),
+  url: text("url").notNull().default(""),
+  // Who uses it: an employee from the Employees list, or a role / name typed in (DDO, Section clerk).
+  employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+  // The role / name typed in; for an employee, their name when saved (still shown if they are deleted later).
+  assignedTo: text("assigned_to").notNull().default(""),
+  loginId: text("login_id").notNull().default(""),
+  passwordEnc: text("password_enc"),
+  remarks: text("remarks").notNull().default(""),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 // Devices that turned on phone notifications (user request 2026-10-07): one Web Push subscription each.
 export const pushSubscriptions = pgTable("push_subscriptions", {
   id: id(),
