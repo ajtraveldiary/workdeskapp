@@ -17,13 +17,14 @@ Cron every 10 min (src/server/worker.ts): Gmail sync, then phone notifications
 
 | File | What it does |
 |---|---|
-| `README.md` | What WorkDesk is, how to run it locally, connect Gmail and deploy. |
+| `README.md` | Who WorkDesk is for, every feature in a sentence or two, how to run it locally, connect Gmail and deploy. |
 | `CLAUDE.md` | Rules for working on the code: Gmail safety, touch-first design, and every feature decision the user made. |
+| `AGENTS.md` | Short pointer for other AI coding agents: the rules are in CLAUDE.md. |
 | `docs/FILES.md` | This file: every file and its job. |
-| `package.json` / `package-lock.json` | Libraries and the npm commands (`dev`, `test`, `typecheck`, `db:generate`, `db:migrate`, `deploy`). |
+| `package.json` / `package-lock.json` | Libraries and the npm commands (`dev`, `test`, `typecheck`, `db:generate`, `db:migrate`, `deploy`); `allowScripts` approves install scripts per exact version (esbuild, workerd). |
 | `tsconfig.json` | TypeScript settings for the whole project. |
 | `vite.config.ts` | Builds the app: the version number from git (`appVersion`), `dist/version.json` for auto-update, and the service worker (`dist/sw.js`). Runs the dev server on :5173, passing `/api` to :8787. |
-| `vitest.config.ts` | Test runner settings. |
+| `vitest.config.ts` | Test runner settings: at most 8 files at once, longer time limits for each file's database setup and each test. |
 | `drizzle.config.ts` | Where the database schema and migrations live, for `npm run db:generate`. |
 | `wrangler.jsonc` | Cloudflare Worker settings: entry file, the built app as static files, the 10-minute cron, the time zone; lists the secrets to set. |
 | `.env.example` | The settings to copy into `.env` to use real Gmail locally (Google client, owner email, secrets, database). |
@@ -94,7 +95,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | What it does |
 |---|---|
-| `threads.ts` | Emails: lists by state, one email, its content and attachments from Gmail, mark read, make a task, Remove / Restore (single and bulk), mark a new reply seen. |
+| `threads.ts` | Emails: lists by state, one email, its content and attachments from Gmail (a file labelled as generic data is served by its name's type, `realMime`), mark read, make a task, Remove / Restore (single and bulk), mark a new reply seen. |
 | `tasks.ts` | Tasks: lists by view (today, overdue, upcoming, waiting, completed…), date ranges for the calendar, create, edit, complete, reopen, bulk delete (with Gmail task-label clean-up). |
 | `reports.ts` | Reminders (stored as reports): list with their dates, create, edit, pause/resume, delete, mark a date done or not done. |
 | `labels.ts` | Gmail labels: list, create, rename/recolour, delete, change an email's labels, task/done label settings, Send to a section (`/threads/bulk-section`). |
@@ -213,13 +214,13 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `SidePanel.tsx` | The phone Account panel that slides in from the right. |
 | `SwipeRow.tsx` | Swipe actions on phone rows, and the Undo bar. |
 | `RefreshButton.tsx` | The refresh button on screens and lists. |
-| `ErrorBoundary.tsx` | Shows "Something went wrong — Reload" instead of a blank page. |
+| `ErrorBoundary.tsx` | Safety nets: the whole app ("Something went wrong — Reload"), one page ("This page hit a problem", the menu keeps working) and one attachment preview ("Couldn't preview this file"). |
 | `DatabaseIssue.tsx` | Explains a paused or unreachable database, with Neon usage link and Try again. |
 | `Avatar.tsx` | Initials circles in the sender's colour; tap to select an email. |
 | `ThreadRow.tsx` | One email row (sender, subject, preview, tags). |
 | `EmailBulkBar.tsx` | The email list toolbar: Select all, Create task, Remove, Restore, label and unread filters. |
 | `EmailStatus.tsx` | Status tags on emails (Task, Removed, With section, Back from section…). |
-| `EmailViewer.tsx` | Reading an email: conversation, attachments and previews, labels, Share, Remove, make a task. |
+| `EmailViewer.tsx` | Reading an email: conversation, attachments and previews (PDF, pictures, Excel, Word, PowerPoint text; old .doc/.ppt explained), labels, Share, Remove, make a task. |
 | `PdfPreview.tsx` | PDF pages drawn with pdf.js (loaded only when needed). |
 | `SheetPreview.tsx` | Excel/CSV attachments as a table (SheetJS). |
 | `DocxPreview.tsx` | Word .docx attachments as a page (mammoth). |
