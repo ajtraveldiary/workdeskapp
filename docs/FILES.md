@@ -223,6 +223,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `PdfPreview.tsx` | PDF pages drawn with pdf.js (loaded only when needed). |
 | `SheetPreview.tsx` | Excel/CSV attachments as a table (SheetJS). |
 | `DocxPreview.tsx` | Word .docx attachments as a page (mammoth). |
+| `SlidesPreview.tsx` | PowerPoint .pptx attachments as each slide's text (fflate unzip; titles, points, tables). |
 | `LabelChips.tsx` | Gmail label chips, the label picker and the label filter. |
 | `RemoveChooser.tsx` | Remove: "Just remove" or send to a section (a menu from the button on computers, an action sheet on phones); also `AnchoredMenu` (menus that grow from a button, or from where it was if it re-rendered). |
 | `TaskRow.tsx` | One task row on the Tasks page (a Contract ends or Probation declaration task's tick asks instead). |
@@ -277,6 +278,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `file-register.test.ts` | File register entries and e-file numbers. |
 | `logins.test.ts` | Saved website logins: many per website, employee or role, passwords encrypted, never in lists, revealed only on request and noted in History. |
 | `tags.test.ts` | Tags: reused whatever the capitals, on tasks (filter, search, keep on edit), a reminder's tags on its tasks, deleting cleans up, the Tags column of the Tasks CSV. |
+| `attachment-types.test.ts` | Pictures and PDFs labelled as generic files are served with their real type. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |
 | `db-errors.test.ts` | Database problems explained in plain words. |
 | `crypto.test.ts` | Session signing and token encryption. |

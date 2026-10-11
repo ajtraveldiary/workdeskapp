@@ -71,6 +71,13 @@ export async function withTaskInfo<T extends ThreadRow>(db: DB, threads: T[], to
 const IMMUTABLE = "private, max-age=31536000, immutable";
 // Shown inside the page; every other type is download-only.
 const VIEWABLE = new Set(["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp"]);
+// Some senders label every file as generic data; for these endings the file name says what it really is
+// (user request 2026-10-11: pictures sent as "file" should still show).
+const MIME_BY_EXT: Record<string, string> = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+export function realMime(mime: string, filename: string): string {
+  if (mime && mime !== "application/octet-stream" && mime !== "binary/octet-stream") return mime;
+  return MIME_BY_EXT[filename.toLowerCase().split(".").pop() ?? ""] ?? (mime || "application/octet-stream");
+}
 
 function wrap(text: string, width: number) {
   const lines: string[] = [];
@@ -221,8 +228,8 @@ export const threadRoutes = new Hono<AppEnv>()
       if (!part) throw new HTTPException(404, { message: "Attachment not found" });
       const data = part.body?.data ?? (part.body?.attachmentId ? (await getAttachment(token, m.id, part.body.attachmentId)).data : "");
       bytes = decodeBase64Url(data);
-      mime = (part.mimeType ?? "application/octet-stream").toLowerCase();
       filename = part.filename || `attachment-${partId}`;
+      mime = realMime((part.mimeType ?? "").toLowerCase(), filename);
     }
     const viewable = VIEWABLE.has(mime) && c.req.query("download") !== "1";
     return c.body(bytes as Uint8Array<ArrayBuffer>, 200, {

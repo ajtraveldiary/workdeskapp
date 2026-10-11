@@ -28,15 +28,20 @@ const PdfPreview = lazy(() => import("./PdfPreview"));
 // Office previews (user request 2026-10-06), fetched only when such a file is opened.
 const SheetPreview = lazy(() => import("./SheetPreview"));
 const DocxPreview = lazy(() => import("./DocxPreview"));
+// PowerPoint (.pptx) as slide text (user request 2026-10-11).
+const SlidesPreview = lazy(() => import("./SlidesPreview"));
 
 const VIEWABLE_IMAGE = /^image\/(png|jpe?g|gif|webp)$/;
 const ext = (a: EmailAttachment) => a.filename.toLowerCase().split(".").pop() ?? "";
 const isPdf = (a: EmailAttachment) => a.mimeType === "application/pdf" || a.filename.toLowerCase().endsWith(".pdf");
-const isImage = (a: EmailAttachment) => VIEWABLE_IMAGE.test(a.mimeType);
+// By type, or by the file's ending when the sender labelled it as a generic file (user request 2026-10-11).
+const isImage = (a: EmailAttachment) => VIEWABLE_IMAGE.test(a.mimeType) || ["png", "jpg", "jpeg", "gif", "webp"].includes(ext(a));
 const isSheet = (a: EmailAttachment) => ["xlsx", "xlsm", "xls", "ods", "csv"].includes(ext(a)) || /spreadsheet|ms-excel|text\/csv/.test(a.mimeType);
 const isDocx = (a: EmailAttachment) => ext(a) === "docx" || a.mimeType.includes("wordprocessingml");
 const isOldDoc = (a: EmailAttachment) => ext(a) === "doc" || a.mimeType === "application/msword";
-const canPreview = (a: EmailAttachment) => isPdf(a) || isImage(a) || isSheet(a) || isDocx(a);
+const isPptx = (a: EmailAttachment) => ext(a) === "pptx" || a.mimeType.includes("presentationml");
+const isOldPpt = (a: EmailAttachment) => ["ppt", "pps"].includes(ext(a)) || a.mimeType === "application/vnd.ms-powerpoint";
+const canPreview = (a: EmailAttachment) => isPdf(a) || isImage(a) || isSheet(a) || isDocx(a) || isPptx(a);
 
 // What the preview shows: an attachment, or a Google file linked in the email.
 type FileSel = { message: EmailMessageContent; attachment: EmailAttachment; link?: undefined };
@@ -366,7 +371,9 @@ function MessageBlock({
                         ? [FileSpreadsheet, "bg-low"]
                         : isDocx(a) || isOldDoc(a)
                           ? [FileText, "bg-info"]
-                          : [File, "bg-slate-400"];
+                          : isPptx(a) || isOldPpt(a)
+                            ? [Presentation, "bg-medium"]
+                            : [File, "bg-slate-400"];
                   return (
                     <FileCard key={a.partId} active={!!selected && selKey(selected) === selKey(item)} onOpen={() => onOpenFile(item)} icon={<Icon size={18} />} color={color} name={a.filename} detail={formatSize(a.size)} />
                   );
@@ -577,10 +584,25 @@ function FileContent({ attachment: a, url }: { attachment: EmailAttachment; url:
         <DocxPreview url={url} />
       </Suspense>
     );
+  if (isPptx(a))
+    return (
+      <Suspense fallback={<Loading label="Loading slides…" />}>
+        <SlidesPreview url={url} />
+      </Suspense>
+    );
+  // Old Office formats can't be read in a browser (user request 2026-10-11: say so clearly).
+  const old = isOldDoc(a) ? ["an older Word file (.doc)", ".docx or PDF"] : isOldPpt(a) ? ["an older PowerPoint file (.ppt)", ".pptx or PDF"] : null;
   return (
-    <div className="py-16 text-center text-sm text-slate-500">
+    <div className="mx-auto max-w-sm py-16 text-center text-sm text-slate-500">
       <File size={32} className="mx-auto mb-2 text-slate-300" />
-      {isOldDoc(a) ? "Older Word files (.doc) can't be previewed. Download it to open." : "No preview for this file type. Download it to open."}
+      {old ? (
+        <>
+          <p className="font-medium text-slate-700">This is {old[0]}</p>
+          <p className="mt-1">Browsers can&apos;t show this old format. Use Download to open it in Word, PowerPoint or Google Drive, or ask the sender for {old[1]}.</p>
+        </>
+      ) : (
+        "No preview for this file type. Download it to open."
+      )}
     </div>
   );
 }
