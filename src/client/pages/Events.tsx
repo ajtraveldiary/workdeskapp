@@ -101,8 +101,9 @@ export function EventsPage() {
             </Card>
           ) : (
             groups.map(([day, items]) => (
-              <Card key={day} className="overflow-hidden">
-                <h2 className={cx("border-b border-line px-4 py-2 text-footnote font-semibold sm:px-5", day === today ? "bg-tint text-brand-800" : "bg-slate-50/60 text-slate-600")}>
+              // Clipped only on phones (swipe actions): on computers the row's ⋮ menu drops out of the card (2026-10-12).
+              <Card key={day} className="max-md:overflow-hidden">
+                <h2 className={cx("rounded-t-xl border-b border-line px-4 py-2 text-footnote font-semibold sm:px-5", day === today ? "bg-tint text-brand-800" : "bg-slate-50/60 text-slate-600")}>
                   {formatDay(day, today)}
                   {day === today || day === shiftDay(today, 1) ? "" : ` · ${new Date(`${day}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", timeZone: "UTC" })}`}
                 </h2>
@@ -133,7 +134,7 @@ function EventRow({ item: { e, o } }: { item: Item }) {
 
   return (
     <SwipeRow
-      contentClassName="row-click flex items-start gap-3 px-4 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5"
+      contentClassName="row-click flex items-start gap-3 px-4 py-2.5 last:rounded-b-xl has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5"
       leading={scheduled ? { label: "Done", icon: Check, tone: "low", onClick: () => set("done") } : null}
       trailing={[
         { label: "Cancel", icon: Ban, tone: "urgent", onClick: () => set("cancelled"), hidden: !scheduled },
