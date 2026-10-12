@@ -115,7 +115,6 @@ export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
     { key: "attendees", header: "Attendees", sample: ["", "Lakshmi K S, Anitha Kumari"] },
     { key: "notes", header: "Notes", sample: ["Bring last month's figures", ""] },
     { key: "links", header: "Links", sample: ["", ""] },
-    { key: "tags", header: "Tags", sample: ["Review", "Training"] },
     { key: "prepDays", header: "Prepare task (days before)", sample: ["2", ""] },
     { key: "nextOn", header: "Next on", exportOnly: true, sample: ["", ""] },
   ],

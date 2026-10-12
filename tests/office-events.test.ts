@@ -87,14 +87,14 @@ describe("events", () => {
     expect(history).toContain("Event type renamed: Workshop → ശില്പശാല");
   });
 
-  it("are added with attendees and tags, and checked", async () => {
+  it("are added with attendees (no tags: taken off events 2026-10-12), and checked", async () => {
     const emp = (await call("POST", "/staff/employees", { name: "Training Attendee" })).json.id as string;
     const tag = (await call("POST", "/tags", { name: "Training" })).json.id as string;
     const training = (await types()).find((t) => t.name === "Training")!.id;
     const res = await call("POST", "/office-events", { title: "Fire safety training", typeId: training, startDate: shiftDay(today, 3), startTime: "09:30", endTime: "16:00", venue: "Training centre", attendeeIds: [emp], tagIds: [tag] });
     expect(res.status).toBe(201);
     const [e] = await list();
-    expect([e!.title, e!.typeName, e!.venue, e!.attendeeIds, e!.tagIds]).toEqual(["Fire safety training", "Training", "Training centre", [emp], [tag]]);
+    expect([e!.title, e!.typeName, e!.venue, e!.attendeeIds, "tagIds" in e!]).toEqual(["Fire safety training", "Training", "Training centre", [emp], false]);
     expect((await call("POST", "/office-events", { title: "x", startDate: today, typeId: "00000000-0000-4000-8000-000000000000" })).status).toBe(400);
     expect((await call("POST", "/office-events", { title: "x", startDate: today, startTime: "10:00", endTime: "09:00" })).status).toBe(400);
     expect((await call("POST", "/office-events", { title: "x", startDate: today, attendeeIds: ["00000000-0000-4000-8000-000000000000"] })).status).toBe(400);
@@ -151,12 +151,13 @@ describe("events", () => {
 
     const csv = (await call("GET", "/transfer/events/csv")).text;
     expect(csv.split("\n")[0]).toContain("Attendees");
+    expect(csv.split("\n")[0]).not.toContain("Tags");
     expect(csv).toContain("Staff meeting today");
     const emp = (await call("POST", "/staff/employees", { name: "CSV Person" })).json.id as string;
     const res = (await call("POST", "/transfer/events/import", { headers: ["Title", "Type", "Date", "Start time", "Attendees", "Tags"], rows: [["Induction programme", "Programme", shiftDay(today, 10), "10:00", "CSV Person", "New staff"]] })).json;
-    expect(res).toMatchObject({ added: 1, problems: [] });
+    expect(res).toMatchObject({ added: 1, problems: [], unknownColumns: ["Tags"] });
     const made = (await list()).find((e) => e.title === "Induction programme")!;
-    expect([made.typeName, made.startTime, made.attendeeIds, made.tagIds.length]).toEqual(["Programme", "10:00", [emp], 1]);
+    expect([made.typeName, made.startTime, made.attendeeIds]).toEqual(["Programme", "10:00", [emp]]);
     // A type that isn't in Settings yet is made.
     const ws = (await call("POST", "/transfer/events/import", { headers: ["Title", "Type", "Date"], rows: [["Payroll workshop", "Workshop", shiftDay(today, 12)]], dryRun: true })).json;
     expect(ws.created).toEqual(["Event type: Workshop"]);

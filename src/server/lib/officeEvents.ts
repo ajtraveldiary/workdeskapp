@@ -1,7 +1,7 @@
 // Events (user request 2026-10-11): the rows as the app sees them, today's occurrences (Home, notifications), and
 // "Prepare" tasks. An event with prepDays gets one task per occurrence in the next PREP_AHEAD days, due prepDays
 // before it; a cancelled occurrence's open task is removed, a moved one's due date follows, and open tasks keep the
-// event's title and tags. Completed prep tasks are never touched or recreated. Runs after every event change, in
+// event's title. Completed prep tasks are never touched or recreated. Runs after every event change, in
 // `maintain` and from the cron.
 import { and, eq, inArray, isNotNull, type SQL } from "drizzle-orm";
 import type { DB } from "../db";
@@ -39,7 +39,6 @@ export const toEvent = (e: EventRow): OfficeEvent => ({
   attendeeIds: e.attendeeIds ?? [],
   notes: e.notes,
   links: e.links ?? [],
-  tagIds: e.tagIds ?? [],
   threadId: e.threadId,
   prepDays: e.prepDays,
   changes: e.changes ?? [],
@@ -74,7 +73,7 @@ export async function ensureEventTasks(db: DB, today: string, userId?: string) {
   const ids = list.map((e) => e.id);
   const existing = ids.length
     ? await db
-        .select({ id: tasks.id, eventId: tasks.eventId, eventDate: tasks.eventDate, status: tasks.status, dueDate: tasks.dueDate, title: tasks.title, tagIds: tasks.tagIds })
+        .select({ id: tasks.id, eventId: tasks.eventId, eventDate: tasks.eventDate, status: tasks.status, dueDate: tasks.dueDate, title: tasks.title })
         .from(tasks)
         .where(inArray(tasks.eventId, ids))
     : [];
@@ -95,15 +94,14 @@ export async function ensureEventTasks(db: DB, today: string, userId?: string) {
       }
       if (!task) {
         if (o.status === "scheduled")
-          make.push({ userId: e.userId, title: prepTitle(e.title), notes: prepNotes(e, o.date, o.startTime), dueDate: due, priority: "normal", tagIds: e.tagIds ?? [], eventId: e.id, eventDate: o.original });
+          make.push({ userId: e.userId, title: prepTitle(e.title), notes: prepNotes(e, o.date, o.startTime), dueDate: due, priority: "normal", eventId: e.id, eventDate: o.original });
         continue;
       }
       if (task.status !== "open") continue;
-      // Follow a moved date, a renamed event and changed tags.
+      // Follow a moved date and a renamed event.
       const set: Partial<typeof tasks.$inferInsert> = {};
       if (task.dueDate !== due && o.moved) set.dueDate = due;
       if (task.title !== prepTitle(e.title)) set.title = prepTitle(e.title);
-      if ((task.tagIds ?? []).join() !== (e.tagIds ?? []).join()) set.tagIds = e.tagIds ?? [];
       if (Object.keys(set).length) await db.update(tasks).set({ ...set, updatedAt: new Date() }).where(eq(tasks.id, task.id));
     }
   }

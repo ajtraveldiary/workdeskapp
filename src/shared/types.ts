@@ -287,7 +287,6 @@ export type OfficeEvent = {
   attendeeIds: string[];
   notes: string;
   links: ReminderLink[];
-  tagIds: string[];
   threadId: string | null;
   prepDays: number | null;
   changes: import("./eventSchedule").EventChange[];

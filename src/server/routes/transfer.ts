@@ -674,8 +674,8 @@ async function planEvents(db: DB, userId: string, rows: Row[], result: ImportRes
   ]);
   const typeIds = new Map(types.map((t) => [lower(t.name), t.id]));
   const newTypes = new Map<string, string>(); // lower-case name → name as written
-  const updates = new Map<string, { set: Record<string, unknown>; tags?: string[]; type?: string }>();
-  const inserts: { key: string; values: Record<string, unknown>; tags?: string[]; type?: string }[] = [];
+  const updates = new Map<string, { set: Record<string, unknown>; type?: string }>();
+  const inserts: { key: string; values: Record<string, unknown>; type?: string }[] = [];
   for (const row of rows) {
     const c = row.cells;
     const id = (c.get("id") ?? "").trim();
@@ -733,7 +733,6 @@ async function planEvents(db: DB, userId: string, rows: Row[], result: ImportRes
       problem(result, row, errors.join("; "));
       continue;
     }
-    const tags = c.has("tags") ? splitTagNames(c.get("tags")!) : undefined;
     const title = lower(String(v.title ?? ""));
     const match = existing.find((e) => e.id === id) ?? (title && v.startDate ? existing.find((e) => lower(e.title) === title && e.startDate === v.startDate) : undefined);
     if (match) {
@@ -745,7 +744,7 @@ async function planEvents(db: DB, userId: string, rows: Row[], result: ImportRes
       if (!updates.has(match.id)) result.updated++;
       const prev = updates.get(match.id);
       if (type) newTypes.set(lower(type), type);
-      updates.set(match.id, { set: { ...(prev?.set ?? {}), ...parsed.data }, tags: tags ?? prev?.tags, type: type ?? (c.has("kind") ? undefined : prev?.type) });
+      updates.set(match.id, { set: { ...(prev?.set ?? {}), ...parsed.data }, type: type ?? (c.has("kind") ? undefined : prev?.type) });
       continue;
     }
     const parsed = eventInput.safeParse(v);
@@ -757,9 +756,9 @@ async function planEvents(db: DB, userId: string, rows: Row[], result: ImportRes
     const key = `${lower(values.title)} ${values.startDate}`;
     if (type) newTypes.set(lower(type), type);
     const pending = inserts.find((i) => i.key === key);
-    if (pending) Object.assign(pending, { values, tags: tags ?? pending.tags, type });
+    if (pending) Object.assign(pending, { values, type });
     else {
-      inserts.push({ key, values, tags, type });
+      inserts.push({ key, values, type });
       result.added++;
     }
   }
@@ -777,19 +776,17 @@ async function planEvents(db: DB, userId: string, rows: Row[], result: ImportRes
         for (const t of made) typeIds.set(lower(t.name), t.id);
       }
       const typeOf = (name: string | undefined) => (name ? { typeId: typeIds.get(lower(name)) ?? null } : {});
-      const tagIds = await ensureTagsByName(db, userId, [...[...updates.values()].flatMap((u) => u.tags ?? []), ...inserts.flatMap((i) => i.tags ?? [])]);
-      const toIds = (names: string[]) => names.map((n) => tagIds.get(n.toLowerCase())).filter((x): x is string => !!x);
-      for (const [id, { set, tags, type }] of updates) {
+      for (const [id, { set, type }] of updates) {
         await db
           .update(officeEvents)
-          .set({ ...set, ...typeOf(type), ...(tags ? { tagIds: toIds(tags) } : {}), ...(typeof set.startDate === "string" ? { dueDay: dueDay(set.startDate) } : {}), updatedAt: new Date() })
+          .set({ ...set, ...typeOf(type), ...(typeof set.startDate === "string" ? { dueDay: dueDay(set.startDate) } : {}), updatedAt: new Date() })
           .where(eq(officeEvents.id, id));
       }
       if (inserts.length) {
         await db.insert(officeEvents).values(
           inserts.map((i) => {
             const e = i.values as Omit<ReturnType<typeof eventInput.parse>, "threadId">;
-            return { ...e, ...typeOf(i.type), ...(i.tags ? { tagIds: toIds(i.tags) } : {}), userId, dueDay: dueDay(e.startDate) };
+            return { ...e, ...typeOf(i.type), userId, dueDay: dueDay(e.startDate) };
           }),
         );
       }

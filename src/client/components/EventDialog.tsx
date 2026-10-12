@@ -13,7 +13,6 @@ import { useEmailContent, useEventTypes, useMe, useOfficeEventActions, useStaff 
 import { useNavigate } from "react-router";
 import { htmlToText } from "../snippets";
 import { LinksEditor } from "./ReminderLinks";
-import { TagPicker } from "./Tags";
 import { TitleWithAttendees } from "./AttendeePicker";
 import { Button, ErrorNote, Field, Modal, cx, inputClass } from "./ui";
 
@@ -62,11 +61,10 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
   const [notes, setNotes] = useState(e?.notes ?? "");
   const [links, setLinks] = useState<ReminderLink[]>(e?.links ?? []);
   const [draftLink, setDraftLink] = useState<ReminderLink | null>(null);
-  const [tagIds, setTagIds] = useState<string[]>(e?.tagIds ?? []);
   const [prep, setPrep] = useState<number | null>(e ? e.prepDays : null);
   // Compact form (user request 2026-10-12): title, type, date and times, venue and link, and who attends; the rest
   // behind "More fields", opened from the start when editing an event that uses any of them.
-  const extras = [repeat !== "never", !!organiser.trim(), !!notes.trim(), links.length > 0, tagIds.length > 0, prep !== null].filter(Boolean).length;
+  const extras = [repeat !== "never", !!organiser.trim(), !!notes.trim(), links.length > 0, prep !== null].filter(Boolean).length;
   const [more, setMore] = useState(() => !!e && extras > 0);
 
   // From an email: a date written in its newest message becomes the event's date, until the user picks one.
@@ -101,7 +99,6 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
       attendeeIds,
       notes,
       links: draftLink ? [...links, draftLink] : links,
-      tagIds,
       prepDays: prep,
     };
     try {
@@ -209,10 +206,6 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
             <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={notes} onChange={(x) => setNotes(x.target.value)} maxLength={10_000} />
           </Field>
           <LinksEditor links={links} onChange={setLinks} onDraft={setDraftLink} />
-          <div>
-            <span className="mb-1 block text-sm font-medium text-slate-700">Tags</span>
-            <TagPicker value={tagIds} onChange={setTagIds} />
-          </div>
 
           {/* Optional preparation task (user's choice 2026-10-11). */}
           <div className="rounded-lg border border-line p-3">
@@ -238,7 +231,7 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
       ) : (
         <button type="button" onClick={() => setMore(true)} className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-brand-700 hover:underline active:scale-[0.97]">
           <Plus size={15} /> More fields
-          <span className="font-normal text-slate-500">(repeat, organiser, notes, links, tags, task to prepare{extras ? ` · ${extras} filled` : ""})</span>
+          <span className="font-normal text-slate-500">(repeat, organiser, notes, links, task to prepare{extras ? ` · ${extras} filled` : ""})</span>
         </button>
       )}
 

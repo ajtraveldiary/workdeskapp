@@ -13,7 +13,6 @@ import { openEventForm } from "../components/EventDialog";
 import { openEventDetails } from "../components/EventDetails";
 import { RefreshButton } from "../components/RefreshButton";
 import { SwipeRow, showUndo, useSwipeMode } from "../components/SwipeRow";
-import { TagChips, TagFilter } from "../components/Tags";
 import { Badge, Button, Card, Fab, Menu, PageHeader, SearchInput, Segmented, SkeletonList, TONE, cx } from "../components/ui";
 
 type View = "upcoming" | "today" | "past";
@@ -25,7 +24,6 @@ export function EventsPage() {
   const [params, setParams] = useSearchParams();
   const view = (params.get("view") as View) ?? "upcoming";
   const [q, setQ] = useState("");
-  const [tag, setTag] = useState("");
   const today = data?.today ?? new Date().toISOString().slice(0, 10);
 
   const all = useMemo(() => {
@@ -35,7 +33,7 @@ export function EventsPage() {
   }, [data, today]);
   const query = q.trim().toLowerCase();
   const matches = (x: Item) =>
-    (!tag || x.e.tagIds.includes(tag)) && (!query || [x.e.title, x.e.typeName, x.e.venue, x.e.organiser, x.e.notes].some((s) => s.toLowerCase().includes(query)));
+    !query || [x.e.title, x.e.typeName, x.e.venue, x.e.organiser, x.e.notes].some((s) => s.toLowerCase().includes(query));
   const upcoming = all.filter((x) => x.o.date >= today);
   const todays = all.filter((x) => x.o.date === today);
   const past = all.filter((x) => x.o.date < today).reverse();
@@ -89,14 +87,11 @@ export function EventsPage() {
               { value: "past", label: "Past" },
             ]}
           />
-          <div className="flex flex-wrap items-center gap-2">
-            <SearchInput value={q} onChange={setQ} placeholder="Search events…" />
-            <TagFilter value={tag} onChange={setTag} />
-          </div>
+          <SearchInput value={q} onChange={setQ} placeholder="Search events…" />
           {groups.length === 0 ? (
             <Card>
               <p className="px-5 py-8 text-center text-sm text-slate-500">
-                {query || tag ? "No event matches." : view === "today" ? "No events today." : view === "past" ? "No events in the last 6 months." : "Nothing in the next 6 months."}
+                {query ? "No event matches." : view === "today" ? "No events today." : view === "past" ? "No events in the last 6 months." : "Nothing in the next 6 months."}
               </p>
             </Card>
           ) : (
@@ -170,7 +165,6 @@ function EventRow({ item: { e, o } }: { item: Item }) {
               <UsersRound size={12} /> {e.attendeeIds.length}
             </span>
           )}
-          <TagChips ids={e.tagIds} max={2} />
         </div>
       </div>
       {!swipe && (

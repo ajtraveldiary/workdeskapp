@@ -109,7 +109,6 @@ const eventFields = {
   attendeeIds: z.array(z.uuid()).max(300),
   notes: z.string().max(10_000),
   links: reminderLinks,
-  tagIds,
   prepDays: z.number().int().min(0).max(60).nullable(),
 };
 const timesInOrder = (v: { startTime?: string | null; endTime?: string | null }) => !v.endTime || (!!v.startTime && v.endTime > v.startTime);
@@ -127,7 +126,6 @@ export const eventInput = z
     attendeeIds: eventFields.attendeeIds.default([]),
     notes: eventFields.notes.default(""),
     links: eventFields.links.default([]),
-    tagIds: eventFields.tagIds.default([]),
     prepDays: eventFields.prepDays.default(null),
     threadId: z.uuid().nullable().default(null),
   })

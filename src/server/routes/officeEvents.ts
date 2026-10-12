@@ -10,7 +10,6 @@ import type { DB } from "../db";
 import { emailThreads, employees, eventTypes, events, officeEvents, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
-import { checkTags } from "../lib/tags";
 import { dropOpenPrepTasks, ensureEventTasks, loadEvents, prepTitle, ruleOf, toEvent } from "../lib/officeEvents";
 import { reconcileThreadLabels } from "../lib/taskLabels";
 import { eventInput, eventPatch, occurrenceInput } from "../../shared/schemas";
@@ -58,7 +57,6 @@ export const officeEventRoutes = new Hono<AppEnv>()
     const { threadId, ...input } = eventInput.parse(await c.req.json());
     const typeName = await checkType(db, userId, input.typeId);
     input.attendeeIds = (await checkAttendees(db, userId, input.attendeeIds))!;
-    input.tagIds = (await checkTags(db, userId, input.tagIds))!;
     const thread = threadId ? (await db.select().from(emailThreads).where(and(eq(emailThreads.id, threadId), eq(emailThreads.userId, userId))))[0] : undefined;
     if (threadId && !thread) throw new HTTPException(404, { message: "Email not found" });
     const [e] = await db.insert(officeEvents).values({ ...input, userId, dueDay: dueDayOf(input.startDate), threadId: thread?.id ?? null }).returning();
@@ -72,7 +70,7 @@ export const officeEventRoutes = new Hono<AppEnv>()
         const due = shiftDay(first.date, -e!.prepDays!) < today ? today : shiftDay(first.date, -e!.prepDays!);
         const [t] = await db
           .insert(tasks)
-          .values({ userId, title: prepTitle(e!.title), dueDate: due, tagIds: e!.tagIds ?? [], threadId: thread.id, eventId: e!.id, eventDate: first.original })
+          .values({ userId, title: prepTitle(e!.title), dueDate: due, threadId: thread.id, eventId: e!.id, eventDate: first.original })
           .returning();
         await db.update(emailThreads).set({ state: "task", hasNewActivity: false, snoozedUntil: null, stateChangedAt: now, updatedAt: now }).where(eq(emailThreads.id, thread.id));
         await db.insert(events).values([
@@ -98,7 +96,6 @@ export const officeEventRoutes = new Hono<AppEnv>()
     if (merged.endTime && (!merged.startTime || merged.endTime <= merged.startTime)) throw new HTTPException(400, { message: "The end time must be after the start time" });
     if (input.typeId) await checkType(db, userId, input.typeId);
     if (input.attendeeIds !== undefined) input.attendeeIds = await checkAttendees(db, userId, input.attendeeIds);
-    if (input.tagIds !== undefined) input.tagIds = await checkTags(db, userId, input.tagIds);
     await db
       .update(officeEvents)
       .set({ ...input, ...(input.startDate ? { dueDay: dueDayOf(input.startDate) } : {}), updatedAt: new Date() })

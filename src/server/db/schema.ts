@@ -198,6 +198,7 @@ export const officeEvents = pgTable("office_events", {
   attendeeIds: uuid("attendee_ids").array().notNull().default(sql`'{}'::uuid[]`),
   notes: text("notes").notNull().default(""),
   links: jsonb("links").$type<ReminderLink[]>().notNull().default([]),
+  // Tags were taken off events (user request 2026-10-12); kept for old rows, no longer used.
   tagIds: uuid("tag_ids").array().notNull().default(sql`'{}'::uuid[]`),
   // The email it was made from ("Make event").
   threadId: uuid("thread_id").references(() => emailThreads.id, { onDelete: "set null" }),

@@ -70,7 +70,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 
 ### Events
 - **Meetings, trainings and programmes:** date, start and end time, venue or meeting link, who organises it, which
-  employees attend, notes, links and tags. Events can repeat like reminders.
+  employees attend, notes and links. Events can repeat like reminders.
 - **Your own event types:** Meeting, Training and Programme to start with; add, rename, arrange or remove types in
   Settings. Removing a type keeps its events.
 - **Make event from an email:** a meeting notice becomes an event filled from the email; the email leaves Pending

@@ -3,7 +3,7 @@
 // openEventDetails({ id, date }) where date is the occurrence's scheduled day; lives once in the app shell.
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { Ban, CalendarDays, CalendarRange, Check, ClipboardList, Clock, MapPin, Pencil, Repeat as RepeatIcon, RotateCcw, StickyNote, Tags as TagsIcon, Trash2, UserRound, UsersRound, Video } from "lucide-react";
+import { Ban, CalendarDays, CalendarRange, Check, ClipboardList, Clock, MapPin, Pencil, Repeat as RepeatIcon, RotateCcw, StickyNote, Trash2, UserRound, UsersRound, Video } from "lucide-react";
 import { PREP_OPTIONS, eventTypeLabel, eventOccurrences, shiftDay, timeRange } from "../../shared/eventSchedule";
 import { repeatText } from "../../shared/reminderSchedule";
 import { useMe, useOfficeEventActions, useOfficeEvents, useStaff } from "../api";
@@ -11,7 +11,6 @@ import { formatDay, formatTime } from "../format";
 import { openEventForm } from "./EventDialog";
 import { LinkChips } from "./ReminderLinks";
 import { showUndo } from "./SwipeRow";
-import { TagChips } from "./Tags";
 import { Badge, Button, ErrorNote, Field, Modal, TONE, cx, inputClass } from "./ui";
 
 export type EventRef = { id: string; date: string };
@@ -125,11 +124,6 @@ function Details({ eventRef, onClose }: { eventRef: EventRef; onClose: () => voi
         {e.prepDays !== null && (
           <Row icon={ClipboardList} label="Preparation">
             A task, due {(PREP_OPTIONS.find((p) => p.days === e.prepDays)?.label ?? `${e.prepDays} days before`).toLowerCase()}
-          </Row>
-        )}
-        {e.tagIds.length > 0 && (
-          <Row icon={TagsIcon} label="Tags">
-            <TagChips ids={e.tagIds} max={20} />
           </Row>
         )}
         <Row icon={StickyNote} label="Notes">
