@@ -3,7 +3,7 @@
 // subject, a date written in the email is filled in, and the email leaves Pending; see routes/officeEvents.ts).
 // Lives once in the app shell (EventDialogHost).
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { CalendarRange, Check, ClipboardList, X } from "lucide-react";
+import { CalendarRange, Check, ClipboardList, Plus } from "lucide-react";
 import type { OfficeEvent, ReminderLink, Thread } from "../../shared/types";
 import { PREP_OPTIONS } from "../../shared/eventSchedule";
 import { REPEATS, REPEAT_LABEL, type Repeat } from "../../shared/reminderSchedule";
@@ -14,6 +14,7 @@ import { useNavigate } from "react-router";
 import { htmlToText } from "../snippets";
 import { LinksEditor } from "./ReminderLinks";
 import { TagPicker } from "./Tags";
+import { TitleWithAttendees } from "./AttendeePicker";
 import { Button, ErrorNote, Field, Modal, cx, inputClass } from "./ui";
 
 export type EventFormMode = { kind: "new"; date?: string; attendeeId?: string } | { kind: "edit"; event: OfficeEvent } | { kind: "fromThread"; thread: Thread };
@@ -63,6 +64,10 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
   const [draftLink, setDraftLink] = useState<ReminderLink | null>(null);
   const [tagIds, setTagIds] = useState<string[]>(e?.tagIds ?? []);
   const [prep, setPrep] = useState<number | null>(e ? e.prepDays : null);
+  // Compact form (user request 2026-10-12): title, type, date and times, venue and link, and who attends; the rest
+  // behind "More fields", opened from the start when editing an event that uses any of them.
+  const extras = [repeat !== "never", !!organiser.trim(), !!notes.trim(), links.length > 0, tagIds.length > 0, prep !== null].filter(Boolean).length;
+  const [more, setMore] = useState(() => !!e && extras > 0);
 
   // From an email: a date written in its newest message becomes the event's date, until the user picks one.
   const email = useEmailContent(thread);
@@ -108,8 +113,6 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
     }
   };
 
-  const others = employees.filter((x) => !attendeeIds.includes(x.id) && !x.leftOn);
-
   return (
     <form onSubmit={submit} className="space-y-4">
       {thread && (
@@ -119,7 +122,9 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
         </p>
       )}
       <Field label="Title">
-        <input className={inputClass} value={title} onChange={(x) => setTitle(x.target.value)} required autoFocus={!e} maxLength={300} placeholder="e.g. Monthly review meeting, Fire safety training" />
+        <TitleWithAttendees value={attendeeIds} onChange={setAttendeeIds}>
+          <input className={inputClass} value={title} onChange={(x) => setTitle(x.target.value)} required autoFocus={!e} maxLength={300} placeholder="e.g. Monthly review meeting, Fire safety training" />
+        </TitleWithAttendees>
       </Field>
 
       <div>
@@ -171,23 +176,6 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
       </div>
       {badTimes && <p className="-mt-2 text-footnote text-urgent-ink">The end time must be after the start time.</p>}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Repeat">
-          <select className={inputClass} value={repeat} onChange={(x) => setRepeat(x.target.value as Repeat)}>
-            {REPEATS.map((k) => (
-              <option key={k} value={k}>
-                {REPEAT_LABEL[k]}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {repeats && (
-          <Field label="Last date (optional)">
-            <input type="date" className={inputClass} value={endDate} min={startDate} onChange={(x) => setEndDate(x.target.value)} />
-          </Field>
-        )}
-      </div>
-
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Venue">
           <input className={inputClass} value={venue} onChange={(x) => setVenue(x.target.value)} maxLength={300} placeholder="e.g. Conference hall" />
@@ -196,67 +184,63 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
           <input className={inputClass} value={meetingUrl} onChange={(x) => setMeetingUrl(x.target.value)} inputMode="url" maxLength={2000} placeholder="https://meet.google.com/…" />
         </Field>
       </div>
-      <Field label="Organised by (optional)">
-        <input className={inputClass} value={organiser} onChange={(x) => setOrganiser(x.target.value)} maxLength={200} placeholder="e.g. Head office, HR department" />
-      </Field>
-
-      {/* Who attends, from the Employees list. Not a <Field>: the chips have their own buttons. */}
-      <div>
-        <span className="mb-1 block text-sm font-medium text-slate-700">Who attends (optional)</span>
-        {attendeeIds.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {attendeeIds.map((id) => {
-              const p = employees.find((x) => x.id === id);
-              return (
-                <span key={id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 py-0.5 pr-1 pl-2.5 text-footnote text-slate-700">
-                  {p?.name ?? "Employee"}
-                  <button type="button" onClick={() => setAttendeeIds(attendeeIds.filter((x) => x !== id))} aria-label={`Remove ${p?.name ?? "employee"}`} className="rounded-full p-0.5 text-slate-500 hover:text-ink active:scale-90">
-                    <X size={13} />
-                  </button>
-                </span>
-              );
-            })}
+      {more ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Repeat">
+              <select className={inputClass} value={repeat} onChange={(x) => setRepeat(x.target.value as Repeat)}>
+                {REPEATS.map((k) => (
+                  <option key={k} value={k}>
+                    {REPEAT_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {repeats && (
+              <Field label="Last date (optional)">
+                <input type="date" className={inputClass} value={endDate} min={startDate} onChange={(x) => setEndDate(x.target.value)} />
+              </Field>
+            )}
           </div>
-        )}
-        <select className={inputClass} value="" onChange={(x) => x.target.value && setAttendeeIds([...attendeeIds, x.target.value])} aria-label="Add a person" disabled={!others.length}>
-          <option value="">{employees.length ? "Add a person…" : "No employees yet (Employees page)"}</option>
-          {others.map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <Field label="Notes / agenda (optional)">
-        <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={notes} onChange={(x) => setNotes(x.target.value)} maxLength={10_000} />
-      </Field>
-      <LinksEditor links={links} onChange={setLinks} onDraft={setDraftLink} />
-      <div>
-        <span className="mb-1 block text-sm font-medium text-slate-700">Tags</span>
-        <TagPicker value={tagIds} onChange={setTagIds} />
-      </div>
-
-      {/* Optional preparation task (user's choice 2026-10-11). */}
-      <div className="rounded-lg border border-line p-3">
-        <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
-          <input type="checkbox" checked={prep !== null} onChange={(x) => setPrep(x.target.checked ? 1 : null)} className="size-4 accent-brand-600" />
-          <ClipboardList size={16} className="text-brand-700" /> Make a task to prepare
-        </label>
-        {prep !== null && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-sm text-slate-600">
-            Due
-            <select className={cx(inputClass, "w-auto!")} value={prep} onChange={(x) => setPrep(Number(x.target.value))} aria-label="When the preparation task is due">
-              {PREP_OPTIONS.map((o) => (
-                <option key={o.days} value={o.days}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <span className="text-footnote text-slate-500">{repeats ? "one for each date, from a month ahead" : ""}</span>
+          <Field label="Organised by (optional)">
+            <input className={inputClass} value={organiser} onChange={(x) => setOrganiser(x.target.value)} maxLength={200} placeholder="e.g. Head office, HR department" />
+          </Field>
+          <Field label="Notes / agenda (optional)">
+            <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={notes} onChange={(x) => setNotes(x.target.value)} maxLength={10_000} />
+          </Field>
+          <LinksEditor links={links} onChange={setLinks} onDraft={setDraftLink} />
+          <div>
+            <span className="mb-1 block text-sm font-medium text-slate-700">Tags</span>
+            <TagPicker value={tagIds} onChange={setTagIds} />
           </div>
-        )}
-      </div>
+
+          {/* Optional preparation task (user's choice 2026-10-11). */}
+          <div className="rounded-lg border border-line p-3">
+            <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">
+              <input type="checkbox" checked={prep !== null} onChange={(x) => setPrep(x.target.checked ? 1 : null)} className="size-4 accent-brand-600" />
+              <ClipboardList size={16} className="text-brand-700" /> Make a task to prepare
+            </label>
+            {prep !== null && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-sm text-slate-600">
+                Due
+                <select className={cx(inputClass, "w-auto!")} value={prep} onChange={(x) => setPrep(Number(x.target.value))} aria-label="When the preparation task is due">
+                  {PREP_OPTIONS.map((o) => (
+                    <option key={o.days} value={o.days}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-footnote text-slate-500">{repeats ? "one for each date, from a month ahead" : ""}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setMore(true)} className="inline-flex items-center gap-1.5 rounded-md text-sm font-medium text-brand-700 hover:underline active:scale-[0.97]">
+          <Plus size={15} /> More fields
+          <span className="font-normal text-slate-500">(repeat, organiser, notes, links, tags, task to prepare{extras ? ` · ${extras} filled` : ""})</span>
+        </button>
+      )}
 
       <ErrorNote error={add.error ?? save.error} />
       <div className="flex justify-end gap-2">

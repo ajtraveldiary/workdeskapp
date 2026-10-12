@@ -248,7 +248,8 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `ReminderDialog.tsx` | Add / edit reminder form. |
 | `ReminderDetails.tsx` | Reminder details card with document preview and Edit / Pause / Delete / Mark done. |
 | `ReminderLinks.tsx` | Link chips on reminders and the links editor. |
-| `EventDialog.tsx` | Add / edit event form (types from Settings › Events) (also Make event from an email, filled from it); lives once in the shell (`openEventForm`). |
+| `EventDialog.tsx` | Add / edit event form (types from Settings › Events; compact: title with the attendee button, type, date and times, venue and link, the rest under More fields) (also Make event from an email, filled from it); lives once in the shell (`openEventForm`). |
+| `AttendeePicker.tsx` | Who attends an event: the people button in the event title box, chips of those chosen, and a picker that ticks several (a designation's "(all)" adds everyone of it). |
 | `EventDetails.tsx` | Event details card for one date: Mark done, Move, Cancel, Not done / Restore, Back to the first date, Edit, Delete, Join meeting, Directions; lives once in the shell (`openEventDetails`). |
 | `Logins.tsx` | Saved website logins: grouped list, a login row with Show / Copy (password fetched only then; shown for 30s), the add/edit form. Used by the Logins page and an employee's page. |
 | `Tags.tsx` | Tags: chips (compact on rows, at most 2 on phones), the picker in task and reminder forms (most-used first, type to make one), the All tags filter, the tag filter icon on the home cards, the several-tags filter (File register), Settings › Tags (rename, colour, delete, drag to arrange). |
