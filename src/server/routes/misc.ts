@@ -11,7 +11,7 @@ import { demoArrival } from "../lib/users";
 import { maintain } from "../lib/maintenance";
 import { notMuted } from "../lib/muted";
 import { canMarkRead } from "../lib/gmail";
-import { mutedSenderInput, snippetInput } from "../../shared/schemas";
+import { meEmployeeInput, mutedSenderInput, snippetInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
 import { openTaskOrder, selectTasks, toTask, viewFilter } from "./tasks";
@@ -28,6 +28,7 @@ export const miscRoutes = new Hono<AppEnv>()
       name: user!.name,
       title: user!.title,
       picture: user!.picture,
+      employeeId: user!.employeeId,
       demo: c.get("demo"),
       today: todayIn(timezone(c.env)),
       timezone: timezone(c.env),
@@ -41,6 +42,18 @@ export const miscRoutes = new Hono<AppEnv>()
           }
         : null,
     });
+  })
+
+  // Which employee the user is (Settings > Employees, user request 2026-10-12): one of their employees, or null.
+  .put("/me/employee", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const { employeeId } = meEmployeeInput.parse(await c.req.json());
+    const [e] = employeeId ? await db.select({ name: employees.name }).from(employees).where(and(eq(employees.id, employeeId), eq(employees.userId, userId))) : [];
+    if (employeeId && !e) throw new HTTPException(404, { message: "Employee not found" });
+    await db.update(users).set({ employeeId }).where(eq(users.id, userId));
+    await db.insert(events).values({ userId, entityType: "sync", action: "settings.me_employee", summary: e ? `You are set as ${e.name}` : "You are no longer set as an employee" });
+    return c.json({ ok: true });
   })
 
   // The Command Center / daily review.

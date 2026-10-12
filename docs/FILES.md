@@ -72,6 +72,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0030_site_logins.sql` | Saved website logins (SPARK, BiMS…): website, link, employee or role, user ID, encrypted password, remarks. |
 | `0032_file_tags.sql` | Tags on File register entries (`tag_ids` on `office_files`). |
 | `0033_office_events.sql` | Events (meetings, trainings, programmes): the `office_events` table, the email state "event", and `event_id` / `event_date` on tasks for preparation tasks. |
+| `0035_user_employee.sql` | Which employee the user is (`employee_id` on `users`; forgotten if that employee is deleted). |
 | `0034_event_types.sql` | The user's own event types (`event_types`; every account gets Meeting, Training, Programme) and `type_id` on events, filled from the old fixed kind ("Other" = no type). |
 | `0031_tags.sql` | Tags for tasks and reminders: the `tags` table (name unique per user whatever its capitals, colour, order) and `tag_ids` on tasks and reminders. |
 
@@ -102,7 +103,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `tasks.ts` | Tasks: lists by view (today, overdue, upcoming, waiting, completed…), date ranges for the calendar, create, edit, complete, reopen, bulk delete (with Gmail task-label clean-up). |
 | `reports.ts` | Reminders (stored as reports): list with their dates, create, edit, pause/resume, delete, mark a date done or not done. |
 | `labels.ts` | Gmail labels: list, create, rename/recolour, delete, change an email's labels, task/done label settings, Send to a section (`/threads/bulk-section`). |
-| `misc.ts` | `/me`, Home summary counts (with increments), History, hidden senders, hidden text, housekeeping (`/maintain`) and Sync now. |
+| `misc.ts` | `/me` (with which employee you are; set by `PUT /me/employee`), Home summary counts (with increments), History, hidden senders, hidden text, housekeeping (`/maintain`) and Sync now. |
 | `staff.ts` | Employees page: designations and types of temporary employees (order saved after drag and drop), employees (add/edit, left the office, delete), an employee's open work, increment done, contract renewed / ended (with Undo; both complete the Contract ends task), probation declared (with Undo; completes the Probation declaration task), retiring within 12 months (`/retiring`, with each one's Pension papers task); an employee's page (`/employees/:id/profile`: tasks open and completed, reminders, History); adding or editing an employee makes their Pension papers task when due. `employeeValues` keeps only the fields that fit permanent or temporary staff. |
 | `files.ts` | File register: list, add, edit, remove (with tags); one entry per e-file number. |
 | `logins.ts` | Saved website logins: list (never with passwords), add, edit, remove, and reveal one password for Show / Copy (noted in History). Passwords encrypted with `TOKEN_ENC_KEY`. |
@@ -253,6 +254,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Tags.tsx` | Tags: chips (compact on rows, at most 2 on phones), the picker in task and reminder forms (most-used first, type to make one), the All tags filter, the tag filter icon on the home cards, the several-tags filter (File register), Settings › Tags (rename, colour, delete, drag to arrange). |
 | `Related.tsx` | "For" an employee, designation or the office: picker, tag and line. |
 | `Designations.tsx` | Settings › Employees: designations and types of temporary employees lists (add, rename, drag to arrange, remove); its list editor (`NameList`) is also used for event types. |
+| `YouSetting.tsx` | Settings › Employees, "You": choose which employee you are (saved at once; their row and page show a "You" tag). |
 | `EventTypes.tsx` | Settings › Events: the event types list (add, rename, drag to arrange, remove; a removed type's events show as "Event"). |
 | `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |
 | `NotificationSettings.tsx` | Settings › Notifications. |
@@ -290,6 +292,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `file-register.test.ts` | File register entries and e-file numbers. |
 | `logins.test.ts` | Saved website logins: many per website, employee or role, passwords encrypted, never in lists, revealed only on request and noted in History. |
 | `tags.test.ts` | Tags: reused whatever the capitals, on tasks (filter, search, keep on edit), a reminder's tags on its tasks, deleting cleans up, the Tags column of the Tasks CSV. |
+| `me-employee.test.ts` | Which employee the user is: set, checked, cleared, in History, forgotten when that employee is deleted. |
 | `office-events.test.ts` | Events: the user's own types (add, rename, arrange, delete keeps events, CSV makes new ones), repeat dates and changes, preparation tasks, Make event from an email (and back to Pending on a reply), delete, Home today, the calendar feed, the Events CSV, the phone note within the hour before. |
 | `attachment-types.test.ts` | Pictures and PDFs labelled as generic files are served with their real type. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |

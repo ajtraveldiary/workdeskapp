@@ -130,7 +130,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 ### Settings
 - **General:** light, dark or automatic appearance; phone notifications; the Gmail connection.
 - **Mail:** hidden senders, hidden text (signatures, disclaimers), task/done labels, sections, Gmail labels.
-- **Employees:** designations and types of temporary employees.
+- **Employees:** which employee you are (your row and page get a "You" tag), designations and types of temporary
+  employees.
 - **Events:** the types of events (Meeting, Training, Programme…).
 - **Tags:** rename, recolour, delete and arrange tags.
 - **Calendar:** the private calendar link.

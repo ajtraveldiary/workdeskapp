@@ -13,6 +13,7 @@ import { RefreshButton } from "../components/RefreshButton";
 import { NotificationSettings } from "../components/NotificationSettings";
 import { EmployeeSettings } from "../components/Designations";
 import { EventTypeSettings } from "../components/EventTypes";
+import { YouSetting } from "../components/YouSetting";
 import { TagSettings } from "../components/Tags";
 
 // Settings tabs (user request 2026-10-08, "use tabs to group similar settings"). The tab lives in the address
@@ -66,7 +67,12 @@ export function SettingsPage() {
             )}
             {tab === "mail" && <MailSettings />}
             {/* Employees (user request 2026-10-07): designations, moved here from the Employees page. */}
-            {tab === "employees" && <EmployeeSettings />}
+            {tab === "employees" && (
+              <>
+                <YouSetting />
+                <EmployeeSettings />
+              </>
+            )}
             {tab === "events" && <EventTypeSettings />}
             {tab === "tags" && <TagSettings />}
             {tab === "calendar" && <CalendarLink />}

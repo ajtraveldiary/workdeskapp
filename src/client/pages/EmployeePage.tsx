@@ -23,7 +23,7 @@ import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { Badge, Button, Card, ErrorNote, Segmented, SkeletonList, cx } from "../components/ui";
-import { EmployeeDialog, TemporaryTag } from "./Staff";
+import { EmployeeDialog, TemporaryTag, YouTag } from "./Staff";
 
 const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -74,7 +74,9 @@ function BackLink() {
 }
 
 function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
-  const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
+  const me = useMe().data;
+  const today = me?.today ?? new Date().toISOString().slice(0, 10);
+  const isMe = me?.employeeId === e.id;
   const profile = useEmployeeProfile(e.id);
   const { setLeft, removeEmployee } = useStaffActions();
   const navigate = useNavigate();
@@ -101,8 +103,9 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
             {designation ?? "No designation"}
             {e.permanent && e.pen && <span className="select-text"> · PEN {e.pen}</span>}
           </p>
-          {(!e.permanent || e.leftOn) && (
+          {(!e.permanent || e.leftOn || isMe) && (
             <div className="mt-1 flex flex-wrap gap-1.5">
+              <YouTag id={e.id} />
               {!e.permanent && <TemporaryTag />}
               {e.leftOn && <Badge>Left the office on {fullDate(e.leftOn)}</Badge>}
             </div>

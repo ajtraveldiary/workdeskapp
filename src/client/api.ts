@@ -51,6 +51,14 @@ const qs = (params: Record<string, string | undefined | false>) => {
 
 // Always re-checked on load (cheap), so an expired sign-in is noticed even when a saved copy exists.
 export const useMe = () => useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/me"), retry: false, staleTime: 0 });
+// Which employee the user is (Settings > Employees, user request 2026-10-12).
+export function useSetMeEmployee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (employeeId: string | null) => api("/me/employee", { method: "PUT", body: { employeeId } }),
+    onSettled: () => qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "me" || q.queryKey[0] === "history" }),
+  });
+}
 
 export const useSummary = () => useQuery({ queryKey: ["summary"], queryFn: () => api<Summary>("/summary") });
 

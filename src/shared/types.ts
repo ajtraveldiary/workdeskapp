@@ -102,6 +102,8 @@ export type Me = {
   name: string | null;
   title: string | null;
   picture: string | null;
+  // The employee the user is (Settings > Employees, user request 2026-10-12); null = not chosen.
+  employeeId: string | null;
   demo: boolean;
   today: string;
   timezone: string;

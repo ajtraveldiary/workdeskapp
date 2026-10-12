@@ -1,18 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  pgTable,
-  uuid,
-  text,
-  timestamp,
-  integer,
-  boolean,
-  date,
-  jsonb,
-  numeric,
-  uniqueIndex,
-  index,
-  primaryKey,
-} from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, date, jsonb, numeric, uniqueIndex, index, primaryKey, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { REPEATS } from "../../shared/reminderSchedule";
 import { RELATED_KINDS } from "../../shared/staff";
 import { EVENT_KINDS, type EventChange } from "../../shared/eventSchedule";
@@ -51,6 +38,8 @@ export const users = pgTable("users", {
   pushDueOn: boolean("push_due_on").notNull().default(true),
   // Shown on the home screen profile card, e.g. "Clerk, District Hospital".
   title: text("title"),
+  // Which employee the user is (Settings > Employees, user request 2026-10-12).
+  employeeId: uuid("employee_id").references((): AnyPgColumn => employees.id, { onDelete: "set null" }),
   picture: text("picture"),
   createdAt: createdAt(),
 });

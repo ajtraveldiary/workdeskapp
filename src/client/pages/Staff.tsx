@@ -395,6 +395,7 @@ function EmployeeRow({ employee: e, designation, type, onOpen }: { employee: Emp
         <span className="line-clamp-2 text-subhead font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{e.name}</span>
         {line && <span className="block truncate text-footnote text-slate-500">{line}</span>}
       </button>
+      <YouTag id={e.id} />
       {!e.permanent && <TemporaryTag />}
       {e.leftOn && <Badge>Left {fullDate(e.leftOn)}</Badge>}
     </li>
@@ -475,6 +476,7 @@ function EmployeeTable({ people, permanent, staff, onOpen }: { people: Employee[
                 <button onClick={() => onOpen(e.id)} className="row-link group/title min-w-32 text-left" aria-label={`Open ${e.name}`}>
                   <span className="line-clamp-2 font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{e.name}</span>
                 </button>
+                <YouTag id={e.id} className="relative z-10 mt-0.5" />
                 {e.leftOn && <span className="mt-0.5 block text-caption text-slate-500">Left {fullDate(e.leftOn)}</span>}
               </td>
               {cols.map((c) => (
@@ -488,6 +490,12 @@ function EmployeeTable({ people, permanent, staff, onOpen }: { people: Employee[
       </table>
     </Card>
   );
+}
+
+// The employee the user is (Settings > Employees, user request 2026-10-12).
+export function YouTag({ id, className }: { id: string; className?: string }) {
+  if (useMe().data?.employeeId !== id) return null;
+  return <span className={cx("inline-flex shrink-0 items-center rounded-full bg-tint px-2 py-0.5 text-caption font-medium text-brand-800", className)}>You</span>;
 }
 
 export function TemporaryTag({ className }: { className?: string }) {
@@ -509,7 +517,9 @@ function EmployeeDetails({ employee, staff, onClose, onEdit }: { employee: Emplo
 }
 
 function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList; onClose: () => void; onEdit: (e: Employee) => void }) {
-  const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
+  const me = useMe().data;
+  const today = me?.today ?? new Date().toISOString().slice(0, 10);
+  const isMe = me?.employeeId === e.id;
   const { setLeft, removeEmployee } = useStaffActions();
   const work = useEmployeeWork(e.id);
   const [task, setTask] = useState<Task | null>(null);
@@ -565,8 +575,9 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
         <div className="min-w-0 flex-1">
           <h3 className="text-lg font-semibold text-ink [overflow-wrap:anywhere]">{e.name}</h3>
           <p className="text-sm text-slate-600">{designation ?? "No designation"}</p>
-          {(!e.permanent || e.leftOn) && (
+          {(!e.permanent || e.leftOn || isMe) && (
             <div className="mt-1 flex flex-wrap gap-1.5">
+              <YouTag id={e.id} />
               {!e.permanent && <TemporaryTag />}
               {e.leftOn && <Badge>Left the office on {fullDate(e.leftOn)}</Badge>}
             </div>
