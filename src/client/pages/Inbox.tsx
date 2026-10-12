@@ -5,7 +5,7 @@ import { useThreads } from "../api";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { ThreadRow } from "../components/ThreadRow";
 import { EmailBulkBar } from "../components/EmailBulkBar";
-import { EmailViewer } from "../components/EmailViewer";
+import { EmailPane, EmailViewer, useWide } from "../components/EmailViewer";
 import { Search } from "lucide-react";
 import { Button, Card, Empty, Fab, PageHeader, SkeletonList, Spinner, Tabs, cx } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
@@ -25,8 +25,18 @@ export function InboxPage() {
   const [dialog, setDialog] = useState<TaskDialogMode | null>(null);
   const [viewing, setViewing] = useState<Thread | null>(null);
   const { data, error, isFetching } = useThreads({ state, q, unread, label });
+  // Split mode (user request 2026-10-12): on wide screens an opened email shows in a pane beside the list (the
+  // page then takes the whole width); narrower screens keep the full-screen viewer.
+  const wide = useWide();
+  const split = wide && !!viewing;
 
   const threads = data?.threads ?? [];
+  // The open email as the list now has it (labels, state), or as it was opened.
+  const current = viewing && (threads.find((t) => t.id === viewing.id) ?? viewing);
+  const createTask = (thread: Thread) => {
+    setViewing(null);
+    setDialog({ kind: "fromThread", thread });
+  };
   const counts = data?.counts ?? {};
   const inQueue = state === "needs_decision";
 
@@ -43,7 +53,7 @@ export function InboxPage() {
     });
 
   return (
-    <>
+    <div className={cx(!split && "max-w-5xl")}>
       <PageHeader title="Emails" hideOnPhone subtitle="Every email here needs a decision: make it a task or remove it. Deciding never changes Gmail; opening an email marks it read there." actions={<RefreshButton keys={[["threads"], ["summary"]]} sync label="Check Gmail and refresh emails" />} />
 
       {/* Emails has no "new" of its own (WorkDesk never sends mail): its + adds a task, as on Home. */}
@@ -76,6 +86,8 @@ export function InboxPage() {
         {isFetching && <Spinner size={14} className="absolute top-1/2 right-3 -translate-y-1/2" />}
       </div>
 
+      <div className={cx(split && "grid items-start gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]")}>
+      <div className="min-w-0">
       {/* One toolbar for the whole list instead of buttons on every email (user request 2026-10-06). */}
       <EmailBulkBar
         threads={threads}
@@ -99,7 +111,11 @@ export function InboxPage() {
             </button>
           </>
         }
-        className="app-sticky sticky top-0 z-10 -mx-3 mb-2 bg-canvas-soft/95 px-4 py-1.5 backdrop-blur sm:-mx-4 sm:px-5 md:top-20 md:-mx-6 md:px-7 lg:-mx-8 lg:px-9"
+        className={
+          split
+            ? "app-sticky sticky top-0 z-10 mb-2 bg-canvas-soft/95 px-1 py-1.5 backdrop-blur md:top-20"
+            : "app-sticky sticky top-0 z-10 -mx-3 mb-2 bg-canvas-soft/95 px-4 py-1.5 backdrop-blur sm:-mx-4 sm:px-5 md:top-20 md:-mx-6 md:px-7 lg:-mx-8 lg:px-9"
+        }
       />
       {error && <p className="text-urgent-ink">{error.message}</p>}
       <Card>
@@ -120,21 +136,19 @@ export function InboxPage() {
                 onSelect={(on) => toggle(t.id, on)}
                 onCreateTask={(thread) => setDialog({ kind: "fromThread", thread })}
                 onOpen={setViewing}
+                active={split && t.id === viewing?.id}
               />
             ))}
           </ul>
         )}
       </Card>
+      </div>
+      {split && current && <EmailPane thread={current} onClose={() => setViewing(null)} onCreateTask={createTask} />}
+      </div>
 
-      <EmailViewer
-        thread={viewing}
-        onClose={() => setViewing(null)}
-        onCreateTask={(thread) => {
-          setViewing(null);
-          setDialog({ kind: "fromThread", thread });
-        }}
-      />
+      {/* Narrower screens: the full-screen viewer. */}
+      <EmailViewer thread={wide ? null : current} onClose={() => setViewing(null)} onCreateTask={createTask} />
       <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
-    </>
+    </div>
   );
 }

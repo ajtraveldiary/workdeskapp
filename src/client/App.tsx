@@ -78,7 +78,7 @@ export function App() {
       <DatabaseIssueDialog />
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/inbox" element={<Page><InboxPage /></Page>} />
+        <Route path="/inbox" element={<Page full><InboxPage /></Page>} />
         <Route path="/tasks" element={<Page><TasksPage /></Page>} />
         <Route path="/calendar" element={<Page full><CalendarPage /></Page>} />
         <Route path="/reminders" element={<Page><RemindersPage /></Page>} />

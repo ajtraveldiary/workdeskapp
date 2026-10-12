@@ -29,9 +29,12 @@ export function ThreadRow({
   onSelect,
   onCreateTask,
   onOpen,
+  active,
 }: {
   thread: Thread;
   selected?: boolean;
+  // The email open in the split pane beside the list (Emails page, user request 2026-10-12).
+  active?: boolean;
   onSelect?: (checked: boolean) => void;
   onCreateTask: (t: Thread) => void;
   // When given, tapping the email's text opens it in the viewer.
@@ -48,7 +51,7 @@ export function ThreadRow({
 
   return (
     <SwipeRow
-      contentClassName={cx("row-click flex py-2 transition-colors sm:py-2.5", swipe ? "gap-2.5 px-3" : "gap-3 px-4", selected ? "bg-brand-50/60" : "has-[:is(button,a):hover]:bg-slate-50/80")}
+      contentClassName={cx("row-click flex py-2 transition-colors sm:py-2.5", swipe ? "gap-2.5 px-3" : "gap-3 px-4", selected ? "bg-brand-50/60" : active ? "bg-tint shadow-[inset_3px_0_0_var(--color-brand-600)]" : "has-[:is(button,a):hover]:bg-slate-50/80")}
       leading={
         inQueue
           ? { label: "Task", icon: ListPlus, tone: "brand", onClick: () => onCreateTask(thread) }

@@ -52,9 +52,9 @@ type Selected = FileSel | LinkSel;
 const selKey = (x: Selected) => `${x.message.id}:${x.link ? `drive:${x.link.id}` : x.attachment.partId}`;
 const selName = (x: Selected) => (x.link ? x.link.name : x.attachment.filename);
 
-// Wide enough for the side-by-side layout (Tailwind's lg).
+// Wide enough for the side-by-side layout (Tailwind's lg); also when the Emails page splits (EmailPane).
 const WIDE = "(min-width: 1024px)";
-function useWide() {
+export function useWide() {
   return useSyncExternalStore(
     (cb) => {
       const m = window.matchMedia(WIDE);
@@ -104,7 +104,50 @@ export function EmailViewer({ thread, onClose, onCreateTask }: { thread: Thread 
   );
 }
 
-function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose: () => void; onCreateTask: (t: Thread) => void }) {
+// Split mode on the Emails page (user request 2026-10-12, "open the mail in split mode, mail body first, then the
+// attachment previews below it"): on wide screens the email opens in a pane beside the list instead of the pop-up,
+// with the attachments under the email in the same scroll (as on phones). It stays in view while the list scrolls;
+// its ✕ or Esc closes it.
+export function EmailPane({ thread, onClose, onCreateTask }: { thread: Thread; onClose: () => void; onCreateTask: (t: Thread) => void }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => {
+      // Not while a pop-up or menu is open over it (they handle their own Esc).
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector("dialog[open], [popover]:popover-open")) onClose();
+    };
+    document.addEventListener("keydown", esc);
+    return () => document.removeEventListener("keydown", esc);
+  }, [onClose]);
+  // Always ends at the bottom of the screen: from where it starts (lower before the page scrolls, then its sticky
+  // place) down to 16px above the bottom edge, so its own scroll is never partly off screen.
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      const stuck = parseFloat(getComputedStyle(el).top) || 0;
+      el.style.height = `${Math.max(320, window.innerHeight - Math.max(el.getBoundingClientRect().top, stuck) - 16)}px`;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    document.addEventListener("scroll", fit, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener("resize", fit);
+      document.removeEventListener("scroll", fit, { capture: true });
+    };
+  }, []);
+  return (
+    <section
+      ref={ref}
+      aria-label={thread.subject}
+      className="app-sticky sticky top-[5.5rem] flex h-[calc(100dvh-6.5rem)] min-h-0 flex-col overflow-hidden rounded-xl border border-line bg-white"
+    >
+      <ViewerBody key={thread.id} thread={thread} onClose={onClose} onCreateTask={onCreateTask} stacked />
+    </section>
+  );
+}
+
+// stacked: the attachment previews go under the email, whatever the width (EmailPane).
+function ViewerBody({ thread, onClose, onCreateTask, stacked }: { thread: Thread; onClose: () => void; onCreateTask: (t: Thread) => void; stacked?: boolean }) {
   const { data, error, isPending, refetch } = useEmailContent(thread);
   const dismiss = useDismiss();
   const markRead = useMarkRead();
@@ -139,8 +182,8 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
       setSelected(files.find((f) => isPdf(f.attachment)) ?? files.find((f) => isImage(f.attachment)) ?? files.find((f) => canPreview(f.attachment)) ?? items[0]!);
   }, [files, items, selected]);
 
-  // Narrow screens: tapping an attachment shows it in the preview below the email and scrolls there.
-  const wide = useWide();
+  // Narrow screens (and the split pane): tapping an attachment shows it in the preview below the email and scrolls there.
+  const wide = useWide() && !stacked;
   const inlineRef = useRef<HTMLElement>(null);
   const open = (f: Selected) => {
     setSelected(f);
@@ -236,7 +279,7 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
         </div>
       )}
 
-      <div className="relative grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className={cx("relative grid min-h-0 flex-1", !stacked && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]")}>
         {/* Left: the conversation and its attachments */}
         <section data-sheet-scroll className="scroll-thin min-h-0 overflow-y-auto px-4 py-4 sm:px-5" aria-label="Email">
           {isPending ? (

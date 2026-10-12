@@ -199,7 +199,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | File | Screen |
 |---|---|
 | `Home.tsx` | Home: four stat cards, Due Today (Today / Overdue / Upcoming, with today's events and increments), To-do card (calendar tiles, selection bar), Pending Emails card. |
-| `Inbox.tsx` | Emails: Pending / Other sections / Removed / All tabs, search, label and unread filters, toolbar. |
+| `Inbox.tsx` | Emails: Pending / Other sections / Removed / All tabs, search, label and unread filters, toolbar; on wide screens an opened email shows in a pane beside the list (split mode). |
 | `Tasks.tsx` | Tasks: views (Today, Upcoming, No date, Waiting, Completed…), in priority order. |
 | `Reminders.tsx` | Reminders: Due next and All reminders; tap opens Reminder details. |
 | `Calendar.tsx` | Month calendar of tasks, reminder dates and events (app-style on phones, the whole width on big screens), with the chosen day's list and an Event button. |
@@ -226,10 +226,10 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `ErrorBoundary.tsx` | Safety nets: the whole app ("Something went wrong — Reload"), one page ("This page hit a problem", the menu keeps working) and one attachment preview ("Couldn't preview this file"). |
 | `DatabaseIssue.tsx` | Explains a paused or unreachable database, with Neon usage link and Try again. |
 | `Avatar.tsx` | Initials circles in the sender's colour; tap to select an email. |
-| `ThreadRow.tsx` | One email row (sender, subject, preview, tags; on phones swipe left for Event / Remove). |
+| `ThreadRow.tsx` | One email row (sender, subject, preview, tags; on phones swipe left for Event / Remove; highlighted while open in the split pane). |
 | `EmailBulkBar.tsx` | The email list toolbar: Select all, Create task, Remove, Restore, label and unread filters. |
 | `EmailStatus.tsx` | Status tags on emails (Task, Removed, Event, With section, Back from section…). |
-| `EmailViewer.tsx` | Reading an email: conversation, attachments and previews (PDF, pictures, Excel, Word, PowerPoint text; old .doc/.ppt explained), labels, Share, Remove, make a task. |
+| `EmailViewer.tsx` | Reading an email: conversation, attachments and previews (PDF, pictures, Excel, Word, PowerPoint text; old .doc/.ppt explained), labels, Share, Remove, make a task; `EmailPane` is the same reader as the Emails page's split pane (body first, attachment previews below). |
 | `PdfPreview.tsx` | PDF pages drawn with pdf.js (loaded only when needed). |
 | `SheetPreview.tsx` | Excel/CSV attachments as a table (SheetJS). |
 | `DocxPreview.tsx` | Word .docx attachments as a page (mammoth). |

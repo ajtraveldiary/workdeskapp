@@ -41,7 +41,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 ### Emails
 - **Tabs:** Pending, Other sections, Removed, and All emails, with search, an unread filter and a label filter.
 - **Read inside WorkDesk:** the whole conversation, with long address lists folded and repeated signatures or
-  disclaimers hidden. Opening an email also marks it read in Gmail.
+  disclaimers hidden. Opening an email also marks it read in Gmail. On a computer the Emails page opens it beside
+  the list (split view), with the attachment previews under the email.
 - **Attachment previews:** PDF, pictures, Excel/CSV, Word, PowerPoint (slide text), and Google Docs/Sheets/Drive
   links in the email. Old Word/PowerPoint formats (.doc, .ppt) explain why they can't be shown and offer Download.
 - **One-tap decisions:** Create task, Make event, Remove (or send to another section), Restore. Select many emails
