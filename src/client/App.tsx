@@ -80,7 +80,7 @@ export function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/inbox" element={<Page><InboxPage /></Page>} />
         <Route path="/tasks" element={<Page><TasksPage /></Page>} />
-        <Route path="/calendar" element={<Page wide><CalendarPage /></Page>} />
+        <Route path="/calendar" element={<Page full><CalendarPage /></Page>} />
         <Route path="/reminders" element={<Page><RemindersPage /></Page>} />
         <Route path="/reports" element={<Navigate to="/reminders" replace />} />
         <Route path="/history" element={<Page><HistoryPage /></Page>} />
@@ -101,9 +101,10 @@ export function App() {
   );
 }
 
-function Page({ children, wide }: { children: ReactNode; wide?: boolean }) {
+function Page({ children, wide, full }: { children: ReactNode; wide?: boolean; full?: boolean }) {
   // Left-aligned like Home, so page titles line up with the top bar on every screen (alignment pass 2026-10-06).
-  return <div className={cx("w-full px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:px-8", wide ? "max-w-7xl" : "max-w-5xl")}>{children}</div>;
+  // full: the whole width of big screens (Calendar, user request 2026-10-12: "huge blank space").
+  return <div className={cx("w-full px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:px-8", full ? "max-w-none" : wide ? "max-w-7xl" : "max-w-5xl")}>{children}</div>;
 }
 
 type NavItem = { to: string; label: string; icon: LucideIcon };

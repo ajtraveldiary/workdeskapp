@@ -202,7 +202,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Inbox.tsx` | Emails: Pending / Other sections / Removed / All tabs, search, label and unread filters, toolbar. |
 | `Tasks.tsx` | Tasks: views (Today, Upcoming, No date, Waiting, Completed…), in priority order. |
 | `Reminders.tsx` | Reminders: Due next and All reminders; tap opens Reminder details. |
-| `Calendar.tsx` | Month calendar of tasks, reminder dates and events (app-style on phones), with the chosen day's list and an Event button. |
+| `Calendar.tsx` | Month calendar of tasks, reminder dates and events (app-style on phones, the whole width on big screens), with the chosen day's list and an Event button. |
 | `Events.tsx` | Events: Upcoming / Today / Past, search, tag filter, grouped by day; swipe (phones) or ⋮ menu for Done, Cancel, Edit. |
 | `History.tsx` | Every decision and change, with Undo where possible. |
 | `Search.tsx` | Search across emails and tasks. |

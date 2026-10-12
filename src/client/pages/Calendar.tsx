@@ -139,7 +139,7 @@ export function CalendarPage() {
 
       {/* grid-cols-1 (minmax(0, 1fr)): one long line in the day's list must never widen the page (2026-10-06:
           on phones a long email line pushed the month grid off screen). */}
-      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-3 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_440px]">
         <Card className="min-w-0 overflow-hidden">
           <div className="grid grid-cols-7 bg-canvas-soft text-center text-xs font-medium text-slate-500 sm:border-b sm:border-line">
             {WEEKDAYS.map((d) => (
