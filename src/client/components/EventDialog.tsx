@@ -5,11 +5,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CalendarRange, Check, ClipboardList, X } from "lucide-react";
 import type { OfficeEvent, ReminderLink, Thread } from "../../shared/types";
-import { EVENT_KINDS, EVENT_KIND_LABEL, PREP_OPTIONS, type EventKind } from "../../shared/eventSchedule";
+import { PREP_OPTIONS } from "../../shared/eventSchedule";
 import { REPEATS, REPEAT_LABEL, type Repeat } from "../../shared/reminderSchedule";
 import { findDueDate } from "../../shared/findDates";
 import type { EventInput } from "../../shared/schemas";
-import { useEmailContent, useMe, useOfficeEventActions, useStaff } from "../api";
+import { useEmailContent, useEventTypes, useMe, useOfficeEventActions, useStaff } from "../api";
+import { useNavigate } from "react-router";
 import { htmlToText } from "../snippets";
 import { LinksEditor } from "./ReminderLinks";
 import { TagPicker } from "./Tags";
@@ -42,7 +43,12 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
   const employees = [...(useStaff().data?.employees ?? [])].sort((a, b) => a.name.localeCompare(b.name));
 
   const [title, setTitle] = useState(e?.title ?? thread?.subject ?? "");
-  const [kind, setKind] = useState<EventKind>(e?.kind ?? "meeting");
+  // The user's own types (Settings > Events, user request 2026-10-12). A new event starts with the first one;
+  // tapping the chosen type again leaves the event without one.
+  const types = useEventTypes().data?.types;
+  const [picked, setPicked] = useState<string | null | undefined>(e ? e.typeId : undefined);
+  const typeId = picked === undefined ? (types?.[0]?.id ?? null) : picked;
+  const navigate = useNavigate();
   const [startDate, setStartDate] = useState<string>(e?.startDate ?? (mode.kind === "new" ? mode.date : undefined) ?? today);
   const [startTime, setStartTime] = useState(e?.startTime ?? "");
   const [endTime, setEndTime] = useState(e?.endTime ?? "");
@@ -78,7 +84,7 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
     if (badTimes) return;
     const input: EventInput = {
       title,
-      kind,
+      typeId,
       startDate,
       startTime: startTime || null,
       endTime: (startTime && endTime) || null,
@@ -118,20 +124,29 @@ function EventForm({ mode, onDone }: { mode: EventFormMode; onDone: () => void }
 
       <div>
         <span className="mb-1 block text-sm font-medium text-slate-700">Type</span>
-        <div role="radiogroup" aria-label="Type" className="flex flex-wrap gap-1.5">
-          {EVENT_KINDS.map((k) => (
-            <button
-              key={k}
-              type="button"
-              role="radio"
-              aria-checked={kind === k}
-              onClick={() => setKind(k)}
-              className="inline-flex h-9 items-center rounded-lg border border-line px-3 text-sm text-slate-600 enabled:hover:bg-slate-50 active:scale-[0.97] aria-checked:border-brand-200 aria-checked:bg-tint aria-checked:font-medium aria-checked:text-brand-800"
-            >
-              {EVENT_KIND_LABEL[k]}
+        {types && types.length === 0 ? (
+          <p className="text-footnote text-slate-500">
+            No event types yet.{" "}
+            <button type="button" onClick={() => (onDone(), navigate("/settings#events"))} className="font-medium text-brand-700 hover:underline">
+              Add them in Settings
             </button>
-          ))}
-        </div>
+          </p>
+        ) : (
+          <div role="radiogroup" aria-label="Type" className="flex flex-wrap gap-1.5">
+            {(types ?? []).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="radio"
+                aria-checked={typeId === t.id}
+                onClick={() => setPicked(typeId === t.id ? null : t.id)}
+                className="inline-flex min-h-9 max-w-full items-center rounded-lg border border-line px-3 py-1 text-left text-sm text-slate-600 enabled:hover:bg-slate-50 active:scale-[0.97] aria-checked:border-brand-200 aria-checked:bg-tint aria-checked:font-medium aria-checked:text-brand-800"
+              >
+                <span className="[overflow-wrap:anywhere]">{t.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

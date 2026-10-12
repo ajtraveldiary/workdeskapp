@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
+  EventType, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -231,12 +232,39 @@ export const useOfficeEvents = () => useQuery({ queryKey: ["office-events"], que
 export type OccurrenceChange = { date: string; status: "scheduled" | "done" | "cancelled" | "moved" | "original"; newDate?: string; newTime?: string | null; newEndTime?: string | null };
 export function useOfficeEventActions() {
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["office-events", "tasks", "summary", "history", "threads", "tags"].includes(q.queryKey[0] as string) });
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["office-events", "event-types", "tasks", "summary", "history", "threads", "tags"].includes(q.queryKey[0] as string) });
   return {
     add: useMutation({ mutationFn: (input: EventInput) => api<OfficeEvent>("/office-events", { method: "POST", body: input }), onSettled: refresh }),
     save: useMutation({ mutationFn: ({ id, input }: { id: string; input: Partial<EventInput> }) => api(`/office-events/${id}`, { method: "PATCH", body: input }), onSettled: refresh }),
     remove: useMutation({ mutationFn: (id: string) => api(`/office-events/${id}`, { method: "DELETE" }), onSettled: refresh }),
     occurrence: useMutation({ mutationFn: ({ id, ...change }: OccurrenceChange & { id: string }) => api(`/office-events/${id}/occurrence`, { method: "POST", body: change }), onSettled: refresh }),
+  };
+}
+// Types of events (Settings > Events, user request 2026-10-12), with how many events have each.
+export const useEventTypes = () => useQuery({ queryKey: ["event-types"], queryFn: () => api<{ types: EventType[] }>("/event-types") });
+export function useEventTypeActions() {
+  const qc = useQueryClient();
+  // A renamed or deleted type changes how events read everywhere.
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["event-types", "office-events", "summary", "history"].includes(q.queryKey[0] as string) });
+  const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
+  return {
+    add: m((name: string) => api<{ id: string; name: string }>("/event-types", { method: "POST", body: { name } })),
+    addCommon: m(() => api<{ added: number }>("/event-types/common", { method: "POST" })),
+    rename: m(({ id, name }: { id: string; name: string }) => api(`/event-types/${id}`, { method: "PATCH", body: { name } })),
+    // Drag and drop: the new order shows at once, then the server saves it.
+    order: useMutation({
+      mutationFn: (ids: string[]) => api("/event-types/order", { method: "POST", body: { ids } }),
+      onMutate: async (ids: string[]) => {
+        await qc.cancelQueries({ queryKey: ["event-types"] });
+        qc.setQueryData<{ types: EventType[] }>(["event-types"], (old) => {
+          if (!old) return old;
+          const at = new Map(ids.map((id, k) => [id, k]));
+          return { types: [...old.types].sort((a, b) => (at.get(a.id) ?? Infinity) - (at.get(b.id) ?? Infinity)).map((t, k) => ({ ...t, sortOrder: k })) };
+        });
+      },
+      onSettled: refresh,
+    }),
+    remove: m((id: string) => api(`/event-types/${id}`, { method: "DELETE" })),
   };
 }
 

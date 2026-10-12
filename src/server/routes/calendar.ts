@@ -9,7 +9,7 @@ import { timezone } from "../env";
 import { randomToken } from "../lib/crypto";
 import { todayIn } from "../lib/dates";
 import { buildCalendar, type FeedEvent, type FeedReminder, type FeedTask } from "../lib/ics";
-import { ruleOf } from "../lib/officeEvents";
+import { loadEvents, ruleOf } from "../lib/officeEvents";
 
 const appUrl = (env: AppEnv["Bindings"], requestUrl: string) => (env.APP_URL || new URL(requestUrl).origin).replace(/\/$/, "");
 const feedUrl = (env: AppEnv["Bindings"], requestUrl: string, token: string) => `${appUrl(env, requestUrl)}/api/calendar/${token}.ics`;
@@ -83,11 +83,11 @@ export const calendarFeedRoute = new Hono<AppEnv>().get("/calendar/:file", async
   }));
 
   // Events (user request 2026-10-11).
-  const feedEvents: FeedEvent[] = (await db.select().from(officeEvents).where(eq(officeEvents.userId, user.id))).map((e) => ({
+  const feedEvents: FeedEvent[] = (await loadEvents(db, eq(officeEvents.userId, user.id))).map((e) => ({
     ...ruleOf(e),
     id: e.id,
     title: e.title,
-    kind: e.kind,
+    typeName: e.typeName,
     venue: e.venue,
     meetingUrl: e.meetingUrl,
     organiser: e.organiser,

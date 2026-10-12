@@ -239,6 +239,13 @@
       "when": 1791821661754,
       "tag": "0033_office_events",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791824070037,
+      "tag": "0034_event_types",
+      "breakpoints": true
     }
   ]
 }

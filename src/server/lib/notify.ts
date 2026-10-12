@@ -5,7 +5,7 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { DB } from "../db";
 import { employees, officeEvents, pushSubscriptions, tasks, users } from "../db/schema";
-import { EVENT_KIND_LABEL } from "../../shared/eventSchedule";
+import { eventTypeLabel } from "../../shared/eventSchedule";
 import { eventsToday } from "./officeEvents";
 import { incrementOnHome } from "../../shared/staff";
 import { timezone, type Env } from "../env";
@@ -126,7 +126,7 @@ export async function planNotifications(db: DB, env: Env, userId: string, now = 
       eventKeys.push({ id: e.id, key });
       messages.push({
         title: e.title,
-        body: `${EVENT_KIND_LABEL[e.kind]} at ${ampm(e.startTime)}${lead > 0 ? ` (in ${lead} min)` : ""}${e.venue ? ` · ${e.venue}` : ""}`,
+        body: `${eventTypeLabel(e.typeName)} at ${ampm(e.startTime)}${lead > 0 ? ` (in ${lead} min)` : ""}${e.venue ? ` · ${e.venue}` : ""}`,
         url: "/events",
         tag: `event-${e.id}`,
         badge,
@@ -139,7 +139,7 @@ export async function planNotifications(db: DB, env: Env, userId: string, now = 
   const sinceSummary = minutes(nowHM) - minutes(u.pushSummaryTime);
   if (u.pushSummaryOn && u.pushSummarySentOn !== today && sinceSummary >= 0 && sinceSummary <= SUMMARY_WINDOW) {
     summaryDay = today;
-    const eventLines = todays.filter((e) => e.status !== "cancelled").map((e) => `• ${e.startTime ? `${ampm(e.startTime)} ` : ""}${e.title} (${EVENT_KIND_LABEL[e.kind].toLowerCase()})`);
+    const eventLines = todays.filter((e) => e.status !== "cancelled").map((e) => `• ${e.startTime ? `${ampm(e.startTime)} ` : ""}${e.title} (${eventTypeLabel(e.typeName).toLowerCase()})`);
     const list = [...eventLines, ...overdue.map((t) => `• ${t.title} (overdue)`), ...dueToday.map((t) => `• ${t.title}${t.dueTime ? ` · ${ampm(t.dueTime)}` : ""}`)];
     messages.push(
       badge === 0 && eventLines.length

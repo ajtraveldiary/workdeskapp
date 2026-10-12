@@ -4,9 +4,12 @@
 // browser (Events page, Calendar). Dates are YYYY-MM-DD, times HH:MM in the app's time zone.
 import { occurrenceAt, type ReminderRule } from "./reminderSchedule";
 
+// The first fixed kinds; only the database column still uses them (old rows). Types are now the user's own list
+// (`event_types`, Settings > Events, user request 2026-10-12); new accounts start with DEFAULT_EVENT_TYPES.
 export const EVENT_KINDS = ["meeting", "training", "programme", "other"] as const;
-export type EventKind = (typeof EVENT_KINDS)[number];
-export const EVENT_KIND_LABEL: Record<EventKind, string> = { meeting: "Meeting", training: "Training", programme: "Programme", other: "Other" };
+export const DEFAULT_EVENT_TYPES = ["Meeting", "Training", "Programme"];
+// What an event is called on screen: its type, or "Event" when it has none.
+export const eventTypeLabel = (typeName: string | null | undefined) => typeName || "Event";
 
 // What happened to one occurrence, keyed by its original date. "moved" = postponed or brought forward; a moved
 // occurrence that is then done or cancelled keeps its newDate / newTime.

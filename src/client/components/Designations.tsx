@@ -83,7 +83,8 @@ function Lists({ staff }: { staff: StaffList }) {
 
 type Mut<V> = { mutate: (v: V, o?: { onSuccess?: () => void }) => void; isPending: boolean; error: Error | null };
 
-function NameList(p: {
+// Also used for event types (Settings > Events, user request 2026-10-12): `unit` is what the counts count.
+export function NameList(p: {
   title: string;
   items: { id: string; name: string }[];
   counts: Map<string, number>;
@@ -92,6 +93,8 @@ function NameList(p: {
   commonButton: (missing: number, all: boolean) => string;
   placeholder: string;
   label: string;
+  unit?: string;
+  confirmText?: (item: { id: string; name: string }) => string;
   footnote: string;
   add: Mut<string>;
   addCommon: Mut<void>;
@@ -114,7 +117,7 @@ function NameList(p: {
     ev.preventDefault();
     if (editing && editing.name.trim()) p.rename.mutate({ id: editing.id, name: editing.name.trim() }, { onSuccess: () => setEditing(null) });
   };
-  const remove = (d: { id: string; name: string }) => confirm(`Remove the ${p.label} "${d.name}"?`) && p.remove.mutate(d.id);
+  const remove = (d: { id: string; name: string }) => confirm(p.confirmText?.(d) ?? `Remove the ${p.label} "${d.name}"?`) && p.remove.mutate(d.id);
 
   return (
     <section className="mt-5">
@@ -150,7 +153,7 @@ function NameList(p: {
                   <>
                     <span className="min-w-0 flex-1 text-sm text-ink [overflow-wrap:anywhere]">
                       {d.name}
-                      {p.counts.get(d.id) ? <span className="text-slate-500"> · {plural(p.counts.get(d.id)!, "employee")}</span> : null}
+                      {p.counts.get(d.id) ? <span className="text-slate-500"> · {plural(p.counts.get(d.id)!, p.unit ?? "employee")}</span> : null}
                     </span>
                     <IconButton label={`Rename ${d.name}`} onClick={() => setEditing({ id: d.id, name: d.name })}>
                       <Pencil size={16} />

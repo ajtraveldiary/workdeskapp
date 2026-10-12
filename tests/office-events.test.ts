@@ -1,5 +1,6 @@
 // Events: meetings, trainings, programmes (user request 2026-10-11). Repeats with changes per occurrence, prep
-// tasks that follow the event, "Make event" from an email, a phone note an hour before, the calendar feed and CSV.
+// tasks that follow the event, "Make event" from an email, a phone note an hour before, the calendar feed and CSV;
+// the user's own event types (Settings > Events, user request 2026-10-12).
 import { beforeEach, describe, expect, it } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
@@ -63,13 +64,38 @@ describe("events", () => {
     today = (await call("GET", "/me")).json.today;
   });
 
+  const types = async () => (await call("GET", "/event-types")).json.types as { id: string; name: string; events: number }[];
+
+  it("have the user's own types: add, rename, arrange, delete (its events stay, without a type)", async () => {
+    expect((await types()).map((t) => t.name)).toEqual(["Meeting", "Training", "Programme"]);
+    const ws = (await call("POST", "/event-types", { name: "Workshop" })).json.id as string;
+    expect((await call("POST", "/event-types", { name: " workshop " })).status).toBe(409);
+    expect((await call("PATCH", `/event-types/${ws}`, { name: "ശില്പശാല" })).status).toBe(200);
+    const ids = (await types()).map((t) => t.id);
+    await call("POST", "/event-types/order", { ids: [ws, ...ids.filter((id) => id !== ws)] });
+    expect((await types()).map((t) => t.name)).toEqual(["ശില്പശാല", "Meeting", "Training", "Programme"]);
+    await call("POST", "/office-events", { title: "Records workshop", typeId: ws, startDate: shiftDay(today, 2) });
+    expect((await types()).find((t) => t.id === ws)!.events).toBe(1);
+    expect((await call("DELETE", `/event-types/${ws}`)).status).toBe(200);
+    const [e] = await list();
+    expect([e!.title, e!.typeId, e!.typeName]).toEqual(["Records workshop", null, ""]);
+    await call("DELETE", `/event-types/${ids.find((id) => id !== ws)!}`);
+    expect((await call("POST", "/event-types/common")).json.added).toBe(1);
+    expect((await types()).map((t) => t.name)).toEqual(["Training", "Programme", "Meeting"]);
+    const history = ((await call("GET", "/history")).json.events as { summary: string }[]).map((h) => h.summary);
+    expect(history).toContain("Event type removed: ശില്പശാല (1 event kept, now without a type)");
+    expect(history).toContain("Event type renamed: Workshop → ശില്പശാല");
+  });
+
   it("are added with attendees and tags, and checked", async () => {
     const emp = (await call("POST", "/staff/employees", { name: "Training Attendee" })).json.id as string;
     const tag = (await call("POST", "/tags", { name: "Training" })).json.id as string;
-    const res = await call("POST", "/office-events", { title: "Fire safety training", kind: "training", startDate: shiftDay(today, 3), startTime: "09:30", endTime: "16:00", venue: "Training centre", attendeeIds: [emp], tagIds: [tag] });
+    const training = (await types()).find((t) => t.name === "Training")!.id;
+    const res = await call("POST", "/office-events", { title: "Fire safety training", typeId: training, startDate: shiftDay(today, 3), startTime: "09:30", endTime: "16:00", venue: "Training centre", attendeeIds: [emp], tagIds: [tag] });
     expect(res.status).toBe(201);
     const [e] = await list();
-    expect([e!.title, e!.kind, e!.venue, e!.attendeeIds, e!.tagIds]).toEqual(["Fire safety training", "training", "Training centre", [emp], [tag]]);
+    expect([e!.title, e!.typeName, e!.venue, e!.attendeeIds, e!.tagIds]).toEqual(["Fire safety training", "Training", "Training centre", [emp], [tag]]);
+    expect((await call("POST", "/office-events", { title: "x", startDate: today, typeId: "00000000-0000-4000-8000-000000000000" })).status).toBe(400);
     expect((await call("POST", "/office-events", { title: "x", startDate: today, startTime: "10:00", endTime: "09:00" })).status).toBe(400);
     expect((await call("POST", "/office-events", { title: "x", startDate: today, attendeeIds: ["00000000-0000-4000-8000-000000000000"] })).status).toBe(400);
     const history = ((await call("GET", "/history")).json.events as { summary: string }[]).map((h) => h.summary);
@@ -130,7 +156,13 @@ describe("events", () => {
     const res = (await call("POST", "/transfer/events/import", { headers: ["Title", "Type", "Date", "Start time", "Attendees", "Tags"], rows: [["Induction programme", "Programme", shiftDay(today, 10), "10:00", "CSV Person", "New staff"]] })).json;
     expect(res).toMatchObject({ added: 1, problems: [] });
     const made = (await list()).find((e) => e.title === "Induction programme")!;
-    expect([made.kind, made.startTime, made.attendeeIds, made.tagIds.length]).toEqual(["programme", "10:00", [emp], 1]);
+    expect([made.typeName, made.startTime, made.attendeeIds, made.tagIds.length]).toEqual(["Programme", "10:00", [emp], 1]);
+    // A type that isn't in Settings yet is made.
+    const ws = (await call("POST", "/transfer/events/import", { headers: ["Title", "Type", "Date"], rows: [["Payroll workshop", "Workshop", shiftDay(today, 12)]], dryRun: true })).json;
+    expect(ws.created).toEqual(["Event type: Workshop"]);
+    await call("POST", "/transfer/events/import", { headers: ["Title", "Type", "Date"], rows: [["Payroll workshop", "Workshop", shiftDay(today, 12)]] });
+    expect((await list()).find((e) => e.title === "Payroll workshop")!.typeName).toBe("Workshop");
+    expect((await types()).map((t) => t.name)).toEqual(["Meeting", "Training", "Programme", "Workshop"]);
     const bad = (await call("POST", "/transfer/events/import", { headers: ["Title", "Date", "Attendees"], rows: [["X", today, "Nobody Here"]] })).json;
     expect(bad.problems[0].message).toContain("no employee called");
   });
@@ -144,8 +176,9 @@ describe("event notes and feed", () => {
     await migrate(d, { migrationsFolder: "drizzle" });
     const db = d as unknown as DB;
     const userId = (await db.insert(schema.users).values({ email: "hr@example.com" }).returning())[0]!.id;
+    const typeId = (await db.insert(schema.eventTypes).values({ userId, name: "Meeting" }).returning())[0]!.id;
     await db.insert(schema.officeEvents).values([
-      { userId, title: "Board meeting", startDate: "2026-10-08", dueDay: 8, startTime: "11:00", venue: "Board room" },
+      { userId, title: "Board meeting", typeId, startDate: "2026-10-08", dueDay: 8, startTime: "11:00", venue: "Board room" },
       { userId, title: "Cancelled call", startDate: "2026-10-08", dueDay: 8, startTime: "11:00", changes: [{ date: "2026-10-08", status: "cancelled" }] },
     ]);
     expect((await planNotifications(db, env, userId, at("09:30"))).messages.filter((m) => m.tag?.startsWith("event-"))).toEqual([]);
@@ -161,8 +194,8 @@ describe("event notes and feed", () => {
       tasks: [],
       reminders: [],
       events: [
-        { id: "e1", title: "Review", kind: "meeting", venue: "Hall", meetingUrl: "", organiser: "", notes: "", repeat: "never", startDate: "2026-10-20", dueDay: 20, endDate: null, startTime: "10:00", endTime: "11:30", changes: [], updatedAt: new Date() },
-        { id: "e2", title: "Call", kind: "other", venue: "", meetingUrl: "", organiser: "", notes: "", repeat: "never", startDate: "2026-10-21", dueDay: 21, endDate: null, startTime: null, endTime: null, changes: [{ date: "2026-10-21", status: "cancelled" }], updatedAt: new Date() },
+        { id: "e1", title: "Review", typeName: "Meeting", venue: "Hall", meetingUrl: "", organiser: "", notes: "", repeat: "never", startDate: "2026-10-20", dueDay: 20, endDate: null, startTime: "10:00", endTime: "11:30", changes: [], updatedAt: new Date() },
+        { id: "e2", title: "Call", typeName: "", venue: "", meetingUrl: "", organiser: "", notes: "", repeat: "never", startDate: "2026-10-21", dueDay: 21, endDate: null, startTime: null, endTime: null, changes: [{ date: "2026-10-21", status: "cancelled" }], updatedAt: new Date() },
       ],
       today: "2026-10-12",
       tz: "Asia/Kolkata",

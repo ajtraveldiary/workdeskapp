@@ -71,6 +71,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 ### Events
 - **Meetings, trainings and programmes:** date, start and end time, venue or meeting link, who organises it, which
   employees attend, notes, links and tags. Events can repeat like reminders.
+- **Your own event types:** Meeting, Training and Programme to start with; add, rename, arrange or remove types in
+  Settings. Removing a type keeps its events.
 - **Make event from an email:** a meeting notice becomes an event filled from the email; the email leaves Pending
   (a new reply brings it back).
 - **Preparation task (optional):** a task a chosen number of days before, which moves with the event.
@@ -129,6 +131,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **General:** light, dark or automatic appearance; phone notifications; the Gmail connection.
 - **Mail:** hidden senders, hidden text (signatures, disclaimers), task/done labels, sections, Gmail labels.
 - **Employees:** designations and types of temporary employees.
+- **Events:** the types of events (Meeting, Training, Programme…).
 - **Tags:** rename, recolour, delete and arrange tags.
 - **Calendar:** the private calendar link.
 

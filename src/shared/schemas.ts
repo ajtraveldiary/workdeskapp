@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { LABEL_COLORS } from "./labelColors";
 import { MAX_TAGS_PER_ITEM, MAX_TAG_NAME, TAG_COLORS } from "./tags";
-import { EVENT_KINDS } from "./eventSchedule";
 import { REPEATS } from "./reminderSchedule";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, RELATED_KINDS } from "./staff";
 
@@ -98,7 +97,7 @@ export type ReportInput = z.input<typeof reportInput>;
 // after it. threadId: the email it is made from ("Make event"; only when adding).
 const eventFields = {
   title: z.string().trim().min(1, "Title is required").max(300),
-  kind: z.enum(EVENT_KINDS),
+  typeId: z.uuid().nullable(),
   startDate: day,
   startTime: time.nullable(),
   endTime: time.nullable(),
@@ -117,7 +116,7 @@ const timesInOrder = (v: { startTime?: string | null; endTime?: string | null })
 export const eventInput = z
   .object({
     ...eventFields,
-    kind: eventFields.kind.default("meeting"),
+    typeId: eventFields.typeId.default(null),
     startTime: eventFields.startTime.default(null),
     endTime: eventFields.endTime.default(null),
     repeat: eventFields.repeat.default("never"),

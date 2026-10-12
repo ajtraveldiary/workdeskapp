@@ -22,6 +22,7 @@ import {
   reports,
   tags,
   tasks,
+  eventTypes,
 } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
@@ -30,8 +31,8 @@ import { ensurePensionTasks } from "../lib/pension";
 import { ensureContractTasks } from "../lib/contracts";
 import { ensureProbationTasks } from "../lib/probation";
 import { employeeInput, eventInput, eventPatch, officeFileInput, reminderLinks, reportInput, reportPatch, taskInput, taskPatch } from "../../shared/schemas";
-import { EVENT_KINDS, EVENT_KIND_LABEL, eventOccurrences, shiftDay } from "../../shared/eventSchedule";
-import { ensureEventTasks, ruleOf } from "../lib/officeEvents";
+import { eventOccurrences, shiftDay } from "../../shared/eventSchedule";
+import { ensureEventTasks, loadEvents, ruleOf } from "../lib/officeEvents";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, ENGAGEMENT_LABELS, contractEnd, type Engagement } from "../../shared/staff";
 import { REPEATS, REPEAT_LABEL } from "../../shared/reminderSchedule";
 import {
@@ -162,16 +163,17 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
   }
   if (kind === "events") {
     const [rows, people] = await Promise.all([
-      db.select().from(officeEvents).where(eq(officeEvents.userId, userId)).orderBy(asc(officeEvents.startDate), asc(officeEvents.title)),
+      loadEvents(db, eq(officeEvents.userId, userId)),
       db.select({ id: employees.id, name: employees.name }).from(employees).where(eq(employees.userId, userId)),
     ]);
+    rows.sort((a, b) => a.startDate.localeCompare(b.startDate) || a.title.localeCompare(b.title));
     const nameOf = new Map(people.map((p) => [p.id, p.name]));
     const today = todayIn(tz);
     return rows.map((e) =>
       out({
         id: e.id,
         title: e.title,
-        kind: EVENT_KIND_LABEL[e.kind],
+        kind: e.typeName,
         startDate: e.startDate,
         startTime: e.startTime ?? "",
         endTime: e.endTime ?? "",
@@ -662,14 +664,18 @@ async function planReminders(db: DB, userId: string, rows: Row[], result: Import
   };
 }
 
-// Events (user request 2026-10-11): matched by ID or by title on the same date; attendees by employee name.
+// Events (user request 2026-10-11): matched by ID or by title on the same date; attendees by employee name; the
+// Type by name, a new name becoming an event type (Settings > Events, user request 2026-10-12; empty = no type).
 async function planEvents(db: DB, userId: string, rows: Row[], result: ImportResult): Promise<Plan> {
-  const [existing, people] = await Promise.all([
+  const [existing, people, types] = await Promise.all([
     db.select().from(officeEvents).where(eq(officeEvents.userId, userId)),
     db.select({ id: employees.id, name: employees.name }).from(employees).where(eq(employees.userId, userId)),
+    db.select({ id: eventTypes.id, name: eventTypes.name, sortOrder: eventTypes.sortOrder }).from(eventTypes).where(eq(eventTypes.userId, userId)),
   ]);
-  const updates = new Map<string, { set: Record<string, unknown>; tags?: string[] }>();
-  const inserts: { key: string; values: Record<string, unknown>; tags?: string[] }[] = [];
+  const typeIds = new Map(types.map((t) => [lower(t.name), t.id]));
+  const newTypes = new Map<string, string>(); // lower-case name → name as written
+  const updates = new Map<string, { set: Record<string, unknown>; tags?: string[]; type?: string }>();
+  const inserts: { key: string; values: Record<string, unknown>; tags?: string[]; type?: string }[] = [];
   for (const row of rows) {
     const c = row.cells;
     const id = (c.get("id") ?? "").trim();
@@ -688,11 +694,14 @@ async function planEvents(db: DB, userId: string, rows: Row[], result: ImportRes
       if (tm === undefined) errors.push(`${h}: "${c.get(k)}" is not a time (use 10:30)`);
       else v[k] = tm;
     }
-    if (c.has("kind") && c.get("kind")) {
-      const k = normHeader(c.get("kind")!);
-      const kind = EVENT_KINDS.find((x) => normHeader(x) === k || normHeader(EVENT_KIND_LABEL[x]) === k);
-      if (!kind) errors.push(`Type: "${c.get("kind")}" should be Meeting, Training, Programme or Other`);
-      else v.kind = kind;
+    // A type not in Settings yet is made when the rows are saved (`type`).
+    let type: string | undefined;
+    if (c.has("kind")) {
+      const name = c.get("kind")!.trim().replace(/\s+/g, " ");
+      if (name.length > 80) errors.push("Type: at most 80 characters");
+      else if (!name) v.typeId = null;
+      else if (typeIds.has(lower(name))) v.typeId = typeIds.get(lower(name));
+      else type = name;
     }
     if (c.has("repeat") && c.get("repeat")) {
       const k = normHeader(c.get("repeat")!);
@@ -735,7 +744,8 @@ async function planEvents(db: DB, userId: string, rows: Row[], result: ImportRes
       }
       if (!updates.has(match.id)) result.updated++;
       const prev = updates.get(match.id);
-      updates.set(match.id, { set: { ...(prev?.set ?? {}), ...parsed.data }, tags: tags ?? prev?.tags });
+      if (type) newTypes.set(lower(type), type);
+      updates.set(match.id, { set: { ...(prev?.set ?? {}), ...parsed.data }, tags: tags ?? prev?.tags, type: type ?? (c.has("kind") ? undefined : prev?.type) });
       continue;
     }
     const parsed = eventInput.safeParse(v);
@@ -745,30 +755,41 @@ async function planEvents(db: DB, userId: string, rows: Row[], result: ImportRes
     }
     const { threadId: _t, ...values } = parsed.data;
     const key = `${lower(values.title)} ${values.startDate}`;
+    if (type) newTypes.set(lower(type), type);
     const pending = inserts.find((i) => i.key === key);
-    if (pending) Object.assign(pending, { values, tags: tags ?? pending.tags });
+    if (pending) Object.assign(pending, { values, tags: tags ?? pending.tags, type });
     else {
-      inserts.push({ key, values, tags });
+      inserts.push({ key, values, tags, type });
       result.added++;
     }
   }
+  result.created = [...newTypes.values()].map((n) => `Event type: ${n}`);
   const dueDay = (d: string) => Number(d.slice(8, 10));
   return {
     result,
     write: async () => {
+      if (newTypes.size) {
+        const start = Math.max(0, ...types.map((t) => t.sortOrder)) + 1;
+        const made = await db
+          .insert(eventTypes)
+          .values([...newTypes.values()].map((name, i) => ({ userId, name, sortOrder: start + i })))
+          .returning({ id: eventTypes.id, name: eventTypes.name });
+        for (const t of made) typeIds.set(lower(t.name), t.id);
+      }
+      const typeOf = (name: string | undefined) => (name ? { typeId: typeIds.get(lower(name)) ?? null } : {});
       const tagIds = await ensureTagsByName(db, userId, [...[...updates.values()].flatMap((u) => u.tags ?? []), ...inserts.flatMap((i) => i.tags ?? [])]);
       const toIds = (names: string[]) => names.map((n) => tagIds.get(n.toLowerCase())).filter((x): x is string => !!x);
-      for (const [id, { set, tags }] of updates) {
+      for (const [id, { set, tags, type }] of updates) {
         await db
           .update(officeEvents)
-          .set({ ...set, ...(tags ? { tagIds: toIds(tags) } : {}), ...(typeof set.startDate === "string" ? { dueDay: dueDay(set.startDate) } : {}), updatedAt: new Date() })
+          .set({ ...set, ...typeOf(type), ...(tags ? { tagIds: toIds(tags) } : {}), ...(typeof set.startDate === "string" ? { dueDay: dueDay(set.startDate) } : {}), updatedAt: new Date() })
           .where(eq(officeEvents.id, id));
       }
       if (inserts.length) {
         await db.insert(officeEvents).values(
           inserts.map((i) => {
             const e = i.values as Omit<ReturnType<typeof eventInput.parse>, "threadId">;
-            return { ...e, ...(i.tags ? { tagIds: toIds(i.tags) } : {}), userId, dueDay: dueDay(e.startDate) };
+            return { ...e, ...typeOf(i.type), ...(i.tags ? { tagIds: toIds(i.tags) } : {}), userId, dueDay: dueDay(e.startDate) };
           }),
         );
       }
@@ -793,7 +814,8 @@ const BACKUP: Record<BackupTable, TableInfo> = {
   employees: { table: employees as never, refs: { designationId: { table: designations }, typeId: { table: employeeTypes } } },
   officeFiles: { table: officeFiles as never },
   tags: { table: tags as never },
-  officeEvents: { table: officeEvents as never, refs: { threadId: { table: emailThreads } } },
+  eventTypes: { table: eventTypes as never },
+  officeEvents: { table: officeEvents as never, refs: { threadId: { table: emailThreads }, typeId: { table: eventTypes } } },
   reports: { table: reports as never },
   reportPeriods: { table: reportPeriods as never, refs: { reportId: { table: reports, required: true } } },
   tasks: { table: tasks as never, refs: { threadId: { table: emailThreads }, reportPeriodId: { table: reportPeriods }, eventId: { table: officeEvents } } },
@@ -828,6 +850,17 @@ async function restoreRows(db: DB, userId: string, info: TableInfo, rows: Record
   return clean.filter((r) => !Object.entries(info.refs ?? {}).some(([col, ref]) => ref.required && r[col] === undefined));
 }
 
+async function makeRoomForTypes(db: DB, userId: string, rows: Record<string, unknown>[]) {
+  const [have, used] = await Promise.all([
+    db.select({ id: eventTypes.id, name: eventTypes.name }).from(eventTypes).where(eq(eventTypes.userId, userId)),
+    db.selectDistinct({ id: officeEvents.typeId }).from(officeEvents).where(eq(officeEvents.userId, userId)),
+  ]);
+  const inUse = new Set(used.map((u) => u.id));
+  const incoming = new Map(rows.map((r) => [lower(String(r.name ?? "")), String(r.id)]));
+  const free = have.filter((t) => incoming.has(lower(t.name)) && incoming.get(lower(t.name)) !== t.id && !inUse.has(t.id)).map((t) => t.id);
+  if (free.length) await db.delete(eventTypes).where(inArray(eventTypes.id, free));
+}
+
 export const transferRoutes = new Hono<AppEnv>()
   .get("/backup", async (c) => {
     const db = c.get("db");
@@ -850,6 +883,9 @@ export const transferRoutes = new Hono<AppEnv>()
     if (!info || !Array.isArray(rows) || rows.length > 1000) throw new HTTPException(400, { message: "Not a WorkDesk backup" });
     const clean = await restoreRows(db, userId, info, rows);
     if (!clean.length) return c.json({ added: 0 });
+    // Event types: a new account starts with Meeting, Training and Programme; the backup's own type of the same
+    // name takes the place of one no event uses yet, so its events keep their type and names aren't doubled.
+    if (table === "eventTypes") await makeRoomForTypes(db, userId, clean);
     const t = info.table as AnyTable;
     try {
       const added = await db.insert(t as PgTable).values(clean as never).onConflictDoNothing().returning({ id: t.id });

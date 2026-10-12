@@ -270,7 +270,9 @@ export type Tag = { id: string; name: string; color: import("./tags").TagColor; 
 export type OfficeEvent = {
   id: string;
   title: string;
-  kind: import("./eventSchedule").EventKind;
+  // Its type from Settings > Events (user request 2026-10-12); typeName "" when it has none.
+  typeId: string | null;
+  typeName: string;
   startDate: string;
   dueDay: number;
   startTime: string | null;
@@ -289,7 +291,9 @@ export type OfficeEvent = {
   changes: import("./eventSchedule").EventChange[];
   updatedAt: string;
 };
-export type EventToday = import("./eventSchedule").EventOccurrence & { id: string; title: string; kind: import("./eventSchedule").EventKind; venue: string; meetingUrl: string };
+export type EventToday = import("./eventSchedule").EventOccurrence & { id: string; title: string; typeName: string; venue: string; meetingUrl: string };
+// A type of event (Settings > Events, user request 2026-10-12), with how many events have it.
+export type EventType = { id: string; name: string; sortOrder: number; events: number };
 
 // A saved website login (user request 2026-10-11). The password itself is never in this shape: hasPassword
 // says whether one is saved, and it is fetched only when the user taps Show or Copy.

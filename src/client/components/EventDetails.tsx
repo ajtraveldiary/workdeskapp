@@ -4,7 +4,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Ban, CalendarDays, CalendarRange, Check, ClipboardList, Clock, MapPin, Pencil, Repeat as RepeatIcon, RotateCcw, StickyNote, Tags as TagsIcon, Trash2, UserRound, UsersRound, Video } from "lucide-react";
-import { EVENT_KIND_LABEL, PREP_OPTIONS, eventOccurrences, shiftDay, timeRange } from "../../shared/eventSchedule";
+import { PREP_OPTIONS, eventTypeLabel, eventOccurrences, shiftDay, timeRange } from "../../shared/eventSchedule";
 import { repeatText } from "../../shared/reminderSchedule";
 import { useMe, useOfficeEventActions, useOfficeEvents, useStaff } from "../api";
 import { formatDay, formatTime } from "../format";
@@ -12,7 +12,7 @@ import { openEventForm } from "./EventDialog";
 import { LinkChips } from "./ReminderLinks";
 import { showUndo } from "./SwipeRow";
 import { TagChips } from "./Tags";
-import { Badge, Button, ErrorNote, Field, Modal, inputClass } from "./ui";
+import { Badge, Button, ErrorNote, Field, Modal, TONE, cx, inputClass } from "./ui";
 
 export type EventRef = { id: string; date: string };
 
@@ -66,7 +66,7 @@ function Details({ eventRef, onClose }: { eventRef: EventRef; onClose: () => voi
       <div>
         <h3 className={o.status === "cancelled" ? "text-lg font-semibold text-slate-400 line-through" : "text-lg font-semibold text-ink"}>{e.title}</h3>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <Badge tone="info">{EVENT_KIND_LABEL[e.kind]}</Badge>
+          <span className={cx("max-w-full rounded-md px-1.5 py-0.5 text-xs font-medium [overflow-wrap:anywhere]", TONE.info.soft)}>{eventTypeLabel(e.typeName)}</span>
           {o.status === "done" && <Badge tone="low">Done</Badge>}
           {o.status === "cancelled" && <Badge tone="urgent">Cancelled</Badge>}
           {o.moved && <Badge tone="high">Moved from {formatDay(o.original, today)}</Badge>}

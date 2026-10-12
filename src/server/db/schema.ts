@@ -174,6 +174,16 @@ export const emailThreads = pgTable(
   ],
 );
 
+// Types of events (user request 2026-10-12, "add, edit or delete event types in Settings"): Meeting, Training,
+// Programme… in this order. Replaces the fixed `kind`; deleting a type leaves its events without one ("Event").
+export const eventTypes = pgTable("event_types", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: createdAt(),
+});
+
 // Events: meetings, trainings, programmes (user request 2026-10-11). Called office_events because `events` is
 // the History audit trail. Repeats like reminders (REPEATS, dueDay); each occurrence's done / cancelled / moved is
 // kept in `changes`, keyed by its scheduled day. prepDays: a "Prepare" task due that many days before each
@@ -182,7 +192,9 @@ export const officeEvents = pgTable("office_events", {
   id: id(),
   userId: uuid("user_id").notNull().references(() => users.id),
   title: text("title").notNull(),
+  // The first fixed kinds (2026-10-11); kept for old rows, no longer used (the type is typeId since 2026-10-12).
   kind: text("kind", { enum: EVENT_KINDS }).notNull().default("meeting"),
+  typeId: uuid("type_id").references(() => eventTypes.id, { onDelete: "set null" }),
   startDate: date("start_date").notNull(),
   // Day of the month for monthly and longer repeats (as reminders).
   dueDay: integer("due_day").notNull(),

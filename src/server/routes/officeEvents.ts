@@ -4,17 +4,17 @@
 // asked for, makes the first prep task from the email (state "task") as Create task would.
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { emailThreads, employees, events, officeEvents, tasks } from "../db/schema";
+import { emailThreads, employees, eventTypes, events, officeEvents, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { checkTags } from "../lib/tags";
-import { dropOpenPrepTasks, ensureEventTasks, prepTitle, ruleOf, toEvent } from "../lib/officeEvents";
+import { dropOpenPrepTasks, ensureEventTasks, loadEvents, prepTitle, ruleOf, toEvent } from "../lib/officeEvents";
 import { reconcileThreadLabels } from "../lib/taskLabels";
 import { eventInput, eventPatch, occurrenceInput } from "../../shared/schemas";
-import { EVENT_KIND_LABEL, eventOccurrences, isOccurrence, shiftDay } from "../../shared/eventSchedule";
+import { eventOccurrences, eventTypeLabel, isOccurrence, shiftDay } from "../../shared/eventSchedule";
 import { dayLabel } from "../../shared/reminderSchedule";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
@@ -24,6 +24,14 @@ async function load(db: DB, userId: string, id: string) {
   const [e] = await db.select().from(officeEvents).where(and(eq(officeEvents.id, id), eq(officeEvents.userId, userId)));
   if (!e) throw new HTTPException(404, { message: "Event not found" });
   return e;
+}
+
+// The type must be one of this user's (Settings > Events); its name, "" for none.
+async function checkType(db: DB, userId: string, id: string | null | undefined) {
+  if (!id) return "";
+  const [t] = await db.select({ name: eventTypes.name }).from(eventTypes).where(and(eq(eventTypes.id, id), eq(eventTypes.userId, userId)));
+  if (!t) throw new HTTPException(400, { message: "Unknown event type" });
+  return t.name;
 }
 
 // Attendees must be this user's employees; each once, in the order given.
@@ -38,7 +46,8 @@ async function checkAttendees(db: DB, userId: string, ids: string[] | undefined)
 
 export const officeEventRoutes = new Hono<AppEnv>()
   .get("/", async (c) => {
-    const rows = await c.get("db").select().from(officeEvents).where(eq(officeEvents.userId, c.get("userId"))).orderBy(asc(officeEvents.startDate), asc(officeEvents.startTime));
+    const rows = await loadEvents(c.get("db"), eq(officeEvents.userId, c.get("userId")));
+    rows.sort((a, b) => a.startDate.localeCompare(b.startDate) || (a.startTime ?? "").localeCompare(b.startTime ?? ""));
     return c.json({ events: rows.map(toEvent), today: todayIn(timezone(c.env)) });
   })
 
@@ -47,12 +56,13 @@ export const officeEventRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const today = todayIn(timezone(c.env));
     const { threadId, ...input } = eventInput.parse(await c.req.json());
+    const typeName = await checkType(db, userId, input.typeId);
     input.attendeeIds = (await checkAttendees(db, userId, input.attendeeIds))!;
     input.tagIds = (await checkTags(db, userId, input.tagIds))!;
     const thread = threadId ? (await db.select().from(emailThreads).where(and(eq(emailThreads.id, threadId), eq(emailThreads.userId, userId))))[0] : undefined;
     if (threadId && !thread) throw new HTTPException(404, { message: "Email not found" });
     const [e] = await db.insert(officeEvents).values({ ...input, userId, dueDay: dueDayOf(input.startDate), threadId: thread?.id ?? null }).returning();
-    await log(db, userId, "office_events.added", `Event added: ${e!.title} (${EVENT_KIND_LABEL[e!.kind]}, ${dayLabel(e!.startDate)})`);
+    await log(db, userId, "office_events.added", `Event added: ${e!.title} (${eventTypeLabel(typeName)}, ${dayLabel(e!.startDate)})`);
 
     if (thread) {
       const now = new Date();
@@ -76,7 +86,7 @@ export const officeEventRoutes = new Hono<AppEnv>()
       }
     }
     await ensureEventTasks(db, today, userId);
-    return c.json(toEvent(e!), 201);
+    return c.json(toEvent({ ...e!, typeName }), 201);
   })
 
   .patch("/:id", async (c) => {
@@ -86,6 +96,7 @@ export const officeEventRoutes = new Hono<AppEnv>()
     const input = eventPatch.parse(await c.req.json());
     const merged = { ...e, ...input };
     if (merged.endTime && (!merged.startTime || merged.endTime <= merged.startTime)) throw new HTTPException(400, { message: "The end time must be after the start time" });
+    if (input.typeId) await checkType(db, userId, input.typeId);
     if (input.attendeeIds !== undefined) input.attendeeIds = await checkAttendees(db, userId, input.attendeeIds);
     if (input.tagIds !== undefined) input.tagIds = await checkTags(db, userId, input.tagIds);
     await db

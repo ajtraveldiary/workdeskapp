@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { Ban, CalendarRange, Check, MapPin, Pencil, Plus, UsersRound, Video } from "lucide-react";
 import type { OfficeEvent } from "../../shared/types";
-import { EVENT_KIND_LABEL, eventOccurrences, shiftDay, type EventOccurrence } from "../../shared/eventSchedule";
+import { eventOccurrences, eventTypeLabel, shiftDay, type EventOccurrence } from "../../shared/eventSchedule";
 import { useOfficeEventActions, useOfficeEvents } from "../api";
 import { formatDay, formatTime } from "../format";
 import { openEventForm } from "../components/EventDialog";
@@ -14,7 +14,7 @@ import { openEventDetails } from "../components/EventDetails";
 import { RefreshButton } from "../components/RefreshButton";
 import { SwipeRow, showUndo, useSwipeMode } from "../components/SwipeRow";
 import { TagChips, TagFilter } from "../components/Tags";
-import { Badge, Button, Card, Fab, Menu, PageHeader, SearchInput, Segmented, SkeletonList, cx } from "../components/ui";
+import { Badge, Button, Card, Fab, Menu, PageHeader, SearchInput, Segmented, SkeletonList, TONE, cx } from "../components/ui";
 
 type View = "upcoming" | "today" | "past";
 const WINDOW = 183;
@@ -35,7 +35,7 @@ export function EventsPage() {
   }, [data, today]);
   const query = q.trim().toLowerCase();
   const matches = (x: Item) =>
-    (!tag || x.e.tagIds.includes(tag)) && (!query || [x.e.title, x.e.venue, x.e.organiser, x.e.notes].some((s) => s.toLowerCase().includes(query)));
+    (!tag || x.e.tagIds.includes(tag)) && (!query || [x.e.title, x.e.typeName, x.e.venue, x.e.organiser, x.e.notes].some((s) => s.toLowerCase().includes(query)));
   const upcoming = all.filter((x) => x.o.date >= today);
   const todays = all.filter((x) => x.o.date === today);
   const past = all.filter((x) => x.o.date < today).reverse();
@@ -149,7 +149,7 @@ function EventRow({ item: { e, o } }: { item: Item }) {
           <span className={cx("line-clamp-2 text-subhead leading-snug font-medium", cancelled ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{e.title}</span>
         </button>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-footnote text-slate-500">
-          <Badge tone="info">{EVENT_KIND_LABEL[e.kind]}</Badge>
+          <span className={cx("max-w-full truncate rounded-md px-1.5 py-0.5 text-xs font-medium", TONE.info.soft)}>{eventTypeLabel(e.typeName)}</span>
           {o.status === "done" && <Badge tone="low">Done</Badge>}
           {cancelled && <Badge tone="urgent">Cancelled</Badge>}
           {o.moved && <Badge tone="high">Moved</Badge>}

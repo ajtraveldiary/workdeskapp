@@ -1,6 +1,7 @@
 import { and, eq, lt } from "drizzle-orm";
 import type { DB } from "../db";
-import { reportPeriods, reports, users } from "../db/schema";
+import { eventTypes, reportPeriods, reports, users } from "../db/schema";
+import { DEFAULT_EVENT_TYPES } from "../../shared/eventSchedule";
 import { applySnapshots, type ThreadSnapshot } from "./sync";
 import { ensureReportPeriods, setPeriodStatus } from "./reports";
 
@@ -8,6 +9,8 @@ export async function ensureUser(db: DB, email: string, name?: string | null) {
   const [found] = await db.select().from(users).where(eq(users.email, email));
   if (found) return { user: found, created: false };
   const [user] = await db.insert(users).values({ email, name: name ?? null }).returning();
+  // Event types to start with (Settings > Events, user request 2026-10-12).
+  await db.insert(eventTypes).values(DEFAULT_EVENT_TYPES.map((n, i) => ({ userId: user!.id, name: n, sortOrder: i + 1 })));
   return { user: user!, created: true };
 }
 

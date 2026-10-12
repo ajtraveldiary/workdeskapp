@@ -5,7 +5,7 @@ import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, inArray, max, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { designations, employeeTypes, employees, events, reports, tasks } from "../db/schema";
+import { designations, employeeTypes, employees, events, reports, tasks, eventTypes } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { designationInput, employeeInput, orderInput } from "../../shared/schemas";
@@ -21,7 +21,7 @@ const log = (db: DB, userId: string, action: string, summary: string) => db.inse
 // Saves a list's order after drag and drop (user request 2026-10-08): the ids sent come first, in that order;
 // any the app didn't send (added meanwhile) keep their order after them. One UPDATE for the whole list.
 // Returns true when something moved.
-async function saveOrder(db: DB, table: typeof designations | typeof employeeTypes, userId: string, sent: string[]) {
+export async function saveOrder(db: DB, table: typeof designations | typeof employeeTypes | typeof eventTypes, userId: string, sent: string[]) {
   const list = await db.select({ id: table.id, sortOrder: table.sortOrder }).from(table).where(eq(table.userId, userId)).orderBy(asc(table.sortOrder), asc(table.name));
   const have = new Set(list.map((r) => r.id));
   const first = [...new Set(sent)].filter((id) => have.has(id));

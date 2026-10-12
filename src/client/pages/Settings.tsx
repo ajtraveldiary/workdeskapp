@@ -12,15 +12,18 @@ import { onThemeChoice, setThemeChoice, themeChoice, type ThemeChoice } from "..
 import { RefreshButton } from "../components/RefreshButton";
 import { NotificationSettings } from "../components/NotificationSettings";
 import { EmployeeSettings } from "../components/Designations";
+import { EventTypeSettings } from "../components/EventTypes";
 import { TagSettings } from "../components/Tags";
 
 // Settings tabs (user request 2026-10-08, "use tabs to group similar settings"). The tab lives in the address
-// (#mail, #employees, #tags, #calendar; none = General), so the existing /settings#… links open their tab.
-type SettingsTab = "general" | "mail" | "employees" | "tags" | "calendar";
+// (#mail, #employees, #events, #tags, #calendar; none = General), so the existing /settings#… links open their tab.
+type SettingsTab = "general" | "mail" | "employees" | "events" | "tags" | "calendar";
 const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   { value: "general", label: "General" },
   { value: "mail", label: "Mail" },
   { value: "employees", label: "Employees" },
+  // Event types (user request 2026-10-12).
+  { value: "events", label: "Events" },
   // Tags for tasks and reminders (user request 2026-10-11).
   { value: "tags", label: "Tags" },
   { value: "calendar", label: "Calendar" },
@@ -64,6 +67,7 @@ export function SettingsPage() {
             {tab === "mail" && <MailSettings />}
             {/* Employees (user request 2026-10-07): designations, moved here from the Employees page. */}
             {tab === "employees" && <EmployeeSettings />}
+            {tab === "events" && <EventTypeSettings />}
             {tab === "tags" && <TagSettings />}
             {tab === "calendar" && <CalendarLink />}
           </div>

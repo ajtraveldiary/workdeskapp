@@ -9,7 +9,7 @@ import { BadgeCheck, CalendarClock, ChevronLeft, FileClock, Hourglass, KeyRound,
 import type { AuditEvent, Employee, StaffList, Task } from "../../shared/types";
 import { ENGAGEMENT_LABELS, PROBATION_LOOKBACK_YEARS, incrementDue, probationDue, type Engagement } from "../../shared/staff";
 import { useEmployeeProfile, useLogins, useMe, useOfficeEvents, useStaff, useStaffActions } from "../api";
-import { EVENT_KIND_LABEL, eventOccurrences, shiftDay } from "../../shared/eventSchedule";
+import { eventOccurrences, eventTypeLabel, shiftDay } from "../../shared/eventSchedule";
 import { openEventDetails } from "../components/EventDetails";
 import { openEventForm } from "../components/EventDialog";
 import { formatDateTime } from "../format";
@@ -487,7 +487,7 @@ function Events({ employeeId, today }: { employeeId: string; today: string }) {
               <button onClick={() => openEventDetails({ id: ev.id, date: o.original })} className="row-link group/title min-w-0 flex-1 truncate text-left text-subhead text-ink group-hover/title:text-brand-700">
                 {ev.title}
               </button>
-              <span className="shrink-0 text-footnote text-slate-500">{o.status === "done" ? "Done" : EVENT_KIND_LABEL[ev.kind]}</span>
+              <span className="max-w-[40%] shrink-0 truncate text-footnote text-slate-500">{o.status === "done" ? "Done" : eventTypeLabel(ev.typeName)}</span>
             </li>
           ))}
         </ul>
