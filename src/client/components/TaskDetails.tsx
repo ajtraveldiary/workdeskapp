@@ -1,6 +1,6 @@
 // Read-only view of a task, with what was entered when it was created. Opened from task lists; for a task
 // made from an email it also names the email, and its title opens it (onOpenEmail).
-import { CalendarDays, Check, Clock, CalendarClock, FileClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote, Tags as TagsIcon, UserRound } from "lucide-react";
+import { CalendarDays, CalendarRange, Check, Clock, CalendarClock, FileClock, Hourglass, Mail, Pencil, RotateCcw, StickyNote, Tags as TagsIcon, UserRound } from "lucide-react";
 import { TagChips } from "./Tags";
 import { useState, type ReactNode } from "react";
 import type { Task } from "../../shared/types";
@@ -12,6 +12,7 @@ import { canWait, isWaiting, openWait, waitingText } from "./Waiting";
 import { RelatedLine, type RelatedValue } from "./Related";
 import { asksChoice, openTaskChoice } from "./SystemTaskChooser";
 import { Badge, Button, Modal, PriorityPill, cx } from "./ui";
+import { openEventDetails } from "./EventDetails";
 
 export function TaskDetails({
   task,
@@ -120,6 +121,14 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
           <Row icon={CalendarClock} label="Reminder">
             {task.report.name} · {task.report.label}
             <LinkChips links={task.report.links} className="mt-1.5" />
+          </Row>
+        )}
+        {/* A task to prepare for an event (user request 2026-10-11): opens the event. */}
+        {task.eventId && task.eventDate && (
+          <Row icon={CalendarRange} label="Event">
+            <button type="button" onClick={() => (onClose(), openEventDetails({ id: task.eventId!, date: task.eventDate! }))} className="text-left text-brand-700 hover:underline">
+              Open the event ({formatDay(task.eventDate, today)})
+            </button>
           </Row>
         )}
         {task.thread && (

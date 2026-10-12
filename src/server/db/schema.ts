@@ -15,6 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { REPEATS } from "../../shared/reminderSchedule";
 import { RELATED_KINDS } from "../../shared/staff";
+import { EVENT_KINDS, type EventChange } from "../../shared/eventSchedule";
 import type { ChecklistItem, ReminderLink } from "../../shared/types";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
@@ -135,7 +136,8 @@ export const hiddenSnippets = pgTable(
 
 // "elsewhere": handled by another section of the office, i.e. the email carries a label other than the user's
 // task/done labels and their organising labels (user request 2026-10-07).
-export const EMAIL_STATES = ["needs_decision", "task", "snoozed", "dismissed", "elsewhere"] as const;
+// "event": made into an event (Events page, user request 2026-10-11); a new reply brings it back to Pending.
+export const EMAIL_STATES = ["needs_decision", "task", "snoozed", "dismissed", "elsewhere", "event"] as const;
 export type EmailState = (typeof EMAIL_STATES)[number];
 
 // One row per Gmail conversation. We keep only what the queue needs (no message bodies).
@@ -172,6 +174,39 @@ export const emailThreads = pgTable(
   ],
 );
 
+// Events: meetings, trainings, programmes (user request 2026-10-11). Called office_events because `events` is
+// the History audit trail. Repeats like reminders (REPEATS, dueDay); each occurrence's done / cancelled / moved is
+// kept in `changes`, keyed by its scheduled day. prepDays: a "Prepare" task due that many days before each
+// occurrence (null = none). notifiedFor: the "day time" of the last occurrence a phone note went out for.
+export const officeEvents = pgTable("office_events", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  kind: text("kind", { enum: EVENT_KINDS }).notNull().default("meeting"),
+  startDate: date("start_date").notNull(),
+  // Day of the month for monthly and longer repeats (as reminders).
+  dueDay: integer("due_day").notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  repeat: text("repeat", { enum: REPEATS }).notNull().default("never"),
+  endDate: date("end_date"),
+  venue: text("venue").notNull().default(""),
+  meetingUrl: text("meeting_url").notNull().default(""),
+  organiser: text("organiser").notNull().default(""),
+  // Who attends, from the Employees list.
+  attendeeIds: uuid("attendee_ids").array().notNull().default(sql`'{}'::uuid[]`),
+  notes: text("notes").notNull().default(""),
+  links: jsonb("links").$type<ReminderLink[]>().notNull().default([]),
+  tagIds: uuid("tag_ids").array().notNull().default(sql`'{}'::uuid[]`),
+  // The email it was made from ("Make event").
+  threadId: uuid("thread_id").references(() => emailThreads.id, { onDelete: "set null" }),
+  prepDays: integer("prep_days"),
+  changes: jsonb("changes").$type<EventChange[]>().notNull().default([]),
+  notifiedFor: text("notified_for"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
 export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
@@ -195,6 +230,9 @@ export const tasks = pgTable(
     threadId: uuid("thread_id").references(() => emailThreads.id),
     // Set when the task was generated for a recurring report's period.
     reportPeriodId: uuid("report_period_id").references(() => reportPeriods.id, { onDelete: "set null" }),
+    // A "Prepare" task for one occurrence of an event (user request 2026-10-11): the event and its scheduled day.
+    eventId: uuid("event_id").references(() => officeEvents.id, { onDelete: "set null" }),
+    eventDate: date("event_date"),
     // Steps inside the task, ticked one by one (user request 2026-10-07, v2 idea 4).
     checklist: jsonb("checklist").$type<ChecklistItem[]>().notNull().default([]),
     // Waiting for a reply (user request 2026-10-07): set while the task waits on someone else; it then leaves

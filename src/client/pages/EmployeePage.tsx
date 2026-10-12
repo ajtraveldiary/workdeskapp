@@ -5,10 +5,13 @@
 // reminders and a History of every change about them, with Edit, Left the office and Delete.
 import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
-import { BadgeCheck, CalendarClock, ChevronLeft, FileClock, Hourglass, KeyRound, ListChecks, Mail, MessageCircle, Pencil, Phone, Plus, Trash2, TrendingUp, UserMinus, UserPlus, Wallet } from "lucide-react";
+import { BadgeCheck, CalendarClock, ChevronLeft, FileClock, Hourglass, KeyRound, ListChecks, Mail, MessageCircle, Pencil, Phone, Plus, Trash2, TrendingUp, UserMinus, UserPlus, Wallet, CalendarRange } from "lucide-react";
 import type { AuditEvent, Employee, StaffList, Task } from "../../shared/types";
 import { ENGAGEMENT_LABELS, PROBATION_LOOKBACK_YEARS, incrementDue, probationDue, type Engagement } from "../../shared/staff";
-import { useEmployeeProfile, useLogins, useMe, useStaff, useStaffActions } from "../api";
+import { useEmployeeProfile, useLogins, useMe, useOfficeEvents, useStaff, useStaffActions } from "../api";
+import { EVENT_KIND_LABEL, eventOccurrences, shiftDay } from "../../shared/eventSchedule";
+import { openEventDetails } from "../components/EventDetails";
+import { openEventForm } from "../components/EventDialog";
 import { formatDateTime } from "../format";
 import { Avatar } from "../components/Avatar";
 import { ChecklistChip } from "../components/Checklist";
@@ -147,6 +150,7 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
         <div className="space-y-4">
           <Work profile={profile.data} loading={profile.isLoading} designation={designation} />
           <Logins employeeId={e.id} />
+          <Events employeeId={e.id} today={today} />
           <HistoryCard events={profile.data?.history} loading={profile.isLoading} />
         </div>
       </div>
@@ -443,6 +447,55 @@ function HistoryCard({ events, loading }: { events?: AuditEvent[]; loading: bool
             </button>
           )}
         </>
+      )}
+    </Card>
+  );
+}
+
+// --- Events they attend (user request 2026-10-11): upcoming, then the last six months (a training record) ---
+
+function Events({ employeeId, today }: { employeeId: string; today: string }) {
+  const { data } = useOfficeEvents();
+  const [all, setAll] = useState(false);
+  const mine = (data?.events ?? []).filter((x) => x.attendeeIds.includes(employeeId));
+  const items = mine
+    .flatMap((ev) => eventOccurrences(ev, shiftDay(today, -183), shiftDay(today, 183)).map((o) => ({ ev, o })))
+    .filter((x) => x.o.status !== "cancelled");
+  const upcoming = items.filter((x) => x.o.date >= today).sort((a, b) => a.o.date.localeCompare(b.o.date));
+  const past = items.filter((x) => x.o.date < today).sort((a, b) => b.o.date.localeCompare(a.o.date));
+  const shown = [...upcoming.slice(0, all ? undefined : 5), ...past.slice(0, all ? undefined : 5)];
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center border-b border-line pr-2">
+        <h2 className="flex flex-1 items-center gap-2 px-4 py-2.5 text-footnote font-semibold text-slate-600 sm:px-5">
+          <CalendarRange size={15} className="text-brand-700" />
+          Events
+        </h2>
+        <Button size="sm" variant="ghost" onClick={() => openEventForm({ kind: "new", attendeeId: employeeId })}>
+          <Plus size={15} /> Add
+        </Button>
+      </div>
+      {!data ? (
+        <p className="px-4 py-4 text-sm text-slate-400 sm:px-5">Loading…</p>
+      ) : shown.length === 0 ? (
+        <p className="px-4 py-4 text-sm text-slate-500 sm:px-5">No meetings, trainings or programmes for them in the last or next six months.</p>
+      ) : (
+        <ul className="divide-y divide-line">
+          {shown.map(({ ev, o }) => (
+            <li key={`${ev.id}:${o.original}`} className="row-click flex items-center gap-3 px-4 py-2 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5">
+              <span className={cx("w-20 shrink-0 text-footnote tabular-nums", o.date >= today ? "font-medium text-ink" : "text-slate-500")}>{fullDate(o.date)}</span>
+              <button onClick={() => openEventDetails({ id: ev.id, date: o.original })} className="row-link group/title min-w-0 flex-1 truncate text-left text-subhead text-ink group-hover/title:text-brand-700">
+                {ev.title}
+              </button>
+              <span className="shrink-0 text-footnote text-slate-500">{o.status === "done" ? "Done" : EVENT_KIND_LABEL[ev.kind]}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!all && upcoming.length + past.length > shown.length && (
+        <button onClick={() => setAll(true)} className="w-full border-t border-line px-4 py-2 text-left text-footnote font-medium text-brand-700 hover:bg-slate-50 sm:px-5">
+          Show all {upcoming.length + past.length}
+        </button>
       )}
     </Card>
   );

@@ -17,6 +17,8 @@ export function emailTags(thread: Thread, sectionName?: string): Tag[] {
   if (thread.state === "needs_decision")
     tags.push(thread.muted ? { tone: "neutral", label: "Hidden from Pending", title: "Sender is hidden in Settings > Mail" } : { tone: "brand", label: "Needs decision" });
   else if (thread.state === "dismissed") tags.push({ tone: "neutral", label: "Removed", title: `Removed ${formatWhen(thread.stateChangedAt)}` });
+  // Made into an event (user request 2026-10-11).
+  else if (thread.state === "event") tags.push({ tone: "info", label: "Event", title: "Made into an event (Events page). A new reply brings it back to Pending." });
   // Another section of the office has it (user request 2026-10-07).
   else if (thread.state === "elsewhere")
     tags.push({ tone: "info", label: `With ${sectionName ?? "another section"}`, title: "Its label is another section's, so it is taken as handled there. A new reply brings it back to Pending." });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LABEL_COLORS } from "./labelColors";
 import { MAX_TAGS_PER_ITEM, MAX_TAG_NAME, TAG_COLORS } from "./tags";
+import { EVENT_KINDS } from "./eventSchedule";
 import { REPEATS } from "./reminderSchedule";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, RELATED_KINDS } from "./staff";
 
@@ -92,6 +93,60 @@ export const reportInput = z.object({
   relatedId: z.uuid().nullable().default(null),
 });
 export type ReportInput = z.input<typeof reportInput>;
+
+// Events (user request 2026-10-11): meetings, trainings, programmes. An end time needs a start time and comes
+// after it. threadId: the email it is made from ("Make event"; only when adding).
+const eventFields = {
+  title: z.string().trim().min(1, "Title is required").max(300),
+  kind: z.enum(EVENT_KINDS),
+  startDate: day,
+  startTime: time.nullable(),
+  endTime: time.nullable(),
+  repeat: z.enum(REPEATS),
+  endDate: day.nullable(),
+  venue: z.string().trim().max(300),
+  meetingUrl: z.union([z.literal(""), z.string().trim().max(2000).regex(/^https?:\/\/\S+$/i, "Paste a full link starting with https://")]),
+  organiser: z.string().trim().max(200),
+  attendeeIds: z.array(z.uuid()).max(300),
+  notes: z.string().max(10_000),
+  links: reminderLinks,
+  tagIds,
+  prepDays: z.number().int().min(0).max(60).nullable(),
+};
+const timesInOrder = (v: { startTime?: string | null; endTime?: string | null }) => !v.endTime || (!!v.startTime && v.endTime > v.startTime);
+export const eventInput = z
+  .object({
+    ...eventFields,
+    kind: eventFields.kind.default("meeting"),
+    startTime: eventFields.startTime.default(null),
+    endTime: eventFields.endTime.default(null),
+    repeat: eventFields.repeat.default("never"),
+    endDate: eventFields.endDate.default(null),
+    venue: eventFields.venue.default(""),
+    meetingUrl: eventFields.meetingUrl.default(""),
+    organiser: eventFields.organiser.default(""),
+    attendeeIds: eventFields.attendeeIds.default([]),
+    notes: eventFields.notes.default(""),
+    links: eventFields.links.default([]),
+    tagIds: eventFields.tagIds.default([]),
+    prepDays: eventFields.prepDays.default(null),
+    threadId: z.uuid().nullable().default(null),
+  })
+  .refine(timesInOrder, { message: "The end time must be after the start time", path: ["endTime"] });
+export type EventInput = z.input<typeof eventInput>;
+// Updates change only the fields they include.
+export const eventPatch = z.object(eventFields).partial();
+// One occurrence (by its scheduled day): done, cancelled, moved to another day/time, or back to scheduled.
+export const occurrenceInput = z
+  .object({
+    date: day,
+    // "scheduled" undoes done / cancelled (a move stays); "original" also undoes a move.
+    status: z.enum(["scheduled", "done", "cancelled", "moved", "original"]),
+    newDate: day.optional(),
+    newTime: time.nullable().optional(),
+    newEndTime: time.nullable().optional(),
+  })
+  .refine((v) => v.status !== "moved" || !!v.newDate, { message: "Choose the new date", path: ["newDate"] });
 // Updates change only the fields they include (reportInput.partial() would apply reportInput's defaults,
 // so pausing a reminder would reset its settings).
 export const reportPatch = z

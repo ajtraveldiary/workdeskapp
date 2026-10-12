@@ -10,6 +10,8 @@ import { cx } from "./ui";
 import { EmailStatusTags, SectionBackTag } from "./EmailStatus";
 import { LabelChips } from "./LabelChips";
 import { SelectAvatar } from "./Avatar";
+import { CalendarRange } from "lucide-react";
+import { openEventForm } from "./EventDialog";
 
 // Email rows (user request 2026-10-06: tell sender, subject and email text apart at a glance): the sender is
 // small and pastel red (user request 2026-10-06), the subject is the biggest and darkest line, the preview of the email text is small and light
@@ -54,6 +56,8 @@ export function ThreadRow({
       }
       trailing={[
         { label: "Gmail", icon: ExternalLink, tone: "info", href: gmailUrl ?? undefined, hidden: !gmailUrl },
+        // Make event (user request 2026-10-11): meeting notices become events.
+        { label: "Event", icon: CalendarRange, tone: "info", onClick: () => openEventForm({ kind: "fromThread", thread }), hidden: !inQueue },
         {
           label: "Remove", // red, like iPhone's swipe-to-delete (user request 2026-10-06; was "Dismiss")
           icon: X,

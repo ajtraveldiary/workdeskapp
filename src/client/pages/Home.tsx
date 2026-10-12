@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, useM
 import { Link, useNavigate } from "react-router";
 import {
   CalendarClock,
+  CalendarRange,
   FileClock,
   ArrowRight,
   CalendarDays,
@@ -23,7 +24,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { IncrementDue, Task, TaskView, Thread } from "../../shared/types";
+import type { EventToday, IncrementDue, Task, TaskView, Thread } from "../../shared/types";
 import { incrementOverdue } from "../../shared/staff";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import {
@@ -59,6 +60,8 @@ import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Button, CheckCircle, Loading as PageLoading, Menu, PRIORITY_BAR, Segmented, SkeletonList, Spinner, TONE, cx, type Tone } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 import { TagChips, TagFilterButton } from "../components/Tags";
+import { openEventForm } from "../components/EventDialog";
+import { openEventDetails } from "../components/EventDetails";
 
 export function HomePage() {
   const { data: summary, error } = useSummary();
@@ -293,6 +296,8 @@ function CommandCenter({
   }, [data, tab, overdueList, tag]);
   // Increments due (Staff, user request 2026-10-07): in the Today tab from the 20th of their month.
   const increments = tab === "today" && !tag ? (summary.incrementsDue ?? []) : [];
+  // Today's events (user request 2026-10-11), first in the Today tab (left out while a tag filter is on).
+  const todayEvents = tab === "today" && !tag ? (summary.eventsToday ?? []) : [];
 
   return (
     <Panel hiddenOnPhone={hiddenOnPhone}>
@@ -330,12 +335,15 @@ function CommandCenter({
           </Empty>
         ) : tag && tasks.length === 0 ? (
           <Empty icon={CircleCheck} title="No tasks with this tag here" />
-        ) : tasks.length === 0 && increments.length === 0 ? (
+        ) : tasks.length === 0 && increments.length === 0 && todayEvents.length === 0 ? (
           <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today or overdue" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
             {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
           </Empty>
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
+            {todayEvents.map((e) => (
+              <EventTodayRow key={`${e.id}:${e.original}`} item={e} />
+            ))}
             {increments.map((i) => (
               <IncrementRow key={i.employeeId} item={i} today={today} />
             ))}
@@ -457,6 +465,27 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
 
 // An employee's increment due (Staff, user request 2026-10-07): tick (computers) or swipe right (phones) marks
 // it done, which moves their next increment date a year on, with Undo; tapping opens the employee's card.
+// Today's event (user request 2026-10-11): its time, title and place; opens its details (Done, Move, Cancel…).
+function EventTodayRow({ item }: { item: EventToday }) {
+  const cancelled = item.status === "cancelled";
+  return (
+    <li className="row-click -mx-3 flex items-start gap-2.5 px-3 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:-mx-5 sm:px-5 sm:py-2">
+      <span className="w-[3px] shrink-0 self-stretch rounded-full bg-info" aria-hidden />
+      <button
+        onClick={() => openEventDetails({ id: item.id, date: item.original })}
+        className={cx("row-link min-w-0 flex-1 text-left text-subhead leading-snug font-medium hover:text-brand-700 hover:underline sm:text-sm", cancelled ? "text-slate-400 line-through" : "text-ink")}
+        aria-label={`Event: ${item.title}. Open`}
+      >
+        <CalendarRange size={14} className="mr-1 inline -translate-y-px text-info" aria-hidden />
+        {item.title}
+        {(item.venue || item.meetingUrl) && <span className="font-normal text-slate-500"> · {item.venue || "Online"}</span>}
+        {item.status === "done" && <span className="ml-1.5 text-footnote font-normal text-low-ink">Done</span>}
+      </button>
+      <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", cancelled ? "text-slate-400 line-through" : "font-medium text-info-ink")}>{item.startTime ? formatTime(item.startTime) : "All day"}</span>
+    </li>
+  );
+}
+
 function IncrementRow({ item, today }: { item: IncrementDue; today: string }) {
   const navigate = useNavigate();
   const swipe = useSwipeMode();
@@ -977,6 +1006,8 @@ function EmailCard({
       trailing={[
         { label: "Gmail", icon: ExternalLink, tone: "info", href: gmailUrl ?? undefined, hidden: !gmailUrl },
         { label: "View task", icon: ListChecks, tone: "brand", onClick: () => navigate(`/search?q=${encodeURIComponent(thread.subject)}`), hidden: thread.state !== "task" },
+        // Make event (user request 2026-10-11): meeting notices become events.
+        { label: "Event", icon: CalendarRange, tone: "info", onClick: () => openEventForm({ kind: "fromThread", thread }), hidden: !inQueue },
         {
           label: "Remove", // red, like iPhone's swipe-to-delete (user request 2026-10-06; was "Dismiss")
           icon: X,

@@ -5,6 +5,7 @@ import { applySectionRules } from "./sections";
 import { ensurePensionTasks } from "./pension";
 import { ensureContractTasks } from "./contracts";
 import { ensureProbationTasks } from "./probation";
+import { ensureEventTasks } from "./officeEvents";
 
 // Housekeeping that read endpoints used to run on every request (waking snoozed emails, creating report
 // periods). It now runs at most once per INTERVAL per user from page loads, which saves database round trips.
@@ -26,4 +27,6 @@ export async function maintain(db: DB, userId: string, today: string, force = fa
   await ensureContractTasks(db, today, userId);
   // Probation declaration tasks near 2 years of service (user request 2026-10-08).
   await ensureProbationTasks(db, today, userId);
+  // "Prepare" tasks for events in the next 30 days (user request 2026-10-11).
+  await ensureEventTasks(db, today, userId);
 }

@@ -9,6 +9,7 @@ import {
   TriangleAlert,
   WifiOff,
   CalendarCheck,
+  CalendarRange,
   ChevronDown,
   History as HistoryIcon,
   UsersRound,
@@ -52,6 +53,9 @@ import { EmployeePage } from "./pages/EmployeePage";
 import { ImportExportPage } from "./pages/ImportExport";
 import { FilesPage } from "./pages/Files";
 import { LoginsPage } from "./pages/Logins";
+import { EventsPage } from "./pages/Events";
+import { EventDialogHost } from "./components/EventDialog";
+import { EventDetailsHost } from "./components/EventDetails";
 import { RemindersPage } from "./pages/Reminders";
 import { SettingsPage } from "./pages/Settings";
 import { LoginPage } from "./pages/Login";
@@ -90,6 +94,7 @@ export function App() {
         <Route path="/staff" element={<StaffRedirect />} />
         <Route path="/files" element={<Page><FilesPage /></Page>} />
         <Route path="/logins" element={<Page><LoginsPage /></Page>} />
+        <Route path="/events" element={<Page><EventsPage /></Page>} />
         <Route path="*" element={<Page><p className="text-slate-500">Page not found.</p></Page>} />
       </Routes>
     </Shell>
@@ -115,6 +120,8 @@ const NAV: NavItem[] = [
   { to: "/tasks", label: "Tasks", icon: ListChecks },
   { to: "/reminders", label: "Reminders", icon: CalendarClock },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
+  // Events: meetings, trainings, programmes (user request 2026-10-11): rail on wider screens, profile menu on phones.
+  { to: "/events", label: "Events", icon: CalendarRange },
   { to: "/history", label: "History", icon: HistoryIcon },
   // Employees page (formerly Staff, user request 2026-10-07): in the side rail on wider screens, in the profile menu on phones.
   { to: "/employees", label: "Employees", icon: UsersRound },
@@ -154,6 +161,8 @@ function Shell({ children }: { children: ReactNode }) {
       <RemoveChooserHost />
       <SystemTaskChooserHost />
       <IncrementDialogHost />
+      <EventDialogHost />
+      <EventDetailsHost />
       <IconBadge />
       {/* Labelled icon rail */}
       <aside className="sticky top-0 hidden h-dvh w-[104px] shrink-0 flex-col border-r border-line bg-white md:flex">
@@ -186,7 +195,7 @@ function Shell({ children }: { children: ReactNode }) {
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
           corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
       <nav className="tabbar fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
-        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/logins").map((n) => (
+        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/logins" && n.to !== "/events").map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -590,6 +599,7 @@ function UserMenu() {
       </div>
       <nav className="flex-1 overflow-y-auto py-2">
         {[
+          { to: "/events", label: "Events", icon: CalendarRange },
           { to: "/employees", label: "Employees", icon: UsersRound },
           { to: "/files", label: "File register", icon: FolderOpen },
           { to: "/logins", label: "Logins", icon: KeyRound },
@@ -623,6 +633,9 @@ function UserMenu() {
             <div className="truncate text-xs text-slate-500">{me?.demo ? "Demo mode · sample emails" : (me?.account?.email ?? me?.email)}</div>
           </div>
           <div className="my-1 h-px bg-line" />
+          <Link to="/events" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
+            <CalendarRange size={16} /> Events
+          </Link>
           {/* Employees (formerly Staff, user request 2026-10-07): next to Settings in the profile menu. */}
           <Link to="/employees" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <UsersRound size={16} /> Employees

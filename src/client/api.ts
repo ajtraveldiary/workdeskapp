@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
-import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
-import type { EmployeeInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
+import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { EmployeeInput, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
   constructor(
@@ -222,6 +222,21 @@ export function useOfficeFileActions() {
     add: useMutation({ mutationFn: (input: OfficeFileInput) => api<OfficeFile>("/files", { method: "POST", body: input }), onSettled: refresh }),
     save: useMutation({ mutationFn: ({ id, input }: { id: string; input: OfficeFileInput }) => api(`/files/${id}`, { method: "PUT", body: input }), onSettled: refresh }),
     remove: useMutation({ mutationFn: (id: string) => api(`/files/${id}`, { method: "DELETE" }), onSettled: refresh }),
+  };
+}
+
+// Events: meetings, trainings, programmes (user request 2026-10-11). A change can add or remove prep tasks and move
+// an email out of (or back to) Pending, so those lists refresh too.
+export const useOfficeEvents = () => useQuery({ queryKey: ["office-events"], queryFn: () => api<{ events: OfficeEvent[]; today: string }>("/office-events") });
+export type OccurrenceChange = { date: string; status: "scheduled" | "done" | "cancelled" | "moved" | "original"; newDate?: string; newTime?: string | null; newEndTime?: string | null };
+export function useOfficeEventActions() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["office-events", "tasks", "summary", "history", "threads", "tags"].includes(q.queryKey[0] as string) });
+  return {
+    add: useMutation({ mutationFn: (input: EventInput) => api<OfficeEvent>("/office-events", { method: "POST", body: input }), onSettled: refresh }),
+    save: useMutation({ mutationFn: ({ id, input }: { id: string; input: Partial<EventInput> }) => api(`/office-events/${id}`, { method: "PATCH", body: input }), onSettled: refresh }),
+    remove: useMutation({ mutationFn: (id: string) => api(`/office-events/${id}`, { method: "DELETE" }), onSettled: refresh }),
+    occurrence: useMutation({ mutationFn: ({ id, ...change }: OccurrenceChange & { id: string }) => api(`/office-events/${id}/occurrence`, { method: "POST", body: change }), onSettled: refresh }),
   };
 }
 

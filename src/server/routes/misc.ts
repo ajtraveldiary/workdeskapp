@@ -15,6 +15,7 @@ import { mutedSenderInput, snippetInput } from "../../shared/schemas";
 import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
 import { openTaskOrder, selectTasks, toTask, viewFilter } from "./tasks";
+import { eventsToday } from "../lib/officeEvents";
 
 export const miscRoutes = new Hono<AppEnv>()
   .get("/me", async (c) => {
@@ -110,6 +111,8 @@ export const miscRoutes = new Hono<AppEnv>()
         .where(and(eq(employees.userId, userId), sql`${employees.leftOn} is null`, sql`${employees.nextIncrementOn} is not null`))
         .orderBy(asc(employees.nextIncrementOn), asc(employees.name))
     ).filter((e) => incrementOnHome(e.due, today)) as Summary["incrementsDue"];
+    // Today's events (user request 2026-10-11) for the Due Today card.
+    const todayEvents = await eventsToday(db, userId, today);
     const summary: Summary = {
       today,
       counts: {
@@ -134,6 +137,7 @@ export const miscRoutes = new Hono<AppEnv>()
         incrementsDue: incrementsDue.length,
       },
       incrementsDue,
+      eventsToday: todayEvents,
       overdue: overdue.map(toTask),
       dueToday: dueToday.map(toTask),
       dueTomorrow: dueTomorrow.map(toTask),

@@ -22,6 +22,8 @@ import { usePullToClose } from "./sheet";
 import { MALAYALAM_FONT } from "../fonts";
 import { ADDRESS_LIST_STYLE, collapseAddressLists, plainAddressLines } from "../addressLists";
 import { PreviewErrorBoundary } from "./ErrorBoundary";
+import { CalendarRange } from "lucide-react";
+import { openEventForm } from "./EventDialog";
 
 const PdfPreview = lazy(() => import("./PdfPreview"));
 
@@ -185,6 +187,16 @@ function ViewerBody({ thread, onClose, onCreateTask }: { thread: Thread; onClose
             <>
               <Button size="sm" variant="primary" onClick={() => onCreateTask(thread)}>
                 <ListPlus size={15} /> Create task
+              </Button>
+              {/* Make event (user request 2026-10-11): meeting / training / programme notices. */}
+              <Button
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  openEventForm({ kind: "fromThread", thread });
+                }}
+              >
+                <CalendarRange size={15} /> Make event
               </Button>
               <Button
                 size="sm"

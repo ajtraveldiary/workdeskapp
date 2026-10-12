@@ -16,6 +16,7 @@ import {
   events,
   hiddenSnippets,
   mutedSenders,
+  officeEvents,
   officeFiles,
   reportPeriods,
   reports,
@@ -28,7 +29,9 @@ import { ensureReportPeriods } from "../lib/reports";
 import { ensurePensionTasks } from "../lib/pension";
 import { ensureContractTasks } from "../lib/contracts";
 import { ensureProbationTasks } from "../lib/probation";
-import { employeeInput, officeFileInput, reminderLinks, reportInput, reportPatch, taskInput, taskPatch } from "../../shared/schemas";
+import { employeeInput, eventInput, eventPatch, officeFileInput, reminderLinks, reportInput, reportPatch, taskInput, taskPatch } from "../../shared/schemas";
+import { EVENT_KINDS, EVENT_KIND_LABEL, eventOccurrences, shiftDay } from "../../shared/eventSchedule";
+import { ensureEventTasks, ruleOf } from "../lib/officeEvents";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, ENGAGEMENT_LABELS, contractEnd, type Engagement } from "../../shared/staff";
 import { REPEATS, REPEAT_LABEL } from "../../shared/reminderSchedule";
 import {
@@ -154,6 +157,35 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
         replyBy: t.replyBy ?? "",
         completedOn: dayOf(t.completedAt, tz),
         createdOn: dayOf(t.createdAt, tz),
+      }),
+    );
+  }
+  if (kind === "events") {
+    const [rows, people] = await Promise.all([
+      db.select().from(officeEvents).where(eq(officeEvents.userId, userId)).orderBy(asc(officeEvents.startDate), asc(officeEvents.title)),
+      db.select({ id: employees.id, name: employees.name }).from(employees).where(eq(employees.userId, userId)),
+    ]);
+    const nameOf = new Map(people.map((p) => [p.id, p.name]));
+    const today = todayIn(tz);
+    return rows.map((e) =>
+      out({
+        id: e.id,
+        title: e.title,
+        kind: EVENT_KIND_LABEL[e.kind],
+        startDate: e.startDate,
+        startTime: e.startTime ?? "",
+        endTime: e.endTime ?? "",
+        repeat: REPEAT_LABEL[e.repeat],
+        endDate: e.endDate ?? "",
+        venue: e.venue,
+        meetingUrl: e.meetingUrl,
+        organiser: e.organiser,
+        attendees: (e.attendeeIds ?? []).map((id) => nameOf.get(id)).filter(Boolean).join(", "),
+        notes: e.notes,
+        links: (e.links ?? []).map((l) => (l.name ? `${l.name} | ${l.url}` : l.url)).join("\n"),
+        tags: tagList(e.tagIds),
+        prepDays: e.prepDays === null ? "" : String(e.prepDays),
+        nextOn: eventOccurrences(ruleOf(e), today, shiftDay(today, 3660), 4000).find((o) => o.status === "scheduled")?.date ?? "",
       }),
     );
   }
@@ -630,11 +662,126 @@ async function planReminders(db: DB, userId: string, rows: Row[], result: Import
   };
 }
 
+// Events (user request 2026-10-11): matched by ID or by title on the same date; attendees by employee name.
+async function planEvents(db: DB, userId: string, rows: Row[], result: ImportResult): Promise<Plan> {
+  const [existing, people] = await Promise.all([
+    db.select().from(officeEvents).where(eq(officeEvents.userId, userId)),
+    db.select({ id: employees.id, name: employees.name }).from(employees).where(eq(employees.userId, userId)),
+  ]);
+  const updates = new Map<string, { set: Record<string, unknown>; tags?: string[] }>();
+  const inserts: { key: string; values: Record<string, unknown>; tags?: string[] }[] = [];
+  for (const row of rows) {
+    const c = row.cells;
+    const id = (c.get("id") ?? "").trim();
+    const v: Record<string, unknown> = {};
+    const errors: string[] = [];
+    for (const k of ["title", "notes", "venue", "organiser"]) if (c.has(k)) v[k] = c.get(k)!;
+    if (c.has("meetingUrl")) v.meetingUrl = c.get("meetingUrl")!.trim();
+    for (const [k, h] of [["startDate", "Date"], ["endDate", "End repeat"]] as const) {
+      const err = setDay(row, k, h, v);
+      if (err) errors.push(err);
+    }
+    if (c.has("startDate") && v.startDate === null) delete v.startDate;
+    for (const [k, h] of [["startTime", "Start time"], ["endTime", "End time"]] as const) {
+      if (!c.has(k)) continue;
+      const tm = parseTime(c.get(k)!);
+      if (tm === undefined) errors.push(`${h}: "${c.get(k)}" is not a time (use 10:30)`);
+      else v[k] = tm;
+    }
+    if (c.has("kind") && c.get("kind")) {
+      const k = normHeader(c.get("kind")!);
+      const kind = EVENT_KINDS.find((x) => normHeader(x) === k || normHeader(EVENT_KIND_LABEL[x]) === k);
+      if (!kind) errors.push(`Type: "${c.get("kind")}" should be Meeting, Training, Programme or Other`);
+      else v.kind = kind;
+    }
+    if (c.has("repeat") && c.get("repeat")) {
+      const k = normHeader(c.get("repeat")!);
+      const rep = REPEATS.find((x) => normHeader(x) === k || normHeader(REPEAT_LABEL[x]) === k);
+      if (!rep) errors.push(`Repeat: "${c.get("repeat")}" should be one of ${REPEATS.map((x) => REPEAT_LABEL[x]).join(", ")}`);
+      else v.repeat = rep;
+    }
+    if (c.has("attendees")) {
+      const names = c.get("attendees")!.split(/[,;\n]/).map((n) => n.trim()).filter(Boolean);
+      const ids: string[] = [];
+      for (const n of names) {
+        const p = people.find((x) => lower(x.name) === lower(n));
+        if (p) ids.push(p.id);
+        else errors.push(`Attendees: no employee called "${n}"`);
+      }
+      v.attendeeIds = ids;
+    }
+    if (c.has("links")) {
+      const l = reminderLinks.safeParse(parseLinks(c.get("links")!));
+      if (!l.success) errors.push(`Links: ${l.error.issues[0]?.message ?? "not valid"}`);
+      else v.links = l.data;
+    }
+    if (c.has("prepDays")) {
+      const n = num(c.get("prepDays")!, true);
+      if (n === undefined) errors.push(`Prepare task: "${c.get("prepDays")}" is not a whole number of days`);
+      else v.prepDays = n;
+    }
+    if (errors.length) {
+      problem(result, row, errors.join("; "));
+      continue;
+    }
+    const tags = c.has("tags") ? splitTagNames(c.get("tags")!) : undefined;
+    const title = lower(String(v.title ?? ""));
+    const match = existing.find((e) => e.id === id) ?? (title && v.startDate ? existing.find((e) => lower(e.title) === title && e.startDate === v.startDate) : undefined);
+    if (match) {
+      const parsed = eventPatch.safeParse(v);
+      if (!parsed.success) {
+        problem(result, row, zodMessage(parsed.error));
+        continue;
+      }
+      if (!updates.has(match.id)) result.updated++;
+      const prev = updates.get(match.id);
+      updates.set(match.id, { set: { ...(prev?.set ?? {}), ...parsed.data }, tags: tags ?? prev?.tags });
+      continue;
+    }
+    const parsed = eventInput.safeParse(v);
+    if (!parsed.success) {
+      problem(result, row, zodMessage(parsed.error).replace("startDate", "Date"));
+      continue;
+    }
+    const { threadId: _t, ...values } = parsed.data;
+    const key = `${lower(values.title)} ${values.startDate}`;
+    const pending = inserts.find((i) => i.key === key);
+    if (pending) Object.assign(pending, { values, tags: tags ?? pending.tags });
+    else {
+      inserts.push({ key, values, tags });
+      result.added++;
+    }
+  }
+  const dueDay = (d: string) => Number(d.slice(8, 10));
+  return {
+    result,
+    write: async () => {
+      const tagIds = await ensureTagsByName(db, userId, [...[...updates.values()].flatMap((u) => u.tags ?? []), ...inserts.flatMap((i) => i.tags ?? [])]);
+      const toIds = (names: string[]) => names.map((n) => tagIds.get(n.toLowerCase())).filter((x): x is string => !!x);
+      for (const [id, { set, tags }] of updates) {
+        await db
+          .update(officeEvents)
+          .set({ ...set, ...(tags ? { tagIds: toIds(tags) } : {}), ...(typeof set.startDate === "string" ? { dueDay: dueDay(set.startDate) } : {}), updatedAt: new Date() })
+          .where(eq(officeEvents.id, id));
+      }
+      if (inserts.length) {
+        await db.insert(officeEvents).values(
+          inserts.map((i) => {
+            const e = i.values as Omit<ReturnType<typeof eventInput.parse>, "threadId">;
+            return { ...e, ...(i.tags ? { tagIds: toIds(i.tags) } : {}), userId, dueDay: dueDay(e.startDate) };
+          }),
+        );
+      }
+    },
+  };
+}
+
 const PLANNERS: Record<CsvKind, (db: DB, userId: string, rows: Row[], result: ImportResult) => Promise<Plan>> = {
   files: planFiles,
   employees: planEmployees,
   tasks: planTasks,
   reminders: planReminders,
+  events: planEvents,
 };
 
 // --- Master backup ---
@@ -646,9 +793,10 @@ const BACKUP: Record<BackupTable, TableInfo> = {
   employees: { table: employees as never, refs: { designationId: { table: designations }, typeId: { table: employeeTypes } } },
   officeFiles: { table: officeFiles as never },
   tags: { table: tags as never },
+  officeEvents: { table: officeEvents as never, refs: { threadId: { table: emailThreads } } },
   reports: { table: reports as never },
   reportPeriods: { table: reportPeriods as never, refs: { reportId: { table: reports, required: true } } },
-  tasks: { table: tasks as never, refs: { threadId: { table: emailThreads }, reportPeriodId: { table: reportPeriods } } },
+  tasks: { table: tasks as never, refs: { threadId: { table: emailThreads }, reportPeriodId: { table: reportPeriods }, eventId: { table: officeEvents } } },
   events: { table: events as never },
   hiddenSnippets: { table: hiddenSnippets as never },
   mutedSenders: { table: mutedSenders as never },
@@ -757,6 +905,7 @@ export const transferRoutes = new Hono<AppEnv>()
     if (!body.dryRun && (result.added || result.updated)) {
       await plan.write();
       if (kind === "reminders") await ensureReportPeriods(db, todayIn(timezone(c.env)), userId);
+      if (kind === "events") await ensureEventTasks(db, todayIn(timezone(c.env)), userId);
       if (kind === "employees") {
         await ensurePensionTasks(db, todayIn(timezone(c.env)), userId);
         await ensureContractTasks(db, todayIn(timezone(c.env)), userId);

@@ -5,7 +5,7 @@
 // Excel files (.xlsx) are read too. Only WorkDesk's database changes; Gmail is never touched.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CalendarClock, Check, DatabaseBackup, Download, FolderOpen, ListChecks, Upload, UsersRound } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarRange, Check, DatabaseBackup, Download, FolderOpen, ListChecks, Upload, UsersRound } from "lucide-react";
 import { api } from "../api";
 import { saveFile } from "../saveFile";
 import {
@@ -40,6 +40,7 @@ export function ImportExportPage() {
         <CsvCard kind="employees" icon={<UsersRound size={18} />} text="Permanent and temporary employees with all their details. Designations and types named in the file are added if they are new." />
         <CsvCard kind="tasks" icon={<ListChecks size={18} />} text="Every task, open and completed. Import adds or updates tasks made by hand; tasks from emails can be updated, and a reminder's tasks are left as they are." />
         <CsvCard kind="reminders" icon={<CalendarClock size={18} />} text="Reminders with their repeat, time, links and who they are for." />
+        <CsvCard kind="events" icon={<CalendarRange size={18} />} text="Meetings, trainings and programmes with their times, venue, attendees (by employee name) and repeat." />
         <p className="text-footnote text-slate-500">
           Importing only changes WorkDesk; your emails in Gmail are never touched. Every import is recorded in History.
         </p>

@@ -31,8 +31,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 
 ### Home: the day at a glance
 - **Counters:** emails waiting for a decision, pending jobs, work due today, upcoming reminders.
-- **Due Today:** today's tasks with overdue ones first, plus tabs for overdue, upcoming and reminder tasks, and
-  staff increments that fall due.
+- **Due Today:** today's events and tasks with overdue ones first, plus tabs for overdue, upcoming and reminder
+  tasks, and staff increments that fall due.
 - **To-do:** open tasks, tasks waiting for a reply, and completed tasks. Select several to complete or change them
   together.
 - **Pending emails:** the inbox items still waiting for a decision.
@@ -44,7 +44,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   disclaimers hidden. Opening an email also marks it read in Gmail.
 - **Attachment previews:** PDF, pictures, Excel/CSV, Word, PowerPoint (slide text), and Google Docs/Sheets/Drive
   links in the email. Old Word/PowerPoint formats (.doc, .ppt) explain why they can't be shown and offer Download.
-- **One-tap decisions:** Create task, Remove (or send to another section), Restore. Select many emails at once.
+- **One-tap decisions:** Create task, Make event, Remove (or send to another section), Restore. Select many emails
+  at once.
 - **Share:** send an email and its attachments to another app, such as WhatsApp.
 - **Hide senders:** newsletters and other routine senders can skip Pending; they still appear under All emails.
 
@@ -67,14 +68,25 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Links** to the spreadsheet, document or folder you need, **tags**, and a link to an employee or designation.
 - **Pause and resume**, and a details view with past and upcoming dates.
 
+### Events
+- **Meetings, trainings and programmes:** date, start and end time, venue or meeting link, who organises it, which
+  employees attend, notes, links and tags. Events can repeat like reminders.
+- **Make event from an email:** a meeting notice becomes an event filled from the email; the email leaves Pending
+  (a new reply brings it back).
+- **Preparation task (optional):** a task a chosen number of days before, which moves with the event.
+- **Each date on its own:** mark it done, move it, or cancel it without touching the other dates.
+- **Everywhere it matters:** today's events on Home, the calendar, the employee's page, the calendar link, a phone
+  notification an hour before, and CSV export/import.
+
 ### Calendar
-- **Month view** of tasks and reminders; tap a day to see its list.
+- **Month view** of tasks, reminders and events; tap a day to see its list.
 - **Private calendar link:** see everything in Apple Calendar, Google Calendar or Outlook (a read-only copy).
 
 ### Employees
 - **Staff records:** permanent and temporary employees with ID number, contact details, date of birth, joining
   date, increment date, retirement date, pay and contract details, grouped by designation (drag to arrange).
-- **An employee's own page:** every detail, their open and completed tasks, reminders, saved logins and history.
+- **An employee's own page:** every detail, their open and completed tasks, reminders, saved logins, the events
+  they attend and history.
 - **Increments:** due increments appear on Home; marking one done asks for the new pay and moves the date a year on.
 - **Contracts ending:** a week before a temporary contract ends, a task asks whether to renew or end it.
 - **Probation:** when an employee nears the end of probation, a task to declare it or change the date.
@@ -105,12 +117,13 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 
 ### Notifications
 - **Bell:** overdue tasks, tasks due today and new replies.
-- **Phone notifications** (home-screen app): a morning summary at a time you choose, a note when a task is due,
-  and a count on the app icon.
+- **Phone notifications** (home-screen app): a morning summary at a time you choose, a note when a task is due, a
+  note an hour before an event, and a count on the app icon.
 
 ### Import and Export
 - **Full backup** of everything WorkDesk keeps, and a restore that only adds what is missing.
-- **Spreadsheet (CSV) import and export**, with sample files, for the file register, employees, tasks and reminders.
+- **Spreadsheet (CSV) import and export**, with sample files, for the file register, employees, tasks,
+  reminders and events.
 
 ### Settings
 - **General:** light, dark or automatic appearance; phone notifications; the Gmail connection.

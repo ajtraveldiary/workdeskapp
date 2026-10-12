@@ -9,6 +9,8 @@
 //    date, with the old date in the details. They move along day by day until done. The title is just the
 //    name, without "Overdue:" (user request 2026-10-07).
 import { occurrences, repeatText, type ReminderRule } from "../../shared/reminderSchedule";
+import { EVENT_KIND_LABEL, eventOccurrences, type EventRule } from "../../shared/eventSchedule";
+import type { OfficeEvent } from "../../shared/types";
 
 export type FeedTask = {
   id: string;
@@ -91,7 +93,12 @@ function when(day: string, time: string | null, tz: string): string[] {
   return [`DTSTART:${stamp(start)}`, `DTEND:${stamp(new Date(start.getTime() + EVENT_MINUTES * 60_000))}`];
 }
 
-export function buildCalendar(opts: { tasks: FeedTask[]; reminders: FeedReminder[]; today: string; tz: string; appUrl: string; now?: Date }): string {
+// Events (user request 2026-10-11): every occurrence in the same window, at its times (an hour long without an end
+// time; all day without a start time), with the venue as the location; cancelled ones marked cancelled.
+export type FeedEvent = Pick<OfficeEvent, "id" | "title" | "kind" | "venue" | "meetingUrl" | "organiser" | "notes"> & EventRule & { updatedAt: Date };
+const EVENT_DEFAULT_MINUTES = 60;
+
+export function buildCalendar(opts: { tasks: FeedTask[]; reminders: FeedReminder[]; events?: FeedEvent[]; today: string; tz: string; appUrl: string; now?: Date }): string {
   const now = stamp(opts.now ?? new Date());
   const lines: string[] = [
     "BEGIN:VCALENDAR",
@@ -144,6 +151,33 @@ export function buildCalendar(opts: { tasks: FeedTask[]; reminders: FeedReminder
       event(`reminder-${r.id}-${day}@workdesk`, r.updatedAt, [
         ...(overdue ? when(opts.today, null, opts.tz) : when(day, r.dueTime, opts.tz)),
         `SUMMARY:${escapeText(`${done ? "✓ " : ""}${r.name}`)}`,
+        `DESCRIPTION:${escapeText(about.join("\n"))}`,
+      ]);
+    }
+  }
+
+  for (const e of opts.events ?? []) {
+    for (const o of eventOccurrences(e, from, until)) {
+      const times = o.startTime
+        ? (() => {
+            const start = localToUtc(o.date, o.startTime, opts.tz);
+            const end = o.endTime ? localToUtc(o.date, o.endTime, opts.tz) : new Date(start.getTime() + EVENT_DEFAULT_MINUTES * 60_000);
+            return [`DTSTART:${stamp(start)}`, `DTEND:${stamp(end)}`];
+          })()
+        : when(o.date, null, opts.tz);
+      const about = [
+        `${EVENT_KIND_LABEL[e.kind]}${e.repeat !== "never" ? ` · ${repeatText(e)}` : ""}`,
+        o.moved ? `Moved from ${wasDue(o.original, e.startTime)}` : null,
+        e.organiser ? `Organised by: ${e.organiser}` : null,
+        e.meetingUrl ? `Meeting link: ${e.meetingUrl}` : null,
+        e.notes.trim() ? `\n${e.notes.trim()}` : null,
+        `\nOpen WorkDesk: ${opts.appUrl}`,
+      ].filter(Boolean);
+      event(`event-${e.id}-${o.original}@workdesk`, e.updatedAt, [
+        ...times,
+        `SUMMARY:${escapeText(`${o.status === "done" ? "✓ " : o.status === "cancelled" ? "Cancelled: " : ""}${e.title}`)}`,
+        ...(e.venue ? [`LOCATION:${escapeText(e.venue)}`] : []),
+        `STATUS:${o.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}`,
         `DESCRIPTION:${escapeText(about.join("\n"))}`,
       ]);
     }

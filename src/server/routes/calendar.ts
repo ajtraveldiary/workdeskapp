@@ -4,11 +4,12 @@
 import { Hono } from "hono";
 import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { AppEnv } from "../app";
-import { emailThreads, events, reportPeriods, reports, tasks, users } from "../db/schema";
+import { emailThreads, events, officeEvents, reportPeriods, reports, tasks, users } from "../db/schema";
 import { timezone } from "../env";
 import { randomToken } from "../lib/crypto";
 import { todayIn } from "../lib/dates";
-import { buildCalendar, type FeedReminder, type FeedTask } from "../lib/ics";
+import { buildCalendar, type FeedEvent, type FeedReminder, type FeedTask } from "../lib/ics";
+import { ruleOf } from "../lib/officeEvents";
 
 const appUrl = (env: AppEnv["Bindings"], requestUrl: string) => (env.APP_URL || new URL(requestUrl).origin).replace(/\/$/, "");
 const feedUrl = (env: AppEnv["Bindings"], requestUrl: string, token: string) => `${appUrl(env, requestUrl)}/api/calendar/${token}.ics`;
@@ -81,7 +82,20 @@ export const calendarFeedRoute = new Hono<AppEnv>().get("/calendar/:file", async
     overdueDates: new Set(periods.filter((p) => p.reportId === r.id && p.status === "pending" && p.dueDate < today).map((p) => p.dueDate)),
   }));
 
-  const ics = buildCalendar({ tasks: feedTasks, reminders: feedReminders, today, tz, appUrl: appUrl(c.env, c.req.url) });
+  // Events (user request 2026-10-11).
+  const feedEvents: FeedEvent[] = (await db.select().from(officeEvents).where(eq(officeEvents.userId, user.id))).map((e) => ({
+    ...ruleOf(e),
+    id: e.id,
+    title: e.title,
+    kind: e.kind,
+    venue: e.venue,
+    meetingUrl: e.meetingUrl,
+    organiser: e.organiser,
+    notes: e.notes,
+    updatedAt: e.updatedAt,
+  }));
+
+  const ics = buildCalendar({ tasks: feedTasks, reminders: feedReminders, events: feedEvents, today, tz, appUrl: appUrl(c.env, c.req.url) });
   return c.body(ics, 200, {
     "Content-Type": "text/calendar; charset=utf-8",
     "Content-Disposition": 'inline; filename="workdesk.ics"',

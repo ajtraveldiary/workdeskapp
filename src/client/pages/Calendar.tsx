@@ -1,9 +1,13 @@
 import { useRef, useState, useSyncExternalStore } from "react";
-import { CalendarClock, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { CalendarClock, ChevronLeft, ChevronRight, Plus, CalendarRange } from "lucide-react";
 import { Link } from "react-router";
 import type { Report, Task } from "../../shared/types";
 import { occurrences, remindLabel } from "../../shared/reminderSchedule";
-import { useMe, useRangeTasks, useReports, useThread } from "../api";
+import { useMe, useOfficeEvents, useRangeTasks, useReports, useThread } from "../api";
+import { eventOccurrences, type EventOccurrence } from "../../shared/eventSchedule";
+import type { OfficeEvent } from "../../shared/types";
+import { openEventDetails } from "../components/EventDetails";
+import { openEventForm } from "../components/EventDialog";
 import { EmailViewer } from "../components/EmailViewer";
 import { TaskDetails } from "../components/TaskDetails";
 import { addDays, formatDay, formatTime } from "../format";
@@ -80,6 +84,12 @@ export function CalendarPage() {
     byDay.set(t.dueDate, [...(byDay.get(t.dueDate) ?? []), t]);
   }
   const selectedTasks = byDay.get(selected) ?? [];
+  // Events (user request 2026-10-11): every occurrence in this view, by day.
+  const officeEvents = useOfficeEvents().data?.events;
+  const eventsByDay = new Map<string, { e: OfficeEvent; o: EventOccurrence }[]>();
+  for (const e of officeEvents ?? []) for (const o of eventOccurrences(e, days[0]!, days.at(-1)!)) eventsByDay.set(o.date, [...(eventsByDay.get(o.date) ?? []), { e, o }]);
+  for (const list of eventsByDay.values()) list.sort((a, b) => (a.o.startTime ?? "").localeCompare(b.o.startTime ?? ""));
+  const selectedEvents = eventsByDay.get(selected) ?? [];
 
   // Reminder dates still to come in this view whose task doesn't exist yet (user request 2026-10-06: show
   // reminders in every month, not only once their task is created). Shown hollow / dashed.
@@ -154,6 +164,7 @@ export function CalendarPage() {
             {/* Phones: drop a last week that belongs wholly to next month. */}
             {(phone && days.slice(35).every((d) => d.slice(0, 7) !== month.slice(0, 7)) ? days.slice(0, 35) : days).map((day, i) => {
               const tasks = byDay.get(day) ?? [];
+              const dayEvents = eventsByDay.get(day) ?? [];
               const inMonth = day.slice(0, 7) === month.slice(0, 7);
               // Phones: other months' days are only faded numbers (no dots, no today/selected marks), like phone
               // calendar apps (2026-10-06: they made September and October look broken). Tapping one goes there.
@@ -189,6 +200,9 @@ export function CalendarPage() {
                   </span>
                   {/* Dots on phones, titled chips on wider screens */}
                   <span className={cx("flex gap-0.5 sm:hidden", quiet && "hidden")}>
+                    {dayEvents.slice(0, 2).map((x) => (
+                      <span key={`${x.e.id}:${x.o.original}`} className={cx("size-1.5 rounded-sm", x.o.status === "cancelled" ? "bg-slate-300" : "bg-info")} />
+                    ))}
                     {tasks.slice(0, 3).map((t) => (
                       <span key={t.id} className={cx("size-1.5 rounded-full", t.status === "done" ? "bg-slate-300" : PRIORITY_BAR[t.priority])} />
                     ))}
@@ -197,6 +211,15 @@ export function CalendarPage() {
                     ))}
                   </span>
                   <span className="hidden flex-col gap-1 sm:flex">
+                    {dayEvents.slice(0, 2).map((x) => (
+                      <span
+                        key={`${x.e.id}:${x.o.original}`}
+                        className={cx("truncate rounded bg-info-soft px-1.5 py-0.5 text-caption2 text-info-ink", x.o.status === "cancelled" && "text-slate-400 line-through")}
+                      >
+                        {x.o.startTime && `${formatTime(x.o.startTime)} `}
+                        {x.e.title}
+                      </span>
+                    ))}
                     {tasks.slice(0, 3).map((t) => (
                       <span
                         key={t.id}
@@ -228,11 +251,34 @@ export function CalendarPage() {
         <Card className="min-w-0 self-start">
           <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5 sm:px-4 sm:py-3">
             <h2 className="font-medium text-ink">{selected === today ? (phone ? `${selectedLabel} · Today` : `Today · ${selectedLabel}`) : selectedLabel}</h2>
-            <Button size="sm" variant="primary" onClick={() => setDialog({ kind: "new", dueDate: selected })}>
-              <Plus size={15} /> Add
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button size="sm" onClick={() => openEventForm({ kind: "new", date: selected })}>
+                <CalendarRange size={15} /> Event
+              </Button>
+              <Button size="sm" variant="primary" onClick={() => setDialog({ kind: "new", dueDate: selected })}>
+                <Plus size={15} /> Add
+              </Button>
+            </div>
           </div>
-          {selectedTasks.length === 0 && selectedScheduled.length === 0 ? (
+          {/* That day's events (user request 2026-10-11): tap for details. */}
+          {selectedEvents.length > 0 && (
+            <ul className="divide-y divide-line border-b border-line">
+              {selectedEvents.map(({ e, o }) => (
+                <li key={`${e.id}:${o.original}`} className="row-click flex items-start gap-3 px-3 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-4">
+                  <CalendarRange size={16} className={cx("mt-0.5 shrink-0", o.status === "cancelled" ? "text-slate-300" : "text-info")} />
+                  <button onClick={() => openEventDetails({ id: e.id, date: o.original })} className="row-link group/title min-w-0 flex-1 text-left">
+                    <span className={cx("block text-subhead font-medium", o.status === "cancelled" ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{e.title}</span>
+                    <span className="block truncate text-footnote text-slate-500">
+                      {o.startTime ? `${formatTime(o.startTime)}${o.endTime ? ` – ${formatTime(o.endTime)}` : ""}` : "All day"}
+                      {e.venue ? ` · ${e.venue}` : e.meetingUrl ? " · Online" : ""}
+                      {o.status === "done" ? " · Done" : o.status === "cancelled" ? " · Cancelled" : ""}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {selectedTasks.length === 0 && selectedScheduled.length === 0 && selectedEvents.length === 0 ? (
             <Empty title="Nothing due">Add a task for this day.</Empty>
           ) : selectedTasks.length === 0 ? null : (
             <ul className="divide-y divide-line">

@@ -4,7 +4,9 @@
 // 10 minutes of its time. Each device that turned notifications on is a push_subscriptions row.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { DB } from "../db";
-import { employees, pushSubscriptions, tasks, users } from "../db/schema";
+import { employees, officeEvents, pushSubscriptions, tasks, users } from "../db/schema";
+import { EVENT_KIND_LABEL } from "../../shared/eventSchedule";
+import { eventsToday } from "./officeEvents";
 import { incrementOnHome } from "../../shared/staff";
 import { timezone, type Env } from "../env";
 import { viewFilter } from "../routes/tasks";
@@ -24,6 +26,7 @@ const ampm = (hm: string) => {
 
 const DUE_WINDOW = 90; // minutes: a timed task missed for longer than this (app down) isn't notified late
 const SUMMARY_WINDOW = 180; // minutes after the summary time it may still go out
+const EVENT_LEAD = 60; // minutes: events are noted this long before they start (user request 2026-10-11)
 
 // WorkDesk's VAPID key pair, made on first use. The private half is encrypted with TOKEN_ENC_KEY (local
 // development without it keeps it as it is).
@@ -76,7 +79,7 @@ export async function planNotifications(db: DB, env: Env, userId: string, now = 
   const today = todayIn(tz, now);
   const nowHM = timeIn(tz, now);
   const [u] = await db.select().from(users).where(eq(users.id, userId));
-  if (!u) return { messages: [] as PushMessage[], taskKeys: [] as { id: string; key: string }[], summaryDay: null as string | null };
+  if (!u) return { messages: [] as PushMessage[], taskKeys: [] as { id: string; key: string }[], eventKeys: [] as { id: string; key: string }[], summaryDay: null as string | null };
   const cols = { id: tasks.id, title: tasks.title, dueDate: tasks.dueDate, dueTime: tasks.dueTime, reportPeriodId: tasks.reportPeriodId, pushNotifiedFor: tasks.pushNotifiedFor };
   const mine = eq(tasks.userId, userId);
   const order = [asc(tasks.dueDate), asc(tasks.dueTime)];
@@ -109,17 +112,42 @@ export async function planNotifications(db: DB, env: Env, userId: string, now = 
     }
   }
 
+  // Events an hour before they start (user request 2026-10-11): today's timed ones that aren't cancelled or done,
+  // once per occurrence ("day time" remembered on the event), with the "note at the due time" setting.
+  const todays = await eventsToday(db, userId, today);
+  const eventKeys: { id: string; key: string }[] = [];
+  if (u.pushDueOn && todays.length) {
+    const sent = new Map((await db.select({ id: officeEvents.id, n: officeEvents.notifiedFor }).from(officeEvents).where(inArray(officeEvents.id, todays.map((e) => e.id)))).map((r) => [r.id, r.n]));
+    for (const e of todays) {
+      if (e.status !== "scheduled" || !e.startTime) continue;
+      const lead = minutes(e.startTime) - minutes(nowHM);
+      const key = `${e.date} ${e.startTime}`;
+      if (lead < 0 || lead > EVENT_LEAD || sent.get(e.id) === key) continue;
+      eventKeys.push({ id: e.id, key });
+      messages.push({
+        title: e.title,
+        body: `${EVENT_KIND_LABEL[e.kind]} at ${ampm(e.startTime)}${lead > 0 ? ` (in ${lead} min)` : ""}${e.venue ? ` · ${e.venue}` : ""}`,
+        url: "/events",
+        tag: `event-${e.id}`,
+        badge,
+      });
+    }
+  }
+
   // The morning summary, once a day at the chosen time (or a little after, if the app was down then).
   let summaryDay: string | null = null;
   const sinceSummary = minutes(nowHM) - minutes(u.pushSummaryTime);
   if (u.pushSummaryOn && u.pushSummarySentOn !== today && sinceSummary >= 0 && sinceSummary <= SUMMARY_WINDOW) {
     summaryDay = today;
-    const list = [...overdue.map((t) => `• ${t.title} (overdue)`), ...dueToday.map((t) => `• ${t.title}${t.dueTime ? ` · ${ampm(t.dueTime)}` : ""}`)];
+    const eventLines = todays.filter((e) => e.status !== "cancelled").map((e) => `• ${e.startTime ? `${ampm(e.startTime)} ` : ""}${e.title} (${EVENT_KIND_LABEL[e.kind].toLowerCase()})`);
+    const list = [...eventLines, ...overdue.map((t) => `• ${t.title} (overdue)`), ...dueToday.map((t) => `• ${t.title}${t.dueTime ? ` · ${ampm(t.dueTime)}` : ""}`)];
     messages.push(
-      badge === 0
+      badge === 0 && eventLines.length
+        ? { title: `Today: ${eventLines.length} event${eventLines.length === 1 ? "" : "s"}`, body: list.slice(0, 4).join("\n") + (list.length > 4 ? `\n+ ${list.length - 4} more` : ""), url: "/", tag: "summary", badge }
+        : badge === 0
         ? { title: "Nothing due today", body: "No tasks or reminders due, and nothing overdue.", url: "/", tag: "summary", badge }
         : {
-            title: `Today: ${dueToday.length} due${overdue.length ? ` · ${overdue.length} overdue` : ""}`,
+            title: `Today: ${dueToday.length} due${overdue.length ? ` · ${overdue.length} overdue` : ""}${eventLines.length ? ` · ${eventLines.length} event${eventLines.length === 1 ? "" : "s"}` : ""}`,
             body: list.slice(0, 4).join("\n") + (list.length > 4 ? `\n+ ${list.length - 4} more` : ""),
             url: "/",
             tag: "summary",
@@ -127,7 +155,7 @@ export async function planNotifications(db: DB, env: Env, userId: string, now = 
           },
     );
   }
-  return { messages, taskKeys, summaryDay };
+  return { messages, taskKeys, eventKeys, summaryDay };
 }
 
 // The cron job: every user with a device that turned notifications on.
@@ -138,6 +166,7 @@ export async function sendScheduledPush(db: DB, env: Env, now = new Date()) {
     if (!plan.messages.length) continue;
     // Remembered first, so a slow or failed push is never repeated every 10 minutes.
     for (const t of plan.taskKeys) await db.update(tasks).set({ pushNotifiedFor: t.key }).where(eq(tasks.id, t.id));
+    for (const e of plan.eventKeys) await db.update(officeEvents).set({ notifiedFor: e.key }).where(eq(officeEvents.id, e.id));
     if (plan.summaryDay) await db.update(users).set({ pushSummarySentOn: plan.summaryDay }).where(eq(users.id, userId));
     await pushToUser(db, env, userId, plan.messages);
   }

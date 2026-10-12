@@ -31,6 +31,13 @@ export function onThreadUpdate(
         hasNewActivity: false,
         event: { action: "email.returned", summary: "New reply after another section had it; back to Pending" },
       };
+    // Made into an event (user request 2026-10-11): a new reply (venue change, minutes…) needs a fresh look.
+    case "event":
+      return {
+        state: "needs_decision",
+        hasNewActivity: false,
+        event: { action: "email.returned", summary: "New reply on an event's email; back to Pending" },
+      };
     case "dismissed":
     case "snoozed":
       return {

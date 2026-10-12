@@ -3,7 +3,7 @@
 // headers in any order and case, and the app also reads .xlsx files. Dates go out as YYYY-MM-DD and come back
 // as YYYY-MM-DD or day-first (31/03/2027, 31-03-2027, 31.03.2027), as Excel in India saves them.
 
-export const CSV_KINDS = ["files", "employees", "tasks", "reminders"] as const;
+export const CSV_KINDS = ["files", "employees", "tasks", "reminders", "events"] as const;
 export type CsvKind = (typeof CSV_KINDS)[number];
 
 export type CsvColumn = {
@@ -18,7 +18,7 @@ export type CsvColumn = {
   required?: boolean;
 };
 
-export const CSV_TITLES: Record<CsvKind, string> = { files: "File register", employees: "Employees", tasks: "Tasks", reminders: "Reminders" };
+export const CSV_TITLES: Record<CsvKind, string> = { files: "File register", employees: "Employees", tasks: "Tasks", reminders: "Reminders", events: "Events" };
 
 // What a row is matched on (a match is updated, anything else is added; user's choice 2026-10-07).
 export const CSV_MATCH: Record<CsvKind, string> = {
@@ -26,6 +26,7 @@ export const CSV_MATCH: Record<CsvKind, string> = {
   employees: "the same PEN, or the same name",
   tasks: "the same ID (from an export), or the same title of an open task",
   reminders: "the same ID (from an export), or the same name",
+  events: "the same ID (from an export), or the same title on the same date",
 };
 
 export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
@@ -97,6 +98,26 @@ export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
     { key: "tags", header: "Tags", sample: ["HMIS, Monthly", "Bills"] },
     { key: "nextDue", header: "Next due", exportOnly: true, sample: ["", ""] },
     { key: "lastDone", header: "Last done", exportOnly: true, sample: ["", ""] },
+  ],
+  // Events (user request 2026-10-11).
+  events: [
+    { key: "id", header: "ID", sample: ["", ""] },
+    { key: "title", header: "Title", required: true, sample: ["Monthly review meeting", "Fire safety training"] },
+    { key: "kind", header: "Type", sample: ["Meeting", "Training"] },
+    { key: "startDate", header: "Date", required: true, sample: ["2026-11-05", "2026-11-12"] },
+    { key: "startTime", header: "Start time", sample: ["10:30", "09:30"] },
+    { key: "endTime", header: "End time", sample: ["12:00", "16:00"] },
+    { key: "repeat", header: "Repeat", sample: ["Every month", "Never"] },
+    { key: "endDate", header: "End repeat", sample: ["2027-03-31", ""] },
+    { key: "venue", header: "Venue", sample: ["Conference hall", "Training centre"] },
+    { key: "meetingUrl", header: "Meeting link", sample: ["", ""] },
+    { key: "organiser", header: "Organised by", sample: ["Head office", "HR department"] },
+    { key: "attendees", header: "Attendees", sample: ["", "Lakshmi K S, Anitha Kumari"] },
+    { key: "notes", header: "Notes", sample: ["Bring last month's figures", ""] },
+    { key: "links", header: "Links", sample: ["", ""] },
+    { key: "tags", header: "Tags", sample: ["Review", "Training"] },
+    { key: "prepDays", header: "Prepare task (days before)", sample: ["2", ""] },
+    { key: "nextOn", header: "Next on", exportOnly: true, sample: ["", ""] },
   ],
 };
 
@@ -209,6 +230,7 @@ export const BACKUP_TABLES = [
   "employees",
   "officeFiles",
   "tags",
+  "officeEvents",
   "reports",
   "reportPeriods",
   "tasks",
@@ -223,6 +245,7 @@ export const BACKUP_TABLE_NAMES: Record<BackupTable, string> = {
   employees: "Employees",
   officeFiles: "File register",
   tags: "Tags",
+  officeEvents: "Events",
   reports: "Reminders",
   reportPeriods: "Reminder dates",
   tasks: "Tasks",

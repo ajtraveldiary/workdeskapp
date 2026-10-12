@@ -71,6 +71,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0029_basic_pay.sql` | Basic pay (₹) for permanent employees, separate from the pay scale. |
 | `0030_site_logins.sql` | Saved website logins (SPARK, BiMS…): website, link, employee or role, user ID, encrypted password, remarks. |
 | `0032_file_tags.sql` | Tags on File register entries (`tag_ids` on `office_files`). |
+| `0033_office_events.sql` | Events (meetings, trainings, programmes): the `office_events` table, the email state "event", and `event_id` / `event_date` on tasks for preparation tasks. |
 | `0031_tags.sql` | Tags for tasks and reminders: the `tags` table (name unique per user whatever its capitals, colour, order) and `tag_ids` on tasks and reminders. |
 
 ## `src/server/` — the API (Cloudflare Worker, or Node when run locally)
@@ -86,7 +87,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | What it does |
 |---|---|
-| `schema.ts` | Every database table and column (Drizzle): users, Gmail accounts/messages/labels, hidden senders, hidden text, emails, tasks, saved website logins (`site_logins`), tags (`tags`), reminders (`reports`) and their dates (`report_periods`), designations, employee types, employees, file register, push devices, History (`events`). |
+| `schema.ts` | Every database table and column (Drizzle): users, Gmail accounts/messages/labels, hidden senders, hidden text, emails, tasks, saved website logins (`site_logins`), tags (`tags`), events (`office_events`), reminders (`reports`) and their dates (`report_periods`), designations, employee types, employees, file register, push devices, History (`events`). |
 | `index.ts` | The `DB` type both database drivers share. |
 | `neon.ts` | Connects to Neon over HTTP (production). |
 | `local.ts` | Local database with PGlite in `./.data` (no install needed); applies new migrations when it starts. |
@@ -105,6 +106,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `files.ts` | File register: list, add, edit, remove (with tags); one entry per e-file number. |
 | `logins.ts` | Saved website logins: list (never with passwords), add, edit, remove, and reveal one password for Show / Copy (noted in History). Passwords encrypted with `TOKEN_ENC_KEY`. |
 | `tags.ts` | Tags for tasks and reminders: list (with how many use each), make or reuse by name, rename / recolour, delete (taken off everything), reorder. |
+| `officeEvents.ts` | Events (`/office-events`): list, add (also from an email, which leaves Pending or becomes the preparation task's email), edit, delete (open preparation tasks go, the email returns to Pending), and one date marked done, moved, cancelled or put back. |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
 | `transfer.ts` | Import / Export: master backup download and import (adds only what's missing), CSV export and import (preview, then in parts) for file register, employees, tasks and reminders. |
@@ -116,18 +118,19 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `gmail.ts` | The only code that talks to Gmail: read-only GETs from an allowlist, mark read, and the user's own labels. Enforced by `tests/gmail-safety.test.ts`. |
 | `gmailAuth.ts` | Gets a fresh Gmail access token from the stored (encrypted) refresh token. |
 | `sync.ts` | Gmail sync: first 30 days, then Gmail's change log; each message downloaded once; labels kept up to date; cron sync for all users (also makes due reminder dates, Pension papers, Contract ends and Probation declaration tasks). |
-| `threadRules.ts` | What a new message does to an email that was removed, made a task, or sent to another section. |
+| `threadRules.ts` | What a new message does to an email that was removed, made a task, made an event, or sent to another section. |
 | `taskLabels.ts` | Keeps the task/done Gmail labels and WorkDesk tasks in step both ways; catches up emails missing their label. |
 | `sections.ts` | Sections of the office: moves emails with another section's label to "Other sections" and back. |
 | `reports.ts` | Creates each reminder date and its task when it is due; marks a date and its task done together. |
 | `emailContent.ts` | Reads an email's body and attachments from Gmail for the viewer (never stored); demo content. |
 | `muted.ts` | Checks whether an email's sender is hidden from Pending. |
 | `maintenance.ts` | Housekeeping on page loads, at most every few minutes: returns any old snoozed email to Pending, creates due reminder dates, applies section rules, makes Pension papers, Contract ends and Probation declaration tasks. |
-| `ics.ts` | Builds the calendar file (`.ics`) for the calendar link, with Malayalam-safe line folding. |
-| `notify.ts` | Decides which phone notifications are due (morning summary, due-time notes, badge count) and sends them. |
+| `ics.ts` | Builds the calendar file (`.ics`) for the calendar link (tasks, reminder dates, events with place and status), with Malayalam-safe line folding. |
+| `notify.ts` | Decides which phone notifications are due (morning summary with today's events, due-time notes, an event's note 1 hour before, badge count) and sends them. |
 | `webpush.ts` | Web Push with WebCrypto only: encrypts a message for a device and signs it (VAPID). |
 | `staff.ts` | Checks what a task or reminder is "for" (employee, designation, office) and names it for History. |
 | `tags.ts` | Tags: checks the tag ids a task or reminder is given, finds or makes tags by name (CSV import), tag names for export and search. |
+| `officeEvents.ts` | Events: today's events for Home, and the preparation tasks (made up to 30 days ahead, moved with the event, dropped when it is cancelled or deleted). |
 | `contracts.ts` | Makes the "Contract ends" task 7 days before a temporary contract ends (one per end date; moves it when the date is edited). |
 | `probation.ts` | Makes the "Probation declaration" task 7 days before 2 years of service when probation isn't declared (recent joinings only); completes it when a declared date is entered. |
 | `pension.ts` | Makes the Pension papers task (with the pension checklist) 12 months before a permanent employee retires, once per employee. |
@@ -144,6 +147,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `types.ts` | The shapes of data the API sends to the app (Thread, Task, Report, Employee, OfficeFile, SiteLogin, Summary…). |
 | `schemas.ts` | Checks on everything the app sends (Zod): tasks, reminders, tags, labels, staff, files, website logins, notifications, hidden text. |
 | `reminderSchedule.ts` | Reminder date maths: repeats, next dates, "remind me" lead days, labels like "Every month". |
+| `eventSchedule.ts` | Event maths: kinds, each date of a repeating event in a range with its changes (done, moved, cancelled), time ranges. |
 | `tags.ts` | Tag rules shared by both sides: the colour palette, tidy names (same tag whatever the capitals), reading the CSV Tags column. |
 | `staff.ts` | Employee lists and rules: categories, engaged as, common designations and types, contract end date, increment due dates, contracts ending (Contract ends task from 7 days before, its title, renewed end date), retiring within 12 months (a year before, Pension papers title and checklist), probation (2 years from joining, task title). |
 | `transfer.ts` | Import / Export: CSV columns of each list, sample files, CSV writing, reading dates/times/priorities, backup tables. |
@@ -166,7 +170,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `index.html` | The page shell: start-up logo, dark mode set before the first paint, home-screen app settings. |
 | `main.tsx` | Starts the app: query cache, error safety net, auto-update, service worker. |
 | `App.tsx` | The frame of the app: top bar, side rail (computers), bottom tab bar (phones), routes to every page, account menu (side panel on phones), status in the title, database-problem pop-up, icon badge. |
-| `api.ts` | All calls to the server and the data hooks screens use (emails, tasks, reminders, tags, labels, staff, files, logins, settings). |
+| `api.ts` | All calls to the server and the data hooks screens use (emails, tasks, reminders, events, tags, labels, staff, files, logins, settings). |
 | `queryClient.ts` | The data cache saved on the device (`CACHE_VERSION` must go up when API data changes shape). |
 | `connection.ts` | Online/offline status and last sync time for the title bar; saves lists for offline use. |
 | `autoUpdate.ts` | Reloads the app once when a newer version has been deployed. |
@@ -191,16 +195,17 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | Screen |
 |---|---|
-| `Home.tsx` | Home: four stat cards, Due Today (Today / Overdue / Upcoming, with increments), To-do card (calendar tiles, selection bar), Pending Emails card. |
+| `Home.tsx` | Home: four stat cards, Due Today (Today / Overdue / Upcoming, with today's events and increments), To-do card (calendar tiles, selection bar), Pending Emails card. |
 | `Inbox.tsx` | Emails: Pending / Other sections / Removed / All tabs, search, label and unread filters, toolbar. |
 | `Tasks.tsx` | Tasks: views (Today, Upcoming, No date, Waiting, Completed…), in priority order. |
 | `Reminders.tsx` | Reminders: Due next and All reminders; tap opens Reminder details. |
-| `Calendar.tsx` | Month calendar of tasks and reminder dates (app-style on phones), with the chosen day's list. |
+| `Calendar.tsx` | Month calendar of tasks, reminder dates and events (app-style on phones), with the chosen day's list and an Event button. |
+| `Events.tsx` | Events: Upcoming / Today / Past, search, tag filter, grouped by day; swipe (phones) or ⋮ menu for Done, Cancel, Edit. |
 | `History.tsx` | Every decision and change, with Undo where possible. |
 | `Search.tsx` | Search across emails and tasks. |
 | `Settings.tsx` | Settings in four tabs (the tab is in the address: none, `#mail`, `#employees`, `#calendar`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Calendar link. |
 | `Staff.tsx` | Employees page: due increments (Mark done asks the new basic pay), retiring within 12 months (with Pension papers progress), on computers (1024px+) a Permanent or Temporary table with a switch, on narrower screens the permanent/temporary filter, list by designation, employee card, add/edit form. |
-| `EmployeePage.tsx` | An employee's own page (`/employees/<id>`, opened from the list or table): at a glance (pay, increment, probation, retirement / contract), every detail, tasks open and completed, reminders, their website logins, History; Edit, Left the office, Delete. |
+| `EmployeePage.tsx` | An employee's own page (`/employees/<id>`, opened from the list or table): at a glance (pay, increment, probation, retirement / contract), every detail, tasks open and completed, reminders, their website logins, events they attend, History; Edit, Left the office, Delete. |
 | `Files.tsx` | File register: one-line list (icon, e-file number column, subject), search, status filters and a Tags filter (several at once), add/edit form with tags. |
 | `Logins.tsx` | Logins page: saved website logins grouped by website, search, + button, add/edit form. |
 | `ImportExport.tsx` | Import / Export: master backup, CSV export/import with preview, sample CSV links. |
@@ -218,9 +223,9 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `ErrorBoundary.tsx` | Safety nets: the whole app ("Something went wrong — Reload"), one page ("This page hit a problem", the menu keeps working) and one attachment preview ("Couldn't preview this file"). |
 | `DatabaseIssue.tsx` | Explains a paused or unreachable database, with Neon usage link and Try again. |
 | `Avatar.tsx` | Initials circles in the sender's colour; tap to select an email. |
-| `ThreadRow.tsx` | One email row (sender, subject, preview, tags). |
+| `ThreadRow.tsx` | One email row (sender, subject, preview, tags; on phones swipe left for Event / Remove). |
 | `EmailBulkBar.tsx` | The email list toolbar: Select all, Create task, Remove, Restore, label and unread filters. |
-| `EmailStatus.tsx` | Status tags on emails (Task, Removed, With section, Back from section…). |
+| `EmailStatus.tsx` | Status tags on emails (Task, Removed, Event, With section, Back from section…). |
 | `EmailViewer.tsx` | Reading an email: conversation, attachments and previews (PDF, pictures, Excel, Word, PowerPoint text; old .doc/.ppt explained), labels, Share, Remove, make a task. |
 | `PdfPreview.tsx` | PDF pages drawn with pdf.js (loaded only when needed). |
 | `SheetPreview.tsx` | Excel/CSV attachments as a table (SheetJS). |
@@ -240,6 +245,8 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `ReminderDialog.tsx` | Add / edit reminder form. |
 | `ReminderDetails.tsx` | Reminder details card with document preview and Edit / Pause / Delete / Mark done. |
 | `ReminderLinks.tsx` | Link chips on reminders and the links editor. |
+| `EventDialog.tsx` | Add / edit event form (also Make event from an email, filled from it); lives once in the shell (`openEventForm`). |
+| `EventDetails.tsx` | Event details card for one date: Mark done, Move, Cancel, Not done / Restore, Back to the first date, Edit, Delete, Join meeting, Directions; lives once in the shell (`openEventDetails`). |
 | `Logins.tsx` | Saved website logins: grouped list, a login row with Show / Copy (password fetched only then; shown for 30s), the add/edit form. Used by the Logins page and an employee's page. |
 | `Tags.tsx` | Tags: chips (compact on rows, at most 2 on phones), the picker in task and reminder forms (most-used first, type to make one), the All tags filter, the tag filter icon on the home cards, the several-tags filter (File register), Settings › Tags (rename, colour, delete, drag to arrange). |
 | `Related.tsx` | "For" an employee, designation or the office: picker, tag and line. |
@@ -280,6 +287,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `file-register.test.ts` | File register entries and e-file numbers. |
 | `logins.test.ts` | Saved website logins: many per website, employee or role, passwords encrypted, never in lists, revealed only on request and noted in History. |
 | `tags.test.ts` | Tags: reused whatever the capitals, on tasks (filter, search, keep on edit), a reminder's tags on its tasks, deleting cleans up, the Tags column of the Tasks CSV. |
+| `office-events.test.ts` | Events: repeat dates and changes, preparation tasks, Make event from an email (and back to Pending on a reply), delete, Home today, the calendar feed, the Events CSV, the phone note within the hour before. |
 | `attachment-types.test.ts` | Pictures and PDFs labelled as generic files are served with their real type. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |
 | `db-errors.test.ts` | Database problems explained in plain words. |
