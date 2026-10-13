@@ -59,12 +59,13 @@ export async function withTaskInfo<T extends ThreadRow>(db: DB, threads: T[], to
           open: sql<number>`(count(*) filter (where ${tasks.status} = 'open'))::int`,
           done: sql<number>`(count(*) filter (where ${tasks.status} = 'done'))::int`,
           overdue: sql<boolean>`coalesce(bool_or(${tasks.status} = 'open' and ${tasks.waitingSince} is null and ${tasks.dueDate} < ${today}), false)`,
+          doneAt: sql<string | Date | null>`max(${tasks.completedAt}) filter (where ${tasks.status} = 'done')`,
         })
         .from(tasks)
         .where(inArray(tasks.threadId, ids))
         .groupBy(tasks.threadId)
     : [];
-  const byThread = new Map(rows.map((r) => [r.threadId, { open: Number(r.open), done: Number(r.done), overdue: !!r.overdue }]));
+  const byThread = new Map(rows.map((r) => [r.threadId, { open: Number(r.open), done: Number(r.done), overdue: !!r.overdue, doneAt: r.doneAt ? new Date(r.doneAt).toISOString() : null }]));
   return threads.map((t) => ({ ...t, task: (byThread.get(t.id) ?? null) as ThreadTaskInfo | null }));
 }
 

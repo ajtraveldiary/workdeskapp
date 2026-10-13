@@ -48,6 +48,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **One-tap decisions:** Create task, Make event, Remove (or send to another section), Restore. Select many emails
   at once.
 - **Share:** send an email and its attachments to another app, such as WhatsApp.
+- **Already done:** when a new message arrives in a conversation whose task you completed, the email comes back to
+  Pending marked "Already done on <date>", so you can tell a follow-up from new work.
 - **Hide senders:** newsletters and other routine senders can skip Pending; they still appear under All emails.
 
 ### Tasks

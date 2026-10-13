@@ -228,7 +228,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Avatar.tsx` | Initials circles in the sender's colour; tap to select an email. |
 | `ThreadRow.tsx` | One email row (sender, subject, preview, tags; on phones swipe left for Event / Remove; highlighted while open in the split pane). |
 | `EmailBulkBar.tsx` | The email list toolbar: Select all, Create task, Remove, Restore, label and unread filters. |
-| `EmailStatus.tsx` | Status tags on emails (Task, Removed, Event, With section, Back from section…). |
+| `EmailStatus.tsx` | Status tags on emails (Task, Removed, Event, With section, Back from section, Already done on …). |
 | `EmailViewer.tsx` | Reading an email: conversation, attachments and previews (PDF, pictures, Excel, Word, PowerPoint text; old .doc/.ppt explained), labels, Share, Remove, make a task; `EmailPane` is the same reader as the Emails page's split pane (body first, attachment previews below). |
 | `PdfPreview.tsx` | PDF pages drawn with pdf.js (loaded only when needed). |
 | `SheetPreview.tsx` | Excel/CSV attachments as a table (SheetJS). |
@@ -293,6 +293,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `file-register.test.ts` | File register entries and e-file numbers. |
 | `logins.test.ts` | Saved website logins: many per website, employee or role, passwords encrypted, never in lists, revealed only on request and noted in History. |
 | `tags.test.ts` | Tags: reused whatever the capitals, on tasks (filter, search, keep on edit), a reminder's tags on its tasks, deleting cleans up, the Tags column of the Tasks CSV. |
+| `done-before.test.ts` | An email back in Pending after its task was done carries when it was done ("Already done on …"). |
 | `me-employee.test.ts` | Which employee the user is: set, checked, cleared, in History, forgotten when that employee is deleted. |
 | `office-events.test.ts` | Events: the user's own types (add, rename, arrange, delete keeps events, CSV makes new ones), repeat dates and changes, preparation tasks, Make event from an email (and back to Pending on a reply), delete, Home today, the calendar feed, the Events CSV, the phone note within the hour before. |
 | `attachment-types.test.ts` | Pictures and PDFs labelled as generic files are served with their real type. |

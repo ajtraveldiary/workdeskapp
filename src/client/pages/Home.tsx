@@ -43,7 +43,7 @@ import { SwipeRow, showUndo, useSwipeMode, type SwipeAction } from "../component
 import { openRemove } from "../components/RemoveChooser";
 import { openIncrement } from "../components/IncrementDialog";
 import { asksChoice, choiceLabel, openTaskChoice } from "../components/SystemTaskChooser";
-import { EmailStatusTags, SectionBackTag } from "../components/EmailStatus";
+import { DoneBeforeTag, EmailStatusTags, SectionBackTag } from "../components/EmailStatus";
 import { LabelChips } from "../components/LabelChips";
 import { EmailViewer } from "../components/EmailViewer";
 import { EmailBulkBar } from "../components/EmailBulkBar";
@@ -1042,6 +1042,7 @@ function EmailCard({
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
           {showStatus && <EmailStatusTags thread={thread} />}
           <SectionBackTag thread={thread} />
+          <DoneBeforeTag thread={thread} />
           <LabelChips ids={thread.labelIds} max={2} className="shrink-0 flex-nowrap" />
           <p className={emailLine.preview}>{thread.snippet}</p>
         </div>

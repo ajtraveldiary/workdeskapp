@@ -7,7 +7,7 @@ import { gmailThreadUrl } from "../../shared/gmailUrl";
 import { useDismiss, useRestore } from "../api";
 import { formatWhen } from "../format";
 import { cx } from "./ui";
-import { EmailStatusTags, SectionBackTag } from "./EmailStatus";
+import { DoneBeforeTag, EmailStatusTags, SectionBackTag } from "./EmailStatus";
 import { LabelChips } from "./LabelChips";
 import { SelectAvatar } from "./Avatar";
 import { CalendarRange } from "lucide-react";
@@ -104,9 +104,10 @@ export function ThreadRow({
             <EmailStatusTags thread={thread} />
           </div>
         )}
-        {inQueue && thread.sectionLabelId && (
-          <div className="mt-1 flex">
+        {inQueue && (thread.sectionLabelId || thread.task?.doneAt) && (
+          <div className="mt-1 flex flex-wrap gap-1.5 empty:hidden">
             <SectionBackTag thread={thread} />
+            <DoneBeforeTag thread={thread} />
           </div>
         )}
       </div>

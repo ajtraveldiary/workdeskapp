@@ -13,7 +13,7 @@ import { DRIVE_KIND_LABEL, driveLinks, type DriveLink } from "../driveLinks";
 import { stripSnippets } from "../../shared/snippets";
 import { formatDateTime } from "../format";
 import { Avatar } from "./Avatar";
-import { EmailStatusTags, SectionBackTag } from "./EmailStatus";
+import { DoneBeforeTag, EmailStatusTags, SectionBackTag } from "./EmailStatus";
 import { LabelChips, LabelPicker } from "./LabelChips";
 import { Button, Loading, Modal, Spinner, cx } from "./ui";
 import { showUndo } from "./SwipeRow";
@@ -221,6 +221,7 @@ function ViewerBody({ thread, onClose, onCreateTask, stacked }: { thread: Thread
             {thread.messageCount > 1 && <span>· {thread.messageCount} messages</span>}
             {!inQueue && <EmailStatusTags thread={thread} />}
             <SectionBackTag thread={thread} />
+            <DoneBeforeTag thread={thread} />
             <LabelChips ids={labelIds} max={6} />
           </div>
         </div>

@@ -26,9 +26,9 @@ const labels = (t: Partial<Thread>) => emailTags({ ...base, ...t }).map((x) => `
 
 describe("emailTags", () => {
   it("marks open, overdue and finished tasks", () => {
-    expect(labels({ task: { open: 1, done: 0, overdue: false } })).toEqual(["medium:Task pending"]);
-    expect(labels({ task: { open: 1, done: 2, overdue: true } })).toEqual(["urgent:Task overdue"]);
-    expect(labels({ task: { open: 0, done: 1, overdue: false } })).toEqual(["low:Task done"]);
+    expect(labels({ task: { open: 1, done: 0, overdue: false, doneAt: null } })).toEqual(["medium:Task pending"]);
+    expect(labels({ task: { open: 1, done: 2, overdue: true, doneAt: null } })).toEqual(["urgent:Task overdue"]);
+    expect(labels({ task: { open: 0, done: 1, overdue: false, doneAt: "2026-10-08T05:00:00Z" } })).toEqual(["low:Task done"]);
   });
 
   it("shows only the email's state when it has no task", () => {
@@ -41,6 +41,8 @@ describe("emailTags", () => {
   });
 
   it("shows both when a finished task's email got a new reply", () => {
-    expect(labels({ state: "needs_decision", task: { open: 0, done: 1, overdue: false } })).toEqual(["low:Task done", "brand:Needs decision"]);
+    expect(labels({ state: "needs_decision", task: { open: 0, done: 1, overdue: false, doneAt: null } })).toEqual(["low:Task done", "brand:Needs decision"]);
+    // With its done time, "Already done on …" (DoneBeforeTag) says it instead (user request 2026-10-13).
+    expect(labels({ state: "needs_decision", task: { open: 0, done: 1, overdue: false, doneAt: "2026-10-08T05:00:00Z" } })).toEqual(["brand:Needs decision"]);
   });
 });

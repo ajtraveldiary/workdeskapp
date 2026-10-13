@@ -1,5 +1,5 @@
 import type { Thread } from "../../shared/types";
-import { useLabels } from "../api";
+import { useLabels, useMe } from "../api";
 import { formatWhen } from "../format";
 import { TONE, cx, type Tone } from "./ui";
 
@@ -12,7 +12,8 @@ export function emailTags(thread: Thread, sectionName?: string): Tag[] {
   const tags: Tag[] = [];
   const t = thread.task;
   if (t && t.open > 0) tags.push(t.overdue ? { tone: "urgent", label: "Task overdue" } : { tone: "medium", label: t.open > 1 ? `${t.open} tasks pending` : "Task pending" });
-  else if (t && t.done > 0) tags.push({ tone: "low", label: "Task done" });
+  // Back in Pending after its task was done: DoneBeforeTag says so, with the date (user request 2026-10-13).
+  else if (t && t.done > 0 && !(thread.state === "needs_decision" && t.doneAt)) tags.push({ tone: "low", label: "Task done" });
 
   if (thread.state === "needs_decision")
     tags.push(thread.muted ? { tone: "neutral", label: "Hidden from Pending", title: "Sender is hidden in Settings > Mail" } : { tone: "brand", label: "Needs decision" });
@@ -42,6 +43,26 @@ export function SectionBackTag({ thread }: { thread: Thread }) {
     >
       <span className={cx("size-1.5 rounded-full", TONE.snooze.dot)} aria-hidden />
       Back from {name ?? "another section"}
+    </span>
+  );
+}
+
+// In Pending again although its task was completed: a new message came in the conversation after that (user request
+// 2026-10-13, "show in pending mail with note already done on <date>"). Shown on email rows and in the viewer.
+export function DoneBeforeTag({ thread }: { thread: Thread }) {
+  const tz = useMe().data?.timezone;
+  const t = thread.task;
+  if (thread.state !== "needs_decision" || !t || t.open > 0 || !t.done || !t.doneAt) return null;
+  const at = new Date(t.doneAt);
+  const sameYear = at.getFullYear() === new Date().getFullYear();
+  const day = at.toLocaleDateString("en-IN", { day: "numeric", month: "short", ...(sameYear ? {} : { year: "numeric" }), ...(tz ? { timeZone: tz } : {}) });
+  return (
+    <span
+      title={`Its task was completed on ${formatWhen(t.doneAt)}. A new message came in the conversation after that, so it is back in Pending.`}
+      className={cx("inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-caption2 font-medium whitespace-nowrap", TONE.low.soft)}
+    >
+      <span className={cx("size-1.5 rounded-full", TONE.low.dot)} aria-hidden />
+      Already done on {day}
     </span>
   );
 }

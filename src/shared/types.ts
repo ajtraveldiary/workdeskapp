@@ -16,7 +16,8 @@ export type TaskView = "today" | "upcoming" | "overdue" | "nodate" | "all" | "co
 export type RangeTasks = { from: string; to: string; today: string; tasks: Task[] };
 
 // Linked tasks of an email: how many are open or done, and whether an open one is overdue.
-export type ThreadTaskInfo = { open: number; done: number; overdue: boolean };
+// doneAt: when its last task was completed (ISO), for "Already done on …" (user request 2026-10-13).
+export type ThreadTaskInfo = { open: number; done: number; overdue: boolean; doneAt: string | null };
 
 export type Thread = {
   id: string;
