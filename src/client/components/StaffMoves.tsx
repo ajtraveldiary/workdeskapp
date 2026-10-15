@@ -43,10 +43,11 @@ export function MovesCard({ staff }: { staff: StaffList }) {
         <h2 className="flex flex-1 items-center gap-2 font-semibold text-ink">
           <UsersRound size={17} className="text-brand-700" /> Joining &amp; relieving
         </h2>
-        <Button size="sm" onClick={() => setForm("join")}>
+        {/* Join blue, Relieve red (user request 2026-10-16). */}
+        <Button size="sm" variant="primary" onClick={() => setForm("join")}>
           <UserPlus size={15} /> Join
         </Button>
-        <Button size="sm" onClick={() => setForm("relieve")}>
+        <Button size="sm" variant="danger" onClick={() => setForm("relieve")}>
           <UserMinus size={15} /> Relieve
         </Button>
       </div>
@@ -243,7 +244,7 @@ function MoveForm({ kind, staff, employeeId, onDone }: { kind: MoveKind; staff: 
         <Button type="button" variant="ghost" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" variant="primary" disabled={!who || start.isPending}>
+        <Button type="submit" variant={kind === "join" ? "primary" : "danger"} disabled={!who || start.isPending}>
           {kind === "join" ? <UserPlus size={16} /> : <UserMinus size={16} />} {kind === "join" ? "Join" : "Relieve"}
         </Button>
       </div>

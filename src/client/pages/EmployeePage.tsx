@@ -124,12 +124,12 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
           {/* Joining / relieving with their steps (user request 2026-10-15): Relieve while here; Join when they left,
               or when they were added without a joining record. */}
           {!e.leftOn && (
-            <Button onClick={() => setMove("relieve")} disabled={busy}>
+            <Button variant="danger" onClick={() => setMove("relieve")} disabled={busy}>
               <UserMinus size={15} /> Relieve
             </Button>
           )}
           {(e.leftOn || (moves && !moves.some((m) => m.employeeId === e.id && m.kind === "join"))) && (
-            <Button onClick={() => setMove("join")} disabled={busy}>
+            <Button variant="primary" onClick={() => setMove("join")} disabled={busy}>
               <UserPlus size={15} /> Join
             </Button>
           )}
