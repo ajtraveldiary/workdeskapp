@@ -101,7 +101,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   with the steps: joining report, adding in SPARK, letter to the institution, service book received; or relieving
   order, relieve in SPARK, letter from the institution, update service book, send LPC / service book. A table on the
   Employees page shows every person's steps as Pending, Waiting or Done; change them there or in the task, and the
-  task completes itself when every step is done.
+  task completes itself when every step is done. Staff already working here whose joining papers aren't complete
+  can be added from Settings › Employees, ticking the steps already done.
 
 ### File register
 - **Every file of the section:** paper files and e-files, listed by file number then subject. Search, filter by

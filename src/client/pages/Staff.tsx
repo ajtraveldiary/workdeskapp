@@ -35,7 +35,7 @@ import { RefreshButton } from "../components/RefreshButton";
 import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Badge, Button, Card, ErrorNote, Fab, Field, Loading, Modal, PageHeader, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
-import { MovesCard } from "../components/StaffMoves";
+import { MovesCard, openMoveForm } from "../components/StaffMoves";
 
 const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 // Whole years from a to b (both YYYY-MM-DD).
@@ -67,14 +67,13 @@ export function StaffPage() {
         subtitle="The office's employees, permanent and temporary. Designations are in Settings. Link tasks and reminders to them with the person icon in the task and reminder forms."
         actions={
           <>
+            {/* No Add employee here (user request 2026-10-16): Join in Joining & relieving adds and joins someone. */}
             <RefreshButton keys={[["staff"], ["staff-work"]]} label="Refresh employees" />
-            <Button variant="primary" onClick={add} className="max-sm:hidden">
-              <UserPlus size={17} /> Add employee
-            </Button>
           </>
         }
       />
-      <Fab label="Add employee" onClick={add} />
+      {/* Phones: the + joins someone (user request 2026-10-16). */}
+      <Fab label="Join an employee" onClick={() => openMoveForm("join")} />
       {error ? (
         <p className="text-urgent-ink">{error.message}</p>
       ) : !data ? (

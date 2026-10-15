@@ -230,7 +230,7 @@ export function useMoveActions() {
   const refresh = () => qc.invalidateQueries({ predicate: (q) => ["staff", "tasks", "summary", "history"].includes(q.queryKey[0] as string) });
   return {
     start: useMutation({
-      mutationFn: (input: { employeeId: string; kind: MoveKind; date: string }) => api<{ id: string; taskId: string }>("/moves", { method: "POST", body: input }),
+      mutationFn: (input: { employeeId: string; kind: MoveKind; date: string; doneSteps?: string[] }) => api<{ id: string; taskId: string }>("/moves", { method: "POST", body: input }),
       onSettled: refresh,
     }),
     // The pill changes at once; the server writes the task's step.

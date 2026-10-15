@@ -47,7 +47,7 @@ export const moveRoutes = new Hono<AppEnv>()
   .post("/", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const { employeeId, kind, date } = moveInput.parse(await c.req.json());
+    const { employeeId, kind, date, doneSteps } = moveInput.parse(await c.req.json());
     const [e] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.userId, userId)));
     if (!e) throw new HTTPException(404, { message: "Employee not found" });
     if (kind === "relieve" && e.leftOn) throw new HTTPException(409, { message: `${e.name} has already left the office` });
@@ -55,7 +55,7 @@ export const moveRoutes = new Hono<AppEnv>()
       .update(employees)
       .set(kind === "join" ? { leftOn: null, joinedOfficeOn: date, updatedAt: new Date() } : { leftOn: date, updatedAt: new Date() })
       .where(eq(employees.id, e.id));
-    const { move, task } = await startMove(db, userId, e, kind, date);
+    const { move, task } = await startMove(db, userId, e, kind, date, doneSteps);
     await log(db, userId, kind === "join" ? "staff.joined" : "staff.relieved", kind === "join" ? `${e.name} joined on ${dayLabel(date)}` : `${e.name} relieved on ${dayLabel(date)}`);
     return c.json({ id: move.id, taskId: task.id }, 201);
   })

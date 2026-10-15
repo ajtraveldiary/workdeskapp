@@ -71,4 +71,15 @@ describe("joining and relieving", () => {
     const history = ((await call("GET", "/history")).json.events as { summary: string }[]).map((h) => h.summary);
     expect(history).toContain("Anila relieved on 10 Oct 2026");
   });
+
+  it("someone already working here can be put into joining with steps already done (Settings › Employees)", async () => {
+    const id = (await call("POST", "/staff/employees", { name: "Shyna S", joinedOfficeOn: "2026-09-01" })).json.id as string;
+    const r = await call("POST", "/moves", { employeeId: id, kind: "join", date: "2026-09-01", doneSteps: ["joining-report", "letter-sent"] });
+    expect((await moves())[0]!.steps.map((s) => s.state)).toEqual(["done", "pending", "done", "pending"]);
+    expect((await task(r.json.taskId))!.status).toBe("open");
+    // Every step already done: the task is completed at once.
+    const id2 = (await call("POST", "/staff/employees", { name: "All Done" })).json.id as string;
+    const r2 = await call("POST", "/moves", { employeeId: id2, kind: "join", date: "2026-09-01", doneSteps: ["joining-report", "spark-add", "letter-sent", "sb-received"] });
+    expect((await task(r2.json.taskId))!.status).toBe("done");
+  });
 });

@@ -14,7 +14,9 @@ import type { ChecklistItem } from "../../shared/types";
 export const MOVE_SYSTEM_KIND = { join: "joining", relieve: "relieving" } as const;
 const isMoveTask = (k: string | null) => k === "joining" || k === "relieving";
 
-export async function startMove(db: DB, userId: string, employee: { id: string; name: string }, kind: MoveKind, date: string) {
+// doneSteps: step ids already done (someone already working here, user request 2026-10-16).
+export async function startMove(db: DB, userId: string, employee: { id: string; name: string }, kind: MoveKind, date: string, doneSteps: string[] = []) {
+  const checklist = moveChecklist(kind).map((i) => (doneSteps.includes(i.id) ? { ...i, done: true } : i));
   const [task] = await db
     .insert(tasks)
     .values({
@@ -23,7 +25,7 @@ export async function startMove(db: DB, userId: string, employee: { id: string; 
       notes: `${kind === "join" ? "Joined this office" : "Relieved"} on ${dayLabel(date)}`,
       dueDate: addDays(date, MOVE_DUE_DAYS),
       priority: "normal",
-      checklist: moveChecklist(kind),
+      checklist,
       relatedKind: "employee",
       relatedId: employee.id,
       madeBySystem: true,
@@ -32,6 +34,8 @@ export async function startMove(db: DB, userId: string, employee: { id: string; 
     .returning();
   const [move] = await db.insert(employeeMoves).values({ userId, employeeId: employee.id, kind, onDate: date, taskId: task!.id }).returning();
   await db.insert(events).values({ userId, entityType: "task", entityId: task!.id, action: "task.created", summary: `Made by system: ${kind === "join" ? "joining" : "relieving"} steps`, detail: { title: task!.title } });
+  // Every step already done: nothing left, so it is completed straight away.
+  await settleMoveTask(db, userId, task!, [], checklist);
   return { task: task!, move: move! };
 }
 

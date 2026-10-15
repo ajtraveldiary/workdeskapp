@@ -14,6 +14,7 @@ import { NotificationSettings } from "../components/NotificationSettings";
 import { EmployeeSettings } from "../components/Designations";
 import { EventTypeSettings } from "../components/EventTypes";
 import { YouSetting } from "../components/YouSetting";
+import { JoinExistingCard } from "../components/StaffMoves";
 import { HistoryPage } from "./History";
 import { ImportExportPage } from "./ImportExport";
 import { TagSettings } from "../components/Tags";
@@ -60,6 +61,8 @@ export function SettingsPage() {
             {tab === "employees" && (
               <>
                 <YouSetting />
+                {/* Staff already here whose joining isn't complete (user request 2026-10-16). */}
+                <JoinExistingCard />
                 <EmployeeSettings />
               </>
             )}

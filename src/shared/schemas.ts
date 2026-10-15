@@ -246,7 +246,9 @@ export const designationInput = z.object({ name: z.string().trim().min(1, "Name 
 // A list arranged by drag and drop (user request 2026-10-08): its ids in the new order.
 export const orderInput = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
 // Joining and relieving (user request 2026-10-15).
-export const moveInput = z.object({ employeeId: z.uuid(), kind: z.enum(MOVE_KINDS), date: day });
+// doneSteps: steps already done when someone already working here is put into the joining process (user request
+// 2026-10-16, Settings › Employees).
+export const moveInput = z.object({ employeeId: z.uuid(), kind: z.enum(MOVE_KINDS), date: day, doneSteps: z.array(z.string().min(1).max(40)).max(10).default([]) });
 export const moveStepInput = z.object({ step: z.string().min(1).max(40), state: z.enum(STEP_STATES) });
 // Which employee the user is (user request 2026-10-12).
 export const meEmployeeInput = z.object({ employeeId: z.uuid().nullable() });

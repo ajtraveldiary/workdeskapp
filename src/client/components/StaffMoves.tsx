@@ -3,12 +3,12 @@
 // Relieve form. A pill writes the step of the person's joining / relieving task, and ticking the step in the task
 // changes the pill: they are the same data (src/shared/moves.ts). Finished ones (task completed) are behind
 // "Show finished".
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { ChevronDown, UserMinus, UserPlus, UsersRound } from "lucide-react";
 import type { StaffList, StaffMove } from "../../shared/types";
 import { MOVE_STEPS, type MoveKind, type MoveStep, type StepState } from "../../shared/moves";
-import { useMe, useMoveActions, useMoves } from "../api";
+import { useMe, useMoveActions, useMoves, useStaff } from "../api";
 import { EmployeeDialog } from "../pages/Staff";
 import { Button, Card, ErrorNote, Field, Modal, Segmented, SkeletonList, TONE, cx, inputClass } from "./ui";
 
@@ -16,11 +16,21 @@ const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateStrin
 const STATE_TONE = { pending: TONE.urgent.soft, waiting: TONE.medium.soft, done: TONE.low.soft } as const;
 const stateLabel = (step: MoveStep, state: StepState) => (state === "done" ? step.doneLabel : state === "waiting" ? "Waiting" : "Pending");
 
+// Opens the card's Join / Relieve form from elsewhere on the page (the phones' + button, user request 2026-10-16).
+let opener: ((kind: MoveKind) => void) | null = null;
+export const openMoveForm = (kind: MoveKind) => opener?.(kind);
+
 export function MovesCard({ staff }: { staff: StaffList }) {
   const { data } = useMoves();
   const [kind, setKind] = useState<MoveKind>("join");
   const [showFinished, setShowFinished] = useState(false);
   const [form, setForm] = useState<MoveKind | null>(null);
+  useEffect(() => {
+    opener = setForm;
+    return () => {
+      opener = null;
+    };
+  }, []);
   const all = data?.moves ?? [];
   const open = (k: MoveKind) => all.filter((m) => m.kind === k && !m.finished).length;
   const list = all.filter((m) => m.kind === kind && (showFinished || !m.finished));
@@ -241,5 +251,114 @@ function MoveForm({ kind, staff, employeeId, onDone }: { kind: MoveKind; staff: 
     {/* Outside the form above: a form can't sit inside another. */}
     <EmployeeDialog open={adding} employee={null} staff={staff} onClose={() => setAdding(false)} onAdded={setWho} />
     </>
+  );
+}
+
+// Settings › Employees (user request 2026-10-16): put someone already working here, whose joining procedure isn't
+// complete, into the joining process. Lists employees still in the office with no joining record; the date starts
+// as their "Joined this office" date; steps already done are ticked so only the rest stay pending.
+export function JoinExistingCard() {
+  const { data: staff } = useStaff();
+  const { data } = useMoves();
+  const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
+  const { start } = useMoveActions();
+  const [who, setWho] = useState("");
+  const [date, setDate] = useState("");
+  const [done, setDone] = useState<string[]>([]);
+  const [added, setAdded] = useState<string | null>(null);
+  const joined = new Set((data?.moves ?? []).filter((m) => m.kind === "join").map((m) => m.employeeId));
+  const people = (staff?.employees ?? []).filter((e) => !e.leftOn && !joined.has(e.id));
+  const groups = [
+    ...(staff?.designations ?? []).map((d) => ({ label: d.name, list: people.filter((e) => e.designationId === d.id) })),
+    { label: "No designation", list: people.filter((e) => !e.designationId || !staff?.designations.some((d) => d.id === e.designationId)) },
+  ]
+    .map((g) => ({ ...g, list: [...g.list].sort((a, b) => a.name.localeCompare(b.name)) }))
+    .filter((g) => g.list.length);
+  const pick = (id: string) => {
+    setWho(id);
+    setAdded(null);
+    setDate(staff?.employees.find((e) => e.id === id)?.joinedOfficeOn ?? today);
+  };
+  const submit = async (ev: FormEvent) => {
+    ev.preventDefault();
+    if (!who) return;
+    const name = staff?.employees.find((e) => e.id === who)?.name ?? "";
+    try {
+      await start.mutateAsync({ employeeId: who, kind: "join", date: date || today, doneSteps: done });
+      setWho("");
+      setDate("");
+      setDone([]);
+      setAdded(name);
+    } catch {
+      // shown below
+    }
+  };
+
+  return (
+    <Card className="p-5">
+      <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+        <UserPlus size={18} className="text-brand-700" /> Joining procedure for current staff
+      </h2>
+      <p className="mt-1 text-sm text-slate-600">
+        For someone already working here whose joining paperwork isn't complete: they get the joining task and a row in Joining &amp; relieving on the Employees page.
+      </p>
+      {!staff || !data ? (
+        <SkeletonList rows={1} />
+      ) : people.length === 0 ? (
+        <p className="mt-3 text-sm text-slate-500">Everyone in the office already has a joining record.</p>
+      ) : (
+        <form onSubmit={submit} className="mt-3 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
+            <Field label="Employee">
+              <select className={inputClass} value={who} onChange={(e) => pick(e.target.value)} required>
+                <option value="">Choose an employee…</option>
+                {groups.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.list.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </Field>
+            <Field label="Joining date">
+              <input type="date" className={inputClass} value={date || today} onChange={(e) => setDate(e.target.value)} required />
+            </Field>
+          </div>
+          <fieldset>
+            <legend className="mb-1 text-sm font-medium text-slate-700">Already done</legend>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              {MOVE_STEPS.join.map((s) => (
+                <label key={s.id} className="flex items-center gap-2 py-1 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={done.includes(s.id)}
+                    onChange={(e) => setDone((d) => (e.target.checked ? [...d, s.id] : d.filter((x) => x !== s.id)))}
+                    className="size-4 accent-brand-600"
+                  />
+                  {s.text}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <ErrorNote error={start.error} />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" variant="primary" disabled={!who || start.isPending}>
+              <UserPlus size={16} /> Add to joining process
+            </Button>
+          </div>
+        </form>
+      )}
+      {added && (
+        <p className="mt-2 text-footnote text-low-ink">
+          {added} added to the joining process.{" "}
+          <Link to="/employees" className="font-medium text-brand-700 hover:underline">
+            See the table
+          </Link>
+        </p>
+      )}
+    </Card>
   );
 }
