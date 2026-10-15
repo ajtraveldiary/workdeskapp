@@ -82,4 +82,19 @@ describe("joining and relieving", () => {
     const r2 = await call("POST", "/moves", { employeeId: id2, kind: "join", date: "2026-09-01", doneSteps: ["joining-report", "spark-add", "letter-sent", "sb-received"] });
     expect((await task(r2.json.taskId))!.status).toBe("done");
   });
+
+  it("someone marked Left without a relieving record, or a new employee, can be put into relieving (Settings › Employees)", async () => {
+    const id = (await call("POST", "/staff/employees", { name: "Santhosh T" })).json.id as string;
+    await call("POST", `/staff/employees/${id}/left`, { left: true });
+    const r = await call("POST", "/moves", { employeeId: id, kind: "relieve", date: "2026-09-30", doneSteps: ["relieving-order"] });
+    expect(r.status).toBe(201);
+    expect((await employee(id)).leftOn).toBe("2026-09-30");
+    expect((await moves())[0]!.steps.map((s) => s.state)).toEqual(["done", "pending", "pending", "pending", "pending"]);
+    // Now relieved: not again.
+    expect((await call("POST", "/moves", { employeeId: id, kind: "relieve", date: "2026-10-01" })).status).toBe(409);
+    // A new employee straight into relieving.
+    const id2 = (await call("POST", "/staff/employees", { name: "Bindu K" })).json.id as string;
+    expect((await call("POST", "/moves", { employeeId: id2, kind: "relieve", date: "2026-10-05" })).status).toBe(201);
+    expect((await employee(id2)).leftOn).toBe("2026-10-05");
+  });
 });

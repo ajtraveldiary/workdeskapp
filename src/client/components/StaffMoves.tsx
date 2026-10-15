@@ -363,3 +363,128 @@ export function JoinExistingCard() {
     </Card>
   );
 }
+
+// Settings › Employees (user request 2026-10-16, "add an employee directly to relieve"): put someone into the
+// relieving process from here: still in the office, already marked Left the office without a relieving record, or
+// a new employee added on the spot (e.g. relieved before WorkDesk was used). The date starts as their Left the
+// office date; steps already done are ticked; they are marked Left on the date.
+export function RelieveExistingCard() {
+  const { data: staff } = useStaff();
+  const { data } = useMoves();
+  const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
+  const { start } = useMoveActions();
+  const [who, setWho] = useState("");
+  const [date, setDate] = useState("");
+  const [done, setDone] = useState<string[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState<string | null>(null);
+  // Their latest record (moves come newest first): someone whose latest is a relieving is already in it.
+  const latest = new Map<string, MoveKind>();
+  for (const m of data?.moves ?? []) if (!latest.has(m.employeeId)) latest.set(m.employeeId, m.kind);
+  const people = (staff?.employees ?? []).filter((e) => latest.get(e.id) !== "relieve");
+  const groups = [
+    ...(staff?.designations ?? []).map((d) => ({ label: d.name, list: people.filter((e) => e.designationId === d.id) })),
+    { label: "No designation", list: people.filter((e) => !e.designationId || !staff?.designations.some((d) => d.id === e.designationId)) },
+  ]
+    .map((g) => ({ ...g, list: [...g.list].sort((a, b) => a.name.localeCompare(b.name)) }))
+    .filter((g) => g.list.length);
+  const pick = (id: string) => {
+    if (id === "+new") return setAdding(true);
+    setWho(id);
+    setAdded(null);
+    setDate(staff?.employees.find((e) => e.id === id)?.leftOn ?? today);
+  };
+  const submit = async (ev: FormEvent) => {
+    ev.preventDefault();
+    if (!who) return;
+    const name = staff?.employees.find((e) => e.id === who)?.name ?? "";
+    try {
+      await start.mutateAsync({ employeeId: who, kind: "relieve", date: date || today, doneSteps: done });
+      setWho("");
+      setDate("");
+      setDone([]);
+      setAdded(name);
+    } catch {
+      // shown below
+    }
+  };
+
+  return (
+    <Card className="p-5">
+      <h2 className="flex items-center gap-2 font-semibold text-slate-900">
+        <UserMinus size={18} className="text-urgent-ink" /> Relieving procedure for staff
+      </h2>
+      <p className="mt-1 text-sm text-slate-600">
+        For someone being relieved, or already relieved, whose relieving paperwork isn't complete, including someone not yet in WorkDesk. They are marked Left the office on the date, and get the relieving task and a row in Joining &amp; relieving on the Employees page.
+      </p>
+      {!staff || !data ? (
+        <SkeletonList rows={1} />
+      ) : (
+        <form onSubmit={submit} className="mt-3 space-y-3">
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
+            <Field label="Employee">
+              <select className={inputClass} value={who} onChange={(e) => pick(e.target.value)} required>
+                <option value="">Choose an employee…</option>
+                <option value="+new">+ Add a new employee…</option>
+                {groups.map((g) => (
+                  <optgroup key={g.label} label={g.label}>
+                    {g.list.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}
+                        {e.leftOn ? " (left)" : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </Field>
+            <Field label="Relieving date">
+              <input type="date" className={inputClass} value={date || today} onChange={(e) => setDate(e.target.value)} required />
+            </Field>
+          </div>
+          <fieldset>
+            <legend className="mb-1 text-sm font-medium text-slate-700">Already done</legend>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              {MOVE_STEPS.relieve.map((s) => (
+                <label key={s.id} className="flex items-center gap-2 py-1 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={done.includes(s.id)}
+                    onChange={(e) => setDone((d) => (e.target.checked ? [...d, s.id] : d.filter((x) => x !== s.id)))}
+                    className="size-4 accent-brand-600"
+                  />
+                  {s.text}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <ErrorNote error={start.error} />
+          <Button type="submit" variant="danger" disabled={!who || start.isPending}>
+            <UserMinus size={16} /> Add to relieving process
+          </Button>
+        </form>
+      )}
+      {added && (
+        <p className="mt-2 text-footnote text-low-ink">
+          {added} added to the relieving process.{" "}
+          <Link to="/employees" className="font-medium text-brand-700 hover:underline">
+            See the table
+          </Link>
+        </p>
+      )}
+      {staff && (
+        <EmployeeDialog
+          open={adding}
+          employee={null}
+          staff={staff}
+          onClose={() => setAdding(false)}
+          onAdded={(id) => {
+            setWho(id);
+            setAdded(null);
+            setDate(today);
+          }}
+        />
+      )}
+    </Card>
+  );
+}

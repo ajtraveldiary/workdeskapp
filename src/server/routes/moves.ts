@@ -50,7 +50,12 @@ export const moveRoutes = new Hono<AppEnv>()
     const { employeeId, kind, date, doneSteps } = moveInput.parse(await c.req.json());
     const [e] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.userId, userId)));
     if (!e) throw new HTTPException(404, { message: "Employee not found" });
-    if (kind === "relieve" && e.leftOn) throw new HTTPException(409, { message: `${e.name} has already left the office` });
+    // Someone marked Left the office without a relieving record can still be put into the relieving process
+    // (Settings › Employees, user request 2026-10-16); only a second relieving in a row is refused.
+    if (kind === "relieve" && e.leftOn) {
+      const [last] = await db.select({ kind: employeeMoves.kind }).from(employeeMoves).where(eq(employeeMoves.employeeId, e.id)).orderBy(desc(employeeMoves.onDate), desc(employeeMoves.createdAt)).limit(1);
+      if (last?.kind === "relieve") throw new HTTPException(409, { message: `${e.name} has already been relieved` });
+    }
     await db
       .update(employees)
       .set(kind === "join" ? { leftOn: null, joinedOfficeOn: date, updatedAt: new Date() } : { leftOn: date, updatedAt: new Date() })

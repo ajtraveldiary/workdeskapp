@@ -260,7 +260,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Related.tsx` | "For" an employee, designation or the office: picker, tag and line. |
 | `Designations.tsx` | Settings › Employees: designations and types of temporary employees lists (add, rename, drag to arrange, remove); its list editor (`NameList`) is also used for event types. |
 | `YouSetting.tsx` | Settings › Employees, "You": choose which employee you are (saved at once; their row and page show a "You" tag). |
-| `StaffMoves.tsx` | Joining & relieving: the Employees page card (Joined / Relieved tables, a Pending / Waiting / Done pill per step, people with their steps on phones, Show finished) and the Join / Relieve form (with Add a new employee); `JoinExistingCard` in Settings › Employees puts someone already working here into the joining process with the steps already done ticked. |
+| `StaffMoves.tsx` | Joining & relieving: the Employees page card (Joined / Relieved tables, a Pending / Waiting / Done pill per step, people with their steps on phones, Show finished) and the Join / Relieve form (with Add a new employee); `JoinExistingCard` in Settings › Employees puts someone already working here into the joining process with the steps already done ticked; `RelieveExistingCard` beside it does the same for relieving (also someone marked Left, or a new employee added there). |
 | `EventTypes.tsx` | Settings › Events: the event types list (add, rename, drag to arrange, remove; a removed type's events show as "Event"). |
 | `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |
 | `NotificationSettings.tsx` | Settings › Notifications. |
@@ -300,7 +300,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `tags.test.ts` | Tags: reused whatever the capitals, on tasks (filter, search, keep on edit), a reminder's tags on its tasks, deleting cleans up, the Tags column of the Tasks CSV. |
 | `done-before.test.ts` | An email back in Pending after its task was done carries when it was done ("Already done on …"). |
 | `me-employee.test.ts` | Which employee the user is: set, checked, cleared, in History, forgotten when that employee is deleted. |
-| `moves.test.ts` | Joining and relieving: the task and its steps, the table and the task kept in step both ways, done completes / set back reopens, Left on the relieving date, deleting the task drops the row, starting with steps already done. |
+| `moves.test.ts` | Joining and relieving: the task and its steps, the table and the task kept in step both ways, done completes / set back reopens, Left on the relieving date, deleting the task drops the row, starting with steps already done, relieving someone marked Left or a new employee. |
 | `office-events.test.ts` | Events: the user's own types (add, rename, arrange, delete keeps events, CSV makes new ones), repeat dates and changes, preparation tasks, Make event from an email (and back to Pending on a reply), delete, Home today, the calendar feed, the Events CSV, the phone note within the hour before. |
 | `attachment-types.test.ts` | Pictures and PDFs labelled as generic files are served with their real type. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |
