@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import {
-  ArrowDownUp,
   CalendarClock,
   Bell,
   CalendarDays,
@@ -11,7 +10,6 @@ import {
   CalendarCheck,
   CalendarRange,
   ChevronDown,
-  History as HistoryIcon,
   UsersRound,
   FolderOpen,
   KeyRound,
@@ -47,10 +45,8 @@ import { InboxPage } from "./pages/Inbox";
 import { TasksPage } from "./pages/Tasks";
 import { CalendarPage } from "./pages/Calendar";
 import { SearchPage } from "./pages/Search";
-import { HistoryPage } from "./pages/History";
 import { StaffPage } from "./pages/Staff";
 import { EmployeePage } from "./pages/EmployeePage";
-import { ImportExportPage } from "./pages/ImportExport";
 import { FilesPage } from "./pages/Files";
 import { LoginsPage } from "./pages/Logins";
 import { EventsPage } from "./pages/Events";
@@ -83,13 +79,14 @@ export function App() {
         <Route path="/calendar" element={<Page full><CalendarPage /></Page>} />
         <Route path="/reminders" element={<Page><RemindersPage /></Page>} />
         <Route path="/reports" element={<Navigate to="/reminders" replace />} />
-        <Route path="/history" element={<Page><HistoryPage /></Page>} />
+        {/* History and Import / Export are Settings tabs now (user request 2026-10-15); old links still work. */}
+        <Route path="/history" element={<Navigate to="/settings#history" replace />} />
         <Route path="/search" element={<Page><SearchPage /></Page>} />
         <Route path="/settings" element={<Page><SettingsPage /></Page>} />
         <Route path="/employees" element={<Page><StaffPage /></Page>} />
         {/* An employee's own page (user request 2026-10-08), opened from the Employees list or table. */}
         <Route path="/employees/:id" element={<Page wide><EmployeePage /></Page>} />
-        <Route path="/import-export" element={<Page><ImportExportPage /></Page>} />
+        <Route path="/import-export" element={<Navigate to="/settings#import-export" replace />} />
         {/* Was /staff before the page was renamed Employees (user request 2026-10-07). */}
         <Route path="/staff" element={<StaffRedirect />} />
         <Route path="/files" element={<Page><FilesPage /></Page>} />
@@ -123,15 +120,12 @@ const NAV: NavItem[] = [
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
   // Events: meetings, trainings, programmes (user request 2026-10-11): rail on wider screens, profile menu on phones.
   { to: "/events", label: "Events", icon: CalendarRange },
-  { to: "/history", label: "History", icon: HistoryIcon },
   // Employees page (formerly Staff, user request 2026-10-07): in the side rail on wider screens, in the profile menu on phones.
   { to: "/employees", label: "Employees", icon: UsersRound },
   // File register (user request 2026-10-07), next to Staff: rail on wider screens, profile menu on phones.
   { to: "/files", label: "Files", icon: FolderOpen },
   // Saved website logins (user request 2026-10-11), after Files: rail on wider screens, profile menu on phones.
   { to: "/logins", label: "Logins", icon: KeyRound },
-  // Import / Export (user request 2026-10-07): rail on wider screens, profile menu on phones.
-  { to: "/import-export", label: "Import/Export", icon: ArrowDownUp },
 ];
 
 function Shell({ children }: { children: ReactNode }) {
@@ -604,7 +598,6 @@ function UserMenu() {
           { to: "/employees", label: "Employees", icon: UsersRound },
           { to: "/files", label: "File register", icon: FolderOpen },
           { to: "/logins", label: "Logins", icon: KeyRound },
-          { to: "/import-export", label: "Import / Export", icon: ArrowDownUp },
           { to: "/settings", label: "Settings", icon: SettingsIcon },
         ].map((l) => (
           <NavLink key={l.to} to={l.to} onClick={() => setOpen(false)} className={({ isActive }) => cx(sideRow, isActive && "bg-tint font-medium text-brand-800")}>
@@ -646,9 +639,6 @@ function UserMenu() {
           </Link>
           <Link to="/logins" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <KeyRound size={16} /> Logins
-          </Link>
-          <Link to="/import-export" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
-            <ArrowDownUp size={16} /> Import / Export
           </Link>
           <Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <SettingsIcon size={16} /> Settings

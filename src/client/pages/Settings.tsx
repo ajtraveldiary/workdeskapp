@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
-import { CalendarDays, Copy, Check, ChevronRight, EyeOff, History as HistoryIcon, ListChecks, Moon, Sun, SunMoon, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
+import { useLocation, useNavigate } from "react-router";
+import { CalendarDays, Copy, Check, EyeOff, ListChecks, Moon, Sun, SunMoon, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
 import { useCalendarLink, useCalendarLinkActions, useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useSnippetActions, useSnippets, useTaskLabelSettings } from "../api";
 import { LABEL_COLORS, type LabelColor } from "../../shared/labelColors";
 import type { Label } from "../../shared/types";
@@ -14,11 +14,14 @@ import { NotificationSettings } from "../components/NotificationSettings";
 import { EmployeeSettings } from "../components/Designations";
 import { EventTypeSettings } from "../components/EventTypes";
 import { YouSetting } from "../components/YouSetting";
+import { HistoryPage } from "./History";
+import { ImportExportPage } from "./ImportExport";
 import { TagSettings } from "../components/Tags";
 
 // Settings tabs (user request 2026-10-08, "use tabs to group similar settings"). The tab lives in the address
-// (#mail, #employees, #events, #tags, #calendar; none = General), so the existing /settings#… links open their tab.
-type SettingsTab = "general" | "mail" | "employees" | "events" | "tags" | "calendar";
+// (#mail, #employees, #events, #tags, #calendar, #history, #import-export; none = General), so /settings#… links
+// open their tab. History and Import / Export moved in here from pages of their own (user request 2026-10-15).
+type SettingsTab = "general" | "mail" | "employees" | "events" | "tags" | "calendar" | "history" | "import-export";
 const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   { value: "general", label: "General" },
   { value: "mail", label: "Mail" },
@@ -28,6 +31,8 @@ const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   // Tags for tasks and reminders (user request 2026-10-11).
   { value: "tags", label: "Tags" },
   { value: "calendar", label: "Calendar" },
+  { value: "history", label: "History" },
+  { value: "import-export", label: "Import / Export" },
 ];
 
 export function SettingsPage() {
@@ -38,23 +43,8 @@ export function SettingsPage() {
   const openTab = (t: SettingsTab) => navigate({ hash: t === "general" ? "" : t }, { replace: true });
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"], ["tags"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"], ["tags"], ["event-types"], ["history"]]} label="Refresh settings" />} />
       <div className="space-y-6">
-        {/* Phones: History moved here from the bottom bar (user request 2026-10-06); wider screens keep it in the side rail. */}
-        <Link
-          to="/history"
-          className="flex items-center gap-3 rounded-xl border border-line bg-white px-4 py-3 shadow-sm active:scale-[0.99] md:hidden"
-        >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
-            <HistoryIcon size={20} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-medium text-ink">History</span>
-            <span className="block truncate text-footnote text-slate-500">Every task and email decision, with undo</span>
-          </span>
-          <ChevronRight size={18} className="shrink-0 text-slate-400" />
-        </Link>
-
         <div>
           <Tabs<SettingsTab> value={tab} onChange={openTab} options={SETTINGS_TABS} />
           <div key={tab} role="tabpanel" aria-label={SETTINGS_TABS.find((t) => t.value === tab)?.label} className="space-y-6">
@@ -74,6 +64,16 @@ export function SettingsPage() {
               </>
             )}
             {tab === "events" && <EventTypeSettings />}
+            {tab === "history" && (
+              <div>
+                <HistoryPage embedded />
+              </div>
+            )}
+            {tab === "import-export" && (
+              <div>
+                <ImportExportPage embedded />
+              </div>
+            )}
             {tab === "tags" && <TagSettings />}
             {tab === "calendar" && <CalendarLink />}
           </div>

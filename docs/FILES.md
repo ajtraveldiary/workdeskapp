@@ -172,7 +172,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 |---|---|
 | `index.html` | The page shell: start-up logo, dark mode set before the first paint, home-screen app settings. |
 | `main.tsx` | Starts the app: query cache, error safety net, auto-update, service worker. |
-| `App.tsx` | The frame of the app: top bar, side rail (computers), bottom tab bar (phones), routes to every page, account menu (side panel on phones), status in the title, database-problem pop-up, icon badge. |
+| `App.tsx` | The frame of the app: top bar, side rail (computers), bottom tab bar (phones), routes to every page (old `/history` and `/import-export` links open those Settings tabs), account menu (side panel on phones), status in the title, database-problem pop-up, icon badge. |
 | `api.ts` | All calls to the server and the data hooks screens use (emails, tasks, reminders, events, tags, labels, staff, files, logins, settings). |
 | `queryClient.ts` | The data cache saved on the device (`CACHE_VERSION` must go up when API data changes shape). |
 | `connection.ts` | Online/offline status and last sync time for the title bar; saves lists for offline use. |
@@ -204,14 +204,14 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Reminders.tsx` | Reminders: Due next and All reminders; tap opens Reminder details. |
 | `Calendar.tsx` | Month calendar of tasks, reminder dates and events (app-style on phones, the whole width on big screens), with the chosen day's list and an Event button. |
 | `Events.tsx` | Events: Upcoming / Today / Past, search, grouped by day; swipe (phones) or ⋮ menu for Done, Cancel, Edit. |
-| `History.tsx` | Every decision and change, with Undo where possible. |
+| `History.tsx` | Every decision and change, with Undo where possible; shown as the History tab of Settings (`embedded`: no page title, the filters as buttons). |
 | `Search.tsx` | Search across emails and tasks. |
-| `Settings.tsx` | Settings in tabs (the tab is in the address: none, `#mail`, `#employees`, `#events`, `#tags`, `#calendar`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Events (event types), Tags, Calendar link. |
+| `Settings.tsx` | Settings in tabs (the tab is in the address: none, `#mail`, `#employees`, `#events`, `#tags`, `#calendar`, `#history`, `#import-export`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Events (event types), Tags, Calendar link, History, Import / Export. |
 | `Staff.tsx` | Employees page: due increments (Mark done asks the new basic pay), retiring within 12 months (with Pension papers progress), on computers (1024px+) a Permanent or Temporary table with a switch, on narrower screens the permanent/temporary filter, list by designation, employee card, add/edit form. |
 | `EmployeePage.tsx` | An employee's own page (`/employees/<id>`, opened from the list or table): at a glance (pay, increment, probation, retirement / contract), every detail, tasks open and completed, reminders, their website logins, events they attend, History; Edit, Left the office, Delete. |
 | `Files.tsx` | File register: one-line list (icon, e-file number column, subject), search, status filters and a Tags filter (several at once), add/edit form with tags. |
 | `Logins.tsx` | Logins page: saved website logins grouped by website, search, + button, add/edit form. |
-| `ImportExport.tsx` | Import / Export: master backup, CSV export/import with preview, sample CSV links. |
+| `ImportExport.tsx` | Import / Export: master backup, CSV export/import with preview, sample CSV links; shown as the Import / Export tab of Settings (`embedded`). |
 | `Login.tsx` | Sign in with Google. |
 
 ### `src/client/components/` — parts used by the screens

@@ -110,8 +110,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 
 ### Search and History
 - **Search** across emails and tasks: titles, notes, subjects, senders and tag names.
-- **History:** a record of every decision and change (emails decided, tasks completed, labels changed, passwords
-  shown…). Removed emails can be restored from here.
+- **History** (in Settings): a record of every decision and change (emails decided, tasks completed, labels
+  changed, passwords shown…). Removed emails can be restored from here.
 
 ### Gmail labels and sections
 - **Labels:** create, rename, recolour and delete your Gmail labels, and add or remove them on an email.
@@ -125,7 +125,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Phone notifications** (home-screen app): a morning summary at a time you choose, a note when a task is due, a
   note an hour before an event, and a count on the app icon.
 
-### Import and Export
+### Import and Export (in Settings)
 - **Full backup** of everything WorkDesk keeps, and a restore that only adds what is missing.
 - **Spreadsheet (CSV) import and export**, with sample files, for the file register, employees, tasks,
   reminders and events.
@@ -138,6 +138,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Events:** the types of events (Meeting, Training, Programme…).
 - **Tags:** rename, recolour, delete and arrange tags.
 - **Calendar:** the private calendar link.
+- **History** and **Import / Export** (see above).
 
 ### Phone app
 - **Install it on your phone's home screen.** Swipe a row to act on it (with Undo), pull down to refresh, and

@@ -4,33 +4,45 @@ import { CheckCircle2, ChevronLeft, CircleDot, Hourglass, Mail, RotateCcw } from
 import type { AuditEvent } from "../../shared/types";
 import { useHistory, useRestore } from "../api";
 import { formatDateTime } from "../format";
-import { Button, Card, Empty, PageHeader, SearchInput, SkeletonList, Tabs } from "../components/ui";
+import { Button, Card, Empty, PageHeader, SearchInput, Segmented, SkeletonList, Tabs } from "../components/ui";
 import { RefreshButton } from "../components/RefreshButton";
 
 type Filter = "" | "email" | "task";
 
-export function HistoryPage() {
+// embedded: shown as the History tab of Settings (user request 2026-10-15) instead of a page of its own.
+export function HistoryPage({ embedded }: { embedded?: boolean } = {}) {
   const [type, setType] = useState<Filter>("");
   const [q, setQ] = useState("");
   const { data, error } = useHistory({ type, q });
   const restore = useRestore();
 
+  const filters: { value: Filter; label: string }[] = [
+    { value: "", label: "Everything" },
+    { value: "email", label: "Emails" },
+    { value: "task", label: "Tasks" },
+  ];
+
   return (
     <>
-      {/* Phones reach History from Settings, so offer the way back. */}
-      <Link to="/settings" className="-ml-1 mb-1 inline-flex items-center gap-0.5 text-sm font-medium text-brand-700 active:scale-[0.97] md:hidden">
-        <ChevronLeft size={18} /> Settings
-      </Link>
-      <PageHeader title="History" subtitle="A record of every decision: tasks created, completed and reopened; emails removed and restored." actions={<RefreshButton keys={[["history"]]} label="Refresh history" />} />
-      <Tabs<Filter>
-        value={type}
-        onChange={setType}
-        options={[
-          { value: "", label: "Everything" },
-          { value: "email", label: "Emails" },
-          { value: "task", label: "Tasks" },
-        ]}
-      />
+      {embedded ? (
+        // Inside Settings (user request 2026-10-15): no page title of its own, and the filters as buttons so there
+        // aren't two rows of tabs.
+        <>
+          <p className="mb-3 text-sm text-slate-600 max-md:hidden">A record of every decision: tasks created, completed and reopened; emails removed and restored.</p>
+          <div className="mb-3">
+            <Segmented<Filter> value={type} onChange={setType} options={filters} />
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Phones reach History from Settings, so offer the way back. */}
+          <Link to="/settings" className="-ml-1 mb-1 inline-flex items-center gap-0.5 text-sm font-medium text-brand-700 active:scale-[0.97] md:hidden">
+            <ChevronLeft size={18} /> Settings
+          </Link>
+          <PageHeader title="History" subtitle="A record of every decision: tasks created, completed and reopened; emails removed and restored." actions={<RefreshButton keys={[["history"]]} label="Refresh history" />} />
+          <Tabs<Filter> value={type} onChange={setType} options={filters} />
+        </>
+      )}
       <div className="mb-3">
         <SearchInput value={q} onChange={setQ} placeholder="Search history…" />
       </div>

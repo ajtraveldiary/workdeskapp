@@ -106,8 +106,18 @@ export function Tabs<T extends string>({
   onChange: (v: T) => void;
   options: { value: T; label: string; count?: number }[];
 }) {
+  // The chosen tab is scrolled into the row when it starts off screen (phones, e.g. Settings › History opened
+  // from a link; 2026-10-15). Only the row moves, never the page.
+  const row = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = row.current;
+    const tab = el?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!el || !tab) return;
+    const left = tab.offsetLeft - el.offsetLeft;
+    if (left < el.scrollLeft || left + tab.offsetWidth > el.scrollLeft + el.clientWidth) el.scrollLeft = Math.max(0, left - 24);
+  }, [value]);
   return (
-    <div className="no-scrollbar -mx-3 mb-3 overflow-x-auto px-3 sm:mx-0 sm:mb-4 sm:px-0">
+    <div ref={row} className="no-scrollbar -mx-3 mb-3 overflow-x-auto px-3 sm:mx-0 sm:mb-4 sm:px-0">
       <div role="tablist" className="flex gap-4 border-b border-line sm:gap-6">
         {options.map((o) => (
           <button

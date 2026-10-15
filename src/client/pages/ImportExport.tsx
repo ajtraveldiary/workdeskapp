@@ -30,10 +30,15 @@ const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 // A file ready to save that iPhone wouldn't share without a fresh tap.
 type Ready = { blob: Blob; name: string } | null;
 
-export function ImportExportPage() {
+// embedded: shown as the Import / Export tab of Settings (user request 2026-10-15), without a page title.
+export function ImportExportPage({ embedded }: { embedded?: boolean } = {}) {
   return (
     <>
-      <PageHeader title="Import / Export" subtitle="Download a backup of everything, or move lists in and out as CSV files (Excel, Google Sheets)." />
+      {embedded ? (
+        <p className="mb-3 text-sm text-slate-600 max-md:hidden">Download a backup of everything, or move lists in and out as CSV files (Excel, Google Sheets).</p>
+      ) : (
+        <PageHeader title="Import / Export" subtitle="Download a backup of everything, or move lists in and out as CSV files (Excel, Google Sheets)." />
+      )}
       <div className="space-y-4">
         <BackupCard />
         <CsvCard kind="files" icon={<FolderOpen size={18} />} text="Physical files and e-files with their numbers." />
