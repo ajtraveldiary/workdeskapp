@@ -73,6 +73,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0032_file_tags.sql` | Tags on File register entries (`tag_ids` on `office_files`). |
 | `0033_office_events.sql` | Events (meetings, trainings, programmes): the `office_events` table, the email state "event", and `event_id` / `event_date` on tasks for preparation tasks. |
 | `0035_user_employee.sql` | Which employee the user is (`employee_id` on `users`; forgotten if that employee is deleted). |
+| `0036_employee_moves.sql` | Joining and relieving: `employee_moves` (employee, join or relieve, date, its task; removed with the task or the employee). |
 | `0034_event_types.sql` | The user's own event types (`event_types`; every account gets Meeting, Training, Programme) and `type_id` on events, filled from the old fixed kind ("Other" = no type). |
 | `0031_tags.sql` | Tags for tasks and reminders: the `tags` table (name unique per user whatever its capitals, colour, order) and `tag_ids` on tasks and reminders. |
 
@@ -110,6 +111,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `tags.ts` | Tags for tasks and reminders: list (with how many use each), make or reuse by name, rename / recolour, delete (taken off everything), reorder. |
 | `officeEvents.ts` | Events (`/office-events`): list, add (also from an email, which leaves Pending or becomes the preparation task's email), edit, delete (open preparation tasks go, the email returns to Pending), and one date marked done, moved, cancelled or put back. |
 | `eventTypes.ts` | Event types (`/event-types`, Settings › Events): list with how many events have each, add, add Meeting/Training/Programme, rename, arrange, delete (its events stay, without a type). |
+| `moves.ts` | Joining and relieving (`/moves`): the summary list with each step's state, join or relieve someone (back in the office / Left the office on the date, and the task), set one step from the table. |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
 | `transfer.ts` | Import / Export: master backup download and import (adds only what's missing), CSV export and import (preview, then in parts) for file register, employees, tasks and reminders. |
@@ -134,6 +136,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `staff.ts` | Checks what a task or reminder is "for" (employee, designation, office) and names it for History. |
 | `tags.ts` | Tags: checks the tag ids a task or reminder is given, finds or makes tags by name (CSV import), tag names for export and search. |
 | `officeEvents.ts` | Events: today's events for Home, and the preparation tasks (made up to 30 days ahead, moved with the event, dropped when it is cancelled or deleted). |
+| `moves.ts` | Joining and relieving: makes the task with its steps (For the employee, made by the system, due 7 days after the date) and its row; completes the task when every step is done and reopens it when one is set back. |
 | `contracts.ts` | Makes the "Contract ends" task 7 days before a temporary contract ends (one per end date; moves it when the date is edited). |
 | `probation.ts` | Makes the "Probation declaration" task 7 days before 2 years of service when probation isn't declared (recent joinings only); completes it when a declared date is entered. |
 | `pension.ts` | Makes the Pension papers task (with the pension checklist) 12 months before a permanent employee retires, once per employee. |
@@ -151,6 +154,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `schemas.ts` | Checks on everything the app sends (Zod): tasks, reminders, tags, labels, staff, files, website logins, notifications, hidden text. |
 | `reminderSchedule.ts` | Reminder date maths: repeats, next dates, "remind me" lead days, labels like "Every month". |
 | `eventSchedule.ts` | Event maths: the starting event types and the "Event" label for none, each date of a repeating event in a range with its changes (done, moved, cancelled), time ranges. |
+| `moves.ts` | Joining and relieving steps (ids, names, Done or Received), Pending / Waiting / Done, and how a step's state is read from and written to the task's checklist. |
 | `tags.ts` | Tag rules shared by both sides: the colour palette, tidy names (same tag whatever the capitals), reading the CSV Tags column. |
 | `staff.ts` | Employee lists and rules: categories, engaged as, common designations and types, contract end date, increment due dates, contracts ending (Contract ends task from 7 days before, its title, renewed end date), retiring within 12 months (a year before, Pension papers title and checklist), probation (2 years from joining, task title). |
 | `transfer.ts` | Import / Export: CSV columns of each list, sample files, CSV writing, reading dates/times/priorities, backup tables. |
@@ -207,8 +211,8 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `History.tsx` | Every decision and change, with Undo where possible; shown as the History tab of Settings (`embedded`: no page title, the filters as buttons). |
 | `Search.tsx` | Search across emails and tasks. |
 | `Settings.tsx` | Settings in tabs (the tab is in the address: none, `#mail`, `#employees`, `#events`, `#tags`, `#calendar`, `#history`, `#import-export`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Events (event types), Tags, Calendar link, History, Import / Export. |
-| `Staff.tsx` | Employees page: due increments (Mark done asks the new basic pay), retiring within 12 months (with Pension papers progress), on computers (1024px+) a Permanent or Temporary table with a switch, on narrower screens the permanent/temporary filter, list by designation, employee card, add/edit form. |
-| `EmployeePage.tsx` | An employee's own page (`/employees/<id>`, opened from the list or table): at a glance (pay, increment, probation, retirement / contract), every detail, tasks open and completed, reminders, their website logins, events they attend, History; Edit, Left the office, Delete. |
+| `Staff.tsx` | Employees page: due increments, joining & relieving (`MovesCard`), (Mark done asks the new basic pay), retiring within 12 months (with Pension papers progress), on computers (1024px+) a Permanent or Temporary table with a switch, on narrower screens the permanent/temporary filter, list by designation, employee card, add/edit form. |
+| `EmployeePage.tsx` | An employee's own page (`/employees/<id>`, opened from the list or table; Join / Relieve): at a glance (pay, increment, probation, retirement / contract), every detail, tasks open and completed, reminders, their website logins, events they attend, History; Edit, Left the office, Delete. |
 | `Files.tsx` | File register: one-line list (icon, e-file number column, subject), search, status filters and a Tags filter (several at once), add/edit form with tags. |
 | `Logins.tsx` | Logins page: saved website logins grouped by website, search, + button, add/edit form. |
 | `ImportExport.tsx` | Import / Export: master backup, CSV export/import with preview, sample CSV links; shown as the Import / Export tab of Settings (`embedded`). |
@@ -243,7 +247,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `SystemTaskChooser.tsx` | The choice a system task asks for when ticked or swiped anywhere: Renew / Contract ended for "Contract ends", Probation declared / Change due date for "Probation declaration"; lives once in the shell. |
 | `InlineTaskEdit.tsx` | Change a task's date/time or priority straight from its chip. |
 | `PriorityGroups.tsx` | Sorts task lists Urgent → High → Medium → Low, earliest first. |
-| `Checklist.tsx` | Task steps: editor in the form, ticks in details, "2/5" chip on rows. |
+| `Checklist.tsx` | Task steps: editor in the form, ticks in details (a step can show Waiting), "2/5" chip on rows. |
 | `Waiting.tsx` | Waiting for a reply: badge, Wait dialog. |
 | `ReminderDialog.tsx` | Add / edit reminder form. |
 | `ReminderDetails.tsx` | Reminder details card with document preview and Edit / Pause / Delete / Mark done. |
@@ -256,6 +260,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Related.tsx` | "For" an employee, designation or the office: picker, tag and line. |
 | `Designations.tsx` | Settings › Employees: designations and types of temporary employees lists (add, rename, drag to arrange, remove); its list editor (`NameList`) is also used for event types. |
 | `YouSetting.tsx` | Settings › Employees, "You": choose which employee you are (saved at once; their row and page show a "You" tag). |
+| `StaffMoves.tsx` | Joining & relieving: the Employees page card (Joined / Relieved tables, a Pending / Waiting / Done pill per step, people with their steps on phones, Show finished) and the Join / Relieve form (with Add a new employee). |
 | `EventTypes.tsx` | Settings › Events: the event types list (add, rename, drag to arrange, remove; a removed type's events show as "Event"). |
 | `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |
 | `NotificationSettings.tsx` | Settings › Notifications. |
@@ -295,6 +300,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `tags.test.ts` | Tags: reused whatever the capitals, on tasks (filter, search, keep on edit), a reminder's tags on its tasks, deleting cleans up, the Tags column of the Tasks CSV. |
 | `done-before.test.ts` | An email back in Pending after its task was done carries when it was done ("Already done on …"). |
 | `me-employee.test.ts` | Which employee the user is: set, checked, cleared, in History, forgotten when that employee is deleted. |
+| `moves.test.ts` | Joining and relieving: the task and its steps, the table and the task kept in step both ways, done completes / set back reopens, Left on the relieving date, deleting the task drops the row. |
 | `office-events.test.ts` | Events: the user's own types (add, rename, arrange, delete keeps events, CSV makes new ones), repeat dates and changes, preparation tasks, Make event from an email (and back to Pending on a reply), delete, Home today, the calendar feed, the Events CSV, the phone note within the hour before. |
 | `attachment-types.test.ts` | Pictures and PDFs labelled as generic files are served with their real type. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |

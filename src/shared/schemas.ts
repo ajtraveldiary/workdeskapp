@@ -3,12 +3,13 @@ import { LABEL_COLORS } from "./labelColors";
 import { MAX_TAGS_PER_ITEM, MAX_TAG_NAME, TAG_COLORS } from "./tags";
 import { REPEATS } from "./reminderSchedule";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, RELATED_KINDS } from "./staff";
+import { MOVE_KINDS, STEP_STATES } from "./moves";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 // The user's own Gmail labels only (system labels like INBOX are never accepted).
 // A task's checklist: steps ticked one by one (user request 2026-10-07).
 export const checklist = z
-  .array(z.object({ id: z.string().min(1).max(40), text: z.string().trim().min(1, "A step can't be empty").max(300), done: z.boolean() }))
+  .array(z.object({ id: z.string().min(1).max(40), text: z.string().trim().min(1, "A step can't be empty").max(300), done: z.boolean(), waiting: z.boolean().optional() }))
   .max(50, "Up to 50 steps");
 const userLabelIds = z.array(z.string().regex(/^Label_[\w-]+$/)).max(50);
 export const priority = z.enum(["low", "normal", "high", "urgent"]);
@@ -244,6 +245,9 @@ export const pushSettingsInput = z.object({
 export const designationInput = z.object({ name: z.string().trim().min(1, "Name is required").max(80) });
 // A list arranged by drag and drop (user request 2026-10-08): its ids in the new order.
 export const orderInput = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
+// Joining and relieving (user request 2026-10-15).
+export const moveInput = z.object({ employeeId: z.uuid(), kind: z.enum(MOVE_KINDS), date: day });
+export const moveStepInput = z.object({ step: z.string().min(1).max(40), state: z.enum(STEP_STATES) });
 // Which employee the user is (user request 2026-10-12).
 export const meEmployeeInput = z.object({ employeeId: z.uuid().nullable() });
 export const employeeInput = z.object({

@@ -6,7 +6,8 @@ export type EmailState = "needs_decision" | "task" | "snoozed" | "dismissed" | "
 export type Priority = "low" | "normal" | "high" | "urgent";
 
 // One step of a task's checklist (user request 2026-10-07).
-export type ChecklistItem = { id: string; text: string; done: boolean };
+// waiting: marked Waiting (joining / relieving steps, user request 2026-10-15); a done step is never waiting.
+export type ChecklistItem = { id: string; text: string; done: boolean; waiting?: boolean };
 
 // A link kept with a reminder, e.g. the Google Sheet to fill in (user request 2026-10-07). Empty name = show
 // the kind of file ("Google Sheet") instead.
@@ -72,7 +73,7 @@ export type Task = {
   // Which kind of system task: "pension" (Pension papers), "contract" (contract ending; ticking it asks Renew or
   // Contract ended) or "probation" (probation declaration pending; ticking it asks Declared or Change due
   // date). Null for every other task.
-  systemKind: "pension" | "contract" | "probation" | null;
+  systemKind: "pension" | "contract" | "probation" | "joining" | "relieving" | null;
   // A "Prepare" task for an event (user request 2026-10-11): the event and the occurrence's scheduled day.
   eventId: string | null;
   eventDate: string | null;
@@ -313,3 +314,17 @@ export type SiteLogin = {
 };
 
 export type OfficeFile = { id: string; subject: string; physical: boolean; efileNumber: string; notes: string; tagIds: string[]; updatedAt: string };
+
+// A join or relieve of an employee with each step's state (Employees page, user request 2026-10-15). steps follow
+// MOVE_STEPS; state null = the step was taken out of the task. finished: the task is completed (or was deleted).
+export type StaffMove = {
+  id: string;
+  kind: import("./moves").MoveKind;
+  employeeId: string;
+  name: string;
+  designation: string | null;
+  onDate: string;
+  taskId: string | null;
+  finished: boolean;
+  steps: { id: string; state: import("./moves").StepState | null }[];
+};

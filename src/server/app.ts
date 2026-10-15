@@ -25,6 +25,7 @@ import { loginRoutes } from "./routes/logins";
 import { tagRoutes } from "./routes/tags";
 import { officeEventRoutes } from "./routes/officeEvents";
 import { eventTypeRoutes } from "./routes/eventTypes";
+import { moveRoutes } from "./routes/moves";
 import { transferRoutes } from "./routes/transfer";
 
 export type AppEnv = {
@@ -169,6 +170,7 @@ export function createApp(opts: Options) {
   app.route("/tags", tagRoutes);
   app.route("/office-events", officeEventRoutes);
   app.route("/event-types", eventTypeRoutes);
+  app.route("/moves", moveRoutes);
   app.route("/transfer", transferRoutes);
   app.route("/", miscRoutes);
   app.route("/", calendarSettingsRoutes);

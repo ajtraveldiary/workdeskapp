@@ -3,6 +3,7 @@ import { pgTable, uuid, text, timestamp, integer, boolean, date, jsonb, numeric,
 import { REPEATS } from "../../shared/reminderSchedule";
 import { RELATED_KINDS } from "../../shared/staff";
 import { EVENT_KINDS, type EventChange } from "../../shared/eventSchedule";
+import { MOVE_KINDS } from "../../shared/moves";
 import type { ChecklistItem, ReminderLink } from "../../shared/types";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
@@ -255,7 +256,7 @@ export const tasks = pgTable(
     // Which kind of system task (user request 2026-10-08): "pension" (Pension papers), "contract" (a temporary
     // employee's contract ending: ticking it asks Renew or Contract ended) or "probation" (probation declaration
     // pending: ticking it asks Declared or Change due date). Null for every other task.
-    systemKind: text("system_kind", { enum: ["pension", "contract", "probation"] }),
+    systemKind: text("system_kind", { enum: ["pension", "contract", "probation", "joining", "relieving"] }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -394,6 +395,20 @@ export const employees = pgTable("employees", {
   probationTaskId: uuid("probation_task_id"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
+});
+
+// Joining and relieving (user request 2026-10-15): one row per join or relieve of an employee, with the date and
+// its task (whose checklist holds the steps, MOVE_STEPS in src/shared/moves.ts). Deleting the task removes the row.
+export const employeeMoves = pgTable("employee_moves", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  employeeId: uuid("employee_id")
+    .notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: MOVE_KINDS }).notNull(),
+  onDate: date("on_date").notNull(),
+  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
 });
 
 // File register (user request 2026-10-07): the office's files, old physical ones (they have no number) and

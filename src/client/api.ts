@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
+import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
-  EventType, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+  EventType, StaffMove, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -219,6 +220,30 @@ export function useStaffActions() {
     saveEmployee: m(({ id, input }: { id: string; input: EmployeeInput }) => api(`/staff/employees/${id}`, { method: "PUT", body: input })),
     setLeft: m(({ id, left }: { id: string; left: boolean }) => api(`/staff/employees/${id}/left`, { method: "POST", body: { left } })),
     removeEmployee: m((id: string) => api(`/staff/employees/${id}`, { method: "DELETE" })),
+  };
+}
+// Joining and relieving (user request 2026-10-15). Under "staff", so employee and task changes refresh it.
+export const useMoves = () => useQuery({ queryKey: ["staff", "moves"], queryFn: () => api<{ moves: StaffMove[] }>("/moves") });
+export function useMoveActions() {
+  const qc = useQueryClient();
+  // A step is the task's checklist too, and joining / relieving changes the employee: refresh all of them.
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["staff", "tasks", "summary", "history"].includes(q.queryKey[0] as string) });
+  return {
+    start: useMutation({
+      mutationFn: (input: { employeeId: string; kind: MoveKind; date: string }) => api<{ id: string; taskId: string }>("/moves", { method: "POST", body: input }),
+      onSettled: refresh,
+    }),
+    // The pill changes at once; the server writes the task's step.
+    step: useMutation({
+      mutationFn: ({ id, step, state }: { id: string; step: string; state: StepState }) => api(`/moves/${id}/step`, { method: "POST", body: { step, state } }),
+      onMutate: async ({ id, step, state }) => {
+        await qc.cancelQueries({ queryKey: ["staff", "moves"] });
+        qc.setQueryData<{ moves: StaffMove[] }>(["staff", "moves"], (old) =>
+          old ? { moves: old.moves.map((m) => (m.id === id ? { ...m, steps: m.steps.map((s) => (s.id === step ? { ...s, state } : s)) } : m)) } : old,
+        );
+      },
+      onSettled: refresh,
+    }),
   };
 }
 // File register (user request 2026-10-07).

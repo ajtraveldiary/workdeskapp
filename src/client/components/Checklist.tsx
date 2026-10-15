@@ -5,7 +5,7 @@ import { ListChecks, Plus, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ChecklistItem, Task } from "../../shared/types";
 import { useUpdateTask } from "../api";
-import { CheckCircle, ErrorNote, cx } from "./ui";
+import { CheckCircle, ErrorNote, cx, TONE } from "./ui";
 
 const newId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`).slice(0, 36);
 
@@ -141,7 +141,7 @@ export function ChecklistTicks({ task }: { task: Task }) {
   const { done, total } = checklistProgress(items);
   const toggle = (id: string) => {
     const before = items;
-    const next = items.map((i) => (i.id === id ? { ...i, done: !i.done } : i));
+    const next = items.map((i) => (i.id === id ? { ...i, done: !i.done, ...(i.waiting ? { waiting: false } : {}) } : i));
     setItems(next);
     update.mutate({ id: task.id, input: { checklist: next } }, { onError: () => setItems(before) });
   };
@@ -161,7 +161,11 @@ export function ChecklistTicks({ task }: { task: Task }) {
         {items.map((i) => (
           <li key={i.id} className="flex items-start gap-2.5 py-1">
             <CheckCircle checked={i.done} onToggle={() => toggle(i.id)} label={i.done ? `Mark not done: ${i.text}` : `Mark done: ${i.text}`} />
-            <span className={cx("min-w-0 flex-1 text-sm leading-5 [overflow-wrap:anywhere]", i.done ? "text-slate-400" : "text-ink")}>{i.text}</span>
+            <span className={cx("min-w-0 flex-1 text-sm leading-5 [overflow-wrap:anywhere]", i.done ? "text-slate-400" : "text-ink")}>
+              {i.text}
+              {/* Joining / relieving steps can be Waiting (user request 2026-10-15). */}
+              {i.waiting && !i.done && <span className={cx("ml-1.5 inline-flex rounded-full px-1.5 py-px align-[1px] text-caption2 font-medium", TONE.medium.soft)}>Waiting</span>}
+            </span>
           </li>
         ))}
       </ul>

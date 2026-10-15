@@ -8,7 +8,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { BadgeCheck, CalendarClock, ChevronLeft, FileClock, Hourglass, KeyRound, ListChecks, Mail, MessageCircle, Pencil, Phone, Plus, Trash2, TrendingUp, UserMinus, UserPlus, Wallet, CalendarRange } from "lucide-react";
 import type { AuditEvent, Employee, StaffList, Task } from "../../shared/types";
 import { ENGAGEMENT_LABELS, PROBATION_LOOKBACK_YEARS, incrementDue, probationDue, type Engagement } from "../../shared/staff";
-import { useEmployeeProfile, useLogins, useMe, useOfficeEvents, useStaff, useStaffActions } from "../api";
+import { useEmployeeProfile, useLogins, useMe, useOfficeEvents, useStaff, useStaffActions, useMoves } from "../api";
 import { eventOccurrences, eventTypeLabel, shiftDay } from "../../shared/eventSchedule";
 import { openEventDetails } from "../components/EventDetails";
 import { openEventForm } from "../components/EventDialog";
@@ -24,6 +24,8 @@ import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { Badge, Button, Card, ErrorNote, Segmented, SkeletonList, cx } from "../components/ui";
 import { EmployeeDialog, TemporaryTag, YouTag } from "./Staff";
+import { MoveDialog } from "../components/StaffMoves";
+import type { MoveKind } from "../../shared/moves";
 
 const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -81,6 +83,8 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
   const { setLeft, removeEmployee } = useStaffActions();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
+  const [move, setMove] = useState<MoveKind | null>(null);
+  const moves = useMoves().data?.moves;
   const designation = staff.designations.find((d) => d.id === e.designationId)?.name;
   const digits = e.phone.replace(/\D/g, "");
   const whatsapp = digits.length === 10 ? `91${digits}` : digits;
@@ -94,6 +98,7 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
   return (
     <>
       <BackLink />
+      <MoveDialog kind={move} staff={staff} employeeId={e.id} onClose={() => setMove(null)} />
       {/* Who they are, how to reach them, and what can be done (Edit, Left the office, Delete). */}
       <div className="mb-4 flex flex-wrap items-start gap-x-4 gap-y-3">
         <Avatar name={e.name} size={56} />
@@ -116,6 +121,18 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
           <Button onClick={() => setEditing(true)}>
             <Pencil size={15} /> Edit
           </Button>
+          {/* Joining / relieving with their steps (user request 2026-10-15): Relieve while here; Join when they left,
+              or when they were added without a joining record. */}
+          {!e.leftOn && (
+            <Button onClick={() => setMove("relieve")} disabled={busy}>
+              <UserMinus size={15} /> Relieve
+            </Button>
+          )}
+          {(e.leftOn || (moves && !moves.some((m) => m.employeeId === e.id && m.kind === "join"))) && (
+            <Button onClick={() => setMove("join")} disabled={busy}>
+              <UserPlus size={15} /> Join
+            </Button>
+          )}
           <Button onClick={() => setLeft.mutate({ id: e.id, left: !e.leftOn })} disabled={busy}>
             {e.leftOn ? <UserPlus size={15} /> : <UserMinus size={15} />} {e.leftOn ? "Back in office" : "Left the office"}
           </Button>

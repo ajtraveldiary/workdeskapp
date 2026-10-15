@@ -35,6 +35,7 @@ import { RefreshButton } from "../components/RefreshButton";
 import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Badge, Button, Card, ErrorNote, Fab, Field, Loading, Modal, PageHeader, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
+import { MovesCard } from "../components/StaffMoves";
 
 const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 // Whole years from a to b (both YYYY-MM-DD).
@@ -83,6 +84,8 @@ export function StaffPage() {
           {/* Designations are edited in Settings > Employees (moved there by user request 2026-10-07). */}
           <DueIncrements staff={data} onOpen={setOpenId} />
           <RetiringSoon onOpen={setOpenId} />
+          {/* Joining & relieving with each step's state (user request 2026-10-15). */}
+          <MovesCard staff={data} />
           {/* A row of the list or table opens the employee's own page (user request 2026-10-08). */}
           <Employees staff={data} onOpen={(id) => navigate(`/employees/${id}`)} onAdd={add} onDesignations={() => navigate("/settings#employees")} />
         </div>
@@ -693,15 +696,16 @@ const EMPTY: EmployeeInput = {
   notes: "",
 };
 
-export function EmployeeDialog({ open, employee, staff, onClose }: { open: boolean; employee: Employee | null; staff: StaffList; onClose: () => void }) {
+// onAdded: the new employee's id, after adding (Join an employee, user request 2026-10-15).
+export function EmployeeDialog({ open, employee, staff, onClose, onAdded }: { open: boolean; employee: Employee | null; staff: StaffList; onClose: () => void; onAdded?: (id: string) => void }) {
   return (
     <Modal open={open} onClose={onClose} title={employee ? "Edit employee" : "Add employee"}>
-      {open && <EmployeeForm employee={employee} staff={staff} onDone={onClose} />}
+      {open && <EmployeeForm employee={employee} staff={staff} onDone={onClose} onAdded={onAdded} />}
     </Modal>
   );
 }
 
-function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; staff: StaffList; onDone: () => void }) {
+function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee | null; staff: StaffList; onDone: () => void; onAdded?: (id: string) => void }) {
   const [v, setV] = useState<EmployeeInput>(() => {
     if (!employee) return EMPTY;
     const { id: _id, leftOn: _left, ...rest } = employee;
@@ -714,7 +718,7 @@ function EmployeeForm({ employee, staff, onDone }: { employee: Employee | null; 
     ev.preventDefault();
     try {
       if (employee) await saveEmployee.mutateAsync({ id: employee.id, input: v });
-      else await addEmployee.mutateAsync(v);
+      else onAdded?.((await addEmployee.mutateAsync(v)).id);
       onDone();
     } catch {
       // shown under the form
