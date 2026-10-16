@@ -24,7 +24,16 @@ export function MovesCard({ staff }: { staff: StaffList }) {
   const { data } = useMoves();
   const [kind, setKind] = useState<MoveKind>("join");
   const [showFinished, setShowFinished] = useState(false);
-  const [form, setForm] = useState<MoveKind | null>(null);
+  const [form, setFormState] = useState<MoveKind | null>(null);
+  // One line until clicked (user request 2026-10-16); starting a join / relieve opens it on that list.
+  const [expanded, setExpanded] = useState(false);
+  const setForm = (k: MoveKind | null) => {
+    if (k) {
+      setKind(k);
+      setExpanded(true);
+    }
+    setFormState(k);
+  };
   useEffect(() => {
     opener = setForm;
     return () => {
@@ -39,9 +48,23 @@ export function MovesCard({ staff }: { staff: StaffList }) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-2.5 sm:px-5">
-        <h2 className="flex flex-1 items-center gap-2 font-semibold text-ink">
-          <UsersRound size={17} className="text-brand-700" /> Joining &amp; relieving
+      <div className={cx("flex flex-wrap items-center gap-2 px-4 py-2.5 sm:px-5", expanded && "border-b border-line")}>
+        <h2 className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => setExpanded((x) => !x)}
+            aria-expanded={expanded}
+            className="group/title flex max-w-full items-center gap-2 text-left font-semibold text-ink active:scale-[0.98]"
+          >
+            <UsersRound size={17} className="shrink-0 text-brand-700" />
+            <span className="group-hover/title:text-brand-700">Joining &amp; relieving</span>
+            {data && (open("join") > 0 || open("relieve") > 0) && (
+              <span className="truncate text-footnote font-normal text-slate-500">
+                · {[open("join") > 0 && `${open("join")} joining`, open("relieve") > 0 && `${open("relieve")} relieving`].filter(Boolean).join(" · ")}
+              </span>
+            )}
+            <ChevronDown size={16} className={cx("shrink-0 text-slate-400 transition-transform", expanded && "rotate-180")} aria-hidden />
+          </button>
         </h2>
         {/* Join blue, Relieve red (user request 2026-10-16). */}
         <Button size="sm" variant="primary" onClick={() => setForm("join")}>
@@ -51,6 +74,8 @@ export function MovesCard({ staff }: { staff: StaffList }) {
           <UserMinus size={15} /> Relieve
         </Button>
       </div>
+      {expanded && (
+      <>
       <div className="flex flex-wrap items-center gap-3 px-4 pt-3 sm:px-5">
         <Segmented<MoveKind>
           value={kind}
@@ -127,6 +152,8 @@ export function MovesCard({ staff }: { staff: StaffList }) {
             ))}
           </ul>
         </>
+      )}
+      </>
       )}
       <MoveDialog kind={form} staff={staff} onClose={() => setForm(null)} />
     </Card>
