@@ -24,6 +24,8 @@ import {
   tasks,
   eventTypes,
   employeeMoves,
+  registers,
+  registerEntries,
 } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
@@ -818,6 +820,8 @@ const BACKUP: Record<BackupTable, TableInfo> = {
   reportPeriods: { table: reportPeriods as never, refs: { reportId: { table: reports, required: true } } },
   tasks: { table: tasks as never, refs: { threadId: { table: emailThreads }, reportPeriodId: { table: reportPeriods }, eventId: { table: officeEvents } } },
   employeeMoves: { table: employeeMoves as never, refs: { employeeId: { table: employees, required: true }, taskId: { table: tasks } } },
+  registers: { table: registers as never },
+  registerEntries: { table: registerEntries as never, refs: { registerId: { table: registers, required: true }, employeeId: { table: employees }, taskId: { table: tasks } } },
   events: { table: events as never },
   hiddenSnippets: { table: hiddenSnippets as never },
   mutedSenders: { table: mutedSenders as never },

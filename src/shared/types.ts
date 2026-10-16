@@ -328,3 +328,17 @@ export type StaffMove = {
   finished: boolean;
   steps: { id: string; state: import("./moves").StepState | null }[];
 };
+
+// Registers (user request 2026-10-16): a register with its pending / done entry counts, and an entry: what to write
+// in it, the employee who has to sign or give what is needed, and its task when it was given a due date.
+export type Register = { id: string; name: string; sortOrder: number; updatedUntil: string | null; open: number; done: number };
+export type RegisterEntry = {
+  id: string;
+  registerId: string;
+  text: string;
+  employeeId: string | null;
+  status: "open" | "done";
+  doneAt: string | null;
+  createdAt: string;
+  task: { id: string; dueDate: string | null; status: "open" | "done" } | null;
+};

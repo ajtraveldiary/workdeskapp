@@ -3,8 +3,8 @@ import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
 import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
-  EventType, StaffMove, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
-import type { EmployeeInput, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
+  EventType, StaffMove, Register, RegisterEntry, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+import type { EmployeeInput, EntryInput, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
   constructor(
@@ -271,6 +271,57 @@ export function useOfficeEventActions() {
     save: useMutation({ mutationFn: ({ id, input }: { id: string; input: Partial<EventInput> }) => api(`/office-events/${id}`, { method: "PATCH", body: input }), onSettled: refresh }),
     remove: useMutation({ mutationFn: (id: string) => api(`/office-events/${id}`, { method: "DELETE" }), onSettled: refresh }),
     occurrence: useMutation({ mutationFn: ({ id, ...change }: OccurrenceChange & { id: string }) => api(`/office-events/${id}/occurrence`, { method: "POST", body: change }), onSettled: refresh }),
+  };
+}
+// Registers (user request 2026-10-16): the registers (Settings › Registers) and their pending entries.
+export const useRegisters = () => useQuery({ queryKey: ["registers"], queryFn: () => api<{ registers: Register[] }>("/registers") });
+export const useRegisterEntries = () => useQuery({ queryKey: ["register-entries"], queryFn: () => api<{ entries: RegisterEntry[] }>("/register-entries") });
+// An entry with a due date is a task too, so changes refresh the task lists and counts as well.
+const registerRefresh = (qc: ReturnType<typeof useQueryClient>) => () =>
+  qc.invalidateQueries({ predicate: (q) => ["registers", "register-entries", "tasks", "summary", "history", "staff"].includes(q.queryKey[0] as string) });
+export function useRegisterActions() {
+  const qc = useQueryClient();
+  const refresh = registerRefresh(qc);
+  const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
+  return {
+    add: m((name: string) => api<{ id: string }>("/registers", { method: "POST", body: { name } })),
+    addCommon: m(async () => ({ added: 0 })),
+    rename: m(({ id, name }: { id: string; name: string }) => api(`/registers/${id}`, { method: "PATCH", body: { name } })),
+    updatedUntil: m(({ id, date }: { id: string; date: string | null }) => api(`/registers/${id}`, { method: "PATCH", body: { updatedUntil: date } })),
+    order: useMutation({
+      mutationFn: (ids: string[]) => api("/registers/order", { method: "POST", body: { ids } }),
+      onMutate: async (ids: string[]) => {
+        await qc.cancelQueries({ queryKey: ["registers"] });
+        qc.setQueryData<{ registers: Register[] }>(["registers"], (old) => {
+          if (!old) return old;
+          const at = new Map(ids.map((id, k) => [id, k]));
+          return { registers: [...old.registers].sort((a, b) => (at.get(a.id) ?? Infinity) - (at.get(b.id) ?? Infinity)).map((r, k) => ({ ...r, sortOrder: k })) };
+        });
+      },
+      onSettled: refresh,
+    }),
+    remove: m((id: string) => api(`/registers/${id}`, { method: "DELETE" })),
+  };
+}
+export function useEntryActions() {
+  const qc = useQueryClient();
+  const refresh = registerRefresh(qc);
+  const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
+  return {
+    add: m((input: EntryInput) => api<{ id: string; taskId: string | null }>("/register-entries", { method: "POST", body: input })),
+    save: m(({ id, input }: { id: string; input: Partial<EntryInput> }) => api(`/register-entries/${id}`, { method: "PATCH", body: input })),
+    // Ticked at once on screen; the server follows (and the entry's task with it).
+    done: useMutation({
+      mutationFn: ({ id, done }: { id: string; done: boolean }) => api(`/register-entries/${id}/done`, { method: "POST", body: { done } }),
+      onMutate: async ({ id, done }) => {
+        await qc.cancelQueries({ queryKey: ["register-entries"] });
+        qc.setQueryData<{ entries: RegisterEntry[] }>(["register-entries"], (old) =>
+          old ? { entries: old.entries.map((e) => (e.id === id ? { ...e, status: done ? "done" : "open", doneAt: done ? new Date().toISOString() : null } : e)) } : old,
+        );
+      },
+      onSettled: refresh,
+    }),
+    remove: m((id: string) => api(`/register-entries/${id}`, { method: "DELETE" })),
   };
 }
 // Types of events (Settings > Events, user request 2026-10-12), with how many events have each.

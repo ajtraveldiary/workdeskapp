@@ -411,6 +411,39 @@ export const employeeMoves = pgTable("employee_moves", {
   createdAt: createdAt(),
 });
 
+// Registers (user request 2026-10-16): the office's registers (service book register, stock register…), added in
+// Settings › Registers. updatedUntil: the date the register is written up to, set by the user.
+export const registers = pgTable("registers", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  updatedUntil: date("updated_until"),
+  createdAt: createdAt(),
+});
+
+// A pending update to a register: what to write, and the employee who has to sign it or give what is needed
+// (employeeId). Not a task unless given a due date: then taskId is its task, kept in step both ways (done ↔
+// completed). Done entries are kept (doneAt).
+export const registerEntries = pgTable(
+  "register_entries",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    registerId: uuid("register_id")
+      .notNull()
+      .references(() => registers.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    employeeId: uuid("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    status: text("status", { enum: ["open", "done"] }).notNull().default("open"),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("register_entries_user").on(t.userId, t.status)],
+);
+
 // File register (user request 2026-10-07): the office's files, old physical ones (they have no number) and
 // e-files. A physical file with no e-file number is "e-file not yet created".
 export const officeFiles = pgTable("office_files", {

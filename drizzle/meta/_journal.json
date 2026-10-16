@@ -260,6 +260,13 @@
       "when": 1792087361863,
       "tag": "0036_employee_moves",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1792120197195,
+      "tag": "0037_registers",
+      "breakpoints": true
     }
   ]
 }

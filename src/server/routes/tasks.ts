@@ -12,6 +12,7 @@ import { clearTaskLabels, reconcileThreadLabels } from "../lib/taskLabels";
 import { checkRelated, relatedName } from "../lib/staff";
 import { checkTags, tagNameMatches } from "../lib/tags";
 import { settleMoveTask } from "../lib/moves";
+import { entryFollowsTask } from "../lib/registers";
 import { bulkIds, taskInput, taskPatch } from "../../shared/schemas";
 import type { Task, TaskView } from "../../shared/types";
 
@@ -277,6 +278,8 @@ export const taskRoutes = new Hono<AppEnv>()
     // Completing also ends any wait for a reply.
     await db.update(tasks).set({ status: "done", completedAt: new Date(), waitingSince: null, replyBy: null, updatedAt: new Date() }).where(eq(tasks.id, t.id));
     await logEvent(db, { userId, entityType: "task", entityId: t.id, action: "task.completed", summary: "Completed", detail: { title: t.title } });
+    // A register entry's task (user request 2026-10-16): the entry is done too.
+    await entryFollowsTask(db, [t.id], true);
     // A report's task and its period move together.
     if (t.reportPeriodId) await setPeriodStatus(db, userId, t.reportPeriodId, "submitted");
     if (t.threadId) await reconcileThreadLabels(db, c.env, userId, [t.threadId]).catch(() => undefined);
@@ -290,6 +293,7 @@ export const taskRoutes = new Hono<AppEnv>()
     if (t.status === "open") return c.json({ ok: true });
     await db.update(tasks).set({ status: "open", completedAt: null, updatedAt: new Date() }).where(eq(tasks.id, t.id));
     await logEvent(db, { userId, entityType: "task", entityId: t.id, action: "task.reopened", summary: "Reopened", detail: { title: t.title } });
+    await entryFollowsTask(db, [t.id], false);
     if (t.reportPeriodId) await setPeriodStatus(db, userId, t.reportPeriodId, "pending");
     if (t.threadId) await reconcileThreadLabels(db, c.env, userId, [t.threadId]).catch(() => undefined);
     return c.json({ ok: true });

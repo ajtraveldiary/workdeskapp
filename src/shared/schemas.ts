@@ -250,6 +250,17 @@ export const orderInput = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
 // 2026-10-16, Settings › Employees).
 export const moveInput = z.object({ employeeId: z.uuid(), kind: z.enum(MOVE_KINDS), date: day, doneSteps: z.array(z.string().min(1).max(40)).max(10).default([]) });
 export const moveStepInput = z.object({ step: z.string().min(1).max(40), state: z.enum(STEP_STATES) });
+// Registers (user request 2026-10-16). An entry's dueDate makes (or moves) its task; null takes the task away.
+export const registerPatch = z.object({ name: z.string().trim().min(1, "Name is required").max(80).optional(), updatedUntil: day.nullable().optional() });
+const entryFields = {
+  registerId: z.uuid(),
+  text: z.string().trim().min(1, "Write what needs updating").max(500),
+  employeeId: z.uuid().nullable(),
+  dueDate: day.nullable(),
+};
+export const entryInput = z.object({ ...entryFields, employeeId: entryFields.employeeId.default(null), dueDate: entryFields.dueDate.default(null) });
+export const entryPatch = z.object(entryFields).partial();
+export type EntryInput = z.input<typeof entryInput>;
 // Which employee the user is (user request 2026-10-12).
 export const meEmployeeInput = z.object({ employeeId: z.uuid().nullable() });
 export const employeeInput = z.object({

@@ -22,6 +22,7 @@ import {
   Search,
   Settings as SettingsIcon,
   type LucideIcon,
+  BookOpen,
 } from "lucide-react";
 import { useIsFetching, useIsMutating } from "@tanstack/react-query";
 import { ApiError, logout, useMe, useSummary, useSync } from "./api";
@@ -55,6 +56,7 @@ import { EventDetailsHost } from "./components/EventDetails";
 import { RemindersPage } from "./pages/Reminders";
 import { SettingsPage } from "./pages/Settings";
 import { LoginPage } from "./pages/Login";
+import { RegistersPage } from "./pages/Registers";
 
 export function App() {
   const me = useMe();
@@ -90,6 +92,8 @@ export function App() {
         {/* Was /staff before the page was renamed Employees (user request 2026-10-07). */}
         <Route path="/staff" element={<StaffRedirect />} />
         <Route path="/files" element={<Page><FilesPage /></Page>} />
+        {/* Registers (user request 2026-10-16): two halves side by side on wide screens. */}
+        <Route path="/registers" element={<Page wide><RegistersPage /></Page>} />
         <Route path="/logins" element={<Page><LoginsPage /></Page>} />
         <Route path="/events" element={<Page><EventsPage /></Page>} />
         <Route path="*" element={<Page><p className="text-slate-500">Page not found.</p></Page>} />
@@ -124,6 +128,8 @@ const NAV: NavItem[] = [
   { to: "/employees", label: "Employees", icon: UsersRound },
   // File register (user request 2026-10-07), next to Staff: rail on wider screens, profile menu on phones.
   { to: "/files", label: "Files", icon: FolderOpen },
+  // Registers (user request 2026-10-16), after Files: rail on wider screens, profile menu on phones.
+  { to: "/registers", label: "Registers", icon: BookOpen },
   // Saved website logins (user request 2026-10-11), after Files: rail on wider screens, profile menu on phones.
   { to: "/logins", label: "Logins", icon: KeyRound },
 ];
@@ -190,7 +196,7 @@ function Shell({ children }: { children: ReactNode }) {
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
           corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
       <nav className="tabbar fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
-        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/logins" && n.to !== "/events").map((n) => (
+        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/registers" && n.to !== "/logins" && n.to !== "/events").map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -597,6 +603,7 @@ function UserMenu() {
           { to: "/events", label: "Events", icon: CalendarRange },
           { to: "/employees", label: "Employees", icon: UsersRound },
           { to: "/files", label: "File register", icon: FolderOpen },
+          { to: "/registers", label: "Registers", icon: BookOpen },
           { to: "/logins", label: "Logins", icon: KeyRound },
           { to: "/settings", label: "Settings", icon: SettingsIcon },
         ].map((l) => (
@@ -636,6 +643,9 @@ function UserMenu() {
           </Link>
           <Link to="/files" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <FolderOpen size={16} /> File register
+          </Link>
+          <Link to="/registers" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
+            <BookOpen size={16} /> Registers
           </Link>
           <Link to="/logins" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <KeyRound size={16} /> Logins

@@ -109,6 +109,14 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Every file of the section:** paper files and e-files, listed by file number then subject. Search, filter by
   status or by tags (the same tags as tasks and reminders), and tap a number to copy it.
 
+### Registers
+- **Pending updates to registers:** add your registers (service book register, stock register…) in Settings; then
+  note each update a register needs and the staff member who has to sign it or give the information.
+- **One place for all of them:** the Registers page lists every pending entry, filtered by person or register,
+  beside a card per register with its own list and the date it is updated until.
+- **A task only when you want one:** give an entry a due date and it becomes a task in To-do and Due Today;
+  ticking either one ticks both. Done entries are kept behind "Show done".
+
 ### Logins
 - **Saved logins for work websites:** for example each employee's login to a payroll or HR portal, or a shared
   login used by a role (such as the drawing officer or the section clerk). One website can have many logins.
@@ -143,6 +151,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Employees:** which employee you are (your row and page get a "You" tag), designations and types of temporary
   employees.
 - **Events:** the types of events (Meeting, Training, Programme…).
+- **Registers:** the registers you keep (add, rename, arrange, remove).
 - **Tags:** rename, recolour, delete and arrange tags.
 - **Calendar:** the private calendar link.
 - **History** and **Import / Export** (see above).
