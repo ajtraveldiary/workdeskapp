@@ -5,9 +5,10 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { BookOpen, CalendarDays, Check, ChevronRight, ListPlus, Pencil, Trash2, UserRound } from "lucide-react";
 import type { Register, RegisterEntry, StaffList } from "../../shared/types";
-import { useEntryActions, useMe, useRegisterActions, useRegisters, useStaff } from "../api";
+import { useEntryActions, useMe, useRegisterActions, useRegisters } from "../api";
 import { formatDay } from "../format";
 import { NameList } from "./Designations";
+import { NO_RELATED, TitleWithRelated } from "./Related";
 import { SwipeRow, useSwipeMode } from "./SwipeRow";
 import { Button, Card, CheckCircle, ErrorNote, Field, Loading, Modal, cx, inputClass } from "./ui";
 
@@ -56,31 +57,6 @@ export function RegisterSettings() {
   );
 }
 
-// The employee select, grouped by designation in their order (people who left are left out unless already chosen).
-function PersonSelect({ staff, value, onChange }: { staff: StaffList | undefined; value: string; onChange: (id: string) => void }) {
-  const people = (staff?.employees ?? []).filter((e) => !e.leftOn || e.id === value);
-  const groups = [
-    ...(staff?.designations ?? []).map((d) => ({ label: d.name, list: people.filter((e) => e.designationId === d.id) })),
-    { label: "No designation", list: people.filter((e) => !e.designationId || !staff?.designations.some((d) => d.id === e.designationId)) },
-  ]
-    .map((g) => ({ ...g, list: [...g.list].sort((a, b) => a.name.localeCompare(b.name)) }))
-    .filter((g) => g.list.length);
-  return (
-    <select className={inputClass} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">No one</option>
-      {groups.map((g) => (
-        <optgroup key={g.label} label={g.label}>
-          {g.list.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
-  );
-}
-
 export type EntryFormMode = { kind: "new"; registerId?: string } | { kind: "edit"; entry: RegisterEntry };
 
 export function EntryDialog({ mode, onClose }: { mode: EntryFormMode | null; onClose: () => void }) {
@@ -94,7 +70,6 @@ export function EntryDialog({ mode, onClose }: { mode: EntryFormMode | null; onC
 function EntryForm({ mode, onDone }: { mode: EntryFormMode; onDone: () => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
   const registers = useRegisters().data?.registers ?? [];
-  const staff = useStaff().data;
   const { add, save, remove } = useEntryActions();
   const e = mode.kind === "edit" ? mode.entry : null;
   const [registerId, setRegisterId] = useState(e?.registerId ?? (mode.kind === "new" ? mode.registerId : undefined) ?? registers[0]?.id ?? "");
@@ -143,10 +118,15 @@ function EntryForm({ mode, onDone }: { mode: EntryFormMode; onDone: () => void }
         </select>
       </Field>
       <Field label="What needs updating">
-        <textarea className={cx(inputClass, "h-auto py-2")} rows={2} value={text} onChange={(x) => setText(x.target.value)} required maxLength={500} autoFocus={!e} placeholder="e.g. Enter increment sanctioned in October" />
-      </Field>
-      <Field label="Needs (signature or information from)">
-        <PersonSelect staff={staff} value={employeeId} onChange={setEmployeeId} />
+        {/* Who is needed: the person button inside the box, as in the task and reminder forms (user request
+            2026-10-16); one employee only. */}
+        <TitleWithRelated
+          value={employeeId ? { relatedKind: "employee", relatedId: employeeId } : NO_RELATED}
+          onChange={(v) => setEmployeeId(v.relatedKind === "employee" && v.relatedId ? v.relatedId : "")}
+          employeesOnly={{ title: "Who has to sign or give information?", prefix: "Needs" }}
+        >
+          <input className={inputClass} value={text} onChange={(x) => setText(x.target.value)} required maxLength={500} autoFocus={!e} placeholder="e.g. Enter increment sanctioned in October" />
+        </TitleWithRelated>
       </Field>
       <div className="rounded-lg border border-line p-3">
         <label className="flex items-center gap-2.5 text-sm font-medium text-slate-700">

@@ -44,7 +44,10 @@ export function RelatedTag({ value, className }: { value: RelatedValue; classNam
 }
 
 // The person-icon button; children is the field it sits in (the title box), which gets room on its right.
-export function TitleWithRelated({ value, onChange, children }: { value: RelatedValue; onChange: (v: RelatedValue) => void; children: ReactNode }) {
+// employeesOnly: just one employee, no office or designation, with its own wording (register entries' "Needs",
+// user request 2026-10-16).
+export type EmployeesOnly = { title: string; prefix: string };
+export function TitleWithRelated({ value, onChange, children, employeesOnly }: { value: RelatedValue; onChange: (v: RelatedValue) => void; children: ReactNode; employeesOnly?: EmployeesOnly }) {
   const staff = useStaff().data;
   const d = describeRelated(staff, value);
   return (
@@ -52,13 +55,13 @@ export function TitleWithRelated({ value, onChange, children }: { value: Related
       <div className="relative [&_input]:pr-11">
         {children}
         <span className="absolute inset-y-0 right-1 flex items-center">
-          <RelatedPicker value={value} onChange={onChange}>
+          <RelatedPicker value={value} onChange={onChange} employeesOnly={employeesOnly}>
             {(open, isOpen) => (
               <button
                 type="button"
                 onClick={open}
                 aria-expanded={isOpen}
-                aria-label={d ? `About: ${d.name}. Change` : "What is it about? Employee, designation or office"}
+                aria-label={employeesOnly ? (d ? `${employeesOnly.prefix}: ${d.name}. Change` : employeesOnly.title) : d ? `About: ${d.name}. Change` : "What is it about? Employee, designation or office"}
                 title={d ? `About: ${d.name}` : "Employee, designation or office"}
                 className={cx(
                   "flex size-8 items-center justify-center rounded-md active:scale-90 aria-expanded:bg-slate-100",
@@ -88,7 +91,17 @@ export function TitleWithRelated({ value, onChange, children }: { value: Related
 }
 
 // Opens the picker from any trigger (children gets open() and whether it is open).
-export function RelatedPicker({ value, onChange, children }: { value: RelatedValue; onChange: (v: RelatedValue) => void; children: (open: (e: React.MouseEvent<HTMLElement>) => void, isOpen: boolean) => ReactNode }) {
+export function RelatedPicker({
+  value,
+  onChange,
+  children,
+  employeesOnly,
+}: {
+  value: RelatedValue;
+  onChange: (v: RelatedValue) => void;
+  children: (open: (e: React.MouseEvent<HTMLElement>) => void, isOpen: boolean) => ReactNode;
+  employeesOnly?: EmployeesOnly;
+}) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const phone = usePhone();
   const close = () => setAnchor(null);
@@ -96,7 +109,7 @@ export function RelatedPicker({ value, onChange, children }: { value: RelatedVal
     onChange(v);
     close();
   };
-  const list = <Choices value={value} onPick={pick} />;
+  const list = <Choices value={value} onPick={pick} employeesOnly={!!employeesOnly} />;
   return (
     <>
       {children((e) => setAnchor(anchor ? null : e.currentTarget), !!anchor)}
@@ -104,13 +117,13 @@ export function RelatedPicker({ value, onChange, children }: { value: RelatedVal
         (phone ? (
           // Outside the form's <label>, so a tap on the sheet doesn't jump to the title box.
           createPortal(
-            <ActionSheet onClose={close} title="What is it about?">
+            <ActionSheet onClose={close} title={employeesOnly?.title ?? "What is it about?"}>
               <div className="overflow-hidden rounded-xl bg-white">{list}</div>
             </ActionSheet>,
             document.body,
           )
         ) : (
-          <AnchoredMenu anchor={anchor} onClose={close} label="What is it about?">
+          <AnchoredMenu anchor={anchor} onClose={close} label={employeesOnly?.title ?? "What is it about?"}>
             {list}
           </AnchoredMenu>
         ))}
@@ -118,7 +131,7 @@ export function RelatedPicker({ value, onChange, children }: { value: RelatedVal
   );
 }
 
-function Choices({ value, onPick }: { value: RelatedValue; onPick: (v: RelatedValue) => void }) {
+function Choices({ value, onPick, employeesOnly }: { value: RelatedValue; onPick: (v: RelatedValue) => void; employeesOnly?: boolean }) {
   const { data: staff, isLoading } = useStaff();
   const [q, setQ] = useState("");
   const query = q.trim().toLowerCase();
@@ -139,7 +152,7 @@ function Choices({ value, onPick }: { value: RelatedValue; onPick: (v: RelatedVa
   const groups = [
     ...(staff?.designations ?? []).map((d) => ({ id: d.id as string | null, name: d.name, people: here.filter((e) => e.designationId === d.id && matches(e, d.name)), show: !query || d.name.toLowerCase().includes(query) })),
     { id: null, name: "No designation", people: here.filter((e) => !e.designationId && matches(e, "")), show: false },
-  ].filter((g) => g.people.length || g.show);
+  ].filter((g) => g.people.length || (g.show && !employeesOnly));
   const empty = !staff || (staff.designations.length === 0 && here.length === 0);
 
   return (
@@ -153,7 +166,7 @@ function Choices({ value, onPick }: { value: RelatedValue; onPick: (v: RelatedVa
           <X size={16} className="shrink-0" /> <span className="flex-1">Not linked</span>
         </button>
       )}
-      {!query && (
+      {!query && !employeesOnly && (
         <button type="button" onClick={() => onPick({ relatedKind: "office", relatedId: null })} className={item}>
           <Building2 size={16} className="shrink-0 text-slate-500" /> <span className="flex-1">General office</span>
           {tick(value.relatedKind === "office")}
@@ -161,7 +174,7 @@ function Choices({ value, onPick }: { value: RelatedValue; onPick: (v: RelatedVa
       )}
       {groups.map((g) => (
         <div key={g.id ?? "none"} className="mt-1 border-t border-line pt-1">
-          {g.id ? (
+          {g.id && !employeesOnly ? (
             <button type="button" onClick={() => onPick({ relatedKind: "designation", relatedId: g.id })} className={cx(item, "font-medium")}>
               <UsersRound size={16} className="shrink-0 text-slate-500" />
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">

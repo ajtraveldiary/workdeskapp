@@ -261,11 +261,11 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `EventDetails.tsx` | Event details card for one date: Mark done, Move, Cancel, Not done / Restore, Back to the first date, Edit, Delete, Join meeting, Directions; lives once in the shell (`openEventDetails`). |
 | `Logins.tsx` | Saved website logins: grouped list, a login row with Show / Copy (password fetched only then; shown for 30s), the add/edit form. Used by the Logins page and an employee's page. |
 | `Tags.tsx` | Tags: chips (compact on rows, at most 2 on phones), the picker in task and reminder forms (most-used first, type to make one), the All tags filter, the tag filter icon on the home cards, the several-tags filter (File register), Settings › Tags (rename, colour, delete, drag to arrange). |
-| `Related.tsx` | "For" an employee, designation or the office: picker, tag and line. |
+| `Related.tsx` | "For" an employee, designation or the office: picker, tag and line; `employeesOnly` limits it to one employee (register entries). |
 | `Designations.tsx` | Settings › Employees: designations and types of temporary employees lists (add, rename, drag to arrange, remove); its list editor (`NameList`) is also used for event types. |
 | `YouSetting.tsx` | Settings › Employees, "You": choose which employee you are (saved at once; their row and page show a "You" tag). |
 | `StaffMoves.tsx` | Joining & relieving: the Employees page card (one line until its title is clicked; Joined / Relieved tables, a Pending / Waiting / Done pill per step, people with their steps on phones, Show finished) and the Join / Relieve form (with Add a new employee); `JoinExistingCard` in Settings › Employees puts someone already working here into the joining process with the steps already done ticked; `RelieveExistingCard` beside it does the same for relieving (also someone marked Left, or a new employee added there). |
-| `Registers.tsx` | Registers: Settings › Registers list, the entry form (register, what, Needs, optional task with a due date, remove) and an entry's row (tick, swipe on phones). |
+| `Registers.tsx` | Registers: Settings › Registers list, the entry form (register, what with the person button for Needs, optional task with a due date, remove) and an entry's row (tick, swipe on phones). |
 | `EventTypes.tsx` | Settings › Events: the event types list (add, rename, drag to arrange, remove; a removed type's events show as "Event"). |
 | `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |
 | `NotificationSettings.tsx` | Settings › Notifications. |
