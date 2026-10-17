@@ -288,6 +288,8 @@ export function useRegisterActions() {
     addCommon: m(async () => ({ added: 0 })),
     rename: m(({ id, name }: { id: string; name: string }) => api(`/registers/${id}`, { method: "PATCH", body: { name } })),
     updatedUntil: m(({ id, date }: { id: string; date: string | null }) => api(`/registers/${id}`, { method: "PATCH", body: { updatedUntil: date } })),
+    // Updated until today, and its done entries cleared (user request 2026-10-17).
+    markUpdated: m((id: string) => api<{ cleared: number }>(`/registers/${id}/updated`, { method: "POST", body: {} })),
     order: useMutation({
       mutationFn: (ids: string[]) => api("/registers/order", { method: "POST", body: { ids } }),
       onMutate: async (ids: string[]) => {

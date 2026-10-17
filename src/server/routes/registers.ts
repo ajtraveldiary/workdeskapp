@@ -13,6 +13,8 @@ import { designationInput, entryInput, entryPatch, orderInput, registerPatch } f
 import { dayLabel } from "../../shared/reminderSchedule";
 import type { Register, RegisterEntry } from "../../shared/types";
 import { saveOrder } from "./staff";
+import { timezone } from "../env";
+import { todayIn } from "../lib/dates";
 import { entryTaskTitle, taskFollowsEntry } from "../lib/registers";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
@@ -66,6 +68,20 @@ export const registerRoutes = new Hono<AppEnv>()
     if (input.updatedUntil !== undefined && input.updatedUntil !== r.updatedUntil)
       await log(db, userId, "registers.updated_until", input.updatedUntil ? `${input.name ?? r.name} updated until ${dayLabel(input.updatedUntil)}` : `${input.name ?? r.name}: updated-until date removed`);
     return c.json({ ok: true });
+  })
+  // "Updated" (user request 2026-10-17): the register is written up to the date (today unless sent), and its done
+  // entries are cleared (their completed tasks stay as they are).
+  .post("/:id/updated", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const r = await loadRegister(db, userId, c.req.param("id"));
+    const body = (await c.req.json().catch(() => ({}))) as { date?: string };
+    const date = body.date ?? todayIn(timezone(c.env));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HTTPException(400, { message: "Use YYYY-MM-DD" });
+    await db.update(registers).set({ updatedUntil: date }).where(eq(registers.id, r.id));
+    const cleared = await db.delete(registerEntries).where(and(eq(registerEntries.registerId, r.id), eq(registerEntries.status, "done"))).returning({ id: registerEntries.id });
+    await log(db, userId, "registers.updated_until", `${r.name} updated until ${dayLabel(date)}${cleared.length ? ` (${cleared.length} done ${cleared.length === 1 ? "entry" : "entries"} cleared)` : ""}`);
+    return c.json({ cleared: cleared.length });
   })
   .post("/order", async (c) => {
     const db = c.get("db");

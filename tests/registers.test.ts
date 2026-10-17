@@ -74,4 +74,19 @@ describe("registers", () => {
 
     expect((await call("POST", "/register-entries", { registerId: reg, text: "x", employeeId: "00000000-0000-4000-8000-000000000000" })).status).toBe(400);
   });
+
+  it("Updated marks the register updated until today and clears its done entries", async () => {
+    const reg = (await call("POST", "/registers", { name: "Stationary Register" })).json.id as string;
+    const a = (await call("POST", "/register-entries", { registerId: reg, text: "Done one", dueDate: "2026-10-20" })).json;
+    await call("POST", "/register-entries", { registerId: reg, text: "Still pending" });
+    await call("POST", `/register-entries/${a.id}/done`, { done: true });
+    const res = await call("POST", `/registers/${reg}/updated`, { date: "2026-10-17" });
+    expect(res.json.cleared).toBe(1);
+    expect((await registers())[0]).toMatchObject({ updatedUntil: "2026-10-17", open: 1, done: 0 });
+    expect((await entries()).map((e) => e.text)).toEqual(["Still pending"]);
+    // Its completed task stays.
+    expect((await task(a.taskId))!.status).toBe("done");
+    const history = ((await call("GET", "/history")).json.events as { summary: string }[]).map((h) => h.summary);
+    expect(history).toContain("Stationary Register updated until 17 Oct 2026 (1 done entry cleared)");
+  });
 });

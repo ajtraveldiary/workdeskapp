@@ -4,7 +4,7 @@
 // to-do list, its "Updated until" date and Add entry. Registers are added in Settings › Registers.
 import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { BookOpen, ChevronDown, ListPlus, Plus } from "lucide-react";
+import { BookOpen, CheckCheck, ChevronDown, ListPlus, Plus } from "lucide-react";
 import type { Register, RegisterEntry, StaffList } from "../../shared/types";
 import { useEntryActions, useMe, useRegisterActions, useRegisterEntries, useRegisters, useStaff } from "../api";
 import { EntryDialog, EntryRow, type EntryFormMode } from "../components/Registers";
@@ -135,7 +135,7 @@ function RegisterCard({
   onForm: (m: EntryFormMode) => void;
 }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
-  const { updatedUntil } = useRegisterActions();
+  const { markUpdated } = useRegisterActions();
   const [open, setOpen] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const pending = entries.filter((e) => e.status === "open");
@@ -143,38 +143,37 @@ function RegisterCard({
   const shown = showDone ? [...pending, ...done] : pending;
   return (
     <Card className="overflow-hidden">
-      <button type="button" onClick={() => setOpen((x) => !x)} aria-expanded={open} className="group/title flex w-full items-center gap-2 px-4 py-2.5 text-left active:bg-slate-50 sm:px-5">
-        <BookOpen size={16} className="shrink-0 text-brand-700" />
-        <span className="min-w-0 flex-1">
-          <span className="block font-semibold text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{r.name}</span>
-          <span className="block text-footnote text-slate-500">
-            {pending.length ? `${pending.length} pending` : "Nothing pending"}
-            {r.updatedUntil ? ` · updated until ${fullDate(r.updatedUntil)}` : ""}
+      <div className="flex items-center gap-1 pr-2 sm:pr-3">
+        <button type="button" onClick={() => setOpen((x) => !x)} aria-expanded={open} className="group/title flex min-w-0 flex-1 items-center gap-2 py-2.5 pl-4 text-left active:bg-slate-50 sm:pl-5">
+          <BookOpen size={16} className="shrink-0 text-brand-700" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{r.name}</span>
+            <span className="block text-footnote text-slate-500">
+              {pending.length ? `${pending.length} pending` : "Nothing pending"}
+              {r.updatedUntil ? ` · updated until ${fullDate(r.updatedUntil)}` : ""}
+            </span>
           </span>
-        </span>
-        <ChevronDown size={16} className={cx("shrink-0 text-slate-400 transition-transform", open && "rotate-180")} aria-hidden />
-      </button>
+        </button>
+        {/* Updated (user request 2026-10-17): written up to today, and the done entries cleared. */}
+        {(done.length > 0 || r.updatedUntil !== today) && (
+          <Button
+            size="sm"
+            onClick={() =>
+              confirm(`Mark ${r.name} updated until today?${done.length ? ` Its ${done.length} done ${done.length === 1 ? "entry is" : "entries are"} cleared.` : ""}`) && markUpdated.mutate(r.id)
+            }
+            disabled={markUpdated.isPending}
+            title="Updated until today; clears the done entries"
+            className="shrink-0"
+          >
+            <CheckCheck size={15} /> Updated
+          </Button>
+        )}
+        <button type="button" onClick={() => setOpen((x) => !x)} aria-expanded={open} aria-label={open ? `Close ${r.name}` : `Open ${r.name}`} className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-100 active:scale-90">
+          <ChevronDown size={16} className={cx("transition-transform", open && "rotate-180")} />
+        </button>
+      </div>
       {open && (
         <div className="border-t border-line">
-          {/* The date the register is written up to (user request 2026-10-16). */}
-          <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-sm sm:px-5">
-            <span className="text-slate-600">Updated until</span>
-            <input
-              type="date"
-              className={cx(inputClass, "h-8 w-auto! pointer-coarse:h-9")}
-              value={r.updatedUntil ?? ""}
-              onChange={(e) => updatedUntil.mutate({ id: r.id, date: e.target.value || null })}
-              aria-label={`${r.name} updated until`}
-            />
-            {r.updatedUntil !== today && (
-              <Button size="sm" onClick={() => updatedUntil.mutate({ id: r.id, date: today })}>
-                Today
-              </Button>
-            )}
-            <Button size="sm" variant="primary" onClick={() => onForm({ kind: "new", registerId: r.id })} className="ml-auto">
-              <ListPlus size={15} /> Add entry
-            </Button>
-          </div>
           <QuickAdd registerId={r.id} registerName={r.name} />
           {shown.length === 0 ? (
             <p className="border-t border-line px-4 py-4 text-sm text-slate-500 sm:px-5">No pending updates.</p>
@@ -208,7 +207,7 @@ function QuickAdd({ registerId, registerName }: { registerId: string; registerNa
     add.mutate({ registerId, text: t }, { onSuccess: () => setText("") });
   };
   return (
-    <form onSubmit={submit} className="border-t border-line px-4 py-2 sm:px-5">
+    <form onSubmit={submit} className="px-4 py-2 sm:px-5">
       <div className="flex gap-2">
         <input
           className={cx(inputClass, "min-w-0 flex-1")}

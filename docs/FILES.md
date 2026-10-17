@@ -113,7 +113,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `officeEvents.ts` | Events (`/office-events`): list, add (also from an email, which leaves Pending or becomes the preparation task's email), edit, delete (open preparation tasks go, the email returns to Pending), and one date marked done, moved, cancelled or put back. |
 | `eventTypes.ts` | Event types (`/event-types`, Settings › Events): list with how many events have each, add, add Meeting/Training/Programme, rename, arrange, delete (its events stay, without a type). |
 | `moves.ts` | Joining and relieving (`/moves`): the summary list with each step's state, join or relieve someone (back in the office / Left the office on the date, and the task), set one step from the table. |
-| `registers.ts` | Registers (`/registers`: list with counts, add, rename / updated until, arrange, remove with their entries) and their entries (`/register-entries`: list, add, change, done / pending, remove); an entry's due date makes, moves or removes its task. |
+| `registers.ts` | Registers (`/registers`: list with counts, add, rename / updated until, Updated (today + clear done entries), arrange, remove with their entries) and their entries (`/register-entries`: list, add, change, done / pending, remove); an entry's due date makes, moves or removes its task. |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
 | `transfer.ts` | Import / Export: master backup download and import (adds only what's missing), CSV export and import (preview, then in parts) for file register, employees, tasks and reminders. |
@@ -217,7 +217,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Staff.tsx` | Employees page: due increments (Mark done asks the new basic pay), retiring within 12 months (with Pension papers progress), joining & relieving (`MovesCard`; the phones' + opens Join, no Add employee button), on computers (1024px+) a Permanent or Temporary table with a switch, on narrower screens the permanent/temporary filter, list by designation, employee card, add/edit form. |
 | `EmployeePage.tsx` | An employee's own page (`/employees/<id>`, opened from the list or table; Join / Relieve): at a glance (pay, increment, probation, retirement / contract), every detail, tasks open and completed, reminders, their website logins, events they attend, History; Edit, Left the office, Delete. |
 | `Files.tsx` | File register: one-line list (icon, e-file number column, subject), search, status filters and a Tags filter (several at once), add/edit form with tags. |
-| `Registers.tsx` | Registers page: all pending entries (filter by employee needed and register, Show done) beside a one-line card per register (its entries, a quick-add line, Updated until, Add entry); New entry form. |
+| `Registers.tsx` | Registers page: all pending entries (filter by employee needed and register, Show done) beside a one-line card per register (Updated button: updated until today and done entries cleared; its entries, a quick-add line); New entry form. |
 | `Logins.tsx` | Logins page: saved website logins grouped by website, search, + button, add/edit form. |
 | `ImportExport.tsx` | Import / Export: master backup, CSV export/import with preview, sample CSV links; shown as the Import / Export tab of Settings (`embedded`). |
 | `Login.tsx` | Sign in with Google. |

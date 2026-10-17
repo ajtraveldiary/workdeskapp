@@ -114,7 +114,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   note each update a register needs and the staff member who has to sign it or give the information.
 - **One place for all of them:** the Registers page lists every pending entry, filtered by person or register,
   beside a card per register with its own list (type an entry and press Enter to record it there) and the date it
-  is updated until.
+  is updated until; its Updated button marks it updated until today and clears the done entries.
 - **A task only when you want one:** give an entry a due date and it becomes a task in To-do and Due Today;
   ticking either one ticks both. Done entries are kept behind "Show done".
 
