@@ -680,11 +680,12 @@ function TodoPanel({
   hiddenOnPhone?: boolean;
 }) {
   const [tab, setTab] = useState<"all" | "waiting" | "completed">("all");
-  // Tapping a task opens the email it came from, or (for tasks made by hand) its details.
+  // Tapping a task opens its details first, also for a task made from an email (user request 2026-10-17); the
+  // details' title opens the email.
   const [emailId, setEmailId] = useState<string | null>(null);
   const [details, setDetails] = useState<Task | null>(null);
   const email = useThread(emailId).data ?? null;
-  const openTask = (t: Task) => (t.thread ? setEmailId(t.thread.id) : setDetails(t));
+  const openTask = (t: Task) => setDetails(t);
   const { data } = useTasks({ view: tab });
   // Tasks being deleted (Undo still possible) are already gone from the list.
   const hidden = useHiddenTasks();
@@ -778,6 +779,10 @@ function TodoPanel({
           setDetails(null);
           onEdit(t);
         }}
+        onOpenEmail={(id) => {
+          setDetails(null);
+          setEmailId(id);
+        }}
       />
     </Panel>
   );
@@ -821,7 +826,7 @@ function TodoRow({
         <button
           onClick={() => onOpen(task)}
           className="row-link group/title block max-w-full text-left"
-          aria-label={task.thread ? `Open the email for: ${task.title}` : `Show details: ${task.title}`}
+          aria-label={`Show details: ${task.title}`}
         >
           <span className={cx("line-clamp-2 text-subhead leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
         </button>
