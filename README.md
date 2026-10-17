@@ -113,7 +113,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Pending updates to registers:** add your registers (service book register, stock register…) in Settings; then
   note each update a register needs and the staff member who has to sign it or give the information.
 - **One place for all of them:** the Registers page lists every pending entry, filtered by person or register,
-  beside a card per register with its own list and the date it is updated until.
+  beside a card per register with its own list (type an entry and press Enter to record it there) and the date it
+  is updated until.
 - **A task only when you want one:** give an entry a due date and it becomes a task in To-do and Due Today;
   ticking either one ticks both. Done entries are kept behind "Show done".
 

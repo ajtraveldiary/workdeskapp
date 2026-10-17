@@ -2,14 +2,14 @@
 // pending entries together, filtered by the employee needed and by register, with Show done; the other is a card
 // per register, one line until clicked (name, pending count, the date it is updated until), opening to its own
 // to-do list, its "Updated until" date and Add entry. Registers are added in Settings › Registers.
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { BookOpen, ChevronDown, ListPlus } from "lucide-react";
+import { BookOpen, ChevronDown, ListPlus, Plus } from "lucide-react";
 import type { Register, RegisterEntry, StaffList } from "../../shared/types";
-import { useMe, useRegisterActions, useRegisterEntries, useRegisters, useStaff } from "../api";
+import { useEntryActions, useMe, useRegisterActions, useRegisterEntries, useRegisters, useStaff } from "../api";
 import { EntryDialog, EntryRow, type EntryFormMode } from "../components/Registers";
 import { RefreshButton } from "../components/RefreshButton";
-import { Button, Card, Fab, PageHeader, SkeletonList, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Fab, PageHeader, SkeletonList, cx, inputClass } from "../components/ui";
 
 const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
@@ -175,6 +175,7 @@ function RegisterCard({
               <ListPlus size={15} /> Add entry
             </Button>
           </div>
+          <QuickAdd registerId={r.id} registerName={r.name} />
           {shown.length === 0 ? (
             <p className="border-t border-line px-4 py-4 text-sm text-slate-500 sm:px-5">No pending updates.</p>
           ) : (
@@ -192,5 +193,37 @@ function RegisterCard({
         </div>
       )}
     </Card>
+  );
+}
+
+// Quick add (user request 2026-10-17): type a pending entry and press Enter to record it in this register; who is
+// needed and a due date can be added by tapping the entry (or with Add entry).
+function QuickAdd({ registerId, registerName }: { registerId: string; registerName: string }) {
+  const { add } = useEntryActions();
+  const [text, setText] = useState("");
+  const submit = (ev: FormEvent) => {
+    ev.preventDefault();
+    const t = text.trim();
+    if (!t) return;
+    add.mutate({ registerId, text: t }, { onSuccess: () => setText("") });
+  };
+  return (
+    <form onSubmit={submit} className="border-t border-line px-4 py-2 sm:px-5">
+      <div className="flex gap-2">
+        <input
+          className={cx(inputClass, "min-w-0 flex-1")}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={500}
+          placeholder="Add a pending entry…"
+          aria-label={`New pending entry in ${registerName}`}
+          enterKeyHint="done"
+        />
+        <Button type="submit" disabled={!text.trim() || add.isPending} aria-label="Add" title="Add">
+          <Plus size={16} />
+        </Button>
+      </div>
+      <ErrorNote error={add.error} />
+    </form>
   );
 }
