@@ -261,7 +261,7 @@ export function useOfficeFileActions() {
 
 // Events: meetings, trainings, programmes (user request 2026-10-11). A change can add or remove prep tasks and move
 // an email out of (or back to) Pending, so those lists refresh too.
-export const useOfficeEvents = () => useQuery({ queryKey: ["office-events"], queryFn: () => api<{ events: OfficeEvent[]; today: string }>("/office-events") });
+export const useOfficeEvents = (opts: { enabled?: boolean } = {}) => useQuery({ queryKey: ["office-events"], queryFn: () => api<{ events: OfficeEvent[]; today: string }>("/office-events"), enabled: opts.enabled ?? true });
 export type OccurrenceChange = { date: string; status: "scheduled" | "done" | "cancelled" | "moved" | "original"; newDate?: string; newTime?: string | null; newEndTime?: string | null };
 export function useOfficeEventActions() {
   const qc = useQueryClient();

@@ -246,7 +246,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `RemoveChooser.tsx` | Remove: "Just remove" or send to a section (a menu from the button on computers, an action sheet on phones); also `AnchoredMenu` (menus that grow from a button, or from where it was if it re-rendered). |
 | `TaskRow.tsx` | One task row on the Tasks page (a Contract ends or Probation declaration task's tick asks instead). |
 | `TaskDialog.tsx` | Add / edit task form. |
-| `TaskDetails.tsx` | Task details card: where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete (Renew or end / Declare or extend for Contract ends / Probation declaration tasks) / Reopen. |
+| `TaskDetails.tsx` | Task details card (the title opens the task's email, or an event prep task's event email): where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete (Renew or end / Declare or extend for Contract ends / Probation declaration tasks) / Reopen. |
 | `IncrementDialog.tsx` | "Increment done": asks the new basic pay before marking an increment done (Home and the Employees page), with Undo; lives once in the shell. |
 | `SystemTaskChooser.tsx` | The choice a system task asks for when ticked or swiped anywhere: Renew / Contract ended for "Contract ends", Probation declared / Change due date for "Probation declaration"; lives once in the shell. |
 | `InlineTaskEdit.tsx` | Change a task's date/time or priority straight from its chip. |

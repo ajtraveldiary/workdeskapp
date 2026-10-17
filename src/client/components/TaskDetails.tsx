@@ -4,7 +4,7 @@ import { CalendarDays, CalendarRange, Check, Clock, CalendarClock, FileClock, Ho
 import { TagChips } from "./Tags";
 import { useState, type ReactNode } from "react";
 import type { Task } from "../../shared/types";
-import { useCompleteTask, useMe, useReopenTask, useUpdateTask } from "../api";
+import { useCompleteTask, useMe, useOfficeEvents, useReopenTask, useUpdateTask } from "../api";
 import { formatDateTime, formatDay, formatTime, formatWhen } from "../format";
 import { ChecklistTicks } from "./Checklist";
 import { LinkChips } from "./ReminderLinks";
@@ -39,6 +39,10 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
   const update = useUpdateTask();
   // Shown straight away: the card holds the task as it was when opened.
   const [related, setRelated] = useState<RelatedValue>({ relatedKind: task.relatedKind, relatedId: task.relatedId });
+  // The email the title opens: the task's own, or, for an event's preparation task, the email the event was made
+  // from (user request 2026-10-17).
+  const events = useOfficeEvents({ enabled: !task.thread && !!task.eventId }).data?.events;
+  const emailId = task.thread?.id ?? events?.find((ev) => ev.id === task.eventId)?.threadId ?? null;
   const done = task.status === "done";
   const waiting = isWaiting(task);
   const overdue = !done && !waiting && !!task.dueDate && task.dueDate < today;
@@ -58,11 +62,11 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
     <div className="space-y-4">
       <div>
         {/* For an email task the title opens the email (user request 2026-10-07, replacing the Open email button). */}
-        {task.thread && onOpenEmail ? (
+        {emailId && onOpenEmail ? (
           <h3 className="text-lg font-semibold">
             <button
               type="button"
-              onClick={() => onOpenEmail(task.thread!.id)}
+              onClick={() => onOpenEmail(emailId)}
               title="Open email"
               className={cx(
                 "group/open text-left [overflow-wrap:anywhere] hover:text-brand-700 hover:underline active:opacity-70",

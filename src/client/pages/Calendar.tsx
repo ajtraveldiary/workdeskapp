@@ -306,6 +306,11 @@ export function CalendarPage() {
           setDetails(null);
           setDialog({ kind: "edit", task: t });
         }}
+        // An event's preparation task opens the event's email from its title (user request 2026-10-17).
+        onOpenEmail={(id) => {
+          setDetails(null);
+          setEmailId(id);
+        }}
       />
       <TaskDialog mode={dialog} onClose={() => setDialog(null)} />
     </>
