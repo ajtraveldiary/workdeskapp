@@ -11,6 +11,7 @@ import { EntryDialog, EntryRow, type EntryFormMode } from "../components/Registe
 import { RefreshButton } from "../components/RefreshButton";
 import { Button, Card, ErrorNote, Fab, PageHeader, SkeletonList, cx, inputClass } from "../components/ui";
 
+const GENERAL = "general";
 const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 export function RegistersPage() {
@@ -30,7 +31,10 @@ export function RegistersPage() {
       .map(([id, open]) => ({ id, open, name: staff?.employees.find((x) => x.id === id)?.name ?? "Employee" }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [entries, staff]);
-  const matching = (entries ?? []).filter((e) => (!person || e.employeeId === person) && (!registerId || e.registerId === registerId));
+  // GENERAL: entries no one is assigned to (user request 2026-10-17); they show under Everyone too.
+  const byPerson = (e: RegisterEntry) => !person || (person === GENERAL ? !e.employeeId : e.employeeId === person);
+  const matching = (entries ?? []).filter((e) => byPerson(e) && (!registerId || e.registerId === registerId));
+  const pendingAll = (entries ?? []).filter((e) => e.status === "open");
   const list = matching.filter((e) => showDone || e.status === "open");
   const doneCount = matching.filter((e) => e.status === "done").length;
   const order = new Map((regs ?? []).map((r, i) => [r.id, i]));
@@ -80,7 +84,8 @@ export function RegistersPage() {
             </div>
             <div className="grid grid-cols-2 gap-2 px-4 pt-3 sm:px-5">
               <select className={inputClass} value={person} onChange={(e) => setPerson(e.target.value)} aria-label="Filter by employee">
-                <option value="">Everyone</option>
+                <option value="">Everyone ({pendingAll.length})</option>
+                <option value={GENERAL}>General ({pendingAll.filter((e) => !e.employeeId).length})</option>
                 {people.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}

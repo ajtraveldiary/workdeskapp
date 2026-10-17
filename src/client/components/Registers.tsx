@@ -3,7 +3,7 @@
 // what is needed. It is a task only when given a due date (then ticking either ticks both).
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { BookOpen, CalendarDays, Check, ChevronRight, ListPlus, Pencil, Trash2, UserRound } from "lucide-react";
+import { BookOpen, Building2, CalendarDays, Check, ChevronRight, ListPlus, Pencil, Trash2, UserRound } from "lucide-react";
 import type { Register, RegisterEntry, StaffList } from "../../shared/types";
 import { useEntryActions, useMe, useRegisterActions, useRegisters } from "../api";
 import { formatDay } from "../format";
@@ -192,12 +192,11 @@ export function EntryRow({ entry: e, registers, staff, showRegister, onEdit }: {
               <span className="truncate">{reg}</span>
             </span>
           )}
-          {person && (
-            <span className="inline-flex min-w-0 items-center gap-1">
-              <UserRound size={12} className="shrink-0" />
-              <span className="truncate">{person}</span>
-            </span>
-          )}
+          {/* No one assigned: "General" (user request 2026-10-17). */}
+          <span className="inline-flex min-w-0 items-center gap-1">
+            {person ? <UserRound size={12} className="shrink-0" /> : <Building2 size={12} className="shrink-0" />}
+            <span className="truncate">{person ?? "General"}</span>
+          </span>
           {e.task?.dueDate && !isDone && (
             <span className={cx("inline-flex items-center gap-1", overdue && "font-medium text-urgent-ink")}>
               <CalendarDays size={12} /> Due {formatDay(e.task.dueDate, today)}
