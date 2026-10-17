@@ -7,7 +7,7 @@ import { HTTPException } from "hono/http-exception";
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { emailThreads, employees, eventTypes, events, officeEvents, tasks } from "../db/schema";
+import { emailThreads, employees, eventTypes, events, linkedEmails, officeEvents, tasks } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { dropOpenPrepTasks, ensureEventTasks, loadEvents, prepTitle, ruleOf, toEvent } from "../lib/officeEvents";
@@ -112,14 +112,17 @@ export const officeEventRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const e = await load(db, userId, c.req.param("id"));
+    // Emails added to it (user request 2026-10-17), read before the links go with it.
+    const added = (await db.select({ threadId: linkedEmails.threadId }).from(linkedEmails).where(eq(linkedEmails.eventId, e.id))).map((x) => x.threadId);
     await dropOpenPrepTasks(db, e.id);
     await db.delete(officeEvents).where(eq(officeEvents.id, e.id));
     await log(db, userId, "office_events.deleted", `Event deleted: ${e.title}`);
-    if (e.threadId) {
+    const emails = [...new Set([e.threadId, ...added].filter((x): x is string => !!x))];
+    if (emails.length) {
       const back = await db
         .update(emailThreads)
         .set({ state: "needs_decision", stateChangedAt: new Date(), updatedAt: new Date() })
-        .where(and(eq(emailThreads.id, e.threadId), eq(emailThreads.state, "event")))
+        .where(and(inArray(emailThreads.id, emails), eq(emailThreads.state, "event")))
         .returning({ id: emailThreads.id, subject: emailThreads.subject });
       for (const t of back) await db.insert(events).values({ userId, entityType: "email", entityId: t.id, action: "email.returned", summary: "Its event was deleted; back to Pending", detail: { subject: t.subject } });
     }

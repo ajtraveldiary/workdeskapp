@@ -267,6 +267,13 @@
       "when": 1792120197195,
       "tag": "0037_registers",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1792247344700,
+      "tag": "0038_linked_emails",
+      "breakpoints": true
     }
   ]
 }

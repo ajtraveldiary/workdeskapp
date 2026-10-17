@@ -61,6 +61,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Tags:** your own coloured tags (e.g. *Payroll*, *Audit*, *Recruitment*); filter and search by them.
 - **Quick edits:** change the date, time or priority straight from a task's chips.
 - **New reply alert:** a task is flagged when its email gets a new message.
+- **More than one email:** add other Pending emails to a task or an event from its details; they leave Pending,
+  carry the task's labels in Gmail, and a new reply on any of them flags the task.
 - **Automatic tasks:** WorkDesk creates tasks for contracts ending, probation declarations and retirement paperwork
   (see Employees).
 

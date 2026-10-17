@@ -75,6 +75,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0035_user_employee.sql` | Which employee the user is (`employee_id` on `users`; forgotten if that employee is deleted). |
 | `0036_employee_moves.sql` | Joining and relieving: `employee_moves` (employee, join or relieve, date, its task; removed with the task or the employee). |
 | `0037_registers.sql` | Registers (`registers`: name, order, date updated until) and their pending entries (`register_entries`: text, the employee needed, done, the task when it has a due date). |
+| `0038_linked_emails.sql` | More emails on a task or an event (`linked_emails`: the email and its task or event). |
 | `0034_event_types.sql` | The user's own event types (`event_types`; every account gets Meeting, Training, Programme) and `type_id` on events, filled from the old fixed kind ("Other" = no type). |
 | `0031_tags.sql` | Tags for tasks and reminders: the `tags` table (name unique per user whatever its capitals, colour, order) and `tag_ids` on tasks and reminders. |
 
@@ -114,6 +115,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `eventTypes.ts` | Event types (`/event-types`, Settings › Events): list with how many events have each, add, add Meeting/Training/Programme, rename, arrange, delete (its events stay, without a type). |
 | `moves.ts` | Joining and relieving (`/moves`): the summary list with each step's state, join or relieve someone (back in the office / Left the office on the date, and the task), set one step from the table. |
 | `registers.ts` | Registers (`/registers`: list with counts, add, rename / updated until, Updated (today + clear done entries), arrange, remove with their entries) and their entries (`/register-entries`: list, add, change, done / pending, remove); an entry's due date makes, moves or removes its task. |
+| `linkedEmails.ts` | More emails on a task or event (`/linked-emails`): list (main first), add Pending emails (they leave Pending, task labels in Gmail), take one off (back to Pending unless another open task has it). |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
 | `transfer.ts` | Import / Export: master backup download and import (adds only what's missing), CSV export and import (preview, then in parts) for file register, employees, tasks and reminders. |
@@ -140,6 +142,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `officeEvents.ts` | Events: today's events for Home, and the preparation tasks (made up to 30 days ahead, moved with the event, dropped when it is cancelled or deleted). |
 | `moves.ts` | Joining and relieving: makes the task with its steps (For the employee, made by the system, due 7 days after the date) and its row; completes the task when every step is done and reopens it when one is set back. |
 | `registers.ts` | Registers: an entry and its task kept in step both ways (`entryFollowsTask` from the task routes, `taskFollowsEntry` from the entry's tick). |
+| `linkedEmails.ts` | A task's emails, main and added (`tasksOfThreads`, `allTaskThreads`, `addedEmailsOfTasks`), used by the sync, the task/done labels, the email's status tags and deleting tasks. |
 | `contracts.ts` | Makes the "Contract ends" task 7 days before a temporary contract ends (one per end date; moves it when the date is edited). |
 | `probation.ts` | Makes the "Probation declaration" task 7 days before 2 years of service when probation isn't declared (recent joinings only); completes it when a declared date is entered. |
 | `pension.ts` | Makes the Pension papers task (with the pension checklist) 12 months before a permanent employee retires, once per employee. |
@@ -246,7 +249,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `RemoveChooser.tsx` | Remove: "Just remove" or send to a section (a menu from the button on computers, an action sheet on phones); also `AnchoredMenu` (menus that grow from a button, or from where it was if it re-rendered). |
 | `TaskRow.tsx` | One task row on the Tasks page (a Contract ends or Probation declaration task's tick asks instead). |
 | `TaskDialog.tsx` | Add / edit task form. |
-| `TaskDetails.tsx` | Task details card (the title opens the task's email, or an event prep task's event email): where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete (Renew or end / Declare or extend for Contract ends / Probation declaration tasks) / Reopen. |
+| `TaskDetails.tsx` | Task details card (an Emails section with Add email; the title opens the task's email, or an event prep task's event email): where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete (Renew or end / Declare or extend for Contract ends / Probation declaration tasks) / Reopen. |
 | `IncrementDialog.tsx` | "Increment done": asks the new basic pay before marking an increment done (Home and the Employees page), with Undo; lives once in the shell. |
 | `SystemTaskChooser.tsx` | The choice a system task asks for when ticked or swiped anywhere: Renew / Contract ended for "Contract ends", Probation declared / Change due date for "Probation declaration"; lives once in the shell. |
 | `InlineTaskEdit.tsx` | Change a task's date/time or priority straight from its chip. |
@@ -258,7 +261,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `ReminderLinks.tsx` | Link chips on reminders and the links editor. |
 | `EventDialog.tsx` | Add / edit event form (types from Settings › Events; compact: title with the attendee button, type, date and times, venue and link, the rest under More fields) (also Make event from an email, filled from it); lives once in the shell (`openEventForm`). |
 | `AttendeePicker.tsx` | Who attends an event: the people button in the event title box, chips of those chosen, and a picker that ticks several (a designation's "(all)" adds everyone of it). |
-| `EventDetails.tsx` | Event details card for one date: Mark done, Move, Cancel, Not done / Restore, Back to the first date, Edit, Delete, Join meeting, Directions; lives once in the shell (`openEventDetails`). |
+| `EventDetails.tsx` | Event details card (an Emails section with Add email, opened in its own email viewer) for one date: Mark done, Move, Cancel, Not done / Restore, Back to the first date, Edit, Delete, Join meeting, Directions; lives once in the shell (`openEventDetails`). |
 | `Logins.tsx` | Saved website logins: grouped list, a login row with Show / Copy (password fetched only then; shown for 30s), the add/edit form. Used by the Logins page and an employee's page. |
 | `Tags.tsx` | Tags: chips (compact on rows, at most 2 on phones), the picker in task and reminder forms (most-used first, type to make one), the All tags filter, the tag filter icon on the home cards, the several-tags filter (File register), Settings › Tags (rename, colour, delete, drag to arrange). |
 | `Related.tsx` | "For" an employee, designation or the office: picker, tag and line; `employeesOnly` limits it to one employee (register entries). |
@@ -266,6 +269,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `YouSetting.tsx` | Settings › Employees, "You": choose which employee you are (saved at once; their row and page show a "You" tag). |
 | `StaffMoves.tsx` | Joining & relieving: the Employees page card (one line until its title is clicked; Joined / Relieved tables, a Pending / Waiting / Done pill per step, people with their steps on phones, Show finished) and the Join / Relieve form (with Add a new employee); `JoinExistingCard` in Settings › Employees puts someone already working here into the joining process with the steps already done ticked; `RelieveExistingCard` beside it does the same for relieving (also someone marked Left, or a new employee added there). |
 | `Registers.tsx` | Registers: Settings › Registers list, the entry form (register, what with the person button for Needs, optional task with a due date, remove) and an entry's row (tick, swipe on phones). |
+| `LinkedEmails.tsx` | The Emails section of Task details and Event details (main email first, added ones with ✕, tap to open) and the Add email picker (Pending emails, search, tick several). |
 | `EventTypes.tsx` | Settings › Events: the event types list (add, rename, drag to arrange, remove; a removed type's events show as "Event"). |
 | `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |
 | `NotificationSettings.tsx` | Settings › Notifications. |
@@ -307,6 +311,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `me-employee.test.ts` | Which employee the user is: set, checked, cleared, in History, forgotten when that employee is deleted. |
 | `moves.test.ts` | Joining and relieving: the task and its steps, the table and the task kept in step both ways, done completes / set back reopens, Left on the relieving date, deleting the task drops the row, starting with steps already done, relieving someone marked Left or a new employee. |
 | `registers.test.ts` | Registers: added in Settings, updated until, delete with entries; entries not tasks without a due date, entry and task kept in step both ways, due date removed takes the task away. |
+| `linked-emails.test.ts` | More emails on a task or event: added from Pending, a new reply flags the task, status follows the task, taken off or deleted they come back to Pending. |
 | `office-events.test.ts` | Events: the user's own types (add, rename, arrange, delete keeps events, CSV makes new ones), repeat dates and changes, preparation tasks, Make event from an email (and back to Pending on a reply), delete, Home today, the calendar feed, the Events CSV, the phone note within the hour before. |
 | `attachment-types.test.ts` | Pictures and PDFs labelled as generic files are served with their real type. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |

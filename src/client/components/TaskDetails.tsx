@@ -13,6 +13,7 @@ import { RelatedLine, type RelatedValue } from "./Related";
 import { asksChoice, openTaskChoice } from "./SystemTaskChooser";
 import { Badge, Button, Modal, PriorityPill, cx } from "./ui";
 import { openEventDetails } from "./EventDetails";
+import { LinkedEmailsSection } from "./LinkedEmails";
 
 export function TaskDetails({
   task,
@@ -135,11 +136,6 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
             </button>
           </Row>
         )}
-        {task.thread && (
-          <Row icon={Mail} label="Email">
-            <span className="font-medium">{task.thread.fromName ?? task.thread.fromEmail}</span>: {task.thread.subject}
-          </Row>
-        )}
         {/* What the task is about (Staff, user request 2026-10-07): changed here straight away. */}
         <Row icon={UserRound} label="For">
           <RelatedLine
@@ -160,6 +156,9 @@ function Details({ task, onClose, onEdit, onOpenEmail }: { task: Task; onClose: 
           {task.notes ? <span className="select-text whitespace-pre-wrap">{task.notes}</span> : <span className="text-slate-500">No notes</span>}
         </Row>
       </dl>
+
+      {/* Its emails: the first one and any added from Pending (user request 2026-10-17). */}
+      <LinkedEmailsSection owner={{ taskId: task.id }} onOpenEmail={onOpenEmail} />
 
       <ChecklistTicks key={task.id} task={task} />
 

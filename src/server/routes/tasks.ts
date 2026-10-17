@@ -13,6 +13,7 @@ import { checkRelated, relatedName } from "../lib/staff";
 import { checkTags, tagNameMatches } from "../lib/tags";
 import { settleMoveTask } from "../lib/moves";
 import { entryFollowsTask } from "../lib/registers";
+import { addedEmailsOfTasks, tasksOfThreads } from "../lib/linkedEmails";
 import { bulkIds, taskInput, taskPatch } from "../../shared/schemas";
 import type { Task, TaskView } from "../../shared/types";
 
@@ -126,6 +127,12 @@ export const waitingFields = (waiting: boolean, replyBy: string | null) => (wait
 export const waitingSummary = (replyBy: string | null) => (replyBy ? `Waiting for a reply, expected by ${replyBy}` : "Waiting for a reply");
 
 const VIEWS: TaskView[] = ["today", "upcoming", "overdue", "nodate", "all", "completed", "any", "reports", "waiting"];
+
+// A task's emails: its main one and any added to it (user request 2026-10-17).
+async function emailsOfTask(db: DB, t: { id: string; threadId: string | null }) {
+  const added = await addedEmailsOfTasks(db, [t.id]);
+  return [...new Set([t.threadId, ...added.map((x) => x.threadId)].filter((x): x is string => !!x))];
+}
 
 export const taskRoutes = new Hono<AppEnv>()
   // Calendar: everything due in a date range.
@@ -248,11 +255,11 @@ export const taskRoutes = new Hono<AppEnv>()
     const gone = rows.filter((t) => !t.reportPeriodId);
     const skipped = rows.length - gone.length;
     if (gone.length === 0) return c.json({ deleted: 0, skipped });
+    // Emails added to these tasks (user request 2026-10-17) are theirs too; read before the links go with them.
+    const added = await addedEmailsOfTasks(db, gone.map((t) => t.id));
     await db.delete(tasks).where(inArray(tasks.id, gone.map((t) => t.id)));
-    const threadIds = [...new Set(gone.map((t) => t.threadId).filter((x): x is string => !!x))];
-    const still = threadIds.length
-      ? new Set((await db.select({ threadId: tasks.threadId }).from(tasks).where(inArray(tasks.threadId, threadIds))).map((r) => r.threadId))
-      : new Set<string | null>();
+    const threadIds = [...new Set([...gone.map((t) => t.threadId), ...added.map((x) => x.threadId)].filter((x): x is string => !!x))];
+    const still = new Set<string | null>((await tasksOfThreads(db, threadIds)).map((r) => r.threadId));
     const orphanIds = threadIds.filter((id) => !still.has(id));
     const orphans = orphanIds.length
       ? await db
@@ -282,7 +289,7 @@ export const taskRoutes = new Hono<AppEnv>()
     await entryFollowsTask(db, [t.id], true);
     // A report's task and its period move together.
     if (t.reportPeriodId) await setPeriodStatus(db, userId, t.reportPeriodId, "submitted");
-    if (t.threadId) await reconcileThreadLabels(db, c.env, userId, [t.threadId]).catch(() => undefined);
+    await reconcileThreadLabels(db, c.env, userId, await emailsOfTask(db, t)).catch(() => undefined);
     return c.json({ ok: true });
   })
 
@@ -295,6 +302,6 @@ export const taskRoutes = new Hono<AppEnv>()
     await logEvent(db, { userId, entityType: "task", entityId: t.id, action: "task.reopened", summary: "Reopened", detail: { title: t.title } });
     await entryFollowsTask(db, [t.id], false);
     if (t.reportPeriodId) await setPeriodStatus(db, userId, t.reportPeriodId, "pending");
-    if (t.threadId) await reconcileThreadLabels(db, c.env, userId, [t.threadId]).catch(() => undefined);
+    await reconcileThreadLabels(db, c.env, userId, await emailsOfTask(db, t)).catch(() => undefined);
     return c.json({ ok: true });
   });

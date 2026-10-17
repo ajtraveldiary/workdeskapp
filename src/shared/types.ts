@@ -342,3 +342,6 @@ export type RegisterEntry = {
   createdAt: string;
   task: { id: string; dueDate: string | null; status: "open" | "done" } | null;
 };
+
+// An email of a task or event (user request 2026-10-17): its main one (main) or one added from Pending.
+export type LinkedEmail = { id: string; subject: string; fromName: string | null; fromEmail: string | null; lastMessageAt: string; unread: boolean; hasNewActivity: boolean; main: boolean };

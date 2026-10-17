@@ -6,7 +6,9 @@ import { Link } from "react-router";
 import { Ban, CalendarDays, CalendarRange, Check, ClipboardList, Clock, MapPin, Pencil, Repeat as RepeatIcon, RotateCcw, StickyNote, Trash2, UserRound, UsersRound, Video } from "lucide-react";
 import { PREP_OPTIONS, eventTypeLabel, eventOccurrences, shiftDay, timeRange } from "../../shared/eventSchedule";
 import { repeatText } from "../../shared/reminderSchedule";
-import { useMe, useOfficeEventActions, useOfficeEvents, useStaff } from "../api";
+import { useMe, useOfficeEventActions, useOfficeEvents, useStaff, useThread } from "../api";
+import { EmailViewer } from "./EmailViewer";
+import { LinkedEmailsSection } from "./LinkedEmails";
 import { formatDay, formatTime } from "../format";
 import { openEventForm } from "./EventDialog";
 import { LinkChips } from "./ReminderLinks";
@@ -20,6 +22,9 @@ export const openEventDetails = (r: EventRef) => opener?.(r);
 
 export function EventDetailsHost() {
   const [ref, setRef] = useState<EventRef | null>(null);
+  // Its emails open here (user request 2026-10-17); an event's emails are out of Pending, so no Create task.
+  const [emailId, setEmailId] = useState<string | null>(null);
+  const email = useThread(emailId).data ?? null;
   useEffect(() => {
     opener = setRef;
     return () => {
@@ -28,12 +33,13 @@ export function EventDetailsHost() {
   }, []);
   return (
     <Modal open={ref !== null} onClose={() => setRef(null)} title="Event">
-      {ref && <Details key={`${ref.id}:${ref.date}`} eventRef={ref} onClose={() => setRef(null)} />}
+      {ref && <Details key={`${ref.id}:${ref.date}`} eventRef={ref} onClose={() => setRef(null)} onOpenEmail={setEmailId} />}
+      <EmailViewer thread={emailId ? email : null} onClose={() => setEmailId(null)} onCreateTask={() => setEmailId(null)} />
     </Modal>
   );
 }
 
-function Details({ eventRef, onClose }: { eventRef: EventRef; onClose: () => void }) {
+function Details({ eventRef, onClose, onOpenEmail }: { eventRef: EventRef; onClose: () => void; onOpenEmail: (threadId: string) => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
   const { data } = useOfficeEvents();
   const staff = useStaff().data;
@@ -130,6 +136,9 @@ function Details({ eventRef, onClose }: { eventRef: EventRef; onClose: () => voi
           {e.notes ? <span className="select-text whitespace-pre-wrap">{e.notes}</span> : <span className="text-slate-500">No notes</span>}
         </Row>
       </dl>
+
+      {/* Its emails: the one it was made from and any added from Pending (user request 2026-10-17). */}
+      <LinkedEmailsSection owner={{ eventId: e.id }} onOpenEmail={onOpenEmail} />
       <LinkChips links={e.links} />
 
       {moving ? (

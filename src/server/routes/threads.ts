@@ -19,6 +19,7 @@ import { events } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import type { EmailContent, EmailMessageContent, ThreadTaskInfo } from "../../shared/types";
+import { tasksOfThreads } from "../lib/linkedEmails";
 
 // Every route here changes only WorkDesk's own database. Gmail is never written to.
 
@@ -52,20 +53,20 @@ type ThreadRow = Awaited<ReturnType<ReturnType<typeof selectThreads>["execute"]>
 // Adds the state of each email's linked tasks (open / done / overdue), so lists can tag them.
 export async function withTaskInfo<T extends ThreadRow>(db: DB, threads: T[], today: string) {
   const ids = threads.map((t) => t.id);
-  const rows = ids.length
-    ? await db
-        .select({
-          threadId: tasks.threadId,
-          open: sql<number>`(count(*) filter (where ${tasks.status} = 'open'))::int`,
-          done: sql<number>`(count(*) filter (where ${tasks.status} = 'done'))::int`,
-          overdue: sql<boolean>`coalesce(bool_or(${tasks.status} = 'open' and ${tasks.waitingSince} is null and ${tasks.dueDate} < ${today}), false)`,
-          doneAt: sql<string | Date | null>`max(${tasks.completedAt}) filter (where ${tasks.status} = 'done')`,
-        })
-        .from(tasks)
-        .where(inArray(tasks.threadId, ids))
-        .groupBy(tasks.threadId)
-    : [];
-  const byThread = new Map(rows.map((r) => [r.threadId, { open: Number(r.open), done: Number(r.done), overdue: !!r.overdue, doneAt: r.doneAt ? new Date(r.doneAt).toISOString() : null }]));
+  // Its tasks, also those it was added to (user request 2026-10-17).
+  const byThread = new Map<string, ThreadTaskInfo>();
+  for (const r of await tasksOfThreads(db, ids)) {
+    const t = byThread.get(r.threadId) ?? { open: 0, done: 0, overdue: false, doneAt: null };
+    if (r.status === "open") {
+      t.open++;
+      t.overdue ||= !r.waitingSince && !!r.dueDate && r.dueDate < today;
+    } else {
+      t.done++;
+      const at = r.completedAt?.toISOString() ?? null;
+      if (at && (!t.doneAt || at > t.doneAt)) t.doneAt = at;
+    }
+    byThread.set(r.threadId, t);
+  }
   return threads.map((t) => ({ ...t, task: (byThread.get(t.id) ?? null) as ThreadTaskInfo | null }));
 }
 

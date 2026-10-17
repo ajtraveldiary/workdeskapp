@@ -3,7 +3,7 @@ import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
 import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
-  EventType, StaffMove, Register, RegisterEntry, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+  EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EntryInput, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -271,6 +271,20 @@ export function useOfficeEventActions() {
     save: useMutation({ mutationFn: ({ id, input }: { id: string; input: Partial<EventInput> }) => api(`/office-events/${id}`, { method: "PATCH", body: input }), onSettled: refresh }),
     remove: useMutation({ mutationFn: (id: string) => api(`/office-events/${id}`, { method: "DELETE" }), onSettled: refresh }),
     occurrence: useMutation({ mutationFn: ({ id, ...change }: OccurrenceChange & { id: string }) => api(`/office-events/${id}/occurrence`, { method: "POST", body: change }), onSettled: refresh }),
+  };
+}
+// More emails on a task or an event (user request 2026-10-17).
+type EmailOwner = { taskId: string } | { eventId: string };
+const ownerQuery = (o: EmailOwner) => ("taskId" in o ? `taskId=${o.taskId}` : `eventId=${o.eventId}`);
+export const useLinkedEmails = (o: EmailOwner) =>
+  useQuery({ queryKey: ["linked-emails", ownerQuery(o)], queryFn: () => api<{ emails: LinkedEmail[] }>(`/linked-emails?${ownerQuery(o)}`) });
+export function useLinkedEmailActions(o: EmailOwner) {
+  const qc = useQueryClient();
+  // The emails leave or come back to Pending, and their task's state shows on them.
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["linked-emails", "threads", "thread", "tasks", "summary", "history", "office-events"].includes(q.queryKey[0] as string) });
+  return {
+    add: useMutation({ mutationFn: (threadIds: string[]) => api<{ added: number }>("/linked-emails", { method: "POST", body: { ...o, threadIds } }), onSettled: refresh }),
+    remove: useMutation({ mutationFn: (threadId: string) => api(`/linked-emails/${threadId}?${ownerQuery(o)}`, { method: "DELETE" }), onSettled: refresh }),
   };
 }
 // Registers (user request 2026-10-16): the registers (Settings › Registers) and their pending entries.

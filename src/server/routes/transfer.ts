@@ -26,6 +26,7 @@ import {
   employeeMoves,
   registers,
   registerEntries,
+  linkedEmails,
 } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
@@ -822,6 +823,8 @@ const BACKUP: Record<BackupTable, TableInfo> = {
   employeeMoves: { table: employeeMoves as never, refs: { employeeId: { table: employees, required: true }, taskId: { table: tasks } } },
   registers: { table: registers as never },
   registerEntries: { table: registerEntries as never, refs: { registerId: { table: registers, required: true }, employeeId: { table: employees }, taskId: { table: tasks } } },
+  // Emails are another Gmail account's when restored elsewhere: those links drop out (required).
+  linkedEmails: { table: linkedEmails as never, refs: { threadId: { table: emailThreads, required: true }, taskId: { table: tasks }, eventId: { table: officeEvents } } },
   events: { table: events as never },
   hiddenSnippets: { table: hiddenSnippets as never },
   mutedSenders: { table: mutedSenders as never },

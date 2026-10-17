@@ -12,6 +12,7 @@ import type { Env } from "../env";
 import { accessTokenFor } from "./gmailAuth";
 import { canMarkRead, listMessages, setThreadLabels } from "./gmail";
 import { applyLabelOps, type LabelOp } from "./sync";
+import { allTaskThreads, tasksOfThreads } from "./linkedEmails";
 
 // autoDoneLabelIds: more labels whose emails go straight to completed tasks (Settings tick boxes); unlike the
 // done label, WorkDesk never adds or removes them in Gmail.
@@ -54,10 +55,8 @@ export async function applyLabelRules(db: DB, userId: string, onlyGmailThreadIds
     );
   if (threads.length === 0) return result;
 
-  const existing = await db
-    .select({ id: tasks.id, threadId: tasks.threadId, status: tasks.status, title: tasks.title })
-    .from(tasks)
-    .where(inArray(tasks.threadId, threads.map((t) => t.id)));
+  // Its tasks, also those it was added to (user request 2026-10-17).
+  const existing = (await tasksOfThreads(db, threads.map((t) => t.id))).map((x) => ({ id: x.taskId, threadId: x.threadId, status: x.status, title: x.title }));
 
   const now = new Date();
   const newTasks: (typeof tasks.$inferInsert)[] = [];
@@ -110,7 +109,7 @@ export async function reconcileThreadLabels(db: DB, env: Env, userId: string, th
     .select({ id: emailThreads.id, gmailThreadId: emailThreads.gmailThreadId, accountId: emailThreads.accountId, labelIds: emailThreads.labelIds })
     .from(emailThreads)
     .where(and(eq(emailThreads.userId, userId), inArray(emailThreads.id, threadIds)));
-  const linked = await db.select({ threadId: tasks.threadId, status: tasks.status }).from(tasks).where(inArray(tasks.threadId, threadIds));
+  const linked = await tasksOfThreads(db, threadIds);
 
   let token: string | null | undefined;
   const getToken = async (accountId: string) => {
@@ -197,11 +196,7 @@ export async function clearTaskLabels(db: DB, env: Env, userId: string, threadId
 export async function labelTaskEmails(db: DB, env: Env, userId: string, limit = 20) {
   const s = await getTaskLabels(db, userId);
   if (!s.taskLabelId && !s.doneLabelId) return { labelled: 0, remaining: 0 };
-  const rows = await db
-    .select({ threadId: emailThreads.id, labelIds: emailThreads.labelIds, status: tasks.status })
-    .from(tasks)
-    .innerJoin(emailThreads, eq(tasks.threadId, emailThreads.id))
-    .where(and(eq(tasks.userId, userId), isNotNull(tasks.threadId)));
+  const rows = await allTaskThreads(db, userId);
 
   const byThread = new Map<string, { labelIds: string[]; anyOpen: boolean }>();
   for (const r of rows) {

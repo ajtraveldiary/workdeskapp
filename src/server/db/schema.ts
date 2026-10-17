@@ -444,6 +444,24 @@ export const registerEntries = pgTable(
   (t) => [index("register_entries_user").on(t.userId, t.status)],
 );
 
+// More emails on a task or an event (user request 2026-10-17): added from Task details / Event details out of
+// Pending. Each behaves like the main email (tasks.threadId / office_events.threadId): it leaves Pending (state task
+// or event), gets the task/done labels in Gmail with its task, and a new reply flags the task (lib/linkedEmails.ts).
+export const linkedEmails = pgTable(
+  "linked_emails",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => emailThreads.id, { onDelete: "cascade" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+    eventId: uuid("event_id").references(() => officeEvents.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("linked_emails_task").on(t.taskId, t.threadId), uniqueIndex("linked_emails_event").on(t.eventId, t.threadId), index("linked_emails_thread").on(t.threadId)],
+);
+
 // File register (user request 2026-10-07): the office's files, old physical ones (they have no number) and
 // e-files. A physical file with no e-file number is "e-file not yet created".
 export const officeFiles = pgTable("office_files", {

@@ -27,6 +27,7 @@ import {
   type GmailMessage,
 } from "./gmail";
 import { onThreadUpdate } from "./threadRules";
+import { tasksOfThreads } from "./linkedEmails";
 
 type Account = typeof gmailAccounts.$inferSelect;
 type EventRow = typeof events.$inferInsert;
@@ -89,12 +90,8 @@ export async function applySnapshots(db: DB, userId: string, accountId: string |
   const taskThreadIds = existing.filter((t) => t.state === "task").map((t) => t.id);
   const openCounts = new Map<string, number>();
   if (taskThreadIds.length) {
-    const rows = await db
-      .select({ threadId: tasks.threadId, n: count() })
-      .from(tasks)
-      .where(and(inArray(tasks.threadId, taskThreadIds), eq(tasks.status, "open")))
-      .groupBy(tasks.threadId);
-    for (const r of rows) if (r.threadId) openCounts.set(r.threadId, r.n);
+    // Main emails and emails added to a task (user request 2026-10-17).
+    for (const r of await tasksOfThreads(db, taskThreadIds)) if (r.status === "open") openCounts.set(r.threadId, (openCounts.get(r.threadId) ?? 0) + 1);
   }
 
   const now = new Date();

@@ -27,6 +27,7 @@ import { officeEventRoutes } from "./routes/officeEvents";
 import { eventTypeRoutes } from "./routes/eventTypes";
 import { moveRoutes } from "./routes/moves";
 import { entryRoutes, registerRoutes } from "./routes/registers";
+import { linkedEmailRoutes } from "./routes/linkedEmails";
 import { transferRoutes } from "./routes/transfer";
 
 export type AppEnv = {
@@ -174,6 +175,7 @@ export function createApp(opts: Options) {
   app.route("/moves", moveRoutes);
   app.route("/registers", registerRoutes);
   app.route("/register-entries", entryRoutes);
+  app.route("/linked-emails", linkedEmailRoutes);
   app.route("/transfer", transferRoutes);
   app.route("/", miscRoutes);
   app.route("/", calendarSettingsRoutes);
