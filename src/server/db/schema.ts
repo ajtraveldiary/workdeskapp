@@ -538,3 +538,68 @@ export const events = pgTable(
   },
   (t) => [index("events_user_created").on(t.userId, t.createdAt)],
 );
+
+// --- Assistants (MCP server, user request 2026-10-18; docs/MCP_PLAN.md) ---
+
+// An assistant app that signs in to WorkDesk: one that registered itself (ChatGPT, Gemini) or one known by the
+// https address of its metadata document (Client ID Metadata Documents).
+export const mcpClients = pgTable("mcp_clients", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull().default(""),
+  redirectUris: text("redirect_uris").array().notNull().default(sql`'{}'::text[]`),
+  kind: text("kind", { enum: ["registered", "metadata"] }).notNull(),
+  createdAt: createdAt(),
+});
+
+// A sign-in code waiting to be swapped for tokens (10 minutes, once). Stored hashed.
+export const mcpCodes = pgTable("mcp_codes", {
+  id: id(),
+  codeHash: text("code_hash").notNull().unique(),
+  clientId: text("client_id")
+    .notNull()
+    .references(() => mcpClients.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  redirectUri: text("redirect_uri").notNull(),
+  codeChallenge: text("code_challenge").notNull(),
+  scope: text("scope").notNull().default("workdesk"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: createdAt(),
+});
+
+// Access tokens (1 hour) and refresh tokens (60 days, replaced on every use) of a connected assistant. Stored
+// hashed; Disconnect in Settings › Assistant deletes them.
+export const mcpTokens = pgTable(
+  "mcp_tokens",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    clientId: text("client_id")
+      .notNull()
+      .references(() => mcpClients.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["access", "refresh"] }).notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    scope: text("scope").notNull().default("workdesk"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("mcp_tokens_user").on(t.userId, t.clientId)],
+);
+
+// The assistant log (user's choice 2026-10-18: separate from History): every tool call an assistant made, with its
+// arguments and whether it worked. Kept for a year.
+export const assistantLog = pgTable(
+  "assistant_log",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    clientId: text("client_id"),
+    clientName: text("client_name").notNull().default(""),
+    tool: text("tool").notNull(),
+    args: jsonb("args").$type<Record<string, unknown>>().notNull().default({}),
+    ok: boolean("ok").notNull(),
+    message: text("message").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [index("assistant_log_user").on(t.userId, t.createdAt)],
+);

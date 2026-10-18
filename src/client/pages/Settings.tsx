@@ -19,11 +19,12 @@ import { JoinExistingCard, RelieveExistingCard } from "../components/StaffMoves"
 import { HistoryPage } from "./History";
 import { ImportExportPage } from "./ImportExport";
 import { TagSettings } from "../components/Tags";
+import { AssistantSettings } from "../components/AssistantSettings";
 
 // Settings tabs (user request 2026-10-08, "use tabs to group similar settings"). The tab lives in the address
-// (#mail, #employees, #events, #registers, #tags, #calendar, #history, #import-export; none = General), so /settings#… links
+// (#mail, #employees, #events, #registers, #tags, #calendar, #assistant, #history, #import-export; none = General), so /settings#… links
 // open their tab. History and Import / Export moved in here from pages of their own (user request 2026-10-15).
-type SettingsTab = "general" | "mail" | "employees" | "events" | "registers" | "tags" | "calendar" | "history" | "import-export";
+type SettingsTab = "general" | "mail" | "employees" | "events" | "registers" | "tags" | "calendar" | "assistant" | "history" | "import-export";
 const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   { value: "general", label: "General" },
   { value: "mail", label: "Mail" },
@@ -35,6 +36,8 @@ const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   // Tags for tasks and reminders (user request 2026-10-11).
   { value: "tags", label: "Tags" },
   { value: "calendar", label: "Calendar" },
+  // ChatGPT / Gemini through the MCP server (user request 2026-10-18).
+  { value: "assistant", label: "Assistant" },
   { value: "history", label: "History" },
   { value: "import-export", label: "Import / Export" },
 ];
@@ -47,7 +50,7 @@ export function SettingsPage() {
   const openTab = (t: SettingsTab) => navigate({ hash: t === "general" ? "" : t }, { replace: true });
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"], ["tags"], ["event-types"], ["history"], ["registers"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"], ["tags"], ["event-types"], ["history"], ["registers"], ["assistant"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         <div>
           <Tabs<SettingsTab> value={tab} onChange={openTab} options={SETTINGS_TABS} />
@@ -85,6 +88,7 @@ export function SettingsPage() {
             )}
             {tab === "tags" && <TagSettings />}
             {tab === "calendar" && <CalendarLink />}
+            {tab === "assistant" && <AssistantSettings />}
           </div>
         </div>
 

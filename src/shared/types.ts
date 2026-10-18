@@ -345,3 +345,12 @@ export type RegisterEntry = {
 
 // An email of a task or event (user request 2026-10-17): its main one (main) or one added from Pending.
 export type LinkedEmail = { id: string; subject: string; fromName: string | null; fromEmail: string | null; lastMessageAt: string; unread: boolean; hasNewActivity: boolean; main: boolean };
+
+// Settings › Assistant (MCP server, user request 2026-10-18): the address assistants connect to, the connected
+// assistants and the assistant log (every tool call, newest first; kept apart from History).
+export type AssistantInfo = {
+  url: string;
+  connections: { clientId: string; name: string; connectedAt: string | null; lastUsedAt: string | null }[];
+  log: { id: string; clientName: string; tool: string; title: string; args: Record<string, unknown>; ok: boolean; message: string; createdAt: string }[];
+  more: boolean;
+};

@@ -158,7 +158,18 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Registers:** the registers you keep (add, rename, arrange, remove).
 - **Tags:** rename, recolour, delete and arrange tags.
 - **Calendar:** the private calendar link.
+- **Assistant:** connect ChatGPT or Gemini (see below).
 - **History** and **Import / Export** (see above).
+
+### Assistant (ChatGPT, Gemini)
+- **Ask an AI assistant about your work:** "what is overdue?", "summarise the PDF in the HMIS email", "who retires
+  this year?". WorkDesk is an MCP server: add its address (Settings › Assistant) in ChatGPT or Gemini and approve the
+  connection on WorkDesk's own page.
+- **Reads everything, changes nothing:** emails and attachments (PDF, Excel, Word, PowerPoint, pictures), tasks,
+  reminders, events, employees, registers, the file register, History and settings, with names and plain words
+  rather than codes. Saved website passwords are never shared.
+- **You stay in control:** every request an assistant makes is listed in the assistant log (kept apart from History),
+  and Disconnect stops it at once.
 
 ### Phone app
 - **Install it on your phone's home screen.** Swipe a row to act on it (with Undo), pull down to refresh, and
@@ -176,7 +187,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   code is ever added. Removing an email, completing a task, tags and imports change only WorkDesk.
 - **What is stored:** for each email only the subject, sender, Gmail's short snippet, dates and IDs; message bodies
   are never stored. Gmail access tokens, the notification key and saved website passwords are encrypted. Passwords
-  are never included in lists, offline copies or exports.
+  are never included in lists, offline copies, exports or anything an assistant can read.
 - **Tags vs labels:** Gmail labels belong to emails (and mark sections). Tags belong to WorkDesk's tasks and
   reminders and never reach Gmail.
 

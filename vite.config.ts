@@ -50,6 +50,6 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(version) },
   server: {
     port: 5173,
-    proxy: { "/api/": "http://localhost:8787" },
+    proxy: { "/api/": "http://localhost:8787", "/.well-known/": "http://localhost:8787" },
   },
 });

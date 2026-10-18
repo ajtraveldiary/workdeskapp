@@ -1,4 +1,5 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
+import { cors } from "hono/cors";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { HTTPException } from "hono/http-exception";
 import { eq } from "drizzle-orm";
@@ -29,6 +30,9 @@ import { moveRoutes } from "./routes/moves";
 import { entryRoutes, registerRoutes } from "./routes/registers";
 import { linkedEmailRoutes } from "./routes/linkedEmails";
 import { transferRoutes } from "./routes/transfer";
+import { assistantRoutes } from "./routes/assistant";
+import { authorizationServerMetadata, oauthRoutes, protectedResourceMetadata } from "./mcp/oauth";
+import { mcpRoutes } from "./mcp/server";
 
 export type AppEnv = {
   Bindings: Env;
@@ -37,6 +41,9 @@ export type AppEnv = {
 
 const SESSION_COOKIE = "wd_session";
 const STATE_COOKIE = "wd_oauth_state";
+// Where to go after Google sign-in when it started from an assistant's consent page (MCP, 2026-10-18).
+const RETURN_COOKIE = "wd_return";
+const RETURN_OK = /^\/api\/oauth\/authorize\?\S*$/;
 const SESSION_DAYS = 30;
 
 type Options = {
@@ -48,7 +55,10 @@ type Options = {
 const isDemo = (env: Env, opts: Options) => opts.allowDemo && !env.GOOGLE_CLIENT_ID;
 
 export function createApp(opts: Options) {
-  const app = new Hono<AppEnv>().basePath("/api");
+  // The root app holds only the sign-in details assistants look up at /.well-known/ (MCP, 2026-10-18); everything
+  // else is under /api. Both share one router.
+  const root = new Hono<AppEnv>();
+  const app = root.basePath("/api");
 
   app.onError((err, c) => {
     if (err instanceof ZodError) return c.json({ error: "Invalid request", issues: err.issues }, 400);
@@ -73,6 +83,9 @@ export function createApp(opts: Options) {
 
   app.get("/auth/google", (c) => {
     const state = randomToken();
+    // Signing in to approve an assistant: come back to its consent page afterwards.
+    const back = c.req.query("return");
+    if (back && RETURN_OK.test(back)) setCookie(c, RETURN_COOKIE, back, { httpOnly: true, secure: secure(c.env), sameSite: "Lax", path: "/api/auth", maxAge: 600 });
     setCookie(c, STATE_COOKIE, state, {
       httpOnly: true,
       secure: secure(c.env),
@@ -127,7 +140,9 @@ export function createApp(opts: Options) {
       path: "/",
       maxAge: SESSION_DAYS * 86400,
     });
-    return c.redirect(appUrl);
+    const back = getCookie(c, RETURN_COOKIE);
+    if (back) deleteCookie(c, RETURN_COOKIE, { path: "/api/auth" });
+    return c.redirect(back && RETURN_OK.test(back) ? `${appUrl.replace(/\/$/, "")}${back}` : appUrl);
   });
 
   app.post("/auth/logout", (c) => {
@@ -137,6 +152,26 @@ export function createApp(opts: Options) {
 
   // Private calendar feed for Apple Calendar etc.: no sign-in, the secret link is the key (2026-10-07).
   app.route("/", calendarFeedRoute);
+
+  // --- Assistants (MCP server, user request 2026-10-18; docs/MCP_PLAN.md) ---
+  // Sign-in details at the site root, the sign-in itself under /api/oauth and the MCP endpoint at /api/mcp; each
+  // checks who is asking itself (the consent page uses the app's sign-in, the MCP endpoint an access token).
+  const open = cors({ origin: "*", allowHeaders: ["Authorization", "Content-Type", "Mcp-Protocol-Version", "Mcp-Session-Id"], exposeHeaders: ["WWW-Authenticate", "Mcp-Session-Id"], maxAge: 86400 });
+  root.use("/.well-known/*", open);
+  for (const p of ["/oauth-protected-resource", "/oauth-protected-resource/api/mcp"]) root.get(`/.well-known${p}`, (c) => c.json(protectedResourceMetadata(c)));
+  for (const p of ["/oauth-authorization-server", "/oauth-authorization-server/api/mcp", "/openid-configuration"]) root.get(`/.well-known${p}`, (c) => c.json(authorizationServerMetadata(c)));
+  app.use("/mcp", open);
+  for (const p of ["/oauth/token", "/oauth/register", "/oauth/revoke"]) app.use(p, open);
+  const demoUserId = async (c: Context<AppEnv>) => {
+    const { user, created } = await ensureUser(c.get("db"), "demo@localhost", "Demo user");
+    if (created) {
+      await seedDemoMailbox(c.get("db"), user.id);
+      await seedDemoReports(c.get("db"), user.id, todayIn(timezone(c.env)));
+    }
+    return user.id;
+  };
+  app.route("/oauth", oauthRoutes(demoUserId));
+  app.route("/mcp", mcpRoutes(app));
 
   // --- Everything below requires a signed-in user ---
 
@@ -177,6 +212,7 @@ export function createApp(opts: Options) {
   app.route("/register-entries", entryRoutes);
   app.route("/linked-emails", linkedEmailRoutes);
   app.route("/transfer", transferRoutes);
+  app.route("/assistant", assistantRoutes);
   app.route("/", miscRoutes);
   app.route("/", calendarSettingsRoutes);
 

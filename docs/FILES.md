@@ -22,12 +22,12 @@ Cron every 10 min (src/server/worker.ts): Gmail sync, then phone notifications
 | `AGENTS.md` | Short pointer for other AI coding agents: the rules are in CLAUDE.md. |
 | `docs/FILES.md` | This file: every file and its job. |
 | `docs/MCP_PLAN.md` | Plan for a WorkDesk MCP server (not built yet): assistants (ChatGPT, Gemini), the user's data decisions, tools by phase, sign-in, the separate assistant log, safety limits, testing. |
-| `package.json` / `package-lock.json` | Libraries and the npm commands (`dev`, `test`, `typecheck`, `db:generate`, `db:migrate`, `deploy`); `allowScripts` approves install scripts per exact version (esbuild, workerd). |
+| `package.json` / `package-lock.json` | Libraries (unpdf reads PDF text for assistants) and the npm commands (`dev`, `test`, `typecheck`, `db:generate`, `db:migrate`, `deploy`); `allowScripts` approves install scripts per exact version (esbuild, workerd). |
 | `tsconfig.json` | TypeScript settings for the whole project. |
-| `vite.config.ts` | Builds the app: the version number from git (`appVersion`), `dist/version.json` for auto-update, and the service worker (`dist/sw.js`). Runs the dev server on :5173, passing `/api` to :8787. |
+| `vite.config.ts` | Builds the app: the version number from git (`appVersion`), `dist/version.json` for auto-update, and the service worker (`dist/sw.js`). Runs the dev server on :5173, passing `/api` and `/.well-known` to :8787. |
 | `vitest.config.ts` | Test runner settings: at most 8 files at once, longer time limits for each file's database setup and each test. |
 | `drizzle.config.ts` | Where the database schema and migrations live, for `npm run db:generate`. |
-| `wrangler.jsonc` | Cloudflare Worker settings: entry file, the built app as static files, the 10-minute cron, the time zone; lists the secrets to set. |
+| `wrangler.jsonc` | Cloudflare Worker settings: entry file, the built app as static files (the Worker answers `/api/*` and `/.well-known/*` first), the 10-minute cron, the time zone; lists the secrets to set. |
 | `.env.example` | The settings to copy into `.env` to use real Gmail locally (Google client, owner email, secrets, database). |
 | `.gitignore` | Files git ignores (`node_modules`, `dist`, `.data`, `.env`…). |
 | `.github/workflows/deploy.yml` | On every push to `master`: typecheck, tests, database migrations on Neon, build, deploy the Worker. |
@@ -77,6 +77,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0036_employee_moves.sql` | Joining and relieving: `employee_moves` (employee, join or relieve, date, its task; removed with the task or the employee). |
 | `0037_registers.sql` | Registers (`registers`: name, order, date updated until) and their pending entries (`register_entries`: text, the employee needed, done, the task when it has a due date). |
 | `0038_linked_emails.sql` | More emails on a task or an event (`linked_emails`: the email and its task or event). |
+| `0039_assistant_connection.sql` | Assistants (MCP): `mcp_clients`, `mcp_codes`, `mcp_tokens` and `assistant_log`. |
 | `0034_event_types.sql` | The user's own event types (`event_types`; every account gets Meeting, Training, Programme) and `type_id` on events, filled from the old fixed kind ("Other" = no type). |
 | `0031_tags.sql` | Tags for tasks and reminders: the `tags` table (name unique per user whatever its capitals, colour, order) and `tag_ids` on tasks and reminders. |
 
@@ -84,16 +85,25 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | What it does |
 |---|---|
-| `app.ts` | Builds the Hono API: Google sign-in (`/api/auth/google`), sign-out, session cookie, demo sign-in when Google isn't set up, database-error answers, and mounts every route file below. |
+| `app.ts` | Builds the Hono API: Google sign-in (`/api/auth/google`, which can return to an assistant's consent page), sign-out, session cookie, demo sign-in when Google isn't set up, database-error answers, the assistants' sign-in details at `/.well-known/`, `/api/oauth` and `/api/mcp` (before the sign-in check), and mounts every route file below. |
 | `worker.ts` | Cloudflare entry: serves `/api/*`, the built app for everything else, and the 10-minute cron (Gmail sync, then phone notifications). |
 | `dev.ts` | Local entry (Node, port 8787): Neon if `DATABASE_URL` is set, otherwise the local database; checks for phone notifications every 10 minutes, and syncs Gmail every 10 minutes when Google is set up. |
 | `env.ts` | The Worker's settings and secrets (`Env`), the app time zone, and a helper that fails clearly when a secret is missing. |
+
+### `src/server/mcp/` — the MCP server for assistants (ChatGPT, Gemini)
+
+| File | What it does |
+|---|---|
+| `oauth.ts` | Sign-in for assistants: the discovery documents, client registration (and client metadata documents), the consent page (`/api/oauth/authorize`, after Google sign-in), codes with PKCE, access and refresh tokens (stored hashed, refresh replaced on use), revocation, the bearer check, and clearing expired codes, tokens and old log rows. |
+| `server.ts` | The MCP endpoint (`POST /api/mcp`, JSON-RPC over HTTP): 401 with the sign-in address without a token; `initialize` (with instructions about WorkDesk), `tools/list`, `tools/call` (each call written to the assistant log); tools read through the app's own routes as the user. |
+| `tools.ts` | The 20 read-only tools and how their answers are organised: names instead of ids, words instead of codes, empty fields left out, notes on what things mean; never website passwords. |
+| `content.ts` | Email HTML to plain text, and attachments to text: PDF (unpdf; scanned PDFs passed on as the file), Excel / ODS / CSV, Word .docx, PowerPoint .pptx, plain text; pictures as images. |
 
 ### `src/server/db/`
 
 | File | What it does |
 |---|---|
-| `schema.ts` | Every database table and column (Drizzle): users, Gmail accounts/messages/labels, hidden senders, hidden text, emails, tasks, saved website logins (`site_logins`), tags (`tags`), events (`office_events`) and their types (`event_types`), reminders (`reports`) and their dates (`report_periods`), designations, employee types, employees, file register, push devices, History (`events`). |
+| `schema.ts` | Every database table and column (Drizzle): users, Gmail accounts/messages/labels, hidden senders, hidden text, emails, tasks, saved website logins (`site_logins`), tags (`tags`), events (`office_events`) and their types (`event_types`), reminders (`reports`) and their dates (`report_periods`), designations, employee types, employees, file register, push devices, History (`events`), and for assistants: their apps (`mcp_clients`), sign-in codes and tokens (`mcp_codes`, `mcp_tokens`, stored hashed) and the assistant log (`assistant_log`). |
 | `index.ts` | The `DB` type both database drivers share. |
 | `neon.ts` | Connects to Neon over HTTP (production). |
 | `local.ts` | Local database with PGlite in `./.data` (no install needed); applies new migrations when it starts. |
@@ -117,6 +127,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `moves.ts` | Joining and relieving (`/moves`): the summary list with each step's state, join or relieve someone (back in the office / Left the office on the date, and the task), set one step from the table. |
 | `registers.ts` | Registers (`/registers`: list with counts, add, rename / updated until, Updated (today + clear done entries), arrange, remove with their entries) and their entries (`/register-entries`: list, add, change, done / pending, remove); an entry's due date makes, moves or removes its task. |
 | `linkedEmails.ts` | More emails on a task or event (`/linked-emails`): list (main first), add Pending emails (they leave Pending, task labels in Gmail), take one off (back to Pending unless another open task has it). |
+| `assistant.ts` | Settings › Assistant (`/assistant`): the address assistants connect to, connected assistants (Disconnect deletes their tokens, History entry) and the assistant log, 50 at a time (`?before=`). |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
 | `transfer.ts` | Import / Export: master backup download and import (adds only what's missing), CSV export and import (preview, then in parts) for file register, employees, tasks and reminders. |
@@ -134,7 +145,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `reports.ts` | Creates each reminder date and its task when it is due; marks a date and its task done together. |
 | `emailContent.ts` | Reads an email's body and attachments from Gmail for the viewer (never stored); demo content. |
 | `muted.ts` | Checks whether an email's sender is hidden from Pending. |
-| `maintenance.ts` | Housekeeping on page loads, at most every few minutes: returns any old snoozed email to Pending, creates due reminder dates, applies section rules, makes Pension papers, Contract ends and Probation declaration tasks. |
+| `maintenance.ts` | Housekeeping on page loads, at most every few minutes: returns any old snoozed email to Pending, creates due reminder dates, applies section rules, makes Pension papers, Contract ends and Probation declaration tasks, and clears expired assistant sign-ins and assistant log rows older than a year. |
 | `ics.ts` | Builds the calendar file (`.ics`) for the calendar link (tasks, reminder dates, events with place and status), with Malayalam-safe line folding. |
 | `notify.ts` | Decides which phone notifications are due (morning summary with today's events, due-time notes, an event's note 1 hour before, badge count) and sends them. |
 | `webpush.ts` | Web Push with WebCrypto only: encrypts a message for a device and signs it (VAPID). |
@@ -217,7 +228,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Events.tsx` | Events: Upcoming / Today / Past, search, grouped by day; swipe (phones) or ⋮ menu for Done, Cancel, Edit. |
 | `History.tsx` | Every decision and change, with Undo where possible; shown as the History tab of Settings (`embedded`: no page title, the filters as buttons). |
 | `Search.tsx` | Search across emails and tasks. |
-| `Settings.tsx` | Settings in tabs (the tab is in the address: none, `#mail`, `#employees`, `#events`, `#registers`, `#tags`, `#calendar`, `#history`, `#import-export`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Events (event types), Registers, Tags, Calendar link, History, Import / Export. |
+| `Settings.tsx` | Settings in tabs (the tab is in the address: none, `#mail`, `#employees`, `#events`, `#registers`, `#tags`, `#calendar`, `#assistant`, `#history`, `#import-export`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Events (event types), Registers, Tags, Calendar link, Assistant (ChatGPT / Gemini), History, Import / Export. |
 | `Staff.tsx` | Employees page: due increments (Mark done asks the new basic pay), retiring within 12 months (with Pension papers progress), joining & relieving (`MovesCard`; the phones' + opens Join, no Add employee button), on computers (1024px+) a Permanent or Temporary table with a switch, on narrower screens the permanent/temporary filter, list by designation, employee card, add/edit form. |
 | `EmployeePage.tsx` | An employee's own page (`/employees/<id>`, opened from the list or table; Join / Relieve): at a glance (pay, increment, probation, retirement / contract), every detail, tasks open and completed, reminders, their website logins, events they attend, History; Edit, Left the office, Delete. |
 | `Files.tsx` | File register: one-line list (icon, e-file number column, subject), search, status filters and a Tags filter (several at once), add/edit form with tags. |
@@ -271,6 +282,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `StaffMoves.tsx` | Joining & relieving: the Employees page card (one line until its title is clicked; Joined / Relieved tables, a Pending / Waiting / Done pill per step, people with their steps on phones, Show finished) and the Join / Relieve form (with Add a new employee); `JoinExistingCard` in Settings › Employees puts someone already working here into the joining process with the steps already done ticked; `RelieveExistingCard` beside it does the same for relieving (also someone marked Left, or a new employee added there). |
 | `Registers.tsx` | Registers: Settings › Registers list, the entry form (register, what with the person button for Needs, optional task with a due date, remove) and an entry's row (tick, swipe on phones). |
 | `LinkedEmails.tsx` | The Emails section of Task details and Event details (main email first, added ones with ✕, tap to open) and the Add email picker (Pending emails, search, tick several). |
+| `AssistantSettings.tsx` | Settings › Assistant: what an assistant can read, the address with Copy, how to connect ChatGPT and Gemini, connected assistants with Disconnect, and the assistant log (Show older). |
 | `EventTypes.tsx` | Settings › Events: the event types list (add, rename, drag to arrange, remove; a removed type's events show as "Event"). |
 | `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |
 | `NotificationSettings.tsx` | Settings › Notifications. |
@@ -313,6 +325,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `moves.test.ts` | Joining and relieving: the task and its steps, the table and the task kept in step both ways, done completes / set back reopens, Left on the relieving date, deleting the task drops the row, starting with steps already done, relieving someone marked Left or a new employee. |
 | `registers.test.ts` | Registers: added in Settings, updated until, delete with entries; entries not tasks without a due date, entry and task kept in step both ways, due date removed takes the task away. |
 | `linked-emails.test.ts` | More emails on a task or event: added from Pending, a new reply flags the task, status follows the task, taken off or deleted they come back to Pending. |
+| `mcp.test.ts` | Assistants (MCP): sign-in details, registration, consent (Allow / Cancel), PKCE, one-use codes, refresh tokens replaced on use, Disconnect; every tool answers with names not ids; reading an email changes nothing; a PDF attachment as text; the assistant log; no tool ever returns a saved password. |
 | `office-events.test.ts` | Events: the user's own types (add, rename, arrange, delete keeps events, CSV makes new ones), repeat dates and changes, preparation tasks, Make event from an email (and back to Pending on a reply), delete, Home today, the calendar feed, the Events CSV, the phone note within the hour before. |
 | `attachment-types.test.ts` | Pictures and PDFs labelled as generic files are served with their real type. |
 | `import-export.test.ts` | CSV import/export, samples, and the master backup. |

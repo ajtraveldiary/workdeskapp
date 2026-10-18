@@ -1,6 +1,7 @@
 # WorkDesk MCP server — plan
 
-Status: **planned, not built.** Written 2026-10-18.
+Status: **Phase 1 and Phase 2 built (2026-10-18)**: sign-in, the MCP endpoint, 20 read-only tools including
+attachments, and Settings › Assistant with the assistant log. Phases 3–5 are not built. Written 2026-10-18.
 
 The goal: you ask an AI assistant (ChatGPT, Gemini) about your work in plain language — "what's pending for Anila?",
 "read the circular's PDF and tell me what we must submit", "make a task from the HMIS email, due Friday" — and it
@@ -76,7 +77,14 @@ changes when available.
 
 ## 5. Phases and tools
 
-### Phase 1 — Read everything (about 2 sessions)
+### Phase 1 — Read everything (about 2 sessions) — **built 2026-10-18**
+
+As built, the tools are: `get_overview`, `search` (emails, tasks, reminders, events, employees, files, register
+entries, logins), `list_tasks`, `get_task`, `list_emails` (any status), `read_email`, `read_attachment`,
+`list_reminders`, `list_events`, `list_employees`, `get_employee`, `get_staff_overview`, `list_registers`,
+`list_register_entries`, `list_joining_relieving`, `list_files`, `list_logins`, `get_calendar`, `get_history`,
+`get_settings`. The table below is the original plan.
+
 
 | Tool | What the assistant can do |
 |---|---|
@@ -100,7 +108,11 @@ changes when available.
 **Done when:** in ChatGPT, "What's pending for Anila across everything?" and "What's overdue this week?" get correct
 answers, with long Malayalam titles intact.
 
-### Phase 2 — Attachments (about half a session)
+### Phase 2 — Attachments (about half a session) — **built 2026-10-18, with Phase 1**
+
+As built: attachments are listed by `read_email`; `read_attachment` gives PDF text page by page and passes a scanned
+PDF on as the file.
+
 
 | Tool | What it does |
 |---|---|
@@ -160,7 +172,7 @@ work.
 | | |
 |---|---|
 | **Table** | `assistant_actions`: when, which assistant (ChatGPT / Gemini / other, from its sign-in), which tool, the request it sent (inputs, stored as sent), the result (ok / refused / error, with the message), what it touched (task / email / employee / register entry / event ids and titles), and the History entry it made. |
-| **What goes in** | Every Phase 3 and 4 call, including ones refused (switched off, limit reached, rule broken). Phase 1–2 reads are counted per day (tool, assistant, how many), not stored one by one. |
+| **What goes in** | Every tool call, reads included (built that way in Phase 1: table `assistant_log` with the tool, its arguments, ok / message), and every Phase 3 and 4 call, including ones refused (switched off, limit reached, rule broken). |
 | **Where to see it** | Settings › Assistant › **Assistant log**: newest first, filter by assistant, tool or day, each row linking to what was changed; **Export CSV**. |
 | **History too** | Each change also writes its usual History entry, marked "via ChatGPT" / "via Gemini", so History stays complete. |
 | **Kept for** | One year (older rows cleared by the daily housekeeping). Revoking an assistant keeps its log. |

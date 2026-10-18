@@ -3,7 +3,7 @@ import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
 import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
-  EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+  AssistantInfo, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EntryInput, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -166,6 +166,18 @@ export function useCalendarLinkActions() {
     make: useMutation({ mutationFn: () => api<{ url: string }>("/calendar-link", { method: "POST" }), onSuccess: set }),
     off: useMutation({ mutationFn: () => api<{ url: null }>("/calendar-link", { method: "DELETE" }), onSuccess: set }),
   };
+}
+
+// Settings › Assistant (MCP server, user request 2026-10-18): the address to connect, connected assistants and
+// the assistant log (older entries with ?before=).
+export const useAssistant = () => useQuery({ queryKey: ["assistant"], queryFn: () => api<AssistantInfo>("/assistant") });
+export const olderAssistantLog = (before: string) => api<AssistantInfo>(`/assistant?before=${encodeURIComponent(before)}`);
+export function useDisconnectAssistant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (clientId: string) => api(`/assistant/connections/${encodeURIComponent(clientId)}`, { method: "DELETE" }),
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ["assistant"] }), qc.invalidateQueries({ queryKey: ["history"] })]),
+  });
 }
 
 // Staff page (user request 2026-10-07): designations and employees, kept for a day on the device (it changes
