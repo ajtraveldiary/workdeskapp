@@ -353,6 +353,8 @@ export type AssistantInfo = {
   // Phase 3 (user request 2026-10-18): changes switched on, and at most this many an hour.
   allowChanges: boolean;
   perHour: number;
+  // Phase 4: staff actions too (needs allowChanges).
+  allowStaff: boolean;
   connections: { clientId: string; name: string; connectedAt: string | null; lastUsedAt: string | null }[];
   // change: a change rather than a read; touched: what it changed.
   log: { id: string; clientName: string; tool: string; title: string; args: Record<string, unknown>; ok: boolean; message: string; change: boolean; touched: { kind: string; id: string; title: string }[]; createdAt: string }[];

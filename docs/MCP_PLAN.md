@@ -1,8 +1,8 @@
 # WorkDesk MCP server — plan
 
-Status: **Phases 1, 2 and 3 built (2026-10-18)**: sign-in, the MCP endpoint, 20 read-only tools including
-attachments, 13 change tools behind Allow changes, and Settings › Assistant with the assistant log. Phases 4–5 are
-not built. Written 2026-10-18.
+Status: **Phases 1–4 built (2026-10-18)**: sign-in, the MCP endpoint, 20 read-only tools including attachments,
+13 change tools behind Allow changes, 9 staff actions behind Allow staff actions, and Settings › Assistant with the
+assistant log. Phase 5 is not built. Written 2026-10-18.
 
 The goal: you ask an AI assistant (ChatGPT, Gemini) about your work in plain language — "what's pending for Anila?",
 "read the circular's PDF and tell me what we must submit", "make a task from the HMIS email, due Friday" — and it
@@ -149,7 +149,13 @@ Needs **Allow changes** on. Each change asks for your approval in the assistant.
 
 Not offered: deleting anything, Gmail label setup, Logins changes, Settings changes.
 
-### Phase 4 — Staff actions (about 1 session; off by default, own switch, logged)
+### Phase 4 — Staff actions (about 1 session; off by default, own switch, logged) — **built 2026-10-18**
+
+As built (`src/server/mcp/staff.ts`): the nine tools below, with `renew_or_end_contract` as one tool (choice renew /
+end). Allow staff actions sits under Allow changes in Settings › Assistant and needs it; the hourly limit, History
+marks and assistant log are shared with Phase 3. Increments only when due; probation is declared today (another date
+through `update_employee`).
+
 
 | Tool | Change |
 |---|---|

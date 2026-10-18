@@ -45,6 +45,9 @@ export const users = pgTable("users", {
   // changes an hour. Off until the user switches it on in Settings › Assistant.
   assistantChanges: boolean("assistant_changes").notNull().default(false),
   assistantPerHour: integer("assistant_per_hour").notNull().default(30),
+  // Phase 4: staff actions (join, relieve, increments, contracts, probation, employee details) by assistants, a switch
+  // of its own that also needs assistantChanges. Off until switched on.
+  assistantStaff: boolean("assistant_staff").notNull().default(false),
   picture: text("picture"),
   createdAt: createdAt(),
 });

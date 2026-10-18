@@ -321,4 +321,5 @@ export type SiteLoginInput = z.input<typeof siteLoginInput>;
 
 // Settings › Assistant (MCP Phase 3, user request 2026-10-18): may assistants change things, and how many changes an hour.
 export const ASSISTANT_PER_HOUR = [10, 30, 60, 100] as const;
-export const assistantSettingsInput = z.object({ allowChanges: z.boolean(), perHour: z.number().int().min(1).max(100) });
+// allowStaff (Phase 4): staff actions too; left out = off.
+export const assistantSettingsInput = z.object({ allowChanges: z.boolean(), perHour: z.number().int().min(1).max(100), allowStaff: z.boolean().default(false) });

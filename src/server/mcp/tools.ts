@@ -68,6 +68,8 @@ export type Tool = {
   input: z.ZodObject;
   // A change (Phase 3): needs Allow changes, counts towards the hourly limit, marked as a write for the assistant.
   write?: boolean;
+  // A staff action (Phase 4): also needs Allow staff actions.
+  staff?: boolean;
   run: (ctx: ToolCtx, args: Record<string, unknown>) => Promise<ToolOutput>;
 };
 

@@ -95,7 +95,7 @@ export function AssistantSettings() {
                   className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5"
                   checked={data.allowChanges}
                   disabled={save.isPending}
-                  onChange={(e) => save.mutate({ allowChanges: e.target.checked, perHour: data.perHour })}
+                  onChange={(e) => save.mutate({ allowChanges: e.target.checked, perHour: data.perHour, allowStaff: e.target.checked && data.allowStaff })}
                 />
                 <span className="text-sm text-ink">Allow changes</span>
               </label>
@@ -111,7 +111,7 @@ export function AssistantSettings() {
                   className={cx(inputClass, "w-24!")}
                   value={data.perHour}
                   disabled={!data.allowChanges || save.isPending}
-                  onChange={(e) => save.mutate({ allowChanges: data.allowChanges, perHour: Number(e.target.value) })}
+                  onChange={(e) => save.mutate({ allowChanges: data.allowChanges, perHour: Number(e.target.value), allowStaff: data.allowStaff })}
                 >
                   {[...new Set([...ASSISTANT_PER_HOUR, data.perHour])]
                     .sort((a, b) => a - b)
@@ -123,6 +123,20 @@ export function AssistantSettings() {
                 </select>
                 <span className="text-sm text-ink">changes an hour</span>
               </label>
+              <label className={cx("mt-1 flex min-h-11 items-center gap-2.5 rounded-lg px-1.5", data.allowChanges ? "cursor-pointer hover:bg-slate-50" : "opacity-60")}>
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5"
+                  checked={data.allowChanges && data.allowStaff}
+                  disabled={!data.allowChanges || save.isPending}
+                  onChange={(e) => save.mutate({ allowChanges: data.allowChanges, perHour: data.perHour, allowStaff: e.target.checked })}
+                />
+                <span className="text-sm text-ink">Allow staff actions</span>
+              </label>
+              <p className="px-1.5 pb-1 text-footnote text-slate-600">
+                Join and relieve employees and set their steps, mark increments done with the new basic pay, renew or end contracts, declare probation, mark
+                registers updated, and add or change employee details. Needs Allow changes; counted in the same limit.
+              </p>
             </fieldset>
 
             <div>

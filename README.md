@@ -172,6 +172,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   complete tasks, make tasks from emails, remove emails or send them to a section, add emails to a task, record and
   tick register entries, and add events or mark their dates — asking you before each one. It can never delete
   anything, at most 10 items at a time and a limit of changes an hour that you set.
+- **Staff actions, with a switch of their own:** Allow staff actions lets it join and relieve employees and set their
+  steps, mark increments done with the new basic pay, renew or end contracts, declare probation, mark registers
+  updated, and add or change employee details.
 - **You stay in control:** every request an assistant makes is listed in the assistant log (kept apart from History),
   each change is also in History marked "via ChatGPT", and Disconnect stops it at once.
 

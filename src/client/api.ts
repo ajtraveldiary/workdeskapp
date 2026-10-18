@@ -178,7 +178,7 @@ export const olderAssistantLog = (before: string, changesOnly = false) => api<As
 export function useAssistantSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (s: { allowChanges: boolean; perHour: number }) => api("/assistant/settings", { method: "PUT", body: s }),
+    mutationFn: (s: { allowChanges: boolean; perHour: number; allowStaff: boolean }) => api("/assistant/settings", { method: "PUT", body: s }),
     onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ["assistant"] }), qc.invalidateQueries({ queryKey: ["history"] })]),
   });
 }

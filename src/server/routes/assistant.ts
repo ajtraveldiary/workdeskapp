@@ -19,7 +19,7 @@ export const assistantRoutes = new Hono<AppEnv>()
     const before = c.req.query("before");
     const onlyChanges = c.req.query("changes") === "1";
     const [[settings], connections, log] = await Promise.all([
-      db.select({ allowChanges: users.assistantChanges, perHour: users.assistantPerHour }).from(users).where(eq(users.id, userId)),
+      db.select({ allowChanges: users.assistantChanges, perHour: users.assistantPerHour, allowStaff: users.assistantStaff }).from(users).where(eq(users.id, userId)),
       db
         .select({ clientId: mcpTokens.clientId, name: mcpClients.name, connectedAt: min(mcpTokens.createdAt), lastUsedAt: max(mcpTokens.lastUsedAt) })
         .from(mcpTokens)
@@ -38,6 +38,7 @@ export const assistantRoutes = new Hono<AppEnv>()
       url: `${publicBase(c)}${MCP_PATH}`,
       allowChanges: settings?.allowChanges ?? false,
       perHour: settings?.perHour ?? 30,
+      allowStaff: settings?.allowStaff ?? false,
       connections: connections.map((x) => ({ clientId: x.clientId, name: x.name, connectedAt: x.connectedAt?.toISOString() ?? null, lastUsedAt: x.lastUsedAt?.toISOString() ?? null })),
       log: log.map((l) => ({ id: l.id, clientName: l.clientName, tool: l.tool, title: ALL_TOOLS.find((t) => t.name === l.tool)?.title ?? l.tool, args: l.args, ok: l.ok, message: l.message, change: l.change, touched: l.touched, createdAt: l.createdAt.toISOString() })),
       more: log.length === PAGE,
@@ -49,11 +50,12 @@ export const assistantRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const input = assistantSettingsInput.parse(await c.req.json());
-    const [before] = await db.select({ allowChanges: users.assistantChanges, perHour: users.assistantPerHour }).from(users).where(eq(users.id, userId));
-    await db.update(users).set({ assistantChanges: input.allowChanges, assistantPerHour: input.perHour }).where(eq(users.id, userId));
+    const [before] = await db.select({ allowChanges: users.assistantChanges, perHour: users.assistantPerHour, allowStaff: users.assistantStaff }).from(users).where(eq(users.id, userId));
+    await db.update(users).set({ assistantChanges: input.allowChanges, assistantPerHour: input.perHour, assistantStaff: input.allowStaff }).where(eq(users.id, userId));
     const notes = [
       before?.allowChanges !== input.allowChanges && (input.allowChanges ? "Assistants may now make changes" : "Assistants can no longer make changes"),
       before?.perHour !== input.perHour && `Assistant changes limited to ${input.perHour} an hour`,
+      before?.allowStaff !== input.allowStaff && (input.allowStaff ? "Assistants may now make staff actions" : "Assistants can no longer make staff actions"),
     ].filter((x): x is string => !!x);
     if (notes.length) await db.insert(events).values({ userId, entityType: "sync", action: "settings.assistant_changes", summary: notes.join("; ") });
     return c.json({ ok: true });

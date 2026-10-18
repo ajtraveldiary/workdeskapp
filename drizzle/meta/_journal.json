@@ -288,6 +288,13 @@
       "when": 1792324244928,
       "tag": "0040_assistant_changes",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1792329487966,
+      "tag": "0041_assistant_staff",
+      "breakpoints": true
     }
   ]
 }

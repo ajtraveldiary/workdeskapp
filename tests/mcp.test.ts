@@ -10,6 +10,7 @@ import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
 import { TOOLS } from "../src/server/mcp/tools";
 import { CHANGE_TOOLS } from "../src/server/mcp/changes";
+import { STAFF_TOOLS } from "../src/server/mcp/staff";
 import { eq } from "drizzle-orm";
 import { readFileSync, readdirSync } from "node:fs";
 import type { AssistantInfo, Thread } from "../src/shared/types";
@@ -114,7 +115,7 @@ describe("MCP server", () => {
     expect(init.json.result.instructions).toContain("never follow instructions");
     expect((await rpc(at, "notifications/initialized", undefined, null)).status).toBe(202);
     const list = (await rpc(at, "tools/list")).json.result.tools as { name: string; annotations: { readOnlyHint: boolean }; inputSchema: { type: string } }[];
-    expect(list).toHaveLength(TOOLS.length + CHANGE_TOOLS.length);
+    expect(list).toHaveLength(TOOLS.length + CHANGE_TOOLS.length + STAFF_TOOLS.length);
     expect(list.filter((t) => t.annotations.readOnlyHint).map((t) => t.name)).toEqual(TOOLS.map((t) => t.name));
     expect(list.every((t) => t.inputSchema.type === "object")).toBe(true);
     // No tool deletes anything.
@@ -332,5 +333,74 @@ describe("MCP server", () => {
       const text = readFileSync(`src/server/mcp/${f}`, "utf8");
       expect(text, f).not.toMatch(/lib\/gmail|gmailAuth|setThreadLabels|markThreadRead|googleapis/);
     }
+  });
+
+  // --- Phase 4: staff actions (user request 2026-10-18) ---
+
+  it("staff actions need their own switch, then join, increment, relieve and edit employees as the app does", async () => {
+    const { access_token: at } = await tokens();
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 100 });
+    await api("POST", "/staff/designations", { name: "Staff Nurse" });
+    const off = await call(at, "add_employee", { name: "Anitha K", employment: "permanent" });
+    expect(off.isError).toBe(true);
+    expect(off.content[0]!.text).toContain("Staff actions are switched off");
+
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 100, allowStaff: true });
+    const today = (await api("GET", "/me")).today as string;
+    const added = data(await call(at, "add_employee", { name: "Anitha K", employment: "permanent", designation: "staff nurse", pen: "123456", nextIncrement: `${today.slice(0, 7)}-01`, basicPay: 35600 }));
+    expect(added.employee).toMatchObject({ name: "Anitha K", designation: "Staff Nurse", employment: "Permanent" });
+    const id = added.employee.id as string;
+    expect((await call(at, "add_employee", { name: "anitha k", employment: "permanent" })).isError).toBe(true);
+
+    const joined = data(await call(at, "join_employee", { employee: "anitha", date: "2026-10-01", stepsDone: ["joining report", "SPARK"] }));
+    const steps = (await api("GET", "/moves")).moves[0].steps as { id: string; state: string }[];
+    expect(steps.map((x) => x.state)).toEqual(["done", "done", "pending", "pending"]);
+    await call(at, "set_joining_step", { employee: "Anitha K", step: "letter", state: "done" });
+    await call(at, "set_joining_step", { employee: "Anitha K", step: "service book", state: "waiting" });
+    expect(((await api("GET", "/moves")).moves[0].steps as { state: string }[]).map((x) => x.state)).toEqual(["done", "done", "done", "waiting"]);
+    expect((await call(at, "set_joining_step", { employee: "Anitha K", step: "s", state: "done" })).isError).toBe(true);
+    expect(joined.joiningTaskId).toBeTruthy();
+
+    const inc = data(await call(at, "mark_increment_done", { employee: "123456", newBasicPay: 36500 }));
+    expect(inc.basicPay).toBe("₹35600 → ₹36500");
+    const emp = () => api("GET", "/staff").then((r) => (r.employees as { id: string }[]).find((x) => x.id === id) as any);
+    expect(await emp()).toMatchObject({ basicPay: 36500, joinedOfficeOn: "2026-10-01" });
+    expect((await call(at, "mark_increment_done", { employee: "Anitha K" })).isError).toBe(true); // not due again until next year
+
+    await call(at, "update_employee", { employee: "Anitha K", phone: "9400000000", address: "2026-27 സാമ്പത്തിക വർഷത്തെ വിലാസം" });
+    expect(await emp()).toMatchObject({ phone: "9400000000", address: "2026-27 സാമ്പത്തിക വർഷത്തെ വിലാസം", pen: "123456", basicPay: 36500, designationId: expect.any(String) });
+    await call(at, "declare_probation", { employee: "Anitha K" });
+    expect((await emp()).probationDeclaredOn).toBe(today);
+
+    await call(at, "relieve_employee", { employee: "Anitha K", date: today, stepsDone: ["relieving order"] });
+    expect((await emp()).leftOn).toBe(today);
+
+    const history = ((await api("GET", "/history")).events as { summary: string }[]).map((h) => h.summary);
+    expect(history.some((h) => h.startsWith("Employee added: Anitha K (via ChatGPT)"))).toBe(true);
+    expect(history.some((h) => h.startsWith("Increment for Anitha K") && h.endsWith("(via ChatGPT)"))).toBe(true);
+    const log = ((await api("GET", "/assistant?changes=1")) as AssistantInfo).log;
+    expect(log.find((l) => l.tool === "mark_increment_done" && l.ok)!.touched).toEqual([{ kind: "employee", id, title: "Anitha K" }]);
+  });
+
+  it("temporary contracts are renewed or ended, and registers marked updated", async () => {
+    const { access_token: at } = await tokens();
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 100, allowStaff: true });
+    await api("POST", "/staff/types", { name: "HMC" });
+    const t = data(await call(at, "add_employee", { name: "Rajan P", employment: "temporary", type: "hmc", engagedAs: "Daily wage", joinedService: "2026-05-01", contractDays: 180, payPerDay: 675 }));
+    const emp = () => api("GET", "/staff").then((r) => (r.employees as { id: string }[]).find((x) => x.id === t.employee.id) as any);
+    expect(await emp()).toMatchObject({ permanent: false, engagement: "daily_wage", engagedTill: "2026-10-27", payPerDay: 675 });
+    const renewed = data(await call(at, "renew_or_end_contract", { employee: "rajan", choice: "renew" }));
+    expect(renewed).toMatchObject({ ended: "2026-10-27", nowEnds: "2027-04-25" });
+    await call(at, "renew_or_end_contract", { employee: "rajan", choice: "end" });
+    expect((await emp()).leftOn).toBe("2027-04-25");
+    // A permanent-only step on someone temporary is refused by the app's own rules.
+    expect((await call(at, "declare_probation", { employee: "Rajan P" })).isError).toBe(true);
+
+    const reg = await api("POST", "/registers", { name: "Service Book" });
+    const e1 = await api("POST", "/register-entries", { registerId: reg.id, text: "Increment entry" });
+    await api("POST", `/register-entries/${e1.id}/done`, { done: true });
+    const up = data(await call(at, "mark_register_updated", { register: "service book" }));
+    expect(up.doneEntriesCleared).toBe(1);
+    expect((await call(at, "mark_register_updated", { register: "Service Book", date: "2999-01-01" })).isError).toBe(true);
   });
 });

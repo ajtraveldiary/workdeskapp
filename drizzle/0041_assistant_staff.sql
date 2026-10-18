@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "assistant_staff" boolean DEFAULT false NOT NULL;
