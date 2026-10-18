@@ -62,11 +62,12 @@ const okRedirect = (uri: string) => {
 };
 
 // The client named in a request: one that registered here, or (an https client id) its metadata document, fetched
-// and checked each time it signs in.
+// and checked each time it signs in. Redirects are not followed ("manual": a 3xx isn't ok); Cloudflare Workers refuse
+// redirect "error" outright, which turned every metadata-document client (ChatGPT, Codex) away (2026-10-18).
 async function findClient(db: DB, clientId: string): Promise<{ id: string; name: string; redirectUris: string[] } | null> {
   if (/^https:\/\//.test(clientId)) {
     try {
-      const res = await fetch(clientId, { headers: { accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(5000) });
+      const res = await fetch(clientId, { headers: { accept: "application/json" }, redirect: "manual", signal: AbortSignal.timeout(5000) });
       if (!res.ok) return null;
       const text = await res.text();
       if (text.length > 20_000) return null;

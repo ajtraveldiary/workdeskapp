@@ -1,7 +1,7 @@
 // The MCP server for assistants (Phase 1, user request 2026-10-18): sign-in (discovery, registration, consent,
 // PKCE, refresh tokens replaced on use, disconnect), the read-only tools with organised answers, attachments, the
 // assistant log, and that saved website passwords never reach an assistant.
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -202,6 +202,38 @@ describe("MCP server", () => {
     expect((await token({ grant_type: "refresh_token", refresh_token: t1.refresh_token, client_id })).status).toBe(400);
     const history = (await api("GET", "/history")).events as { summary: string }[];
     expect(history.some((h) => h.summary === "Disconnected the assistant ChatGPT")).toBe(true);
+  });
+
+  // ChatGPT and Codex name themselves by the https address of their metadata document instead of registering.
+  describe("metadata-document clients", () => {
+    const CLIENT = "https://assistant.example/oauth/client.json";
+    afterEach(() => vi.unstubAllGlobals());
+    // Like Cloudflare Workers: redirect "error" throws; anything else gets the document (or a redirect).
+    const stubFetch = (res: () => Response) =>
+      vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+        if (init?.redirect === "error") throw new TypeError('Invalid redirect value, must be one of "follow" or "manual"');
+        expect(url).toBe(CLIENT);
+        return res();
+      });
+    const authorize = async () => {
+      const { challenge } = await pkce();
+      const q = new URLSearchParams({ response_type: "code", client_id: CLIENT, redirect_uri: REDIRECT, code_challenge: challenge, code_challenge_method: "S256" });
+      return req(`/api/oauth/authorize?${q}`);
+    };
+
+    it("reads the document and shows the consent page", async () => {
+      stubFetch(() => Response.json({ client_id: CLIENT, client_name: "Codex", redirect_uris: [REDIRECT] }));
+      const page = await authorize();
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain("Connect Codex to WorkDesk?");
+    });
+
+    it("refuses a document that redirects elsewhere", async () => {
+      stubFetch(() => new Response(null, { status: 302, headers: { location: "https://elsewhere.example/c.json" } }));
+      const page = await authorize();
+      expect(page.status).toBe(400);
+      expect(await page.text()).toContain("registered with WorkDesk");
+    });
   });
 
   it("Cancel on the consent page sends the assistant away without a code", async () => {
