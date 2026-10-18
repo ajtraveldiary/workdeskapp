@@ -21,6 +21,7 @@ Cron every 10 min (src/server/worker.ts): Gmail sync, then phone notifications
 | `CLAUDE.md` | Rules for working on the code: Gmail safety, touch-first design, and every feature decision the user made. |
 | `AGENTS.md` | Short pointer for other AI coding agents: the rules are in CLAUDE.md. |
 | `docs/FILES.md` | This file: every file and its job. |
+| `docs/MCP_PLAN.md` | Plan for a WorkDesk MCP server (not built yet): assistants (ChatGPT, Gemini), the user's data decisions, tools by phase, sign-in, the separate assistant log, safety limits, testing. |
 | `package.json` / `package-lock.json` | Libraries and the npm commands (`dev`, `test`, `typecheck`, `db:generate`, `db:migrate`, `deploy`); `allowScripts` approves install scripts per exact version (esbuild, workerd). |
 | `tsconfig.json` | TypeScript settings for the whole project. |
 | `vite.config.ts` | Builds the app: the version number from git (`appVersion`), `dist/version.json` for auto-update, and the service worker (`dist/sw.js`). Runs the dev server on :5173, passing `/api` to :8787. |
