@@ -4,9 +4,10 @@
 import { Hono } from "hono";
 import { and, desc, eq, lt, min, max } from "drizzle-orm";
 import type { AppEnv } from "../app";
-import { assistantLog, events, mcpClients, mcpTokens } from "../db/schema";
+import { assistantLog, events, mcpClients, mcpTokens, users } from "../db/schema";
+import { assistantSettingsInput } from "../../shared/schemas";
 import { MCP_PATH, publicBase } from "../mcp/oauth";
-import { TOOLS } from "../mcp/tools";
+import { ALL_TOOLS } from "../mcp/server";
 import type { AssistantInfo } from "../../shared/types";
 
 const PAGE = 50;
@@ -16,7 +17,9 @@ export const assistantRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const before = c.req.query("before");
-    const [connections, log] = await Promise.all([
+    const onlyChanges = c.req.query("changes") === "1";
+    const [[settings], connections, log] = await Promise.all([
+      db.select({ allowChanges: users.assistantChanges, perHour: users.assistantPerHour }).from(users).where(eq(users.id, userId)),
       db
         .select({ clientId: mcpTokens.clientId, name: mcpClients.name, connectedAt: min(mcpTokens.createdAt), lastUsedAt: max(mcpTokens.lastUsedAt) })
         .from(mcpTokens)
@@ -27,16 +30,33 @@ export const assistantRoutes = new Hono<AppEnv>()
       db
         .select()
         .from(assistantLog)
-        .where(and(eq(assistantLog.userId, userId), before ? lt(assistantLog.createdAt, new Date(before)) : undefined))
+        .where(and(eq(assistantLog.userId, userId), before ? lt(assistantLog.createdAt, new Date(before)) : undefined, onlyChanges ? eq(assistantLog.change, true) : undefined))
         .orderBy(desc(assistantLog.createdAt))
         .limit(PAGE),
     ]);
     return c.json({
       url: `${publicBase(c)}${MCP_PATH}`,
+      allowChanges: settings?.allowChanges ?? false,
+      perHour: settings?.perHour ?? 30,
       connections: connections.map((x) => ({ clientId: x.clientId, name: x.name, connectedAt: x.connectedAt?.toISOString() ?? null, lastUsedAt: x.lastUsedAt?.toISOString() ?? null })),
-      log: log.map((l) => ({ id: l.id, clientName: l.clientName, tool: l.tool, title: TOOLS.find((t) => t.name === l.tool)?.title ?? l.tool, args: l.args, ok: l.ok, message: l.message, createdAt: l.createdAt.toISOString() })),
+      log: log.map((l) => ({ id: l.id, clientName: l.clientName, tool: l.tool, title: ALL_TOOLS.find((t) => t.name === l.tool)?.title ?? l.tool, args: l.args, ok: l.ok, message: l.message, change: l.change, touched: l.touched, createdAt: l.createdAt.toISOString() })),
       more: log.length === PAGE,
     } satisfies AssistantInfo);
+  })
+
+  // Allow changes and the hourly limit (Phase 3, user request 2026-10-18); each change of them goes in History.
+  .put("/settings", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const input = assistantSettingsInput.parse(await c.req.json());
+    const [before] = await db.select({ allowChanges: users.assistantChanges, perHour: users.assistantPerHour }).from(users).where(eq(users.id, userId));
+    await db.update(users).set({ assistantChanges: input.allowChanges, assistantPerHour: input.perHour }).where(eq(users.id, userId));
+    const notes = [
+      before?.allowChanges !== input.allowChanges && (input.allowChanges ? "Assistants may now make changes" : "Assistants can no longer make changes"),
+      before?.perHour !== input.perHour && `Assistant changes limited to ${input.perHour} an hour`,
+    ].filter((x): x is string => !!x);
+    if (notes.length) await db.insert(events).values({ userId, entityType: "sync", action: "settings.assistant_changes", summary: notes.join("; ") });
+    return c.json({ ok: true });
   })
 
   // Disconnect: its tokens stop working at once; it must ask the user again to come back.

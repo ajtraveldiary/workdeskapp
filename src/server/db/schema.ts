@@ -41,6 +41,10 @@ export const users = pgTable("users", {
   title: text("title"),
   // Which employee the user is (Settings > Employees, user request 2026-10-12).
   employeeId: uuid("employee_id").references((): AnyPgColumn => employees.id, { onDelete: "set null" }),
+  // Assistants (MCP Phase 3, user request 2026-10-18): may connected assistants change things, and at most how many
+  // changes an hour. Off until the user switches it on in Settings › Assistant.
+  assistantChanges: boolean("assistant_changes").notNull().default(false),
+  assistantPerHour: integer("assistant_per_hour").notNull().default(30),
   picture: text("picture"),
   createdAt: createdAt(),
 });
@@ -599,6 +603,9 @@ export const assistantLog = pgTable(
     args: jsonb("args").$type<Record<string, unknown>>().notNull().default({}),
     ok: boolean("ok").notNull(),
     message: text("message").notNull().default(""),
+    // A change (Phase 3) rather than a read, and what it changed (kind, id, title).
+    change: boolean("change").notNull().default(false),
+    touched: jsonb("touched").$type<{ kind: string; id: string; title: string }[]>().notNull().default([]),
     createdAt: createdAt(),
   },
   (t) => [index("assistant_log_user").on(t.userId, t.createdAt)],

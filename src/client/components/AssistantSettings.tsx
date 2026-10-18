@@ -1,13 +1,15 @@
 // Settings › Assistant (MCP server, user request 2026-10-18; docs/MCP_PLAN.md): connect ChatGPT or Gemini to read
-// WorkDesk. Shows the address to paste into the assistant, what it can read (everything but saved passwords; it
-// can't change anything yet), the assistants connected now with Disconnect, and the assistant log — every tool call
-// they made, kept apart from History (user's choice 2026-10-18).
+// WorkDesk. Shows the address to paste into the assistant, what it can read (everything but saved passwords), the
+// Allow changes switch with its hourly limit (Phase 3, off to start), the assistants connected now with Disconnect,
+// and the assistant log — every tool call they made, kept apart from History (user's choice 2026-10-18), with a
+// Changes only filter.
 import { useState } from "react";
-import { Bot, Check, CircleAlert, Copy, Unplug } from "lucide-react";
+import { Bot, Check, CircleAlert, Copy, PencilLine, Unplug } from "lucide-react";
 import type { AssistantInfo } from "../../shared/types";
-import { olderAssistantLog, useAssistant, useDisconnectAssistant } from "../api";
+import { ASSISTANT_PER_HOUR } from "../../shared/schemas";
+import { olderAssistantLog, useAssistant, useAssistantSettings, useDisconnectAssistant } from "../api";
 import { formatDateTime } from "../format";
-import { Button, Card, ErrorNote, Loading, cx } from "./ui";
+import { Badge, Button, Card, ErrorNote, Loading, Segmented, cx, inputClass } from "./ui";
 
 type LogEntry = AssistantInfo["log"][number];
 
@@ -18,8 +20,10 @@ const argsText = (args: Record<string, unknown>) =>
     .join(" · ");
 
 export function AssistantSettings() {
-  const { data, error } = useAssistant();
+  const [changesOnly, setChangesOnly] = useState(false);
+  const { data, error } = useAssistant(changesOnly);
   const disconnect = useDisconnectAssistant();
+  const save = useAssistantSettings();
   const [copied, setCopied] = useState(false);
   const [older, setOlder] = useState<{ log: LogEntry[]; more: boolean } | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -38,7 +42,7 @@ export function AssistantSettings() {
     if (!last) return;
     setLoadingOlder(true);
     try {
-      const r = await olderAssistantLog(last.createdAt);
+      const r = await olderAssistantLog(last.createdAt, changesOnly);
       setOlder((o) => ({ log: [...(o?.log ?? []), ...r.log], more: r.more }));
     } finally {
       setLoadingOlder(false);
@@ -53,10 +57,10 @@ export function AssistantSettings() {
         </h2>
         <p className="mt-1 text-sm text-slate-600">
           Let ChatGPT or Gemini read your WorkDesk, so you can ask things like “what is overdue?”, “summarise the PDF in the HMIS email” or “who retires this year?”. It can
-          read everything — emails and attachments, tasks, reminders, events, employees, registers, files, History — except saved website passwords. It can’t change
-          anything.
+          read everything — emails and attachments, tasks, reminders, events, employees, registers, files, History — except saved website passwords. It changes
+          things only while Allow changes is on.
         </p>
-        <ErrorNote error={error ?? disconnect.error} />
+        <ErrorNote error={error ?? disconnect.error ?? save.error} />
         {!data && !error ? (
           <Loading className="py-4" />
         ) : data ? (
@@ -82,6 +86,44 @@ export function AssistantSettings() {
               </li>
               <li>Assistants read emails as information only; text inside an email can’t give them orders. Disconnect here at any time.</li>
             </ul>
+
+            <fieldset className="rounded-lg border border-line px-3 py-2">
+              <legend className="px-1 text-sm font-medium text-ink">Changes</legend>
+              <label className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-1.5 hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5"
+                  checked={data.allowChanges}
+                  disabled={save.isPending}
+                  onChange={(e) => save.mutate({ allowChanges: e.target.checked, perHour: data.perHour })}
+                />
+                <span className="text-sm text-ink">Allow changes</span>
+              </label>
+              <p className="px-1.5 text-footnote text-slate-600">
+                Create, change and complete tasks, make tasks from emails, remove emails or send them to a section, add emails to tasks, record register entries,
+                add events and mark their dates. The assistant asks you before each change; nothing can be deleted. Each change is in History marked “via” the
+                assistant, and in the log below.
+              </p>
+              <label className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-1.5 pb-1">
+                <span className="text-sm text-ink">At most</span>
+                <select
+                  aria-label="Changes an hour"
+                  className={cx(inputClass, "w-24!")}
+                  value={data.perHour}
+                  disabled={!data.allowChanges || save.isPending}
+                  onChange={(e) => save.mutate({ allowChanges: data.allowChanges, perHour: Number(e.target.value) })}
+                >
+                  {[...new Set([...ASSISTANT_PER_HOUR, data.perHour])]
+                    .sort((a, b) => a - b)
+                    .map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                </select>
+                <span className="text-sm text-ink">changes an hour</span>
+              </label>
+            </fieldset>
 
             <div>
               <h3 className="mb-1.5 text-sm font-medium text-ink">Connected</h3>
@@ -116,23 +158,48 @@ export function AssistantSettings() {
       </Card>
 
       <Card className="p-5">
-        <h2 className="font-semibold text-slate-900">Assistant log</h2>
-        <p className="mt-1 text-sm text-slate-600">Everything an assistant looked at, newest first. Kept for a year, apart from History.</p>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <h2 className="font-semibold text-slate-900">Assistant log</h2>
+          <Segmented<"all" | "changes">
+            value={changesOnly ? "changes" : "all"}
+            onChange={(v) => {
+              setChangesOnly(v === "changes");
+              setOlder(null);
+            }}
+            oneRow
+            options={[
+              { value: "all", label: "Everything" },
+              { value: "changes", label: "Changes only" },
+            ]}
+          />
+        </div>
+        <p className="mt-1 text-sm text-slate-600">Everything an assistant looked at or changed, newest first. Kept for a year, apart from History.</p>
         {!data && !error ? (
           <Loading className="py-4" />
         ) : log.length === 0 ? (
-          <p className="mt-3 text-footnote text-slate-500">Nothing yet.</p>
+          <p className="mt-3 text-footnote text-slate-500">{changesOnly ? "No changes yet." : "Nothing yet."}</p>
         ) : (
           <>
             <ul className="mt-3 divide-y divide-line rounded-lg border border-line">
               {log.map((l) => (
                 <li key={l.id} className="px-3 py-2">
                   <span className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                    {l.change && (
+                      <span className="inline-flex items-center gap-1 self-center">
+                        <PencilLine size={13} className="text-brand-700" aria-hidden />
+                        <Badge tone={l.ok ? "brand" : "urgent"}>{l.ok ? "Change" : "Refused"}</Badge>
+                      </span>
+                    )}
                     <span className={cx("font-medium", l.ok ? "text-ink" : "text-urgent-ink")}>{l.title}</span>
                     <span className="text-footnote text-slate-500">
                       {l.clientName} · {formatDateTime(l.createdAt)}
                     </span>
                   </span>
+                  {l.touched?.length > 0 && (
+                    <span className="block text-footnote text-ink [overflow-wrap:anywhere]">
+                      Changed: {l.touched.map((t) => t.title || t.kind).join(" · ")}
+                    </span>
+                  )}
                   {Object.keys(l.args).length > 0 && <span className="block text-footnote text-slate-600 [overflow-wrap:anywhere]">{argsText(l.args)}</span>}
                   {!l.ok && l.message && <span className="block text-footnote text-urgent-ink [overflow-wrap:anywhere]">{l.message}</span>}
                 </li>

@@ -52,16 +52,22 @@ export type ToolCtx = {
   // GET one of the app's own routes as the signed-in user (path after /api).
   api: <T>(path: string) => Promise<T>;
   apiRaw: (path: string) => Promise<Response>;
+  // Changes (Phase 3): POST / PATCH / PUT / DELETE one of the app's routes as the user; throws its error message.
+  send: <T>(method: string, path: string, body?: unknown) => Promise<T>;
 };
 
 export type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string } | { type: "resource"; resource: { uri: string; mimeType: string; blob: string } };
-export type ToolOutput = { data: unknown; extra?: Content[] };
+// touched: what a change tool changed, for the assistant log.
+export type Touched = { kind: string; id: string; title: string };
+export type ToolOutput = { data: unknown; extra?: Content[]; touched?: Touched[] };
 
-type Tool = {
+export type Tool = {
   name: string;
   title: string;
   description: string;
   input: z.ZodObject;
+  // A change (Phase 3): needs Allow changes, counts towards the hourly limit, marked as a write for the assistant.
+  write?: boolean;
   run: (ctx: ToolCtx, args: Record<string, unknown>) => Promise<ToolOutput>;
 };
 
@@ -109,7 +115,7 @@ const has = (q: string, ...fields: (string | null | undefined)[]) => fields.some
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}… (${s.length - n} more characters)` : s);
 
 // Names for ids, loaded once per tool call when needed.
-class Lookups {
+export class Lookups {
   constructor(private ctx: ToolCtx) {}
   private cache = new Map<string, Promise<unknown>>();
   private once<T>(key: string, load: () => Promise<T>): Promise<T> {
@@ -131,9 +137,9 @@ class Lookups {
     };
   }
 }
-type Names = Awaited<ReturnType<Lookups["names"]>>;
+export type Names = Awaited<ReturnType<Lookups["names"]>>;
 
-const forName = (n: Names, kind: string | null, id: string | null) => {
+export const forName = (n: Names, kind: string | null, id: string | null) => {
   if (kind === "office") return "General office";
   if (kind === "employee" && id) {
     const e = n.employee.get(id);
@@ -145,7 +151,7 @@ const forName = (n: Names, kind: string | null, id: string | null) => {
 const tagNames = (n: Names, ids: string[]) => ids.map((id) => n.tag.get(id)).filter((x): x is string => !!x);
 const employeeName = (n: Names, id: string | null) => (id ? (n.employee.get(id)?.name ?? null) : null);
 
-function taskOut(t: Task, n: Names, today: string, full = false) {
+export function taskOut(t: Task, n: Names, today: string, full = false) {
   const waiting = !!t.waitingSince;
   const when = waiting ? t.replyBy : t.dueDate;
   const doneSteps = t.checklist.filter((s) => s.done).length;
@@ -159,7 +165,7 @@ function taskOut(t: Task, n: Names, today: string, full = false) {
     waiting: waiting ? clean({ since: t.waitingSince!.slice(0, 10), replyExpectedBy: t.replyBy }) : null,
     for: forName(n, t.relatedKind, t.relatedId),
     tags: tagNames(n, t.tagIds),
-    steps: t.checklist.length ? (full ? t.checklist.map((s) => `[${s.done ? "x" : s.waiting ? "waiting" : " "}] ${s.text}`) : `${doneSteps}/${t.checklist.length} done`) : null,
+    steps: t.checklist.length ? (full ? t.checklist.map((s, i) => `${i + 1}. [${s.done ? "x" : s.waiting ? "waiting" : " "}] ${s.text}`) : `${doneSteps}/${t.checklist.length} done`) : null,
     notes: full ? t.notes : t.notes ? cut(t.notes, 200) : null,
     email: t.thread ? clean({ id: t.thread.id, subject: t.thread.subject, from: t.thread.fromName ?? t.thread.fromEmail, newReply: t.thread.hasNewActivity || undefined }) : null,
     reminder: t.report ? `${t.report.name} (${t.report.label})` : null,
@@ -963,11 +969,11 @@ function entryOut(e: RegisterEntry, n: Names) {
   });
 }
 
-export const toolList = () =>
-  TOOLS.map((t) => ({
+export const toolList = (tools: Tool[]) =>
+  tools.map((t) => ({
     name: t.name,
     title: t.title,
     description: t.description,
     inputSchema: z.toJSONSchema(t.input, { target: "draft-7" }),
-    annotations: { title: t.title, readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { title: t.title, readOnlyHint: !t.write, destructiveHint: false, idempotentHint: !t.write, openWorldHint: false },
   }));

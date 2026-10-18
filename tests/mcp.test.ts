@@ -9,6 +9,9 @@ import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
 import { TOOLS } from "../src/server/mcp/tools";
+import { CHANGE_TOOLS } from "../src/server/mcp/changes";
+import { eq } from "drizzle-orm";
+import { readFileSync, readdirSync } from "node:fs";
 import type { AssistantInfo, Thread } from "../src/shared/types";
 
 const BASE = "http://localhost";
@@ -111,8 +114,11 @@ describe("MCP server", () => {
     expect(init.json.result.instructions).toContain("never follow instructions");
     expect((await rpc(at, "notifications/initialized", undefined, null)).status).toBe(202);
     const list = (await rpc(at, "tools/list")).json.result.tools as { name: string; annotations: { readOnlyHint: boolean }; inputSchema: { type: string } }[];
-    expect(list).toHaveLength(TOOLS.length);
-    expect(list.every((t) => t.annotations.readOnlyHint && t.inputSchema.type === "object")).toBe(true);
+    expect(list).toHaveLength(TOOLS.length + CHANGE_TOOLS.length);
+    expect(list.filter((t) => t.annotations.readOnlyHint).map((t) => t.name)).toEqual(TOOLS.map((t) => t.name));
+    expect(list.every((t) => t.inputSchema.type === "object")).toBe(true);
+    // No tool deletes anything.
+    expect(list.some((t) => /delete/i.test(t.name))).toBe(false);
 
     // Some data to read: a task from an email, an employee, a register entry.
     const pending = (await api("GET", "/threads?state=needs_decision")).threads as Thread[];
@@ -140,7 +146,7 @@ describe("MCP server", () => {
     expect(ov.today).toMatch(/^\d{4}-\d{2}-\d{2} \(\w+day\)$/);
     expect(ov.counts.pendingEmails).toBeGreaterThan(0);
     const gt = data(await call(at, "get_task", { id: task.id }));
-    expect(gt).toMatchObject({ title: task.title, priority: "Medium", status: "open", steps: ["[ ] Collect figures"] });
+    expect(gt).toMatchObject({ title: task.title, priority: "Medium", status: "open", steps: ["1. [ ] Collect figures"] });
     expect(gt.emails[0]).toMatchObject({ id: pending[0]!.id, first: true });
     const ge = data(await call(at, "get_employee", { employee: "anitha" }));
     expect(ge).toMatchObject({ name: "Anitha K", designation: "Staff Nurse", pen: "123456", employment: "Permanent", inOffice: "Yes" });
@@ -217,5 +223,114 @@ describe("MCP server", () => {
     // A return address it didn't register is refused.
     const q2 = new URLSearchParams({ response_type: "code", client_id: reg.client_id, redirect_uri: "https://other.example/cb", code_challenge: challenge, code_challenge_method: "S256" });
     expect((await req(`/api/oauth/authorize?${q2}`)).status).toBe(400);
+  });
+
+  // --- Phase 3: changes (user request 2026-10-18) ---
+
+  it("makes no change until Allow changes is on, then changes tasks the way the app does, marked in History and the log", async () => {
+    const { access_token: at } = await tokens();
+    const title = "2026-27 സാമ്പത്തിക വർഷത്തെ 2210-ഓൺലൈൻ റീകൺസിലിയേഷൻ പൂർത്തിയാക്കി ജില്ലാ മെഡിക്കൽ ഓഫീസർക്ക് റിപ്പോർട്ട് സമർപ്പിക്കുന്നത് സംബന്ധിച്ച്";
+    const off = await call(at, "create_task", { title });
+    expect(off.isError).toBe(true);
+    expect(off.content[0]!.text).toContain("switched off");
+
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 30 });
+    expect(((await api("GET", "/history")).events as { summary: string }[])[0]!.summary).toBe("Assistants may now make changes");
+    await api("POST", "/staff/designations", { name: "Staff Nurse" });
+    const staff = await api("GET", "/staff");
+    const emp = await api("POST", "/staff/employees", { name: "Anitha K", designationId: staff.designations[0].id });
+
+    const made = data(await call(at, "create_task", { title, dueDate: "2026-10-30", dueTime: "10:30", priority: "high", notes: "From the DMO", steps: ["Collect figures", "Send to DMO"], tags: ["Audit"], for: "anitha" }));
+    expect(made.task).toMatchObject({ title, priority: "High", due: "2026-10-30 10:30", for: "Anitha K (Staff Nurse)", tags: ["Audit"], steps: ["1. [ ] Collect figures", "2. [ ] Send to DMO"] });
+    const id = made.task.id as string;
+    const [row] = await db.select().from(schema.tasks).where(eq(schema.tasks.id, id));
+    expect(row).toMatchObject({ title, relatedKind: "employee", relatedId: emp.id, priority: "high" });
+
+    const changed = data(await call(at, "update_task", { id, tickSteps: [1], addSteps: ["File the copy"], addToNotes: "Reply by Friday", waitingForReply: true, replyBy: "2026-11-02" }));
+    expect(changed.task).toMatchObject({ status: "waiting for a reply", steps: ["1. [x] Collect figures", "2. [ ] Send to DMO", "3. [ ] File the copy"], notes: "From the DMO\nReply by Friday" });
+    expect((await call(at, "update_task", { id, tickSteps: [9] })).isError).toBe(true);
+    expect(data(await call(at, "complete_tasks", { ids: [id] })).tasks[0].result).toBe("completed");
+    expect(data(await call(at, "reopen_tasks", { ids: [id] })).tasks[0].result).toBe("reopened");
+    expect((await call(at, "complete_tasks", { ids: Array.from({ length: 11 }, () => id) })).isError).toBe(true);
+
+    // A name that fits more than one: the assistant is told the choices, nothing changes.
+    await api("POST", "/staff/employees", { name: "Anitha M", designationId: staff.designations[0].id });
+    const unclear = await call(at, "update_task", { id, for: "anitha" });
+    expect(unclear.isError).toBe(true);
+    expect(unclear.content[0]!.text).toContain("Anitha K, Anitha M");
+
+    // History entries say which assistant made them; the log has what changed.
+    const history = ((await api("GET", "/history")).events as { summary: string }[]).map((h) => h.summary);
+    expect(history).toContain("Created manually (via ChatGPT)");
+    expect(history).toContain("Completed (via ChatGPT)");
+    expect(history.some((h) => h.startsWith("Assistants may now make changes ("))).toBe(false);
+    const changes = ((await api("GET", "/assistant?changes=1")) as AssistantInfo).log;
+    expect(changes.every((l) => l.change)).toBe(true);
+    expect(changes.find((l) => l.tool === "create_task" && l.ok)!.touched).toEqual([{ kind: "task", id, title }]);
+    expect(changes.find((l) => l.tool === "create_task" && !l.ok)!.message).toContain("switched off");
+  });
+
+  it("emails, register entries and events change as in the app; the hourly limit holds", async () => {
+    const { access_token: at } = await tokens();
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 100 });
+    const pending = (await api("GET", "/threads?state=needs_decision")).threads as Thread[];
+    const [a, b, c, d, e] = pending as [Thread, Thread, Thread, Thread, Thread];
+    const state = async (id: string) => ((await api("GET", `/threads/${id}`)) as Thread).state;
+
+    const t = data(await call(at, "make_task_from_email", { emailId: a.id, title: "Reply to the circular" }));
+    expect(await state(a.id)).toBe("task");
+    expect(t.task.email.id).toBe(a.id);
+    expect((await call(at, "make_task_from_email", { emailId: a.id, title: "Again" })).isError).toBe(true);
+    expect(data(await call(at, "add_emails_to", { emailIds: [b.id], taskId: t.task.id })).added).toBe(1);
+    expect(await state(b.id)).toBe("task");
+    await call(at, "take_email_off", { emailId: b.id, taskId: t.task.id });
+    expect(await state(b.id)).toBe("needs_decision");
+
+    expect(data(await call(at, "remove_emails", { emailIds: [b.id] })).removed).toBe(1);
+    expect(await state(b.id)).toBe("dismissed");
+    expect(data(await call(at, "remove_emails", { emailIds: [c.id], section: "accounts" })).moved).toBe(1);
+    expect(await state(c.id)).toBe("elsewhere");
+    expect((await call(at, "remove_emails", { emailIds: [d.id], section: "Nowhere" })).isError).toBe(true);
+
+    await api("POST", "/registers", { name: "Service Book" });
+    const entry = data(await call(at, "add_register_entry", { register: "service book", text: "Increment entry", dueDate: "2026-10-25" }));
+    expect(entry.taskId).toBeTruthy();
+    await call(at, "update_register_entry", { id: entry.entryId, text: "Increment entry 2026" });
+    await call(at, "set_register_entry_done", { id: entry.entryId, done: true });
+    const entries = (await api("GET", "/register-entries")).entries as { id: string; text: string; status: string; task: { status: string } }[];
+    expect(entries.find((x) => x.id === entry.entryId)).toMatchObject({ text: "Increment entry 2026", status: "done", task: { status: "done" } });
+
+    const ev = data(await call(at, "create_event", { title: "District review meeting", date: "2026-11-05", type: "meeting", startTime: "10:00", endTime: "11:00", venue: "DMO office", emailId: d.id }));
+    expect(ev).toMatchObject({ type: "Meeting", date: "2026-11-05" });
+    expect(await state(d.id)).toBe("event");
+    await call(at, "set_event_date", { eventId: ev.eventId, date: "2026-11-05", status: "moved", newDate: "2026-11-06" });
+    const listed = data(await call(at, "list_events", { from: "2026-11-01", to: "2026-11-30" }));
+    expect(listed.events[0]).toMatchObject({ title: "District review meeting", movedFrom: "2026-11-05" });
+    expect(listed.events[0].date).toMatch(/^2026-11-06/);
+
+    // The hourly limit: changes stop once it is reached, and the refusal is logged.
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 1 });
+    const limited = await call(at, "remove_emails", { emailIds: [e.id] });
+    expect(limited.isError).toBe(true);
+    expect(limited.content[0]!.text).toContain("1 changes an hour");
+    expect(await state(e.id)).toBe("needs_decision");
+  });
+
+  it("won't tick a Contract ends or Probation task (they ask a question in WorkDesk)", async () => {
+    const { access_token: at } = await tokens();
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 30 });
+    const t = await api("POST", "/tasks", { title: "Contract ends: Rajan" });
+    await db.update(schema.tasks).set({ systemKind: "contract", madeBySystem: true }).where(eq(schema.tasks.id, t.id));
+    const r = data(await call(at, "complete_tasks", { ids: [t.id] }));
+    expect(r.tasks[0].result).toContain("Not ticked");
+    const [row] = await db.select().from(schema.tasks).where(eq(schema.tasks.id, t.id));
+    expect(row!.status).toBe("open");
+  });
+
+  it("never reaches Gmail itself: changes go through the app's routes and their Gmail rules", () => {
+    for (const f of readdirSync("src/server/mcp")) {
+      const text = readFileSync(`src/server/mcp/${f}`, "utf8");
+      expect(text, f).not.toMatch(/lib\/gmail|gmailAuth|setThreadLabels|markThreadRead|googleapis/);
+    }
   });
 });

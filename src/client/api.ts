@@ -170,8 +170,18 @@ export function useCalendarLinkActions() {
 
 // Settings › Assistant (MCP server, user request 2026-10-18): the address to connect, connected assistants and
 // the assistant log (older entries with ?before=).
-export const useAssistant = () => useQuery({ queryKey: ["assistant"], queryFn: () => api<AssistantInfo>("/assistant") });
-export const olderAssistantLog = (before: string) => api<AssistantInfo>(`/assistant?before=${encodeURIComponent(before)}`);
+// changesOnly: the log's "Changes only" filter (Phase 3).
+export const useAssistant = (changesOnly = false) =>
+  useQuery({ queryKey: ["assistant", { changesOnly }], queryFn: () => api<AssistantInfo>(`/assistant${changesOnly ? "?changes=1" : ""}`), placeholderData: (prev) => prev });
+export const olderAssistantLog = (before: string, changesOnly = false) => api<AssistantInfo>(`/assistant?before=${encodeURIComponent(before)}${changesOnly ? "&changes=1" : ""}`);
+// Allow changes and the hourly limit (Phase 3, user request 2026-10-18).
+export function useAssistantSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (s: { allowChanges: boolean; perHour: number }) => api("/assistant/settings", { method: "PUT", body: s }),
+    onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ["assistant"] }), qc.invalidateQueries({ queryKey: ["history"] })]),
+  });
+}
 export function useDisconnectAssistant() {
   const qc = useQueryClient();
   return useMutation({

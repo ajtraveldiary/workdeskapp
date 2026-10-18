@@ -165,11 +165,15 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Ask an AI assistant about your work:** "what is overdue?", "summarise the PDF in the HMIS email", "who retires
   this year?". WorkDesk is an MCP server: add its address (Settings › Assistant) in ChatGPT or Gemini and approve the
   connection on WorkDesk's own page.
-- **Reads everything, changes nothing:** emails and attachments (PDF, Excel, Word, PowerPoint, pictures), tasks,
-  reminders, events, employees, registers, the file register, History and settings, with names and plain words
-  rather than codes. Saved website passwords are never shared.
+- **Reads everything:** emails and attachments (PDF, Excel, Word, PowerPoint, pictures), tasks, reminders, events,
+  employees, registers, the file register, History and settings, with names and plain words rather than codes. Saved
+  website passwords are never shared.
+- **Everyday changes, when you allow them:** switch on Allow changes and the assistant can create, change and
+  complete tasks, make tasks from emails, remove emails or send them to a section, add emails to a task, record and
+  tick register entries, and add events or mark their dates — asking you before each one. It can never delete
+  anything, at most 10 items at a time and a limit of changes an hour that you set.
 - **You stay in control:** every request an assistant makes is listed in the assistant log (kept apart from History),
-  and Disconnect stops it at once.
+  each change is also in History marked "via ChatGPT", and Disconnect stops it at once.
 
 ### Phone app
 - **Install it on your phone's home screen.** Swipe a row to act on it (with Undo), pull down to refresh, and

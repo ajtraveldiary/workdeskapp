@@ -203,7 +203,7 @@ export function oauthRoutes(demoUser: (c: Context<AppEnv>) => Promise<string>) {
             `<h1>Connect ${esc(client.name)} to WorkDesk?</h1>
 <p><b>${esc(client.name)}</b> (${esc(new URL(q.redirect_uri).host)}) will be able to <b>read everything in your WorkDesk</b> when you ask it to:</p>
 <ul><li>emails and their attachments, tasks, reminders, events, calendar</li><li>employees with all their details, joining and relieving</li><li>registers, the file register, History and settings</li><li>website logins without their passwords — passwords are never shared</li></ul>
-<p>It can't change anything yet. Every request it makes is listed in Settings › Assistant, where you can disconnect it.</p>
+<p>It can change things (tasks, emails, register entries, events) only if you switch on Allow changes in Settings › Assistant, and it asks you first; it can never delete anything. Every request it makes is listed there, where you can disconnect it.</p>
 <form method="post" class="row">${hidden}<input type="hidden" name="csrf" value="${esc(csrf)}">
 <button class="primary" name="decision" value="allow" type="submit">Allow</button><button name="decision" value="deny" type="submit">Cancel</button></form>`,
           ),
@@ -229,7 +229,8 @@ export function oauthRoutes(demoUser: (c: Context<AppEnv>) => Promise<string>) {
           .get("db")
           .insert(mcpCodes)
           .values({ codeHash: await hashToken(code), clientId: client.id, userId, redirectUri: f.redirect_uri, codeChallenge: f.code_challenge, scope: SCOPE, expiresAt: new Date(Date.now() + CODE_MINUTES * 60_000) });
-        await c.get("db").insert(events).values({ userId, entityType: "sync", action: "settings.assistant_connected", summary: `Connected the assistant ${client.name} (read only)` });
+        const [u] = await c.get("db").select({ changes: users.assistantChanges }).from(users).where(eq(users.id, userId));
+        await c.get("db").insert(events).values({ userId, entityType: "sync", action: "settings.assistant_connected", summary: `Connected the assistant ${client.name}${u?.changes ? " (changes allowed)" : " (read only)"}` });
         back.searchParams.set("code", code);
         back.searchParams.set("iss", publicBase(c));
         return c.redirect(back.toString());

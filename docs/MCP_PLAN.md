@@ -1,7 +1,8 @@
 # WorkDesk MCP server — plan
 
-Status: **Phase 1 and Phase 2 built (2026-10-18)**: sign-in, the MCP endpoint, 20 read-only tools including
-attachments, and Settings › Assistant with the assistant log. Phases 3–5 are not built. Written 2026-10-18.
+Status: **Phases 1, 2 and 3 built (2026-10-18)**: sign-in, the MCP endpoint, 20 read-only tools including
+attachments, 13 change tools behind Allow changes, and Settings › Assistant with the assistant log. Phases 4–5 are
+not built. Written 2026-10-18.
 
 The goal: you ask an AI assistant (ChatGPT, Gemini) about your work in plain language — "what's pending for Anila?",
 "read the circular's PDF and tell me what we must submit", "make a task from the HMIS email, due Friday" — and it
@@ -122,7 +123,15 @@ PDF on as the file.
 **Done when:** "Read the PDF in the DMO's circular and tell me what we must submit by when" works, including a scanned
 Malayalam page.
 
-### Phase 3 — Everyday changes (about 2 sessions; allowed, logged — section 6)
+### Phase 3 — Everyday changes (about 2 sessions; allowed, logged — section 6) — **built 2026-10-18**
+
+As built (`src/server/mcp/changes.ts`): `create_task`, `make_task_from_email`, `update_task`, `complete_tasks`,
+`reopen_tasks`, `add_emails_to`, `take_email_off`, `remove_emails`, `add_register_entry`, `update_register_entry`,
+`set_register_entry_done`, `create_event` (also from an email, so no separate `make_event_from_email`),
+`set_event_date`. Allow changes and the changes-an-hour limit are in Settings › Assistant; History entries are marked
+"(via ChatGPT)"; the assistant log keeps every change with what it touched. Contract ends and Probation declaration
+tasks are not ticked by the assistant (their choices come in Phase 4). The table below is the original plan.
+
 
 Needs **Allow changes** on. Each change asks for your approval in the assistant.
 

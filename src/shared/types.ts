@@ -350,7 +350,11 @@ export type LinkedEmail = { id: string; subject: string; fromName: string | null
 // assistants and the assistant log (every tool call, newest first; kept apart from History).
 export type AssistantInfo = {
   url: string;
+  // Phase 3 (user request 2026-10-18): changes switched on, and at most this many an hour.
+  allowChanges: boolean;
+  perHour: number;
   connections: { clientId: string; name: string; connectedAt: string | null; lastUsedAt: string | null }[];
-  log: { id: string; clientName: string; tool: string; title: string; args: Record<string, unknown>; ok: boolean; message: string; createdAt: string }[];
+  // change: a change rather than a read; touched: what it changed.
+  log: { id: string; clientName: string; tool: string; title: string; args: Record<string, unknown>; ok: boolean; message: string; change: boolean; touched: { kind: string; id: string; title: string }[]; createdAt: string }[];
   more: boolean;
 };
