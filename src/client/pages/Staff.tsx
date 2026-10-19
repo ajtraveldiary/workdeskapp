@@ -421,6 +421,48 @@ function useWide() {
   );
 }
 
+// The PEN in the table copies itself when clicked (user request 2026-10-19), with a tick for a moment; it sits
+// above the row's own click, so it doesn't open the employee.
+function CopyPen({ pen }: { pen: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    if (await copyText(pen)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={() => void copy()}
+      title={copied ? "Copied" : `Copy PEN ${pen}`}
+      aria-label={copied ? `PEN ${pen} copied` : `Copy PEN ${pen}`}
+      className="inline-flex items-center gap-1 rounded tabular-nums text-brand-700 hover:underline active:scale-95"
+    >
+      {copied && <Check size={13} className="shrink-0" />}
+      {pen}
+    </button>
+  );
+}
+
+// The clipboard, or (when the browser refuses it, e.g. older phones) the older copy command on a hidden text box.
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const box = document.createElement("textarea");
+    box.value = text;
+    box.setAttribute("readonly", "");
+    box.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none";
+    document.body.appendChild(box);
+    box.select();
+    const ok = document.execCommand("copy");
+    box.remove();
+    return ok;
+  }
+}
+
 // dd/mm/yyyy, the way office registers write dates (and narrow enough for the table).
 const shortDate = (day: string | null) => (day ? `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}` : "");
 
@@ -432,7 +474,8 @@ function EmployeeTable({ people, permanent, staff, onOpen }: { people: Employee[
   const date = (k: "dateOfBirth" | "joinedServiceOn" | "retiresOn"): Col["cell"] => (e) => shortDate(e[k]);
   const cols: Col[] = permanent
     ? [
-        { head: "PEN", cell: (e) => e.pen, className: "tabular-nums whitespace-nowrap" },
+        // Click the PEN to copy it (user request 2026-10-19), e.g. for SPARK.
+        { head: "PEN", cell: (e) => e.pen && <CopyPen pen={e.pen} />, className: "tabular-nums whitespace-nowrap" },
         { head: "Designation", cell: (e) => desig.get(e.designationId ?? "") },
         { head: "Basic pay", cell: (e) => e.basicPay != null && rupees(e.basicPay), className: "text-right tabular-nums whitespace-nowrap" },
         { head: "Phone", cell: (e) => e.phone, className: "tabular-nums whitespace-nowrap" },
