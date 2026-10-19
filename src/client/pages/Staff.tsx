@@ -2,7 +2,7 @@
 // employees, permanent or temporary, and designations. Tasks and reminders can be
 // about an employee, a designation or the general office (Related.tsx). Reached from the side rail on wider
 // screens and from the profile menu on phones. Only WorkDesk's database changes; History records each change.
-import { useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import { Fragment, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   CalendarClock,
@@ -388,15 +388,28 @@ function Employees({ staff, onOpen, onAdd, onDesignations }: { staff: StaffList;
 }
 
 function EmployeeRow({ employee: e, designation, type, onOpen }: { employee: Employee; designation?: string; type?: string; onOpen: () => void }) {
-  // Temporary ones show how they are engaged and their type (HMC, NHM…) instead of the PEN.
-  const line = [designation, ...(e.permanent ? [e.pen && `PEN ${e.pen}`] : [ENGAGEMENT_LABELS[e.engagement as Engagement], type]), e.phone].filter(Boolean).join(" · ");
+  // Temporary ones show how they are engaged and their type (HMC, NHM…) instead of the PEN. The PEN is its own
+  // button that copies it (user request 2026-10-19), so the details sit beside the name's button, not in it; a tap
+  // anywhere else on the row still opens the employee.
+  const parts: ReactNode[] = [designation, ...(e.permanent ? [e.pen && <span key="pen">PEN <CopyPen pen={e.pen} /></span>] : [ENGAGEMENT_LABELS[e.engagement as Engagement], type]), e.phone].filter(Boolean);
   return (
     <li className="row-click flex items-center gap-3 px-4 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5">
       <Avatar name={e.name} size={36} />
-      <button onClick={onOpen} className="row-link group/title min-w-0 flex-1 text-left">
-        <span className="line-clamp-2 text-subhead font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{e.name}</span>
-        {line && <span className="block truncate text-footnote text-slate-500">{line}</span>}
-      </button>
+      <div className="min-w-0 flex-1">
+        <button onClick={onOpen} className="row-link group/title block w-full text-left">
+          <span className="line-clamp-2 text-subhead font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{e.name}</span>
+        </button>
+        {parts.length > 0 && (
+          <span className="block truncate text-footnote text-slate-500">
+            {parts.map((p, i) => (
+              <Fragment key={i}>
+                {i > 0 && " · "}
+                {p}
+              </Fragment>
+            ))}
+          </span>
+        )}
+      </div>
       <YouTag id={e.id} />
       {!e.permanent && <TemporaryTag />}
       {e.leftOn && <Badge>Left {fullDate(e.leftOn)}</Badge>}
