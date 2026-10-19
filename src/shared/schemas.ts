@@ -323,3 +323,28 @@ export type SiteLoginInput = z.input<typeof siteLoginInput>;
 export const ASSISTANT_PER_HOUR = [10, 30, 60, 100] as const;
 // allowStaff (Phase 4): staff actions too; left out = off.
 export const assistantSettingsInput = z.object({ allowChanges: z.boolean(), perHour: z.number().int().min(1).max(100), allowStaff: z.boolean().default(false) });
+
+// Office details (user request 2026-10-19): what an official letter needs, so assistants leave [blanks] only for
+// what is really unknown. Every field is optional; lists are short.
+const line = (max: number) => z.string().trim().max(max).default("");
+export const officeProfileInput = z.object({
+  officeName: line(200),
+  address: line(600),
+  phone: line(60),
+  email: z.union([z.literal(""), z.email("Check the email address")]).default(""),
+  seat: line(120),
+  signature: line(600),
+  fileNumberPattern: line(120),
+  recipients: z
+    .array(z.object({ who: z.string().trim().min(1, "Say who the recipient is").max(200), address: line(600) }))
+    .max(30, "Up to 30 recipients")
+    .default([]),
+  codes: z
+    .array(z.object({ label: z.string().trim().min(1, "Give the code a name").max(60), value: z.string().trim().min(1, "Enter the code").max(120) }))
+    .max(30, "Up to 30 codes")
+    .default([]),
+  letterLanguage: z.enum(["English", "Malayalam"]).default("English"),
+});
+export type OfficeProfile = z.output<typeof officeProfileInput>;
+export type OfficeProfileInput = z.input<typeof officeProfileInput>;
+

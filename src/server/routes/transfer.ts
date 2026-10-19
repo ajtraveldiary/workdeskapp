@@ -26,8 +26,7 @@ import {
   employeeMoves,
   registers,
   registerEntries,
-  linkedEmails,
-} from "../db/schema";
+  linkedEmails, officeProfiles } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { ensureReportPeriods } from "../lib/reports";
@@ -828,6 +827,8 @@ const BACKUP: Record<BackupTable, TableInfo> = {
   events: { table: events as never },
   hiddenSnippets: { table: hiddenSnippets as never },
   mutedSenders: { table: mutedSenders as never },
+  // One per account: a restore keeps details already saved here (the row conflicts and is skipped).
+  officeProfiles: { table: officeProfiles as never },
 };
 type AnyTable = PgTable & { id: PgColumn; userId: PgColumn };
 

@@ -241,6 +241,7 @@ export const BACKUP_TABLES = [
   "events",
   "hiddenSnippets",
   "mutedSenders",
+  "officeProfiles",
 ] as const;
 export type BackupTable = (typeof BACKUP_TABLES)[number];
 export const BACKUP_TABLE_NAMES: Record<BackupTable, string> = {
@@ -261,5 +262,6 @@ export const BACKUP_TABLE_NAMES: Record<BackupTable, string> = {
   events: "History",
   hiddenSnippets: "Hidden text",
   mutedSenders: "Hidden senders",
+  officeProfiles: "Office details",
 };
 export type Backup = { app: "WorkDesk"; version: 1; exportedAt: string; tables: Partial<Record<BackupTable, Record<string, unknown>[]>> };

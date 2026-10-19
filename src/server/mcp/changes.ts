@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { tasks } from "../db/schema";
 import { selectTasks, toTask } from "../routes/tasks";
 import { REPEATS } from "../../shared/reminderSchedule";
-import type { ChecklistItem, EventType, Label, OfficeEvent, Register, RegisterEntry, Tag, Task, Thread } from "../../shared/types";
+import type { ChecklistItem, EventType, Label, OfficeEvent, OfficeFile, Register, RegisterEntry, Report, Tag, Task, Thread } from "../../shared/types";
 import { Lookups, clean, taskOut, type Names, type Tool, type ToolCtx, type Touched } from "./tools";
 
 const MAX_ITEMS = 10;
@@ -110,6 +110,49 @@ const safely =
   };
 
 const ASK = " Before calling, tell the user exactly what will change and wait for their yes.";
+
+
+// A reminder or file register entry by id or name (part of it is enough when only one fits).
+function pick<T extends { id: string }>(items: T[], text: string, name: (x: T) => string, what: string): T {
+  const q = lower(text);
+  const byId = items.find((x) => x.id === text);
+  if (byId) return byId;
+  const exact = items.filter((x) => lower(name(x)) === q);
+  const found = exact.length ? exact : items.filter((x) => lower(name(x)).includes(q));
+  if (found.length === 1) return found[0]!;
+  throw new Unclear(found.length ? `"${text}" could be: ${found.slice(0, 10).map(name).join("; ")}. Say which.` : `No ${what} called "${text}".`);
+}
+
+const reminderFields = {
+  date: day.optional().describe("The first date (YYYY-MM-DD)"),
+  time: time.nullable().optional(),
+  repeat: z.enum(REPEATS).optional().describe("never, daily, weekly, biweekly, monthly, quarterly, half_yearly or yearly"),
+  repeatUntil: day.nullable().optional().describe("No dates after this day"),
+  remindDaysBefore: z.number().int().min(0).max(90).optional().describe("Its task shows this many days before each date"),
+  priority: z.enum(["urgent", "high", "medium", "low"]).optional(),
+  notes: z.string().max(5_000).optional(),
+  links: z.array(z.object({ url: z.string().max(2000), name: z.string().max(120).optional() })).max(20).optional().describe("Links such as the Google Sheet to fill (replace the list)"),
+  tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+  for: z.string().max(200).optional().describe('An employee, a designation ("All Staff Nurse"), "General office", or "nobody"'),
+};
+
+async function reminderBody(ctx: ToolCtx, n: Names, a: Record<string, unknown>) {
+  const body: Record<string, unknown> = {};
+  if (a.name) body.name = a.name;
+  if (a.date) body.startDate = a.date;
+  if (a.time !== undefined) body.dueTime = a.time;
+  if (a.repeat) body.repeat = a.repeat;
+  if (a.repeatUntil !== undefined) body.endDate = a.repeatUntil;
+  if (a.remindDaysBefore !== undefined) body.leadDays = a.remindDaysBefore;
+  if (a.priority) body.priority = PRIORITY_IN[a.priority as keyof typeof PRIORITY_IN];
+  if (a.notes !== undefined) body.notes = a.notes;
+  if (a.links) body.links = (a.links as { url: string; name?: string }[]).map((l) => ({ url: /^https?:\/\//i.test(l.url.trim()) ? l.url.trim() : `https://${l.url.trim()}`, name: l.name ?? "" }));
+  if (a.tags) body.tagIds = await resolveTags(ctx, a.tags as string[]);
+  if (a.for !== undefined) Object.assign(body, resolveFor(n, String(a.for)));
+  return body;
+}
+const reminderTouched = (r: { id: string; name: string }): Touched => ({ kind: "reminder", id: r.id, title: r.name });
+const fileTouched = (f: { id: string; subject: string }): Touched => ({ kind: "file", id: f.id, title: f.subject });
 
 export const CHANGE_TOOLS: Tool[] = [
   {
@@ -415,6 +458,107 @@ export const CHANGE_TOOLS: Tool[] = [
       });
       const ev = (await ctx.api<{ events: OfficeEvent[] }>("/office-events")).events.find((e) => e.id === a.eventId);
       return { data: { done: `Event date ${a.status === "original" ? "back on its own date" : a.status}` }, touched: [{ kind: "event", id: String(a.eventId), title: ev?.title ?? "" }] };
+    }),
+  },
+
+  {
+    name: "create_reminder",
+    title: "Create a reminder",
+    write: true,
+    description: "Add a reminder, as the reminder form: a name, the first date, an optional time, how it repeats and until when, how many days before each date its task shows, priority, notes, links (e.g. the Google Sheet to fill), tags and who it is for. Each date becomes a task." + ASK,
+    input: z.object({ name: z.string().trim().min(1).max(120), ...reminderFields, date: day }),
+    run: safely(async (ctx, a) => {
+      const n = await new Lookups(ctx).names();
+      const r = await ctx.send<{ id: string; name: string }>("POST", "/reports", await reminderBody(ctx, n, a));
+      return { data: { done: "Reminder created", reminderId: r.id, name: r.name }, touched: [reminderTouched(r)] };
+    }),
+  },
+
+  {
+    name: "update_reminder",
+    title: "Change a reminder",
+    write: true,
+    description: "Change a reminder: only the fields given change; paused: true pauses it (no new dates), false resumes it. Schedule changes apply to dates not made yet; dates already made keep theirs." + ASK,
+    input: z.object({ reminder: z.string().describe("Its name (part is enough) or id"), name: z.string().trim().min(1).max(120).optional(), paused: z.boolean().optional(), ...reminderFields }),
+    run: safely(async (ctx, a) => {
+      const L = new Lookups(ctx);
+      const [n, { reports }] = await Promise.all([L.names(), ctx.api<{ reports: Report[] }>("/reports")]);
+      const r = pick(reports, String(a.reminder), (x) => x.name, "reminder");
+      const { reminder: _r, paused, ...rest } = a;
+      const body = await reminderBody(ctx, n, rest);
+      if (paused !== undefined) body.active = !paused;
+      if (!Object.keys(body).length) return { data: { error: "Nothing to change was given" } };
+      await ctx.send("PATCH", `/reports/${r.id}`, body);
+      return { data: { done: paused === true ? "Reminder paused" : paused === false ? "Reminder resumed" : "Reminder changed", reminder: (body.name as string) ?? r.name }, touched: [reminderTouched(r)] };
+    }),
+  },
+
+  {
+    name: "set_reminder_date",
+    title: "Mark a reminder date done",
+    write: true,
+    description: "Mark one date of a reminder as done (submitted), or back to pending; its task follows. The date must already be made (list_reminders shows the pending dates)." + ASK,
+    input: z.object({ reminder: z.string().describe("Its name (part is enough) or id"), date: day, done: z.boolean() }),
+    run: safely(async (ctx, a) => {
+      const { reports } = await ctx.api<{ reports: Report[] }>("/reports");
+      const r = pick(reports, String(a.reminder), (x) => x.name, "reminder");
+      const p = r.periods.find((x) => x.dueDate === a.date);
+      if (!p) return { data: { error: `${r.name} has no date ${a.date} yet. Its dates: ${r.periods.slice(0, 6).map((x) => `${x.dueDate} (${x.status === "submitted" ? "done" : "pending"})`).join(", ") || "none made yet"}` } };
+      await ctx.send("POST", `/reports/periods/${p.id}/${a.done ? "submit" : "reopen"}`);
+      return { data: { done: `${r.name}, ${a.date}: ${a.done ? "done" : "pending again"}` }, touched: [reminderTouched(r)] };
+    }),
+  },
+
+  {
+    name: "add_file",
+    title: "Add to the file register",
+    write: true,
+    description: "Add a file to the file register: subject, physical file or e-file, the e-file number (or none yet), notes and tags. An e-file number can belong to only one entry." + ASK,
+    input: z.object({
+      subject: z.string().trim().min(1).max(200),
+      kind: z.enum(["physical", "e-file"]).optional().describe("Default physical"),
+      eFileNumber: z.string().trim().max(50).optional(),
+      notes: z.string().max(2_000).optional(),
+      tags: z.array(z.string().min(1).max(40)).max(20).optional(),
+    }),
+    run: safely(async (ctx, a) => {
+      const f = await ctx.send<OfficeFile>("POST", "/files", {
+        subject: a.subject,
+        physical: a.kind !== "e-file",
+        efileNumber: a.eFileNumber ?? "",
+        notes: a.notes ?? "",
+        tagIds: a.tags ? await resolveTags(ctx, a.tags as string[]) : [],
+      });
+      return { data: clean({ done: "Added to the file register", fileId: f.id, subject: f.subject, eFileNumber: f.efileNumber || "not created yet" }), touched: [fileTouched(f)] };
+    }),
+  },
+
+  {
+    name: "update_file",
+    title: "Change a file register entry",
+    write: true,
+    description: 'Change a file register entry, found by its subject (part is enough), e-file number or id: subject, kind, e-file number ("the e-file is now …"; "" = not created), notes, tags. Only the fields given change.' + ASK,
+    input: z.object({
+      file: z.string().describe("Subject words, e-file number or id"),
+      subject: z.string().trim().min(1).max(200).optional(),
+      kind: z.enum(["physical", "e-file"]).optional(),
+      eFileNumber: z.string().trim().max(50).optional(),
+      notes: z.string().max(2_000).optional(),
+      tags: z.array(z.string().min(1).max(40)).max(20).optional().describe("Replaces the tags"),
+    }),
+    run: safely(async (ctx, a) => {
+      const { files } = await ctx.api<{ files: OfficeFile[] }>("/files");
+      const byNumber = files.filter((f) => f.efileNumber && lower(f.efileNumber) === lower(String(a.file)));
+      const f = byNumber.length === 1 ? byNumber[0]! : pick(files, String(a.file), (x) => x.subject, "file register entry");
+      if ([a.subject, a.kind, a.eFileNumber, a.notes, a.tags].every((v) => v === undefined)) return { data: { error: "Nothing to change was given" } };
+      await ctx.send("PUT", `/files/${f.id}`, {
+        subject: a.subject ?? f.subject,
+        physical: a.kind ? a.kind !== "e-file" : f.physical,
+        efileNumber: a.eFileNumber ?? f.efileNumber,
+        notes: a.notes ?? f.notes,
+        tagIds: a.tags ? await resolveTags(ctx, a.tags as string[]) : f.tagIds,
+      });
+      return { data: clean({ done: "File register entry changed", subject: a.subject ?? f.subject, eFileNumber: (a.eFileNumber ?? f.efileNumber) || "not created yet" }), touched: [fileTouched(f)] };
     }),
   },
 ];

@@ -414,7 +414,7 @@ describe("MCP server", () => {
     const init = await rpc(at, "initialize", { protocolVersion: "2025-06-18" });
     expect(init.json.result.capabilities.prompts).toBeDefined();
     const prompts = (await rpc(at, "prompts/list")).json.result.prompts as { name: string; arguments: { name: string; required?: boolean }[] }[];
-    expect(prompts.map((x) => x.name)).toEqual(["morning_briefing", "reply_to_email", "employee_status", "monthly_work_diary"]);
+    expect(prompts.map((x) => x.name)).toEqual(["morning_briefing", "reply_to_email", "employee_status", "monthly_work_diary", "pending_email_triage", "month_end_returns", "weekly_review", "staff_matters"]);
     const brief = (await rpc(at, "prompts/get", { name: "morning_briefing" })).json.result;
     expect(brief.messages[0]).toMatchObject({ role: "user", content: { type: "text" } });
     expect(brief.messages[0].content.text).toContain("get_overview");
@@ -491,5 +491,90 @@ describe("MCP server", () => {
     expect(await (await req(`/api/oauth/authorize?${q}`)).text()).toContain("it redirects to https://elsewhere.example/");
     answer = () => new Response("blocked", { status: 403 });
     expect(await (await req(`/api/oauth/authorize?${q}`)).text()).toContain("the address answered 403");
+  });
+
+  // --- Office details, reminders and the file register, more prompts (user request 2026-10-19) ---
+
+  it("keeps office details for letters, shows them to assistants and puts them in the backup", async () => {
+    const { access_token: at } = await tokens();
+    expect((await api("GET", "/office-profile")).profile).toMatchObject({ officeName: "", recipients: [], letterLanguage: "English" });
+    const profile = {
+      officeName: "Community Health Centre, Vellanad",
+      address: "Vellanad P.O., Thiruvananthapuram",
+      seat: "B1",
+      signature: "Medical Officer in charge",
+      fileNumberPattern: "B1-{no}/{year}/CHCV",
+      recipients: [{ who: "District Medical Officer (Health), Thiruvananthapuram", address: "DMO Office, Thycaud" }],
+      codes: [{ label: "DDO code", value: "1234567890" }],
+      letterLanguage: "Malayalam",
+    };
+    await api("PUT", "/office-profile", profile);
+    expect((await api("GET", "/office-profile")).profile).toMatchObject(profile);
+    expect(((await api("GET", "/history")).events as { summary: string }[])[0]!.summary).toBe("Office details saved: Community Health Centre, Vellanad");
+    const settings = data(await call(at, "get_settings"));
+    expect(settings.officeDetails).toMatchObject({ officeName: profile.officeName, seat: "B1", signatureBlock: profile.signature, officeCodes: ["DDO code: 1234567890"], lettersIn: "Malayalam" });
+    expect(settings.officeDetails.fileNumberPattern).toContain("B1-{no}/{year}/CHCV");
+    expect(settings.officeDetails.usualRecipients[0]).toEqual({ who: profile.recipients[0]!.who, address: "DMO Office, Thycaud" });
+    const reply = (await rpc(at, "prompts/get", { name: "reply_to_email", arguments: { email: "HMIS circular" } })).json.result.messages[0].content.text as string;
+    expect(reply).toContain("office details");
+    expect(reply).toContain("lettersIn");
+    const backup = await api("GET", "/transfer/backup");
+    expect(backup.tables.officeProfiles[0].data.officeName).toBe(profile.officeName);
+    expect((await req("/api/office-profile", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "not an email" }) })).status).toBe(400);
+  });
+
+  it("creates, changes, pauses reminders and marks their dates; adds and changes file register entries", async () => {
+    const { access_token: at } = await tokens();
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 100 });
+    const today = (await api("GET", "/me")).today as string;
+    // Reminder names stop at 120 characters, as in the app's form; a longer one is refused.
+    const long = "2026-27 സാമ്പത്തിക വർഷത്തെ 2210-ഓൺലൈൻ റീകൺസിലിയേഷൻ പൂർത്തിയാക്കി ജില്ലാ മെഡിക്കൽ ഓഫീസർക്ക് റിപ്പോർട്ട് സമർപ്പിക്കുന്നത് സംബന്ധിച്ച്";
+    expect((await call(at, "create_reminder", { name: long, date: today })).isError).toBe(true);
+    const name = "2026-27 സാമ്പത്തിക വർഷത്തെ 2210-ഓൺലൈൻ റീകൺസിലിയേഷൻ റിപ്പോർട്ട്";
+    const made = data(await call(at, "create_reminder", { name, date: today, repeat: "monthly", remindDaysBefore: 7, priority: "high", links: [{ url: "docs.google.com/spreadsheets/d/abc", name: "HMIS sheet" }], tags: ["Returns"] }));
+    expect(made).toMatchObject({ done: "Reminder created", name });
+    const rem = () => api("GET", "/reports").then((r) => (r.reports as { id: string; name: string; active: boolean; priority: string; links: { url: string }[]; periods: { dueDate: string; status: string }[] }[]).find((x) => x.id === made.reminderId)!);
+    expect(await rem()).toMatchObject({ priority: "high", active: true, links: [{ url: "https://docs.google.com/spreadsheets/d/abc", name: "HMIS sheet" }] });
+    expect((await rem()).periods.some((p) => p.dueDate === today)).toBe(true);
+
+    await call(at, "set_reminder_date", { reminder: "2210", date: today, done: true });
+    expect((await rem()).periods.find((p) => p.dueDate === today)!.status).toBe("submitted");
+    await call(at, "set_reminder_date", { reminder: "2210", date: today, done: false });
+    expect((await rem()).periods.find((p) => p.dueDate === today)!.status).toBe("pending");
+    expect((await call(at, "set_reminder_date", { reminder: "2210", date: "2099-01-01", done: true })).isError).toBe(true);
+
+    expect(data(await call(at, "update_reminder", { reminder: "2210", paused: true })).done).toBe("Reminder paused");
+    expect((await rem()).active).toBe(false);
+    await call(at, "update_reminder", { reminder: made.reminderId, paused: false, priority: "low" });
+    expect(await rem()).toMatchObject({ active: true, priority: "low" });
+    expect((await call(at, "update_reminder", { reminder: "nothing like this" })).isError).toBe(true);
+
+    const f = data(await call(at, "add_file", { subject: "Stock verification 2026-27", tags: ["Audit"] }));
+    expect(f).toMatchObject({ subject: "Stock verification 2026-27", eFileNumber: "not created yet" });
+    await call(at, "add_file", { subject: "Purchase file", kind: "e-file", eFileNumber: "999/2026" });
+    expect(data(await call(at, "update_file", { file: "stock verification", eFileNumber: "12345/2026" })).eFileNumber).toBe("12345/2026");
+    const files = (await api("GET", "/files")).files as { subject: string; efileNumber: string; tagIds: string[] }[];
+    expect(files.find((x) => x.subject === "Stock verification 2026-27")).toMatchObject({ efileNumber: "12345/2026" });
+    expect(files.find((x) => x.subject === "Stock verification 2026-27")!.tagIds).toHaveLength(1); // tags kept
+    const clash = await call(at, "update_file", { file: "12345/2026", eFileNumber: "999/2026" });
+    expect(clash.isError).toBe(true);
+    expect(clash.content[0]!.text).toContain("Purchase file");
+
+    const history = ((await api("GET", "/history")).events as { summary: string }[]).map((h) => h.summary);
+    expect(history).toContain("Reminder created (via ChatGPT)");
+    expect(history).toContain("Paused (via ChatGPT)");
+    expect(history.some((h) => h.startsWith("E-file 12345/2026 noted") && h.endsWith("(via ChatGPT)"))).toBe(true);
+  });
+
+  it("offers the new prompts, also through use_prompt", async () => {
+    const { access_token: at } = await tokens();
+    const get = async (name: string, args: Record<string, unknown> = {}) => data(await call(at, "use_prompt", { name, ...args })).instructions as string;
+    const triage = await get("pending_email_triage", { count: 15 });
+    expect(triage).toContain("the newest 15");
+    expect(triage).toContain("no second confirmation");
+    expect(triage).toContain("at most 10 emails per call");
+    expect(await get("month_end_returns", { month: "2026-02" })).toContain("2026-02-01 to 2026-02-28");
+    expect(await get("weekly_review")).toContain("the week ahead");
+    expect(await get("staff_matters")).toContain("Increments due");
   });
 });

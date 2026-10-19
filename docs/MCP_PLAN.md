@@ -3,7 +3,12 @@
 Status: **All five phases built (2026-10-18 / 19)**: sign-in, the MCP endpoint, 20 read-only tools including
 attachments, 13 change tools behind Allow changes, 9 staff actions behind Allow staff actions, 4 ready-made prompts,
 the bell for assistant changes, and Settings › Assistant with the assistant log and its CSV export. Still to do: try
-it with ChatGPT itself once WorkDesk is online (section 9). Written 2026-10-18.
+it with ChatGPT itself once WorkDesk is online (section 9).
+
+**Added 2026-10-19 (after Phase 5):** office details in Settings › General used for complete letter drafts;
+reminder changes (create, change, pause / resume, mark a date done) and file register changes (add, change, record an
+e-file number); prompts Pending email triage (applies what the user approves), Month-end returns check, Weekly review
+and Staff matters this month. Written 2026-10-18.
 
 The goal: you ask an AI assistant (ChatGPT, Gemini) about your work in plain language — "what's pending for Anila?",
 "read the circular's PDF and tell me what we must submit", "make a task from the HMIS email, due Friday" — and it

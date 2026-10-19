@@ -150,7 +150,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   reminders and events.
 
 ### Settings
-- **General:** light, dark or automatic appearance; phone notifications; the Gmail connection.
+- **General:** light, dark or automatic appearance; phone notifications; the Gmail connection; office details
+  (letterhead, seat, signature, file number pattern, usual recipients, office codes) used for drafting letters.
 - **Mail:** hidden senders, hidden text (signatures, disclaimers), task/done labels, sections, Gmail labels.
 - **Employees:** which employee you are (your row and page get a "You" tag), designations and types of temporary
   employees.
@@ -170,13 +171,16 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   website passwords are never shared.
 - **Everyday changes, when you allow them:** switch on Allow changes and the assistant can create, change and
   complete tasks, make tasks from emails, remove emails or send them to a section, add emails to a task, record and
-  tick register entries, and add events or mark their dates — asking you before each one. It can never delete
+  tick register entries, add events or mark their dates, add or change reminders (also pause them and mark dates
+  done), and add or change file register entries — asking you before each one. It can never delete
   anything, at most 10 items at a time and a limit of changes an hour that you set.
 - **Staff actions, with a switch of their own:** Allow staff actions lets it join and relieve employees and set their
   steps, mark increments done with the new basic pay, renew or end contracts, declare probation, mark registers
   updated, and add or change employee details.
-- **Ready-made prompts:** Morning briefing, Reply to this email (an official letter draft in English or Malayalam —
-  WorkDesk never sends mail), Employee status and Monthly work diary. Just ask for one; ChatGPT and Gemini fetch
+- **Ready-made prompts:** Morning briefing, Reply to this email (an official letter draft in English or Malayalam,
+  using your office details — WorkDesk never sends mail), Employee status, Monthly work diary, Pending email triage
+  (proposes what to do with each Pending email and applies what you approve), Month-end returns check, Weekly
+  review and Staff matters this month. Just ask for one; ChatGPT and Gemini fetch
   them as a tool, and assistants with a prompts menu list them there too.
 - **You stay in control:** every request an assistant makes is listed in the assistant log (kept apart from History,
   exportable as CSV), each change is also in History marked "via ChatGPT", the bell shows changes you haven't looked

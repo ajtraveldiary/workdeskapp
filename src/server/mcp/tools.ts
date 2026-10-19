@@ -18,6 +18,7 @@ import { ENGAGEMENT_LABELS, type Engagement } from "../../shared/staff";
 import { MOVE_LABEL, MOVE_STEPS, type MoveKind } from "../../shared/moves";
 import { stripSnippets } from "../../shared/snippets";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
+import type { OfficeProfile } from "../../shared/schemas";
 import type {
   AuditEvent,
   EmailContent,
@@ -901,11 +902,11 @@ export const TOOLS: Tool[] = [
   {
     name: "get_settings",
     title: "Settings",
-    description: "How WorkDesk is set up: the user and their employee record, Gmail labels and which mark tasks / done work / other sections, hidden senders and hidden text, tags, event types, designations, types of temporary staff, notification times and whether the calendar link is on. No keys or secrets.",
+    description: "How WorkDesk is set up: the user and their employee record, the office details for letters (office name and address, seat, signature block, file number pattern, usual recipients, office codes, letter language), Gmail labels and which mark tasks / done work / other sections, hidden senders and hidden text, tags, event types, designations, types of temporary staff, notification times and whether the calendar link is on. No keys or secrets.",
     input: z.object({}),
     run: async (ctx) => {
       const L = new Lookups(ctx);
-      const [n, me, s, tl, muted, snips, tags, et, push, cal] = await Promise.all([
+      const [n, me, s, tl, muted, snips, tags, et, push, cal, office] = await Promise.all([
         L.names(),
         L.me(),
         L.staff(),
@@ -916,13 +917,29 @@ export const TOOLS: Tool[] = [
         ctx.api<{ types: EventType[] }>("/event-types"),
         ctx.api<{ summaryOn: boolean; summaryTime: string; dueOn: boolean; devices: number }>("/push"),
         ctx.api<{ token?: string | null; url?: string | null }>("/calendar-link"),
+        ctx.api<{ profile: OfficeProfile }>("/office-profile"),
       ]);
+      const o = office.profile;
       const label = (id: string | null) => (id ? (n.label.get(id) ?? id) : null);
       const special = new Set([tl.taskLabelId, tl.doneLabelId, ...tl.organizeLabelIds]);
       return {
         data: clean({
           user: { name: me.name, email: me.email, youAreEmployee: employeeName(n, me.employeeId), timezone: me.timezone },
           gmail: me.account ? clean({ account: me.account.email, lastSync: me.account.lastSyncAt, syncProblem: me.account.lastSyncError }) : "not connected",
+          // For letters (user request 2026-10-19): use these instead of [blanks].
+          officeDetails: clean({
+            officeName: o.officeName,
+            address: o.address,
+            phone: o.phone,
+            email: o.email,
+            seat: o.seat,
+            signatureBlock: o.signature,
+            fileNumberPattern: o.fileNumberPattern ? `${o.fileNumberPattern} ({no} = the file's own number, {year} = the year)` : null,
+            usualRecipients: o.recipients.map((r) => clean({ who: r.who, address: r.address })),
+            officeCodes: o.codes.map((c) => `${c.label}: ${c.value}`),
+            lettersIn: o.letterLanguage,
+            note: o.officeName ? null : "Not filled in yet: the user can add them in WorkDesk › Settings › General › Office details.",
+          }),
           mailLabels: {
             taskLabel: label(tl.taskLabelId),
             doneLabel: label(tl.doneLabelId),

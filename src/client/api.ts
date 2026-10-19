@@ -4,7 +4,7 @@ import { clearSavedData } from "./queryClient";
 import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
   AssistantInfo, AssistantUnseen, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
-import type { EmployeeInput, EntryInput, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
+import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
   constructor(
@@ -166,6 +166,19 @@ export function useCalendarLinkActions() {
     make: useMutation({ mutationFn: () => api<{ url: string }>("/calendar-link", { method: "POST" }), onSuccess: set }),
     off: useMutation({ mutationFn: () => api<{ url: null }>("/calendar-link", { method: "DELETE" }), onSuccess: set }),
   };
+}
+
+// Office details (user request 2026-10-19, Settings › General).
+export const useOfficeProfile = () => useQuery({ queryKey: ["office-profile"], queryFn: () => api<{ profile: OfficeProfile; updatedAt: string | null }>("/office-profile") });
+export function useSaveOfficeProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (p: OfficeProfile) => api("/office-profile", { method: "PUT", body: p }),
+    onSuccess: (_r, p) => {
+      qc.setQueryData(["office-profile"], { profile: p, updatedAt: new Date().toISOString() });
+      void qc.invalidateQueries({ queryKey: ["history"] });
+    },
+  });
 }
 
 // Settings › Assistant (MCP server, user request 2026-10-18): the address to connect, connected assistants and

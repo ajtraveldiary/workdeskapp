@@ -21,6 +21,7 @@ import { ImportExportPage } from "./ImportExport";
 import { TagSettings } from "../components/Tags";
 import { AssistantSettings } from "../components/AssistantSettings";
 import { AssistantHelp } from "../components/AssistantHelp";
+import { OfficeDetails } from "../components/OfficeDetails";
 
 // Settings tabs (user request 2026-10-08, "use tabs to group similar settings"). The tab lives in the address
 // (#mail, #employees, #events, #registers, #tags, #calendar, #assistant, #assistant-help, #history, #import-export; none = General), so /settings#… links
@@ -53,7 +54,7 @@ export function SettingsPage() {
   const openTab = (t: SettingsTab) => navigate({ hash: t === "general" ? "" : t }, { replace: true });
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"], ["tags"], ["event-types"], ["history"], ["registers"], ["assistant"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"], ["tags"], ["event-types"], ["history"], ["registers"], ["assistant"], ["office-profile"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         <div>
           <Tabs<SettingsTab> value={tab} onChange={openTab} options={SETTINGS_TABS} />
@@ -63,6 +64,8 @@ export function SettingsPage() {
                 <Appearance />
                 <NotificationSettings />
                 <GmailConnection />
+                {/* Letterhead, seat, signature, recipients, codes for assistants' letters (user request 2026-10-19). */}
+                <OfficeDetails />
               </>
             )}
             {tab === "mail" && <MailSettings />}

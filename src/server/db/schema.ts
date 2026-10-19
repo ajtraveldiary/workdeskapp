@@ -615,3 +615,14 @@ export const assistantLog = pgTable(
   },
   (t) => [index("assistant_log_user").on(t.userId, t.createdAt)],
 );
+
+// Office details (user request 2026-10-19, Settings › General): letterhead, seat, signature block, file number
+// pattern, usual recipients and office codes, used by assistants to draft complete letters. One row per user
+// (its own table so the backup carries it); `data` follows officeProfileInput in src/shared/schemas.ts.
+export const officeProfiles = pgTable("office_profiles", {
+  id: id(),
+  userId: uuid("user_id").notNull().unique().references(() => users.id),
+  data: jsonb("data").$type<import("../../shared/schemas").OfficeProfile>().notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});

@@ -31,6 +31,7 @@ import { entryRoutes, registerRoutes } from "./routes/registers";
 import { linkedEmailRoutes } from "./routes/linkedEmails";
 import { transferRoutes } from "./routes/transfer";
 import { assistantRoutes } from "./routes/assistant";
+import { officeProfileRoutes } from "./routes/officeProfile";
 import { authorizationServerMetadata, oauthRoutes, protectedResourceMetadata } from "./mcp/oauth";
 import { mcpRoutes } from "./mcp/server";
 
@@ -213,6 +214,7 @@ export function createApp(opts: Options) {
   app.route("/linked-emails", linkedEmailRoutes);
   app.route("/transfer", transferRoutes);
   app.route("/assistant", assistantRoutes);
+  app.route("/office-profile", officeProfileRoutes);
   app.route("/", miscRoutes);
   app.route("/", calendarSettingsRoutes);
 
