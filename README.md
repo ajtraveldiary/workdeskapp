@@ -55,6 +55,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 ### Tasks
 - **The basics:** title, due date and time, priority, notes. Lists are ordered Urgent → High → Medium → Low.
 - **Checklist:** break a task into steps and tick them off.
+- **Links:** keep the Google Sheet, portal page or Drive file a task needs with it; open them from Task details.
 - **Waiting for a reply:** set the date a reply is expected; the task comes back to Due Today on that day or when
   the reply is late.
 - **"For":** link a task to an employee, a designation or the whole office.

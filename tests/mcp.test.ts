@@ -244,7 +244,8 @@ describe("MCP server", () => {
     const staff = await api("GET", "/staff");
     const emp = await api("POST", "/staff/employees", { name: "Anitha K", designationId: staff.designations[0].id });
 
-    const made = data(await call(at, "create_task", { title, dueDate: "2026-10-30", dueTime: "10:30", priority: "high", notes: "From the DMO", steps: ["Collect figures", "Send to DMO"], tags: ["Audit"], for: "anitha" }));
+    const made = data(await call(at, "create_task", { title, dueDate: "2026-10-30", dueTime: "10:30", priority: "high", notes: "From the DMO", steps: ["Collect figures", "Send to DMO"], tags: ["Audit"], for: "anitha", links: [{ url: "docs.google.com/spreadsheets/d/abc", name: "HMIS sheet" }] }));
+    expect(made.task.links).toEqual([{ url: "https://docs.google.com/spreadsheets/d/abc", name: "HMIS sheet" }]);
     expect(made.task).toMatchObject({ title, priority: "High", due: "2026-10-30 10:30", for: "Anitha K (Staff Nurse)", tags: ["Audit"], steps: ["1. [ ] Collect figures", "2. [ ] Send to DMO"] });
     const id = made.task.id as string;
     const [row] = await db.select().from(schema.tasks).where(eq(schema.tasks.id, id));

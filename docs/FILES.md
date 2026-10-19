@@ -83,6 +83,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0041_assistant_staff.sql` | Assistant staff actions (MCP Phase 4): `users.assistant_staff` (Allow staff actions). |
 | `0042_assistant_seen.sql` | The assistant bell (MCP Phase 5): `users.assistant_seen_at`, when the user last looked at the assistant's changes. |
 | `0043_office_profile.sql` | Office details (`office_profiles`: one row per user, the details as JSON). |
+| `0044_task_links.sql` | Links on tasks (`tasks.links`, like reminders' links). |
 | `0034_event_types.sql` | The user's own event types (`event_types`; every account gets Meeting, Training, Programme) and `type_id` on events, filled from the old fixed kind ("Other" = no type). |
 | `0031_tags.sql` | Tags for tasks and reminders: the `tags` table (name unique per user whatever its capitals, colour, order) and `tag_ids` on tasks and reminders. |
 
@@ -111,7 +112,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | What it does |
 |---|---|
-| `schema.ts` | Every database table and column (Drizzle): users, Gmail accounts/messages/labels, hidden senders, hidden text, emails, tasks, saved website logins (`site_logins`), tags (`tags`), events (`office_events`) and their types (`event_types`), reminders (`reports`) and their dates (`report_periods`), designations, employee types, employees, file register, push devices, History (`events`), and for assistants: their apps (`mcp_clients`), sign-in codes and tokens (`mcp_codes`, `mcp_tokens`, stored hashed) and the assistant log (`assistant_log`); office details (`office_profiles`). |
+| `schema.ts` | Every database table and column (Drizzle): users, Gmail accounts/messages/labels, hidden senders, hidden text, emails, tasks (with their links), saved website logins (`site_logins`), tags (`tags`), events (`office_events`) and their types (`event_types`), reminders (`reports`) and their dates (`report_periods`), designations, employee types, employees, file register, push devices, History (`events`), and for assistants: their apps (`mcp_clients`), sign-in codes and tokens (`mcp_codes`, `mcp_tokens`, stored hashed) and the assistant log (`assistant_log`); office details (`office_profiles`). |
 | `index.ts` | The `DB` type both database drivers share. |
 | `neon.ts` | Connects to Neon over HTTP (production). |
 | `local.ts` | Local database with PGlite in `./.data` (no install needed); applies new migrations when it starts. |
@@ -270,8 +271,8 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `LabelChips.tsx` | Gmail label chips, the label picker and the label filter. |
 | `RemoveChooser.tsx` | Remove: "Just remove" or send to a section (a menu from the button on computers, an action sheet on phones); also `AnchoredMenu` (menus that grow from a button, or from where it was if it re-rendered). |
 | `TaskRow.tsx` | One task row on the Tasks page (a Contract ends or Probation declaration task's tick asks instead). |
-| `TaskDialog.tsx` | Add / edit task form. |
-| `TaskDetails.tsx` | Task details card (an Emails section with Add email; the title opens the task's email, or an event prep task's event email): where it came from (email, reminder, made by system or by hand), steps, waiting, For, Edit, Mark complete (Renew or end / Declare or extend for Contract ends / Probation declaration tasks) / Reopen. |
+| `TaskDialog.tsx` | Add / edit task form (with links, as the reminder form). |
+| `TaskDetails.tsx` | Task details card (an Emails section with Add email; the title opens the task's email, or an event prep task's event email): where it came from (email, reminder, made by system or by hand), steps, waiting, For, the task's links, Edit, Mark complete (Renew or end / Declare or extend for Contract ends / Probation declaration tasks) / Reopen. |
 | `IncrementDialog.tsx` | "Increment done": asks the new basic pay before marking an increment done (Home and the Employees page), with Undo; lives once in the shell. |
 | `SystemTaskChooser.tsx` | The choice a system task asks for when ticked or swiped anywhere: Renew / Contract ended for "Contract ends", Probation declared / Change due date for "Probation declaration"; lives once in the shell. |
 | `InlineTaskEdit.tsx` | Change a task's date/time or priority straight from its chip. |
@@ -280,7 +281,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Waiting.tsx` | Waiting for a reply: badge, Wait dialog. |
 | `ReminderDialog.tsx` | Add / edit reminder form. |
 | `ReminderDetails.tsx` | Reminder details card with document preview and Edit / Pause / Delete / Mark done. |
-| `ReminderLinks.tsx` | Link chips on reminders and the links editor. |
+| `ReminderLinks.tsx` | Link chips and the links editor, for reminders and tasks. |
 | `EventDialog.tsx` | Add / edit event form (types from Settings › Events; compact: title with the attendee button, type, date and times, venue and link, the rest under More fields) (also Make event from an email, filled from it); lives once in the shell (`openEventForm`). |
 | `AttendeePicker.tsx` | Who attends an event: the people button in the event title box, chips of those chosen, and a picker that ticks several (a designation's "(all)" adds everyone of it). |
 | `EventDetails.tsx` | Event details card (an Emails section with Add email, opened in its own email viewer) for one date: Mark done, Move, Cancel, Not done / Restore, Back to the first date, Edit, Delete, Join meeting, Directions; lives once in the shell (`openEventDetails`). |
@@ -321,6 +322,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `find-dates.test.ts` | Due dates found in email text. |
 | `partial-updates.test.ts` | Edits change only the fields sent. |
 | `task-checklist.test.ts` | Task steps saved and ticked. |
+| `task-links.test.ts` | Links on tasks: saved (also on a task from an email), changed only when sent, web links only. |
 | `task-waiting.test.ts` | Waiting for a reply. |
 | `task-delete.test.ts` | Deleting tasks from the To-do card. |
 | `reminders.test.ts` | Reminder date maths and task creation. |

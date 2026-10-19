@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { ChecklistItem, Priority, Task, Thread } from "../../shared/types";
+import type { ChecklistItem, Priority, ReminderLink, Task, Thread } from "../../shared/types";
 import { findDueDate } from "../../shared/findDates";
 import { useCreateTask, useCreateTaskFromThread, useEmailContent, useMe, useUpdateTask } from "../api";
 import { addDays, formatDay } from "../format";
 import { htmlToText } from "../snippets";
 import { ChecklistEditor } from "./Checklist";
+import { LinksEditor } from "./ReminderLinks";
 import { TagPicker } from "./Tags";
 import { Hourglass } from "lucide-react";
 import { canWait, isWaiting } from "./Waiting";
@@ -44,6 +45,9 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
   const [checklist, setChecklist] = useState<ChecklistItem[]>(mode.kind === "edit" ? (mode.task.checklist ?? []) : []);
   // Tags (user request 2026-10-11).
   const [tagIds, setTagIds] = useState<string[]>(mode.kind === "edit" ? (mode.task.tagIds ?? []) : []);
+  // Links (user request 2026-10-19), as in the reminder form: a link pasted but not added yet is saved too.
+  const [links, setLinks] = useState<ReminderLink[]>(mode.kind === "edit" ? (mode.task.links ?? []) : []);
+  const [draftLink, setDraftLink] = useState<ReminderLink | null>(null);
   // Waiting for a reply (user request 2026-10-07), with the optional day a reply is expected by.
   const [waiting, setWaiting] = useState(mode.kind === "edit" ? isWaiting(mode.task) : false);
   const [replyBy, setReplyBy] = useState(mode.kind === "edit" && isWaiting(mode.task) ? (mode.task.replyBy ?? "") : "");
@@ -80,7 +84,7 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
     e.preventDefault();
     const steps = checklist.map((i) => ({ ...i, text: i.text.trim() })).filter((i) => i.text);
     const wait = waitAllowed ? { waiting, replyBy: (waiting && replyBy) || null } : {};
-    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, checklist: steps, tagIds, ...wait, ...related };
+    const input = { title, notes, dueDate: dueDate || null, dueTime: (dueDate && dueTime) || null, priority, checklist: steps, tagIds, links: draftLink ? [...links, draftLink] : links, ...wait, ...related };
     if (mode.kind === "edit") await update.mutateAsync({ id: mode.task.id, input });
     else if (mode.kind === "fromThread") await fromThread.mutateAsync({ threadId: mode.thread.id, input });
     else await create.mutateAsync(input);
@@ -195,6 +199,7 @@ function TaskForm({ mode, onDone }: { mode: TaskDialogMode; onDone: () => void }
         <TagPicker value={tagIds} onChange={setTagIds} />
       </div>
       <ChecklistEditor items={checklist} onChange={setChecklist} />
+      <LinksEditor links={links} onChange={setLinks} onDraft={setDraftLink} />
       <ErrorNote error={error} />
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onDone}>

@@ -247,6 +247,8 @@ export const tasks = pgTable(
     eventDate: date("event_date"),
     // Steps inside the task, ticked one by one (user request 2026-10-07, v2 idea 4).
     checklist: jsonb("checklist").$type<ChecklistItem[]>().notNull().default([]),
+    // Links kept with the task (user request 2026-10-19): web addresses with an optional name, as reminders have.
+    links: jsonb("links").$type<ReminderLink[]>().notNull().default([]),
     // Waiting for a reply (user request 2026-10-07): set while the task waits on someone else; it then leaves
     // the to-do lists for the Waiting tab and comes back (Today / Overdue) on replyBy, the optional date a
     // reply is expected by. Waiting tasks stay status "open"; completing one clears both.

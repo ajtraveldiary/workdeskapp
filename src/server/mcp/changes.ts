@@ -72,6 +72,7 @@ const taskFields = {
   notes: z.string().max(10_000).optional(),
   tags: z.array(z.string().min(1).max(40)).max(20).optional().describe("Tag names; new names become tags"),
   for: z.string().max(200).optional().describe('Who it is for: an employee\'s name, a designation ("All Staff Nurse"), "General office", or "nobody"'),
+  links: z.array(z.object({ url: z.string().max(2000), name: z.string().max(120).optional() })).max(20).optional().describe("Links kept with the task, e.g. a Google Sheet or portal page (replaces the list)"),
   waitingForReply: z.boolean().optional().describe("Waiting for someone's reply"),
   replyBy: day.nullable().optional().describe("The day a reply is expected"),
 };
@@ -85,6 +86,7 @@ async function taskBody(ctx: ToolCtx, n: Names, a: Record<string, unknown>) {
   if (a.notes !== undefined) body.notes = a.notes;
   if (a.tags) body.tagIds = await resolveTags(ctx, a.tags as string[]);
   if (a.for !== undefined) Object.assign(body, resolveFor(n, String(a.for)));
+  if (a.links) body.links = (a.links as { url: string; name?: string }[]).map((l) => ({ url: /^https?:\/\//i.test(l.url.trim()) ? l.url.trim() : `https://${l.url.trim()}`, name: l.name ?? "" }));
   if (a.waitingForReply !== undefined) body.waiting = a.waitingForReply;
   if (a.replyBy !== undefined) body.replyBy = a.replyBy;
   return body;
@@ -159,7 +161,7 @@ export const CHANGE_TOOLS: Tool[] = [
     name: "create_task",
     title: "Create a task",
     write: true,
-    description: "Add a task to the user's to-do list, as New task in the app: title (Malayalam or English), due date and time, priority, notes, steps, tags, who it is for, waiting for a reply." + ASK,
+    description: "Add a task to the user's to-do list, as New task in the app: title (Malayalam or English), due date and time, priority, notes, steps, tags, links, who it is for, waiting for a reply." + ASK,
     input: z.object({ title: z.string().trim().min(1).max(300), steps: z.array(z.string().trim().min(1).max(300)).max(50).optional().describe("Checklist steps, in order"), ...taskFields }),
     run: safely(async (ctx, a) => {
       const n = await new Lookups(ctx).names();
@@ -191,7 +193,7 @@ export const CHANGE_TOOLS: Tool[] = [
     title: "Change a task",
     write: true,
     description:
-      "Change a task: title, due date / time, priority, notes (replace, or add to the end), steps (add new ones; tick or untick by their number from get_task), tags, who it is for, waiting for a reply and the reply date. Only the fields given change." + ASK,
+      "Change a task: title, due date / time, priority, notes (replace, or add to the end), steps (add new ones; tick or untick by their number from get_task), tags, links, who it is for, waiting for a reply and the reply date. Only the fields given change." + ASK,
     input: z.object({
       id: z.string().uuid(),
       title: z.string().trim().min(1).max(300).optional(),

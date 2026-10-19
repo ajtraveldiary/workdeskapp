@@ -47,7 +47,7 @@ export const HELP_GROUPS: HelpGroup[] = [
         name: "create_task",
         title: "Create a task",
         kind: "change",
-        hint: "A new task with title (Malayalam or English), due date and time, priority, notes, steps, tags and who it is for.",
+        hint: "A new task with title (Malayalam or English), due date and time, priority, notes, steps, tags, links (a Google Sheet, a portal page…) and who it is for.",
         example: "Add a high-priority task to send the stock register to the DMO by Friday.",
       },
       {
@@ -61,7 +61,7 @@ export const HELP_GROUPS: HelpGroup[] = [
         name: "update_task",
         title: "Change a task",
         kind: "change",
-        hint: "Changes only what you mention: title, date, time, priority, notes (replace or add a line), steps (add, tick or untick by number), tags, who it is for, waiting for a reply.",
+        hint: "Changes only what you mention: title, date, time, priority, notes (replace or add a line), steps (add, tick or untick by number), tags, links, who it is for, waiting for a reply.",
         example: "Tick step 2 of the HMIS task and move it to next Monday.",
       },
       {

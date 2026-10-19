@@ -70,6 +70,7 @@ export function toTask({ task, thread, report }: Row): Task {
     labelIds: thread?.id ? (threadLabels ?? []) : task.labelIds,
     tagIds: task.tagIds ?? [],
     checklist: task.checklist ?? [],
+    links: task.links ?? [],
     waitingSince: task.waitingSince?.toISOString() ?? null,
     replyBy: task.replyBy,
     relatedKind: task.relatedKind,

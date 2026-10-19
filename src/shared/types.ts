@@ -62,6 +62,8 @@ export type Task = {
   // WorkDesk-only tags (user request 2026-10-11; not Gmail labels).
   tagIds: string[];
   checklist: ChecklistItem[];
+  // Links kept with the task (user request 2026-10-19), like a reminder's.
+  links: ReminderLink[];
   // Waiting for a reply since (null = not waiting), and the day a reply is expected by (optional).
   waitingSince: string | null;
   replyBy: string | null;

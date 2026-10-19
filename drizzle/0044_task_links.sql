@@ -1,0 +1,1 @@
+ALTER TABLE "tasks" ADD COLUMN "links" jsonb DEFAULT '[]'::jsonb NOT NULL;

@@ -25,6 +25,16 @@ export const tagInput = z.object({
 });
 export const tagPatch = z.object({ name: tagInput.shape.name, color: z.enum(TAG_COLORS) }).partial();
 
+// Links kept with a reminder (user request 2026-10-07): web addresses only (Google Drive, Sheets, Docs…).
+export const reminderLinks = z
+  .array(
+    z.object({
+      url: z.string().trim().max(2000).regex(/^https?:\/\/[^\s]+\.[^\s]+$/i, "Paste a full link starting with https://"),
+      name: z.string().trim().max(120).default(""),
+    }),
+  )
+  .max(20, "Up to 20 links");
+
 export const taskInput = z.object({
   title: z.string().trim().min(1, "Title is required").max(300),
   notes: z.string().max(10_000).default(""),
@@ -35,6 +45,8 @@ export const taskInput = z.object({
   labelIds: userLabelIds.default([]),
   checklist: checklist.default([]),
   tagIds: tagIds.default([]),
+  // Links kept with the task (user request 2026-10-19), like a reminder's: Google Sheets, portals, Drive files.
+  links: reminderLinks.default([]),
   // Waiting for a reply, with the optional day a reply is expected by (user request 2026-10-07).
   waiting: z.boolean().default(false),
   replyBy: day.nullable().default(null),
@@ -56,6 +68,7 @@ export const taskPatch = z
     labelIds: userLabelIds,
     checklist,
     tagIds,
+    links: reminderLinks,
     waiting: z.boolean(),
     replyBy: day.nullable(),
     relatedKind: relatedKind.nullable(),
@@ -67,16 +80,6 @@ export const bulkIds = z.object({ ids: z.array(z.uuid()).min(1).max(500) });
 
 // Reminders (stored as reports): the fields of a standard add-reminder screen.
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use HH:MM");
-// Links kept with a reminder (user request 2026-10-07): web addresses only (Google Drive, Sheets, Docs…).
-export const reminderLinks = z
-  .array(
-    z.object({
-      url: z.string().trim().max(2000).regex(/^https?:\/\/[^\s]+\.[^\s]+$/i, "Paste a full link starting with https://"),
-      name: z.string().trim().max(120).default(""),
-    }),
-  )
-  .max(20, "Up to 20 links");
-
 export const reportInput = z.object({
   name: z.string().trim().min(1, "Title is required").max(120),
   notes: z.string().max(5_000).default(""),
