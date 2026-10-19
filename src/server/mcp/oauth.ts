@@ -61,30 +61,40 @@ const okRedirect = (uri: string) => {
   }
 };
 
-// The client named in a request: one that registered here, or (an https client id) its metadata document, fetched
-// and checked each time it signs in.
-async function findClient(db: DB, clientId: string): Promise<{ id: string; name: string; redirectUris: string[] } | null> {
-  if (/^https:\/\//.test(clientId)) {
-    try {
-      const res = await fetch(clientId, { headers: { accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(5000) });
-      if (!res.ok) return null;
-      const text = await res.text();
-      if (text.length > 20_000) return null;
-      const doc = JSON.parse(text) as { client_id?: string; client_name?: string; redirect_uris?: unknown };
-      if (doc.client_id !== clientId || !Array.isArray(doc.redirect_uris)) return null;
-      const redirectUris = doc.redirect_uris.filter((u): u is string => typeof u === "string" && okRedirect(u));
-      const name = String(doc.client_name ?? new URL(clientId).hostname).slice(0, 100);
-      await db
-        .insert(mcpClients)
-        .values({ id: clientId, name, redirectUris, kind: "metadata" })
-        .onConflictDoUpdate({ target: mcpClients.id, set: { name, redirectUris } });
-      return { id: clientId, name, redirectUris };
-    } catch {
-      return null;
-    }
-  }
+type Client = { id: string; name: string; redirectUris: string[] };
+
+// The client named in a request: one that registered here, or (an https client id, as ChatGPT uses) its metadata
+// document, read when it starts signing in (fresh) and kept, so the Allow step uses the kept copy. On failure the
+// reason, shown on the error page. Redirects are refused by hand: Cloudflare Workers don't accept
+// redirect: "error" (2026-10-19: every ChatGPT sign-in failed with "isn't registered").
+async function findClient(db: DB, clientId: string, fresh: boolean): Promise<{ client: Client } | { reason: string }> {
   const [cl] = await db.select().from(mcpClients).where(eq(mcpClients.id, clientId));
-  return cl ? { id: cl.id, name: cl.name, redirectUris: cl.redirectUris } : null;
+  if (!/^https:\/\//.test(clientId) || (cl && !fresh)) return cl ? { client: { id: cl.id, name: cl.name, redirectUris: cl.redirectUris } } : { reason: "This assistant isn't registered with WorkDesk. Add it again from the assistant." };
+  const fail = (why: string) => ({ reason: `WorkDesk couldn't read this assistant's details at ${clientId}: ${why}. Try connecting again; if it keeps failing, tell the WorkDesk developer.` });
+  try {
+    const res = await fetch(clientId, { headers: { accept: "application/json" }, redirect: "manual", signal: AbortSignal.timeout(8000) });
+    if (res.status >= 300 && res.status < 400) return fail(`it redirects to ${res.headers.get("location") ?? "another address"}`);
+    if (!res.ok) return fail(`the address answered ${res.status}`);
+    const text = await res.text();
+    if (text.length > 20_000) return fail("the document is too large");
+    let doc: { client_id?: string; client_name?: string; redirect_uris?: unknown };
+    try {
+      doc = JSON.parse(text);
+    } catch {
+      return fail("it isn't a JSON document");
+    }
+    if (doc.client_id !== clientId) return fail(`it names a different client (${String(doc.client_id).slice(0, 200)})`);
+    if (!Array.isArray(doc.redirect_uris)) return fail("it lists no return addresses");
+    const redirectUris = doc.redirect_uris.filter((u): u is string => typeof u === "string" && okRedirect(u));
+    const name = String(doc.client_name ?? new URL(clientId).hostname).slice(0, 100);
+    await db
+      .insert(mcpClients)
+      .values({ id: clientId, name, redirectUris, kind: "metadata" })
+      .onConflictDoUpdate({ target: mcpClients.id, set: { name, redirectUris } });
+    return { client: { id: clientId, name, redirectUris } };
+  } catch (e) {
+    return fail(e instanceof Error ? e.message : String(e));
+  }
 }
 
 // --- Who is signed in to WorkDesk in this browser (the same check as the app's) ---
@@ -184,8 +194,10 @@ export function oauthRoutes(demoUser: (c: Context<AppEnv>) => Promise<string>) {
         const q = c.req.query();
         if (q.response_type !== "code") return errorPage(c, "Only the authorization code flow is supported.");
         if (!q.code_challenge || q.code_challenge_method !== "S256") return errorPage(c, "The assistant must use PKCE (S256).");
-        const client = q.client_id ? await findClient(c.get("db"), q.client_id) : null;
-        if (!client) return errorPage(c, "This assistant isn't registered with WorkDesk. Add it again from the assistant.");
+        if (!q.client_id) return errorPage(c, "The assistant didn't say who it is (no client_id).");
+        const found = await findClient(c.get("db"), q.client_id, true);
+        if ("reason" in found) return errorPage(c, found.reason);
+        const client = found.client;
         if (!q.redirect_uri || !client.redirectUris.includes(q.redirect_uri)) return errorPage(c, "The assistant's return address doesn't match its registration.");
         const userId = await sessionUserId(c, () => demoUser(c));
         if (!userId) {
@@ -216,7 +228,8 @@ export function oauthRoutes(demoUser: (c: Context<AppEnv>) => Promise<string>) {
         const secret = c.env.SESSION_SECRET ?? "workdesk-demo";
         const csrf = f.csrf ? await verifyPayload<{ uid: string; exp: number; purpose: string }>(f.csrf, secret) : null;
         if (!userId || !csrf || csrf.uid !== userId || csrf.purpose !== "mcp-consent" || csrf.exp < Date.now()) return errorPage(c, "This page expired. Start connecting again from the assistant.");
-        const client = f.client_id ? await findClient(c.get("db"), f.client_id) : null;
+        const found = f.client_id ? await findClient(c.get("db"), f.client_id, false) : null;
+        const client = found && "client" in found ? found.client : null;
         if (!client || !f.redirect_uri || !client.redirectUris.includes(f.redirect_uri) || !f.code_challenge) return errorPage(c, "The request wasn't valid. Start again from the assistant.");
         const back = new URL(f.redirect_uri);
         if (f.state) back.searchParams.set("state", f.state);

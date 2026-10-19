@@ -1,7 +1,7 @@
 // The MCP server for assistants (Phase 1, user request 2026-10-18): sign-in (discovery, registration, consent,
 // PKCE, refresh tokens replaced on use, disconnect), the read-only tools with organised answers, attachments, the
 // assistant log, and that saved website passwords never reach an assistant.
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -88,6 +88,8 @@ describe("MCP server", () => {
     return r.json.result as { content: { type: string; text?: string; data?: string; resource?: { blob: string } }[]; isError?: boolean };
   };
   const data = (r: Awaited<ReturnType<typeof call>>) => JSON.parse(r.content[0]!.text!);
+
+  afterEach(() => vi.unstubAllGlobals());
 
   beforeEach(async () => {
     const d = drizzle({ client: new PGlite(), schema });
@@ -457,5 +459,37 @@ describe("MCP server", () => {
     expect(lines[1]).toContain(`task: ${title}`);
     const changes = await (await req("/api/assistant/log.csv?changes=1")).text();
     expect(changes.trim().split("\r\n")).toHaveLength(2);
+  });
+
+  // ChatGPT names itself by the https address of a metadata document (2026-10-19: reading it with redirect "error"
+  // failed on Cloudflare, so every ChatGPT sign-in said "isn't registered").
+  it("connects an assistant known by its metadata document address, as ChatGPT does", async () => {
+    const id = "https://chatgpt.example/oauth/workdesk/client.json";
+    const seen: RequestInit[] = [];
+    let answer: () => Response = () => Response.json({ client_id: id, client_name: "ChatGPT", redirect_uris: [REDIRECT] });
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      expect(url).toBe(id);
+      seen.push(init);
+      return answer();
+    });
+    const { verifier, challenge } = await pkce();
+    const q = new URLSearchParams({ response_type: "code", client_id: id, redirect_uri: REDIRECT, code_challenge: challenge, code_challenge_method: "S256" });
+    const html = await (await req(`/api/oauth/authorize?${q}`)).text();
+    expect(html).toContain("Connect ChatGPT to WorkDesk?");
+    expect(seen[0]!.redirect).toBe("manual"); // the only values Workers accept are "manual" and "follow"
+    const csrf = /name="csrf" value="([^"]+)"/.exec(html)![1]!;
+    const back = await req("/api/oauth/authorize", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: id, redirect_uri: REDIRECT, code_challenge: challenge, csrf, decision: "allow" }).toString() });
+    expect(seen).toHaveLength(1); // Allow uses the copy kept a moment ago
+    const code = new URL(back.headers.get("location")!).searchParams.get("code")!;
+    const tok = await req("/api/oauth/token", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ grant_type: "authorization_code", code, code_verifier: verifier, client_id: id, redirect_uri: REDIRECT }).toString() });
+    expect(tok.status).toBe(200);
+    const { access_token } = (await tok.json()) as { access_token: string };
+    expect((await rpc(access_token, "ping")).json.result).toEqual({});
+
+    // When the document can't be read, the page says why.
+    answer = () => new Response(null, { status: 302, headers: { location: "https://elsewhere.example/" } });
+    expect(await (await req(`/api/oauth/authorize?${q}`)).text()).toContain("it redirects to https://elsewhere.example/");
+    answer = () => new Response("blocked", { status: 403 });
+    expect(await (await req(`/api/oauth/authorize?${q}`)).text()).toContain("the address answered 403");
   });
 });
