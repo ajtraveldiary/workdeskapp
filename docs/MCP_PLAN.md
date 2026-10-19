@@ -1,8 +1,9 @@
 # WorkDesk MCP server — plan
 
-Status: **Phases 1–4 built (2026-10-18)**: sign-in, the MCP endpoint, 20 read-only tools including attachments,
-13 change tools behind Allow changes, 9 staff actions behind Allow staff actions, and Settings › Assistant with the
-assistant log. Phase 5 is not built. Written 2026-10-18.
+Status: **All five phases built (2026-10-18 / 19)**: sign-in, the MCP endpoint, 20 read-only tools including
+attachments, 13 change tools behind Allow changes, 9 staff actions behind Allow staff actions, 4 ready-made prompts,
+the bell for assistant changes, and Settings › Assistant with the assistant log and its CSV export. Still to do: try
+it with ChatGPT itself once WorkDesk is online (section 9). Written 2026-10-18.
 
 The goal: you ask an AI assistant (ChatGPT, Gemini) about your work in plain language — "what's pending for Anila?",
 "read the circular's PDF and tell me what we must submit", "make a task from the HMIS email, due Friday" — and it
@@ -166,7 +167,13 @@ through `update_employee`).
 | `mark_register_updated` | Updated until today, done entries cleared |
 | `add_employee` / `update_employee` | Employee details |
 
-### Phase 5 — Comfort (about 1 session)
+### Phase 5 — Comfort (about 1 session) — **built 2026-10-19**
+
+As built: the four prompts in `src/server/mcp/prompts.ts` (`morning_briefing`, `reply_to_email`, `employee_status`,
+`monthly_work_diary`); the bell lists assistant changes not yet looked at (opening Settings › Assistant clears them);
+Export CSV in Settings › Assistant (everything, or changes only). The log's filter is Everything / Changes only rather
+than by assistant, tool or day.
+
 
 - **Ready-made prompts** (offered by the server, shown in assistants that support them):
   - *Morning briefing*: today's plan in priority order;

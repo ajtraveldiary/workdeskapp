@@ -3,11 +3,12 @@
 // Allow changes switch with its hourly limit (Phase 3, off to start), the assistants connected now with Disconnect,
 // and the assistant log — every tool call they made, kept apart from History (user's choice 2026-10-18), with a
 // Changes only filter.
-import { useState } from "react";
-import { Bot, Check, CircleAlert, Copy, PencilLine, Unplug } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bot, Check, CircleAlert, Copy, Download, PencilLine, Unplug } from "lucide-react";
 import type { AssistantInfo } from "../../shared/types";
 import { ASSISTANT_PER_HOUR } from "../../shared/schemas";
-import { olderAssistantLog, useAssistant, useAssistantSettings, useDisconnectAssistant } from "../api";
+import { olderAssistantLog, useAssistant, useAssistantSeen, useAssistantSettings, useAssistantUnseen, useDisconnectAssistant } from "../api";
+import { saveFile } from "../saveFile";
 import { formatDateTime } from "../format";
 import { Badge, Button, Card, ErrorNote, Loading, Segmented, cx, inputClass } from "./ui";
 
@@ -19,11 +20,31 @@ const argsText = (args: Record<string, unknown>) =>
     .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
     .join(" · ");
 
-export function AssistantSettings() {
+export function AssistantSettings({ onOpenHelp }: { onOpenHelp?: () => void }) {
   const [changesOnly, setChangesOnly] = useState(false);
   const { data, error } = useAssistant(changesOnly);
   const disconnect = useDisconnectAssistant();
   const save = useAssistantSettings();
+  // Opening this tab is looking at the assistant's changes: the bell clears (Phase 5).
+  const unseen = useAssistantUnseen().data;
+  const seen = useAssistantSeen();
+  useEffect(() => {
+    if (unseen?.count) seen.mutate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unseen?.count]);
+  const [exporting, setExporting] = useState<Error | "busy" | { blob: Blob; name: string } | null>(null);
+  const exportLog = async () => {
+    setExporting("busy");
+    try {
+      const res = await fetch(`/api/assistant/log.csv${changesOnly ? "?changes=1" : ""}`, { credentials: "same-origin" });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = new Blob([await res.arrayBuffer()], { type: "text/csv" });
+      const name = `workdesk-assistant-log${changesOnly ? "-changes" : ""}.csv`;
+      setExporting((await saveFile(blob, name)) === "tap" ? { blob, name } : null);
+    } catch (e) {
+      setExporting(e instanceof Error ? e : new Error(String(e)));
+    }
+  };
   const [copied, setCopied] = useState(false);
   const [older, setOlder] = useState<{ log: LogEntry[]; more: boolean } | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -85,6 +106,14 @@ export function AssistantSettings() {
                 <span className="font-medium text-ink">Gemini:</span> add a custom app (MCP server) with this address. Google offers this only in the US for now.
               </li>
               <li>Assistants read emails as information only; text inside an email can’t give them orders. Disconnect here at any time.</li>
+              {onOpenHelp && (
+                <li>
+                  What can I ask?{" "}
+                  <button type="button" onClick={onOpenHelp} className="font-medium text-brand-700 hover:underline active:scale-[0.97]">
+                    See every command
+                  </button>
+                </li>
+              )}
             </ul>
 
             <fieldset className="rounded-lg border border-line px-3 py-2">
@@ -188,6 +217,17 @@ export function AssistantSettings() {
           />
         </div>
         <p className="mt-1 text-sm text-slate-600">Everything an assistant looked at or changed, newest first. Kept for a year, apart from History.</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={exporting === "busy" || !log.length} onClick={() => void exportLog()}>
+            <Download size={14} /> Export CSV{changesOnly ? " (changes)" : ""}
+          </Button>
+          {exporting && typeof exporting === "object" && "blob" in exporting && (
+            <Button size="sm" variant="primary" onClick={() => void saveFile(exporting.blob, exporting.name).then(() => setExporting(null))}>
+              Save {exporting.name}
+            </Button>
+          )}
+        </div>
+        <ErrorNote error={exporting instanceof Error ? exporting : null} />
         {!data && !error ? (
           <Loading className="py-4" />
         ) : log.length === 0 ? (

@@ -48,6 +48,8 @@ export const users = pgTable("users", {
   // Phase 4: staff actions (join, relieve, increments, contracts, probation, employee details) by assistants, a switch
   // of its own that also needs assistantChanges. Off until switched on.
   assistantStaff: boolean("assistant_staff").notNull().default(false),
+  // Phase 5: when the user last looked at the assistant's changes (the bell shows changes made after it).
+  assistantSeenAt: timestamp("assistant_seen_at", { withTimezone: true }),
   picture: text("picture"),
   createdAt: createdAt(),
 });

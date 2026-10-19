@@ -25,7 +25,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { useIsFetching, useIsMutating } from "@tanstack/react-query";
-import { ApiError, logout, useMe, useSummary, useSync } from "./api";
+import { ApiError, logout, useMe, useSummary, useSync, useAssistantUnseen } from "./api";
 import { useConnection, warmOfflineCopy } from "./connection";
 import { isDbIssue } from "./dbStatus";
 import { DatabaseIssueDialog, DatabaseIssuePage } from "./components/DatabaseIssue";
@@ -529,6 +529,8 @@ function IconBadge() {
 function Notifications() {
   const summary = useSummary().data;
   const me = useMe().data;
+  // Changes an assistant made that the user hasn't looked at (MCP Phase 5, user request 2026-10-19).
+  const unseen = useAssistantUnseen().data;
   const { open, setOpen, ref } = usePopover();
   const navigate = useNavigate();
 
@@ -537,6 +539,10 @@ function Notifications() {
   for (const t of summary?.overdue ?? []) items.push({ key: `o${t.id}`, tone: "urgent", title: "Overdue", detail: t.title, to: "/tasks?view=overdue" });
   for (const t of summary?.newActivity ?? []) items.push({ key: `n${t.id}`, tone: "brand", title: "New reply on a task", detail: t.title, to: "/tasks" });
   for (const t of summary?.dueToday ?? []) items.push({ key: `d${t.id}`, tone: "high", title: "Due today", detail: t.title, to: "/tasks?view=today" });
+  // Newest first, at the top of the list.
+  const fromAssistant: typeof items = (unseen?.latest ?? []).map((l) => ({ key: `a${l.id}`, tone: "brand", title: `${l.clientName || "Assistant"}: ${l.title}`, detail: l.touched.map((t) => t.title).filter(Boolean).join(" · ") || l.title, to: "/settings#assistant" }));
+  if (unseen && unseen.count > unseen.latest.length) fromAssistant.push({ key: "a-more", tone: "brand", title: "Assistant", detail: `${unseen.count - unseen.latest.length} more changes`, to: "/settings#assistant" });
+  items.unshift(...fromAssistant);
   const alertCount = items.filter((i) => i.tone !== "high").length;
 
   return (

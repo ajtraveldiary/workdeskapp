@@ -16,6 +16,7 @@ import { bearerUser, MCP_PATH, publicBase } from "./oauth";
 import { TOOLS, toolList, type Content, type Tool, type ToolCtx, type Touched } from "./tools";
 import { CHANGE_TOOLS } from "./changes";
 import { STAFF_TOOLS } from "./staff";
+import { getPrompt, promptList } from "./prompts";
 
 export const ALL_TOOLS: Tool[] = [...TOOLS, ...CHANGE_TOOLS, ...STAFF_TOOLS];
 
@@ -82,7 +83,7 @@ async function handle(c: Context<AppEnv>, app: Fetcher, who: NonNullable<Awaited
       const asked = String(m.params?.protocolVersion ?? "");
       return ok(m.id, {
         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
-        capabilities: { tools: { listChanged: false } },
+        capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } },
         serverInfo: { name: "workdesk", title: "WorkDesk", version: "1.0.0" },
         instructions: await settingsOf(c.get("db"), who.userId).then((s) => instructions(today, tz, s.assistantChanges, s.assistantStaff)),
       });
@@ -91,6 +92,17 @@ async function handle(c: Context<AppEnv>, app: Fetcher, who: NonNullable<Awaited
       return ok(m.id, {});
     case "tools/list":
       return ok(m.id, { tools: toolList(ALL_TOOLS) });
+    // Ready-made prompts (Phase 5): instructions only; reading and changing still go through the tools.
+    case "prompts/list":
+      return ok(m.id, { prompts: promptList() });
+    case "prompts/get": {
+      const raw = (m.params?.arguments ?? {}) as Record<string, unknown>;
+      const args = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, String(v ?? "")]));
+      const p = getPrompt(String(m.params?.name ?? ""), args, today);
+      if (!p) return fail(m.id, -32602, `Unknown prompt: ${m.params?.name}`);
+      if ("error" in p) return fail(m.id, -32602, p.error!);
+      return ok(m.id, p);
+    }
     case "tools/call": {
       const name = String(m.params?.name ?? "");
       const args = (m.params?.arguments ?? {}) as Record<string, unknown>;

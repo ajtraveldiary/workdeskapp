@@ -3,7 +3,7 @@ import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
 import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
-  AssistantInfo, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+  AssistantInfo, AssistantUnseen, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EntryInput, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -174,6 +174,16 @@ export function useCalendarLinkActions() {
 export const useAssistant = (changesOnly = false) =>
   useQuery({ queryKey: ["assistant", { changesOnly }], queryFn: () => api<AssistantInfo>(`/assistant${changesOnly ? "?changes=1" : ""}`), placeholderData: (prev) => prev });
 export const olderAssistantLog = (before: string, changesOnly = false) => api<AssistantInfo>(`/assistant?before=${encodeURIComponent(before)}${changesOnly ? "&changes=1" : ""}`);
+// The bell (Phase 5, user request 2026-10-19): assistant changes not looked at yet; "seen" clears them.
+// Assistants change things outside the app, so it is checked again after a minute (and when the app comes back).
+export const useAssistantUnseen = () => useQuery({ queryKey: ["assistant-unseen"], queryFn: () => api<AssistantUnseen>("/assistant/unseen"), staleTime: 60_000, refetchInterval: 5 * 60_000 });
+export function useAssistantSeen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api("/assistant/seen", { method: "POST" }),
+    onSuccess: () => qc.setQueryData<AssistantUnseen>(["assistant-unseen"], { count: 0, latest: [] }),
+  });
+}
 // Allow changes and the hourly limit (Phase 3, user request 2026-10-18).
 export function useAssistantSettings() {
   const qc = useQueryClient();

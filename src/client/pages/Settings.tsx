@@ -20,11 +20,12 @@ import { HistoryPage } from "./History";
 import { ImportExportPage } from "./ImportExport";
 import { TagSettings } from "../components/Tags";
 import { AssistantSettings } from "../components/AssistantSettings";
+import { AssistantHelp } from "../components/AssistantHelp";
 
 // Settings tabs (user request 2026-10-08, "use tabs to group similar settings"). The tab lives in the address
-// (#mail, #employees, #events, #registers, #tags, #calendar, #assistant, #history, #import-export; none = General), so /settings#… links
+// (#mail, #employees, #events, #registers, #tags, #calendar, #assistant, #assistant-help, #history, #import-export; none = General), so /settings#… links
 // open their tab. History and Import / Export moved in here from pages of their own (user request 2026-10-15).
-type SettingsTab = "general" | "mail" | "employees" | "events" | "registers" | "tags" | "calendar" | "assistant" | "history" | "import-export";
+type SettingsTab = "general" | "mail" | "employees" | "events" | "registers" | "tags" | "calendar" | "assistant" | "assistant-help" | "history" | "import-export";
 const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   { value: "general", label: "General" },
   { value: "mail", label: "Mail" },
@@ -38,6 +39,8 @@ const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   { value: "calendar", label: "Calendar" },
   // ChatGPT / Gemini through the MCP server (user request 2026-10-18).
   { value: "assistant", label: "Assistant" },
+  // Every assistant command, grouped, with hints (user request 2026-10-19).
+  { value: "assistant-help", label: "Assistant help" },
   { value: "history", label: "History" },
   { value: "import-export", label: "Import / Export" },
 ];
@@ -88,7 +91,8 @@ export function SettingsPage() {
             )}
             {tab === "tags" && <TagSettings />}
             {tab === "calendar" && <CalendarLink />}
-            {tab === "assistant" && <AssistantSettings />}
+            {tab === "assistant" && <AssistantSettings onOpenHelp={() => openTab("assistant-help")} />}
+            {tab === "assistant-help" && <AssistantHelp onOpenSettings={() => openTab("assistant")} />}
           </div>
         </div>
 

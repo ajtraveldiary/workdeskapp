@@ -175,8 +175,11 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Staff actions, with a switch of their own:** Allow staff actions lets it join and relieve employees and set their
   steps, mark increments done with the new basic pay, renew or end contracts, declare probation, mark registers
   updated, and add or change employee details.
-- **You stay in control:** every request an assistant makes is listed in the assistant log (kept apart from History),
-  each change is also in History marked "via ChatGPT", and Disconnect stops it at once.
+- **Ready-made prompts:** Morning briefing, Reply to this email (an official letter draft in English or Malayalam —
+  WorkDesk never sends mail), Employee status and Monthly work diary, offered in assistants that show them.
+- **You stay in control:** every request an assistant makes is listed in the assistant log (kept apart from History,
+  exportable as CSV), each change is also in History marked "via ChatGPT", the bell shows changes you haven't looked
+  at yet, and Disconnect stops it at once.
 
 ### Phone app
 - **Install it on your phone's home screen.** Swipe a row to act on it (with Undo), pull down to refresh, and

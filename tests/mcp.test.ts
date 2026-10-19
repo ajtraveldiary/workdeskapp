@@ -403,4 +403,49 @@ describe("MCP server", () => {
     expect(up.doneEntriesCleared).toBe(1);
     expect((await call(at, "mark_register_updated", { register: "Service Book", date: "2999-01-01" })).isError).toBe(true);
   });
+
+  // --- Phase 5: prompts, the bell, CSV export (user request 2026-10-19) ---
+
+  it("offers ready-made prompts", async () => {
+    const { access_token: at } = await tokens();
+    const init = await rpc(at, "initialize", { protocolVersion: "2025-06-18" });
+    expect(init.json.result.capabilities.prompts).toBeDefined();
+    const prompts = (await rpc(at, "prompts/list")).json.result.prompts as { name: string; arguments: { name: string; required?: boolean }[] }[];
+    expect(prompts.map((x) => x.name)).toEqual(["morning_briefing", "reply_to_email", "employee_status", "monthly_work_diary"]);
+    const brief = (await rpc(at, "prompts/get", { name: "morning_briefing" })).json.result;
+    expect(brief.messages[0]).toMatchObject({ role: "user", content: { type: "text" } });
+    expect(brief.messages[0].content.text).toContain("get_overview");
+    const reply = (await rpc(at, "prompts/get", { name: "reply_to_email", arguments: { email: "HMIS circular", language: "Malayalam" } })).json.result;
+    expect(reply.messages[0].content.text).toContain("HMIS circular");
+    expect(reply.messages[0].content.text).toContain("Malayalam");
+    expect(reply.messages[0].content.text).toContain("can't send email");
+    const diary = (await rpc(at, "prompts/get", { name: "monthly_work_diary", arguments: { month: "2026-02" } })).json.result;
+    expect(diary.messages[0].content.text).toContain("2026-02-01 to 2026-02-28");
+    expect((await rpc(at, "prompts/get", { name: "employee_status", arguments: {} })).json.error.message).toContain("employee");
+    expect((await rpc(at, "prompts/get", { name: "nothing" })).json.error).toBeDefined();
+  });
+
+  it("rings the bell for assistant changes until they are looked at, and exports the log", async () => {
+    const { access_token: at } = await tokens();
+    expect(await api("GET", "/assistant/unseen")).toEqual({ count: 0, latest: [] });
+    await call(at, "get_overview");
+    expect((await api("GET", "/assistant/unseen")).count).toBe(0); // reads don't ring
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 30 });
+    const title = "2026-27 സാമ്പത്തിക വർഷത്തെ 2210-ഓൺലൈൻ റീകൺസിലിയേഷൻ പൂർത്തിയാക്കി ജില്ലാ മെഡിക്കൽ ഓഫീസർക്ക് റിപ്പോർട്ട് സമർപ്പിക്കുന്നത് സംബന്ധിച്ച്";
+    await call(at, "create_task", { title });
+    const unseen = await api("GET", "/assistant/unseen");
+    expect(unseen.count).toBe(1);
+    expect(unseen.latest[0]).toMatchObject({ clientName: "ChatGPT", title: "Create a task", touched: [{ kind: "task", title }] });
+    await api("POST", "/assistant/seen");
+    expect((await api("GET", "/assistant/unseen")).count).toBe(0);
+
+    const csv = await (await req("/api/assistant/log.csv")).text();
+    const lines = csv.replace(/^\uFEFF/, "").trim().split("\r\n");
+    expect(lines[0]).toBe("Time,Assistant,What,Tool,Change,Result,Message,What changed,Request");
+    expect(lines.length).toBe(3);
+    expect(lines[1]).toContain("Create a task,create_task,Yes,OK");
+    expect(lines[1]).toContain(`task: ${title}`);
+    const changes = await (await req("/api/assistant/log.csv?changes=1")).text();
+    expect(changes.trim().split("\r\n")).toHaveLength(2);
+  });
 });

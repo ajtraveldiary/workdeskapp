@@ -360,3 +360,6 @@ export type AssistantInfo = {
   log: { id: string; clientName: string; tool: string; title: string; args: Record<string, unknown>; ok: boolean; message: string; change: boolean; touched: { kind: string; id: string; title: string }[]; createdAt: string }[];
   more: boolean;
 };
+
+// The bell (Phase 5, user request 2026-10-19): changes assistants made since the user last looked at them.
+export type AssistantUnseen = { count: number; latest: { id: string; clientName: string; title: string; touched: { kind: string; id: string; title: string }[]; createdAt: string }[] };
