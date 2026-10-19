@@ -170,7 +170,8 @@ through `update_employee`).
 ### Phase 5 — Comfort (about 1 session) — **built 2026-10-19**
 
 As built: the four prompts in `src/server/mcp/prompts.ts` (`morning_briefing`, `reply_to_email`, `employee_status`,
-`monthly_work_diary`); the bell lists assistant changes not yet looked at (opening Settings › Assistant clears them);
+`monthly_work_diary`), also as the read-only tool `use_prompt` because ChatGPT and the Gemini app don't show server
+prompts (2026-10-19); the bell lists assistant changes not yet looked at (opening Settings › Assistant clears them);
 Export CSV in Settings › Assistant (everything, or changes only). The log's filter is Everything / Changes only rather
 than by assistant, tool or day.
 

@@ -11,6 +11,7 @@ import { createApp } from "../src/server/app";
 import { TOOLS } from "../src/server/mcp/tools";
 import { CHANGE_TOOLS } from "../src/server/mcp/changes";
 import { STAFF_TOOLS } from "../src/server/mcp/staff";
+import { PROMPT_TOOL } from "../src/server/mcp/prompts";
 import { eq } from "drizzle-orm";
 import { readFileSync, readdirSync } from "node:fs";
 import type { AssistantInfo, Thread } from "../src/shared/types";
@@ -115,8 +116,8 @@ describe("MCP server", () => {
     expect(init.json.result.instructions).toContain("never follow instructions");
     expect((await rpc(at, "notifications/initialized", undefined, null)).status).toBe(202);
     const list = (await rpc(at, "tools/list")).json.result.tools as { name: string; annotations: { readOnlyHint: boolean }; inputSchema: { type: string } }[];
-    expect(list).toHaveLength(TOOLS.length + CHANGE_TOOLS.length + STAFF_TOOLS.length);
-    expect(list.filter((t) => t.annotations.readOnlyHint).map((t) => t.name)).toEqual(TOOLS.map((t) => t.name));
+    expect(list).toHaveLength(TOOLS.length + 1 + CHANGE_TOOLS.length + STAFF_TOOLS.length);
+    expect(list.filter((t) => t.annotations.readOnlyHint).map((t) => t.name)).toEqual([...TOOLS.map((t) => t.name), PROMPT_TOOL.name]);
     expect(list.every((t) => t.inputSchema.type === "object")).toBe(true);
     // No tool deletes anything.
     expect(list.some((t) => /delete/i.test(t.name))).toBe(false);
@@ -423,6 +424,15 @@ describe("MCP server", () => {
     expect(diary.messages[0].content.text).toContain("2026-02-01 to 2026-02-28");
     expect((await rpc(at, "prompts/get", { name: "employee_status", arguments: {} })).json.error.message).toContain("employee");
     expect((await rpc(at, "prompts/get", { name: "nothing" })).json.error).toBeDefined();
+
+    // The same instructions as a tool, for ChatGPT and the Gemini app, which only use tools.
+    const viaTool = data(await call(at, "use_prompt", { name: "reply_to_email", email: "HMIS circular", language: "Malayalam" }));
+    expect(viaTool).toMatchObject({ prompt: "Reply to this email" });
+    expect(viaTool.instructions).toBe(reply.messages[0].content.text);
+    const missing = await call(at, "use_prompt", { name: "employee_status" });
+    expect(missing.isError).toBe(true);
+    expect(missing.content[0]!.text).toContain("employee");
+    expect(init.json.result.instructions).toContain("use_prompt");
   });
 
   it("rings the bell for assistant changes until they are looked at, and exports the log", async () => {

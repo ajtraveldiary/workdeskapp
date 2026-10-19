@@ -1,7 +1,11 @@
 // Ready-made prompts (MCP Phase 5, user request 2026-10-19; docs/MCP_PLAN.md): offered to assistants that show
 // server prompts (in ChatGPT and others they appear as suggestions or slash commands). Each is plain instructions
 // for the assistant: which WorkDesk tools to use and what to write. None of them changes anything, and WorkDesk
-// never sends email: a reply is a draft for the user to copy.
+// never sends email: a reply is a draft for the user to copy. ChatGPT and the Gemini app don't show server prompts
+// (2026-10-19), so the same instructions are also a read-only tool, use_prompt (PROMPT_TOOL), which they can call
+// when the user asks for a briefing, a reply, an employee's status or a work diary.
+import { z } from "zod";
+import type { Tool } from "./tools";
 
 type Arg = { name: string; description: string; required?: boolean };
 type Prompt = { name: string; title: string; description: string; arguments: Arg[]; text: (args: Record<string, string>, today: string) => string };
@@ -87,3 +91,27 @@ export function getPrompt(name: string, args: Record<string, string>, today: str
   if (missing.length) return { error: `Missing: ${missing.join(", ")}` };
   return { description: p.description, messages: [{ role: "user", content: { type: "text", text: p.text(args, today) } }] };
 }
+
+// The prompts as a tool, for assistants that only use tools (ChatGPT, the Gemini app).
+export const PROMPT_TOOL: Tool = {
+  name: "use_prompt",
+  title: "Use a ready-made prompt",
+  description:
+    "Get WorkDesk's step-by-step instructions for a common request, then follow them with the other tools: morning_briefing (today's plan), reply_to_email (draft an official reply; needs email, optional language and points), employee_status (needs employee), monthly_work_diary (optional month YYYY-MM and language). Call this whenever the user asks for one of these.",
+  input: z.object({
+    name: z.enum(["morning_briefing", "reply_to_email", "employee_status", "monthly_work_diary"]),
+    email: z.string().max(300).optional().describe("reply_to_email: the email's id, or words from its subject or sender"),
+    language: z.string().max(40).optional().describe("English or Malayalam"),
+    points: z.string().max(2000).optional().describe("reply_to_email: what the reply should say"),
+    employee: z.string().max(200).optional().describe("employee_status: name, PEN or id"),
+    month: z.string().max(7).optional().describe("monthly_work_diary: YYYY-MM"),
+  }),
+  run: async (ctx, a) => {
+    const { name, ...rest } = a;
+    const args = Object.fromEntries(Object.entries(rest).filter(([, v]) => typeof v === "string" && v.trim()).map(([k, v]) => [k, String(v)]));
+    const p = getPrompt(String(name), args, ctx.today);
+    if (!p) return { data: { error: `Unknown prompt: ${name}` } };
+    if ("error" in p) return { data: { error: `${p.error}. Ask the user for it.` } };
+    return { data: { prompt: PROMPTS.find((x) => x.name === name)!.title, instructions: p.messages[0]!.content.text, note: "Follow these instructions now, using WorkDesk's tools." } };
+  },
+};

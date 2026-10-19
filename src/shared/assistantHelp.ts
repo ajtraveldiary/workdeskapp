@@ -234,8 +234,17 @@ export const HELP_GROUPS: HelpGroup[] = [
   {
     id: "prompts",
     title: "Ready-made prompts",
-    intro: "Instructions the assistant can run in one go. Where they show depends on the assistant (a prompts or slash menu); you can also just ask for them by name.",
+    intro:
+      "Instructions the assistant follows in one go. In ChatGPT and the Gemini app just ask, e.g. “give me my morning briefing”: the assistant fetches the instructions with Use a ready-made prompt. Assistants that show MCP prompts (such as Claude or Gemini CLI) also list them in their prompt or slash menu.",
     commands: [
+      {
+        name: "use_prompt",
+        title: "Use a ready-made prompt",
+        kind: "read",
+        hint: "Gives the assistant WorkDesk's step-by-step instructions for one of the four prompts below, which it then follows with the other commands. This is how ChatGPT and Gemini use them.",
+        example: "Give me my morning briefing.",
+        note: "If the assistant answers without it, say “use WorkDesk's morning briefing prompt”.",
+      },
       { name: "morning_briefing", title: "Morning briefing", kind: "prompt", hint: "Today's plan: overdue first, today's work by priority with times, events, increments, new replies, Pending emails with a suggestion each, and the three things to do first.", example: "Give me my morning briefing." },
       {
         name: "reply_to_email",
