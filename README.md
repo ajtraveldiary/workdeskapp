@@ -158,7 +158,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Registers:** the registers you keep (add, rename, arrange, remove).
 - **Tags:** rename, recolour, delete and arrange tags.
 - **Calendar:** the private calendar link.
-- **Assistant:** connect ChatGPT or Gemini (see below).
+- **Assistant:** connect ChatGPT or Gemini (see below); **Assistant help** lists every command with what to ask.
 - **History** and **Import / Export** (see above).
 
 ### Assistant (ChatGPT, Gemini)

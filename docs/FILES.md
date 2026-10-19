@@ -174,6 +174,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | What it does |
 |---|---|
+| `assistantHelp.ts` | The text of Settings › Assistant help: every MCP command and prompt in groups, with its kind (reads / needs Allow changes / needs Allow staff actions / prompt), hint, example and notes. |
 | `types.ts` | The shapes of data the API sends to the app (Thread, Task, Report, Employee, OfficeFile, SiteLogin, Summary…). |
 | `schemas.ts` | Checks on everything the app sends (Zod): tasks, reminders, tags, labels, staff, files, website logins, notifications, hidden text. |
 | `reminderSchedule.ts` | Reminder date maths: repeats, next dates, "remind me" lead days, labels like "Every month". |
@@ -234,7 +235,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Events.tsx` | Events: Upcoming / Today / Past, search, grouped by day; swipe (phones) or ⋮ menu for Done, Cancel, Edit. |
 | `History.tsx` | Every decision and change, with Undo where possible; shown as the History tab of Settings (`embedded`: no page title, the filters as buttons). |
 | `Search.tsx` | Search across emails and tasks. |
-| `Settings.tsx` | Settings in tabs (the tab is in the address: none, `#mail`, `#employees`, `#events`, `#registers`, `#tags`, `#calendar`, `#assistant`, `#history`, `#import-export`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Events (event types), Registers, Tags, Calendar link, Assistant (ChatGPT / Gemini), History, Import / Export. |
+| `Settings.tsx` | Settings in tabs (the tab is in the address: none, `#mail`, `#employees`, `#events`, `#registers`, `#tags`, `#calendar`, `#assistant`, `#assistant-help`, `#history`, `#import-export`): General (Appearance, Notifications, Gmail connection), Mail (hidden senders, hidden text, labels, task labels, sections), Employees, Events (event types), Registers, Tags, Calendar link, Assistant (ChatGPT / Gemini), Assistant help, History, Import / Export. |
 | `Staff.tsx` | Employees page: due increments (Mark done asks the new basic pay), retiring within 12 months (with Pension papers progress), joining & relieving (`MovesCard`; the phones' + opens Join, no Add employee button), on computers (1024px+) a Permanent or Temporary table with a switch, on narrower screens the permanent/temporary filter, list by designation, employee card, add/edit form. |
 | `EmployeePage.tsx` | An employee's own page (`/employees/<id>`, opened from the list or table; Join / Relieve): at a glance (pay, increment, probation, retirement / contract), every detail, tasks open and completed, reminders, their website logins, events they attend, History; Edit, Left the office, Delete. |
 | `Files.tsx` | File register: one-line list (icon, e-file number column, subject), search, status filters and a Tags filter (several at once), add/edit form with tags. |
@@ -288,7 +289,8 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `StaffMoves.tsx` | Joining & relieving: the Employees page card (one line until its title is clicked; Joined / Relieved tables, a Pending / Waiting / Done pill per step, people with their steps on phones, Show finished) and the Join / Relieve form (with Add a new employee); `JoinExistingCard` in Settings › Employees puts someone already working here into the joining process with the steps already done ticked; `RelieveExistingCard` beside it does the same for relieving (also someone marked Left, or a new employee added there). |
 | `Registers.tsx` | Registers: Settings › Registers list, the entry form (register, what with the person button for Needs, optional task with a due date, remove) and an entry's row (tick, swipe on phones). |
 | `LinkedEmails.tsx` | The Emails section of Task details and Event details (main email first, added ones with ✕, tap to open) and the Add email picker (Pending emails, search, tick several). |
-| `AssistantSettings.tsx` | Settings › Assistant: what an assistant can read, the address with Copy, how to connect ChatGPT and Gemini, the Allow changes switch with changes an hour and Allow staff actions under it (greyed out while changes are off), connected assistants with Disconnect, and the assistant log (Everything / Changes only, what each change touched, Show older).; Export CSV of what the log shows; opening the tab marks the assistant's changes as seen (the bell clears). |
+| `AssistantSettings.tsx` | Settings › Assistant: what an assistant can read, the address with Copy, how to connect ChatGPT and Gemini, the Allow changes switch with changes an hour and Allow staff actions under it (greyed out while changes are off), connected assistants with Disconnect, and the assistant log (Everything / Changes only, what each change touched, Show older).; Export CSV of what the log shows; opening the tab marks the assistant's changes as seen (the bell clears).; a "See every command" link to Assistant help. |
+| `AssistantHelp.tsx` | Settings › Assistant help: how to use the assistant, the current Allow changes / Allow staff actions state, a search box, and every command and prompt by group with its kind badge, name, hint, a copyable example and notes. |
 | `EventTypes.tsx` | Settings › Events: the event types list (add, rename, drag to arrange, remove; a removed type's events show as "Event"). |
 | `SortableList.tsx` | Drag and drop to arrange a list (grip handle; mouse, touch and keyboard; auto-scroll near the edges). Used for every list whose order the user sets. |
 | `NotificationSettings.tsx` | Settings › Notifications. |
@@ -308,6 +310,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `email-content.test.ts` | Reading email bodies and attachments. |
 | `email-tags.test.ts` | Status tags on emails. |
 | `address-lists.test.ts` | Folding long recipient lists. |
+| `assistant-help.test.ts` | Assistant help lists every MCP command and prompt once, with the kind the server enforces and the same titles as the assistant log. |
 | `drive-links.test.ts` | Finding Google file links in emails. |
 | `snippets.test.ts` | Hidden text matching. |
 | `muted-senders.test.ts` | Hidden sender addresses and domains. |
