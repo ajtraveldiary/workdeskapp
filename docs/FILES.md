@@ -28,7 +28,7 @@ Cron every 10 min (src/server/worker.ts): Gmail sync, then phone notifications
 | `vite.config.ts` | Builds the app: the version number from git (`appVersion`), `dist/version.json` for auto-update, and the service worker (`dist/sw.js`). Runs the dev server on :5173, passing `/api` and `/.well-known` to :8787. |
 | `vitest.config.ts` | Test runner settings: at most 8 files at once, longer time limits for each file's database setup and each test. |
 | `drizzle.config.ts` | Where the database schema and migrations live, for `npm run db:generate`. |
-| `wrangler.jsonc` | Cloudflare Worker settings: entry file, the built app as static files (the Worker answers `/api/*` and `/.well-known/*` first), the 10-minute cron, the time zone; lists the secrets to set. |
+| `wrangler.jsonc` | Cloudflare Worker settings: entry file, the built app as static files (the Worker answers `/api/*` and `/.well-known/*` first), the 10-minute cron, the time zone, the sync batch (`SYNC_BATCH` 10, under the free plan's 50 subrequests); lists the secrets to set. |
 | `.env.example` | The settings to copy into `.env` to use real Gmail locally (Google client, owner email, secrets, database). |
 | `.gitignore` | Files git ignores (`node_modules`, `dist`, `.data`, `.env`…). |
 | `.github/workflows/deploy.yml` | On every push to `master`: typecheck, tests, database migrations on Neon, build, deploy the Worker. |

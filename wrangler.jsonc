@@ -13,7 +13,10 @@
   // Every 10 minutes: Gmail sync, wake snoozed emails.
   "triggers": { "crons": ["*/10 * * * *"] },
   "vars": {
-    "APP_TIMEZONE": "Asia/Kolkata"
+    "APP_TIMEZONE": "Asia/Kolkata",
+    // Gmail conversations downloaded per sync run (code default 30). 10 keeps a run under the
+    // free plan's 50 subrequests per invocation (user request 2026-10-22, "Too many subrequests").
+    "SYNC_BATCH": "10"
   }
   // Secrets (set with `wrangler secret put NAME`):
   // DATABASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OWNER_EMAIL,
