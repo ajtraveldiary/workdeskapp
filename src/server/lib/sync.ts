@@ -12,6 +12,7 @@ import { ensureEventTasks } from "./officeEvents";
 import { clearMissingTaskLabels, getTaskLabels, labelTaskEmails, runLabelRules, watchedLabels } from "./taskLabels";
 import { applySectionRules } from "./sections";
 import { decryptSecret } from "./crypto";
+import { callsLeft } from "./callBudget";
 import {
   GmailError,
   getMessage,
@@ -30,6 +31,9 @@ import { onThreadUpdate } from "./threadRules";
 import { tasksOfThreads } from "./linkedEmails";
 
 type Account = typeof gmailAccounts.$inferSelect;
+
+// Calls a sync makes after its downloads: label and section rules, saving the emails and the account (about).
+const SYNC_TAIL = 20;
 type EventRow = typeof events.$inferInsert;
 
 export type ThreadSnapshot = {
@@ -296,7 +300,8 @@ const ignoreMissing = (e: unknown) => {
 //  - After that, Gmail's change log says what is new. A new message in a stored conversation is fetched on
 //    its own; a read/unread change is applied from the log without downloading anything.
 //  - Every downloaded message ID is recorded in gmail_messages and skipped from then on.
-export async function syncAccount(db: DB, env: Env, account: Account, retried = false): Promise<SyncResult> {
+// maxDownloads: the queue's smaller batch after a run that ran out of calls (lib/queue.ts).
+export async function syncAccount(db: DB, env: Env, account: Account, retried = false, opts: { maxDownloads?: number } = {}): Promise<SyncResult> {
   if (!account.refreshTokenEnc) throw new Error("Gmail account is not connected");
   const refreshToken = await decryptSecret(account.refreshTokenEnc, requireEnv(env, "TOKEN_ENC_KEY"));
   const { access_token: token } = await refreshAccessToken(
@@ -352,7 +357,7 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
       // Messages already downloaded are still skipped.
       if (e instanceof GmailError && e.status === 404 && !retried) {
         await db.update(gmailAccounts).set({ historyId: null, initialPageToken: null }).where(eq(gmailAccounts.id, account.id));
-        return syncAccount(db, env, { ...account, historyId: null, initialPageToken: null }, true);
+        return syncAccount(db, env, { ...account, historyId: null, initialPageToken: null }, true, opts);
       }
       throw e;
     }
@@ -404,8 +409,9 @@ export async function syncAccount(db: DB, env: Env, account: Account, retried = 
     }
   }
 
-  // Download a batch: new conversations first, then single new messages.
-  let budget = Number(env.SYNC_BATCH || 30);
+  // Download a batch: new conversations first, then single new messages. In a queue run only as many as fit
+  // in the calls left after the saving below (SYNC_TAIL); the rest stay in the account's pending lists.
+  let budget = Math.max(0, Math.min(Number(env.SYNC_BATCH || 30), opts.maxDownloads ?? Infinity, callsLeft() - SYNC_TAIL));
   const threadBatch = [...pendingThreads].slice(0, budget);
   budget -= threadBatch.length;
   const messageBatch = [...pendingMessages].slice(0, Math.max(0, budget));

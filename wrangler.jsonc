@@ -10,13 +10,16 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*", "/.well-known/*"]
   },
-  // Every 10 minutes: Gmail sync, wake snoozed emails.
+  // Every 10 minutes: the background queue (src/server/lib/queue.ts): notifications, Gmail sync, task labels, upkeep.
   "triggers": { "crons": ["*/10 * * * *"] },
   "vars": {
     "APP_TIMEZONE": "Asia/Kolkata",
     // Gmail conversations downloaded per sync run (code default 30). 10 keeps a run under the
     // free plan's 50 subrequests per invocation (user request 2026-10-22, "Too many subrequests").
-    "SYNC_BATCH": "10"
+    "SYNC_BATCH": "10",
+    // Calls (database queries, Gmail requests, pushes) one Worker run may make: 50 on the free plan. The queue stops
+    // before it and carries on in the next run (user request 2026-10-23). Raise it on the Paid plan (e.g. 1000).
+    "SUBREQUEST_LIMIT": "50"
   }
   // Secrets (set with `wrangler secret put NAME`):
   // DATABASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, OWNER_EMAIL,

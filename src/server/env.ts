@@ -11,6 +11,9 @@ export type Env = {
   SYNC_BATCH?: string;
   // How far back the first sync looks.
   SYNC_INITIAL_DAYS?: string;
+  // Outgoing calls (database queries, Gmail requests, pushes) one Worker run may make: 50 on Cloudflare's free
+  // plan. The queue stops work before it and carries on in the next run (lib/queue.ts). Unset = no limit.
+  SUBREQUEST_LIMIT?: string;
 };
 
 export const timezone = (env: Env) => env.APP_TIMEZONE || "Asia/Kolkata";

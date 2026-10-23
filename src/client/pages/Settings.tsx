@@ -22,11 +22,12 @@ import { TagSettings } from "../components/Tags";
 import { AssistantSettings } from "../components/AssistantSettings";
 import { AssistantHelp } from "../components/AssistantHelp";
 import { OfficeDetails } from "../components/OfficeDetails";
+import { QueueSettings } from "../components/QueueSettings";
 
 // Settings tabs (user request 2026-10-08, "use tabs to group similar settings"). The tab lives in the address
-// (#mail, #employees, #events, #registers, #tags, #calendar, #assistant, #assistant-help, #history, #import-export; none = General), so /settings#… links
-// open their tab. History and Import / Export moved in here from pages of their own (user request 2026-10-15).
-type SettingsTab = "general" | "mail" | "employees" | "events" | "registers" | "tags" | "calendar" | "assistant" | "assistant-help" | "history" | "import-export";
+// (#mail, #employees, #events, #registers, #tags, #calendar, #assistant, #assistant-help, #history, #queue, #import-export; none = General), so
+// /settings#… links open their tab. History and Import / Export moved in here from pages of their own (user request 2026-10-15).
+type SettingsTab = "general" | "mail" | "employees" | "events" | "registers" | "tags" | "calendar" | "assistant" | "assistant-help" | "history" | "queue" | "import-export";
 const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   { value: "general", label: "General" },
   { value: "mail", label: "Mail" },
@@ -43,6 +44,8 @@ const SETTINGS_TABS: { value: SettingsTab; label: string }[] = [
   // Every assistant command, grouped, with hints (user request 2026-10-19).
   { value: "assistant-help", label: "Assistant help" },
   { value: "history", label: "History" },
+  // The background queue: sync, notifications, labels, upkeep (user request 2026-10-23).
+  { value: "queue", label: "Queue" },
   { value: "import-export", label: "Import / Export" },
 ];
 
@@ -54,7 +57,7 @@ export function SettingsPage() {
   const openTab = (t: SettingsTab) => navigate({ hash: t === "general" ? "" : t }, { replace: true });
   return (
     <>
-      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"], ["tags"], ["event-types"], ["history"], ["registers"], ["assistant"], ["office-profile"]]} label="Refresh settings" />} />
+      <PageHeader title="Settings" actions={<RefreshButton keys={[["me"], ["muted-senders"], ["snippets"], ["labels"], ["task-label-settings"], ["calendar-link"], ["push"], ["staff"], ["tags"], ["event-types"], ["history"], ["registers"], ["assistant"], ["office-profile"], ["queue"]]} label="Refresh settings" />} />
       <div className="space-y-6">
         <div>
           <Tabs<SettingsTab> value={tab} onChange={openTab} options={SETTINGS_TABS} />
@@ -92,6 +95,7 @@ export function SettingsPage() {
                 <ImportExportPage embedded />
               </div>
             )}
+            {tab === "queue" && <QueueSettings />}
             {tab === "tags" && <TagSettings />}
             {tab === "calendar" && <CalendarLink />}
             {tab === "assistant" && <AssistantSettings onOpenHelp={() => openTab("assistant-help")} />}

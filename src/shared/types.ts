@@ -365,3 +365,30 @@ export type AssistantInfo = {
 
 // The bell (Phase 5, user request 2026-10-19): changes assistants made since the user last looked at them.
 export type AssistantUnseen = { count: number; latest: { id: string; clientName: string; title: string; touched: { kind: string; id: string; title: string }[]; createdAt: string }[] };
+
+// Settings › Queue (user request 2026-10-23): the background queue's jobs, newest first, and the calls one run may
+// make (null = no limit, e.g. the local dev server).
+export type QueueJob = {
+  id: string;
+  kind: import("./jobs").JobKind;
+  status: import("./jobs").JobStatus;
+  attempts: number;
+  pauses: number;
+  runAfter: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  calls: number;
+  ranBy: "schedule" | "app" | null;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+};
+export type QueueInfo = { limit: number | null; jobs: QueueJob[] };
+// What one run did: each job's result, and whether work is still waiting that another run can take now (Sync now
+// keeps calling while it is); fetched / remaining are the Gmail sync's numbers.
+export type QueueRunReport = {
+  ran: { kind: import("./jobs").JobKind; result: "done" | "paused" | "retry" | "failed"; note: string }[];
+  more: boolean;
+  fetched: number;
+  remaining: number;
+};

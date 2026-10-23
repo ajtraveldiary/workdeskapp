@@ -4,6 +4,7 @@ import { REPEATS } from "../../shared/reminderSchedule";
 import { RELATED_KINDS } from "../../shared/staff";
 import { EVENT_KINDS, type EventChange } from "../../shared/eventSchedule";
 import { MOVE_KINDS } from "../../shared/moves";
+import { JOB_KINDS, JOB_STATUSES } from "../../shared/jobs";
 import type { ChecklistItem, ReminderLink } from "../../shared/types";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
@@ -628,3 +629,32 @@ export const officeProfiles = pgTable("office_profiles", {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+// Background queue (user request 2026-10-23, lib/queue.ts): one row per piece of background work (Gmail sync,
+// phone notifications, task labels, upkeep). A run that runs out of calls leaves it queued, so it is never lost;
+// failures are tried again with a wait and shown in Settings › Queue. At most one queued or running job per kind.
+export const jobs = pgTable(
+  "jobs",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: JOB_KINDS }).notNull(),
+    status: text("status", { enum: JOB_STATUSES }).notNull().default("queued"),
+    // Failed tries so far, and runs that ran out of calls before it finished (those don't count as failures).
+    attempts: integer("attempts").notNull().default(0),
+    pauses: integer("pauses").notNull().default(0),
+    runAfter: timestamp("run_after", { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    // Calls the last try used, what started that run (the 10-minute schedule or the app), and what happened.
+    calls: integer("calls").notNull().default(0),
+    ranBy: text("ran_by", { enum: ["schedule", "app"] }),
+    note: text("note").notNull().default(""),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    uniqueIndex("jobs_active").on(t.userId, t.kind).where(sql`${t.status} in ('queued', 'running')`),
+    index("jobs_user_created").on(t.userId, t.createdAt),
+  ],
+);

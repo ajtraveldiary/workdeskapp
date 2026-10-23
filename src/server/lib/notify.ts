@@ -1,6 +1,6 @@
 // Phone notifications (user request 2026-10-07; the user chose: a morning summary at a time set in Settings,
 // a notification at a task's or reminder's due time, and the "Pending today" count as the app icon's badge).
-// Run by the cron trigger every 10 minutes after the Gmail sync, so a notification arrives within about
+// Run by the background queue (lib/queue.ts) every 10 minutes, first in each run, so a notification arrives within about
 // 10 minutes of its time. Each device that turned notifications on is a push_subscriptions row.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { DB } from "../db";
@@ -13,6 +13,7 @@ import { viewFilter } from "../routes/tasks";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { todayIn } from "./dates";
 import { makeVapidKeys, sendPush, type PushMessage, type VapidKeys } from "./webpush";
+import { needCalls } from "./callBudget";
 
 // "HH:MM" (24h) now in the app's timezone.
 export function timeIn(tz: string, now = new Date()): string {
@@ -161,13 +162,20 @@ export async function planNotifications(db: DB, env: Env, userId: string, now = 
 // The cron job: every user with a device that turned notifications on.
 export async function sendScheduledPush(db: DB, env: Env, now = new Date()) {
   const owners = [...new Set((await db.select({ userId: pushSubscriptions.userId }).from(pushSubscriptions)).map((r) => r.userId))];
-  for (const userId of owners) {
-    const plan = await planNotifications(db, env, userId, now);
-    if (!plan.messages.length) continue;
-    // Remembered first, so a slow or failed push is never repeated every 10 minutes.
-    for (const t of plan.taskKeys) await db.update(tasks).set({ pushNotifiedFor: t.key }).where(eq(tasks.id, t.id));
-    for (const e of plan.eventKeys) await db.update(officeEvents).set({ notifiedFor: e.key }).where(eq(officeEvents.id, e.id));
-    if (plan.summaryDay) await db.update(users).set({ pushSummarySentOn: plan.summaryDay }).where(eq(users.id, userId));
-    await pushToUser(db, env, userId, plan.messages);
-  }
+  for (const userId of owners) await sendPushTo(db, env, userId, now);
+}
+
+// One user's notifications due now; the queue's "notify" job (lib/queue.ts). Returns the messages sent.
+export async function sendPushTo(db: DB, env: Env, userId: string, now = new Date()) {
+  const plan = await planNotifications(db, env, userId, now);
+  if (!plan.messages.length) return 0;
+  // In a queue run, stop here unless the remembering and the pushes all fit (about 4 calls per push plus
+  // lookups), so nothing is marked sent without being sent; the job is then tried in the next run.
+  needCalls(plan.taskKeys.length + plan.eventKeys.length + 1 + 12);
+  // Remembered first, so a slow or failed push is never repeated every 10 minutes.
+  for (const t of plan.taskKeys) await db.update(tasks).set({ pushNotifiedFor: t.key }).where(eq(tasks.id, t.id));
+  for (const e of plan.eventKeys) await db.update(officeEvents).set({ notifiedFor: e.key }).where(eq(officeEvents.id, e.id));
+  if (plan.summaryDay) await db.update(users).set({ pushSummarySentOn: plan.summaryDay }).where(eq(users.id, userId));
+  await pushToUser(db, env, userId, plan.messages);
+  return plan.messages.length;
 }

@@ -3,7 +3,7 @@ import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
 import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
-  AssistantInfo, AssistantUnseen, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+  AssistantInfo, AssistantUnseen, QueueInfo, QueueRunReport, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -632,3 +632,15 @@ export const logout = () =>
     // The offline copies of emails and lists go too (service worker data cache).
     void globalThis.caches?.delete("workdesk-data").catch(() => undefined);
   });
+
+// Settings › Queue (user request 2026-10-23): the background queue, checked again every 15 seconds while shown.
+// Run now and Retry may sync Gmail or make tasks, so everything is refreshed after them.
+export const useQueue = () => useQuery({ queryKey: ["queue"], queryFn: () => api<QueueInfo>("/queue"), refetchInterval: 15_000 });
+export function useQueueActions() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries();
+  return {
+    run: useMutation({ mutationFn: () => api<QueueRunReport>("/queue/run", { method: "POST" }), onSettled: refresh }),
+    retry: useMutation({ mutationFn: (id: string) => api<QueueRunReport>(`/queue/${id}/retry`, { method: "POST" }), onSettled: refresh }),
+  };
+}

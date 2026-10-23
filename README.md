@@ -162,6 +162,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Calendar:** the private calendar link.
 - **Assistant:** connect ChatGPT or Gemini (see below); **Assistant help** lists every command with what to ask.
 - **History** and **Import / Export** (see above).
+- **Queue:** the background work (Gmail sync, phone notifications, Gmail task labels, upkeep): what is waiting,
+  running, paused or failed, what each run did, with Run now and Retry. Work that doesn't fit in one run waits for
+  the next one and failures are tried again, so nothing is lost.
 
 ### Assistant (ChatGPT, Gemini)
 - **Ask an AI assistant about your work:** "what is overdue?", "summarise the PDF in the HMIS email", "who retires
@@ -278,7 +281,9 @@ Repeat the second command for `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OWNER
 ```bash
 npm run deploy
 ```
-One Worker serves both the app and its API. A timer checks Gmail and sends due phone notifications every 10 minutes.
+One Worker serves both the app and its API. A timer runs the background queue every 10 minutes (due phone
+notifications, Gmail, labels, upkeep). On the free plan a run may make 50 calls (`SUBREQUEST_LIMIT` in
+`wrangler.jsonc`); on the Paid plan raise it (e.g. 1000) so each run does more.
 Phone notifications need no extra setup.
 
 ### 5. Automatic deploys from GitHub (optional)

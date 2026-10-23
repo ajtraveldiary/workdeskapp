@@ -6,7 +6,8 @@ import { designations, emailThreads, employees, events, gmailAccounts, hiddenSni
 import { incrementOnHome } from "../../shared/staff";
 import { timezone } from "../env";
 import { addDays, todayIn } from "../lib/dates";
-import { syncUser, wakeSnoozed } from "../lib/sync";
+import { wakeSnoozed } from "../lib/sync";
+import { runQueueNow } from "./queue";
 import { demoArrival } from "../lib/users";
 import { maintain } from "../lib/maintenance";
 import { notMuted } from "../lib/muted";
@@ -274,7 +275,9 @@ export const miscRoutes = new Hono<AppEnv>()
     return c.json({ ok: true });
   })
 
-  // Pull new mail from Gmail (read-only). Call again while `remaining` > 0.
+  // Pull new mail from Gmail (read-only). Call again while `remaining` > 0. Goes through the background queue
+  // (user request 2026-10-23): a sync too big for one request's calls pauses and the next call carries on,
+  // and a failure is kept and tried again (Settings › Queue) instead of being lost.
   .post("/sync", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
@@ -283,5 +286,8 @@ export const miscRoutes = new Hono<AppEnv>()
       await demoArrival(db, userId);
       return c.json({ fetched: 1, remaining: 0 });
     }
-    return c.json(await syncUser(db, c.env, userId));
+    const r = await runQueueNow(db, c.env, userId, ["sync", "labels"]);
+    const failed = r.ran.find((j) => j.kind === "sync" && (j.result === "retry" || j.result === "failed"));
+    if (failed) throw new HTTPException(502, { message: `Gmail sync failed: ${failed.note}. It is kept in Settings › Queue${failed.result === "retry" ? " and tried again in a few minutes" : ""}.` });
+    return c.json({ fetched: r.fetched, remaining: r.remaining });
   });
