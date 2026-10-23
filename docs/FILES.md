@@ -85,6 +85,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0043_office_profile.sql` | Office details (`office_profiles`: one row per user, the details as JSON). |
 | `0044_task_links.sql` | Links on tasks (`tasks.links`, like reminders' links). |
 | `0045_background_queue.sql` | The background queue (`jobs`: kind, status, tries, pauses, next try, calls used, note; one waiting or running job per kind). |
+| `0046_call_log.sql` | Calls log (`call_logs`: one row per request or 10-minute run with every outgoing call) and saved changes / refused notifications on `jobs` (`payload`, `title`, `call_log_id`; the one-per-kind index only for the four background kinds). |
 | `0034_event_types.sql` | The user's own event types (`event_types`; every account gets Meeting, Training, Programme) and `type_id` on events, filled from the old fixed kind ("Other" = no type). |
 | `0031_tags.sql` | Tags for tasks and reminders: the `tags` table (name unique per user whatever its capitals, colour, order) and `tag_ids` on tasks and reminders. |
 
@@ -92,7 +93,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | What it does |
 |---|---|
-| `app.ts` | Builds the Hono API: Google sign-in (`/api/auth/google`, which can return to an assistant's consent page), sign-out, session cookie, demo sign-in when Google isn't set up, database-error answers, the assistants' sign-in details at `/.well-known/`, `/api/oauth` and `/api/mcp` (before the sign-in check), and mounts every route file below. |
+| `app.ts` | Builds the Hono API: Google sign-in (`/api/auth/google`, which can return to an assistant's consent page), sign-out, session cookie, demo sign-in when Google isn't set up, database-error answers, the assistants' sign-in details at `/.well-known/`, `/api/oauth` and `/api/mcp` (before the sign-in check), and mounts every route file below.; first of all, every request runs in a calls budget and its calls are logged as one row, and a change that fails with a server error is saved to the queue (503 `saved_for_retry` / `needs_check`); hands the queue the `replay` that does saved changes again as their user. |
 | `worker.ts` | Cloudflare entry: serves `/api/*`, the built app for everything else, and the 10-minute cron, which runs the background queue within the run's calls budget; turns on the calls counter. |
 | `dev.ts` | Local entry (Node, port 8787): Neon if `DATABASE_URL` is set, otherwise the local database; runs the background queue every 10 minutes (no calls limit unless `SUBREQUEST_LIMIT` is set). |
 | `env.ts` | The Worker's settings and secrets (`Env`), the app time zone, and a helper that fails clearly when a secret is missing. |
@@ -139,7 +140,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `linkedEmails.ts` | More emails on a task or event (`/linked-emails`): list (main first), add Pending emails (they leave Pending, task labels in Gmail), take one off (back to Pending unless another open task has it). |
 | `assistant.ts` | Settings › Assistant (`/assistant`): the address assistants connect to, Allow changes, the hourly limit and Allow staff actions (`PUT /assistant/settings`, History entry), connected assistants (Disconnect deletes their tokens, History entry) and the assistant log, 50 at a time (`?before=`, `?changes=1`).; the bell's unseen changes (`/assistant/unseen`, newest 5 and a count) and `/assistant/seen`; the log as CSV (`/assistant/log.csv`, `?changes=1`). |
 | `officeProfile.ts` | Office details (`/office-profile`): read (with every field filled in) and save the whole form; each save in History. |
-| `queue.ts` | Settings › Queue (`/queue`): the jobs (newest 60) and the calls limit, Run now, Retry a failed job; `runQueueNow` runs the queue within a request's budget (also used by Sync now). |
+| `queue.ts` | Settings › Queue (`/queue`): the jobs (newest 60, saved bodies kept on the server) and the calls limit, Run now, Retry (failed jobs and changes waiting for a check), Discard (written in History), and the calls log (`/queue/calls`: failed only, the queue's own checks, older pages); `runQueueNow` runs the queue in the request's own budget (also used by Sync now). |
 | `calendar.ts` | Private calendar link: make/replace/turn off the link, and the public `.ics` feed it serves. |
 | `push.ts` | Phone notifications: turn on/off for a device, what to send and when, send a test. |
 | `transfer.ts` | Import / Export: master backup download and import (adds only what's missing), CSV export and import (preview, then in parts) for file register, employees, tasks and reminders. |
@@ -148,7 +149,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | What it does |
 |---|---|
-| `gmail.ts` | The only code that talks to Gmail: read-only GETs from an allowlist, mark read, and the user's own labels. Enforced by `tests/gmail-safety.test.ts`. |
+| `gmail.ts` | The only code that talks to Gmail: read-only GETs from an allowlist, mark read, and the user's own labels. Enforced by `tests/gmail-safety.test.ts`.; `gmailPathOf` names Gmail calls for the calls log. |
 | `gmailAuth.ts` | Gets a fresh Gmail access token from the stored (encrypted) refresh token. |
 | `sync.ts` | Gmail sync: first 30 days, then Gmail's change log; each message downloaded once; labels kept up to date; cron sync for all users (also makes due reminder dates, Pension papers, Contract ends and Probation declaration tasks; no longer used by the cron, which runs the queue); downloads only as many emails as fit in a queue run's calls left. |
 | `threadRules.ts` | What a new message does to an email that was removed, made a task, made an event, or sent to another section. |
@@ -159,10 +160,11 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `muted.ts` | Checks whether an email's sender is hidden from Pending. |
 | `maintenance.ts` | Housekeeping on page loads, at most every few minutes: returns any old snoozed email to Pending, creates due reminder dates, applies section rules, makes Pension papers, Contract ends and Probation declaration tasks, and clears expired assistant sign-ins and assistant log rows older than a year. |
 | `ics.ts` | Builds the calendar file (`.ics`) for the calendar link (tasks, reminder dates, events with place and status), with Malayalam-safe line folding. |
-| `notify.ts` | Decides which phone notifications are due (morning summary with today's events, due-time notes, an event's note 1 hour before, badge count) and sends them; `sendPushTo` is one user's, the queue's notify job, which stops before marking anything sent when the run's calls won't cover it. |
+| `notify.ts` | Decides which phone notifications are due (morning summary with today's events, due-time notes, an event's note 1 hour before, badge count) and sends them; `sendPushTo` is one user's, the queue's notify job, which stops before marking anything sent when the run's calls won't cover it.; a notification a push service refuses is saved as a `push` job; `pushKeys` signs pushes. |
 | `webpush.ts` | Web Push with WebCrypto only: encrypts a message for a device and signs it (VAPID). |
-| `queue.ts` | The background queue: puts in one job per kind not already waiting, claims the due ones, runs them in order (notifications, Gmail sync, task labels, upkeep) within the calls budget; a job that doesn't fit or runs out of calls waits for the next run, a failure is tried again after 2, 4, 8, 16 minutes and then kept as failed; upkeep clears done jobs after 2 days and failed ones after 30. |
-| `callBudget.ts` | Counts every outgoing call (Neon queries, Gmail, pushes) of a run against `SUBREQUEST_LIMIT` and refuses the next one before Cloudflare's limit, keeping a few for the queue's own writes. |
+| `queue.ts` | The background queue: puts in one job per background kind not already waiting, claims the due ones (saved changes and refused notifications too), runs them in order (notifications, refused notifications, saved changes, Gmail sync, task labels, upkeep) within the calls budget, marking their calls with the job; a job that doesn't fit or runs out of calls waits for the next run, a failure is tried again after 2, 4, 8, 16 minutes and then kept as failed (a saved change the app refuses fails at once); `action` jobs replay the request through the app, `push` jobs resend for up to 2 hours; upkeep clears done jobs and calls log rows after 2 days and failed ones after 30; `runScheduled` is the cron's run, logged as one row. |
+| `callBudget.ts` | Counts every outgoing call (Neon queries, Gmail, Google sign-in, pushes) of a request or run against `SUBREQUEST_LIMIT`, refuses the next one before Cloudflare's limit (keeping a few for the queue's own writes), and records each call (`describeCall`: a query by verb and table only, Gmail by method and path, never the data) with its time, result and job. |
+| `callLog.ts` | Writes a request's calls as one `call_logs` row from the reserve; saves a failed change as an `action` job (queued when nothing was saved before it failed, `check` when part was; never for passwords, sign-in, device keys, imports, the assistant endpoint or the queue's own buttons). |
 | `staff.ts` | Checks what a task or reminder is "for" (employee, designation, office) and names it for History. |
 | `tags.ts` | Tags: checks the tag ids a task or reminder is given, finds or makes tags by name (CSV import), tag names for export and search. |
 | `officeEvents.ts` | Events: today's events for Home, and the preparation tasks (made up to 30 days ahead, moved with the event, dropped when it is cancelled or deleted). |
@@ -187,7 +189,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `schemas.ts` | Checks on everything the app sends (Zod): tasks, reminders, tags, labels, staff, files, website logins, notifications, hidden text. |
 | `reminderSchedule.ts` | Reminder date maths: repeats, next dates, "remind me" lead days, labels like "Every month". |
 | `eventSchedule.ts` | Event maths: the starting event types and the "Event" label for none, each date of a repeating event in a range with its changes (done, moved, cancelled), time ranges. |
-| `jobs.ts` | The background queue's kinds of work (title, what it does, calls needed to start), statuses, tries and retry waits. |
+| `jobs.ts` | The background queue's kinds of work (the four background kinds plus saved changes and refused notifications; title, what it does, calls needed to start), statuses (with `check`), tries and retry waits, and plain names for requests (`requestTitle`). |
 | `moves.ts` | Joining and relieving steps (ids, names, Done or Received), Pending / Waiting / Done, and how a step's state is read from and written to the task's checklist. |
 | `tags.ts` | Tag rules shared by both sides: the colour palette, tidy names (same tag whatever the capitals), reading the CSV Tags column. |
 | `staff.ts` | Employee lists and rules: categories, engaged as, common designations and types, contract end date, increment due dates, contracts ending (Contract ends task from 7 days before, its title, renewed end date), retiring within 12 months (a year before, Pension papers title and checklist), probation (2 years from joining, task title). |
@@ -299,7 +301,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `Registers.tsx` | Registers: Settings › Registers list, the entry form (register, what with the person button for Needs, optional task with a due date, remove) and an entry's row (tick, swipe on phones). |
 | `LinkedEmails.tsx` | The Emails section of Task details and Event details (main email first, added ones with ✕, tap to open) and the Add email picker (Pending emails, search, tick several). |
 | `AssistantSettings.tsx` | Settings › Assistant: what an assistant can read, the address with Copy, how to connect ChatGPT and Gemini, the Allow changes switch with changes an hour and Allow staff actions under it (greyed out while changes are off), connected assistants with Disconnect, and the assistant log (Everything / Changes only, what each change touched, Show older).; Export CSV of what the log shows; opening the tab marks the assistant's changes as seen (the bell clears).; a "See every command" link to Assistant help. |
-| `QueueSettings.tsx` | Settings › Queue: the background queue with Run now, counts waiting / running / failed, what the last run did, work waiting, running or failed (Retry), and recently done jobs with the calls each used. |
+| `QueueSettings.tsx` | Settings › Queue: Run now, counts waiting / running / needing your check / failed, what the last run did, work waiting, running, failed or waiting for your check (Retry, Discard), the Calls log (each request or run with calls used of the limit, failed / ran out / saved badges, tap for every call; All / Failed only, the queue's own checks hidden unless ticked, Show older) and recently done jobs. |
 | `AssistantHelp.tsx` | Settings › Assistant help: how to use the assistant, the current Allow changes / Allow staff actions state, a search box, and every command and prompt by group with its kind badge, name, hint, a copyable example and notes. |
 | `OfficeDetails.tsx` | Settings › General › Office details: office name and address, phone, email, seat, signature block, file number pattern, usual recipients and office codes (editable lists), letter language; Save. |
 | `EventTypes.tsx` | Settings › Events: the event types list (add, rename, drag to arrange, remove; a removed type's events show as "Event"). |
@@ -314,6 +316,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `mark-read.test.ts` | Opening an email removes only the Unread label. |
 | `sync.test.ts` | Gmail sync downloads each message once and continues the 30-day backfill. |
 | `queue.test.ts` | Background queue: the calls budget and its reserve, jobs run in order, nothing lost when a run has too few calls (work waits, a sync downloads what fits, a notification isn't marked sent), retries then failed, cut-off jobs queued again, Settings › Queue routes. |
+| `call-log.test.ts` | Calls log: calls named without their data, one row per request, an inner request logged with the outer one, failed reads logged only, a failed change saved and done again by the queue, a half-saved one waiting for a check with Retry / Discard, a refused change failing at once, refused pushes resent then dropped when late, the queue's own checks hidden, log cleanup after 2 / 30 days. |
 | `thread-rules.test.ts` | What a new reply does to removed, task and section emails. |
 | `bulk-actions.test.ts` | Tick-several actions on emails; old snoozed emails come back. |
 | `send-to-section.test.ts` | Remove → Send to a section, and its Undo. |

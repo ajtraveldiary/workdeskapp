@@ -3,7 +3,7 @@ import { noteNetworkError, noteResponse } from "./connection";
 import { clearSavedData } from "./queryClient";
 import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
-  AssistantInfo, AssistantUnseen, QueueInfo, QueueRunReport, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
+  AssistantInfo, AssistantUnseen, CallLog, QueueInfo, QueueRunReport, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
 
 export class ApiError extends Error {
@@ -642,5 +642,13 @@ export function useQueueActions() {
   return {
     run: useMutation({ mutationFn: () => api<QueueRunReport>("/queue/run", { method: "POST" }), onSettled: refresh }),
     retry: useMutation({ mutationFn: (id: string) => api<QueueRunReport>(`/queue/${id}/retry`, { method: "POST" }), onSettled: refresh }),
+    discard: useMutation({ mutationFn: (id: string) => api(`/queue/${id}/discard`, { method: "POST" }), onSettled: refresh }),
   };
 }
+// Settings › Queue › Calls log (user request 2026-10-23): every outgoing call per request or 10-minute run, newest
+// first; `before` loads the next page.
+export type CallLogFilter = { failedOnly: boolean; selfChecks: boolean };
+export const callLogPath = (f: CallLogFilter, before?: string) =>
+  `/queue/calls${qs({ failed: f.failedOnly && "1", self: f.selfChecks && "1", before })}`;
+export const useCallLog = (f: CallLogFilter) =>
+  useQuery({ queryKey: ["queue", "calls", f], queryFn: () => api<{ calls: CallLog[]; more: boolean }>(callLogPath(f)), refetchInterval: 15_000 });

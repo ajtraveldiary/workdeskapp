@@ -117,6 +117,13 @@ export const getMessageFull = (token: string, messageId: string) =>
 export const getAttachment = (token: string, messageId: string, attachmentId: string) =>
   gmailGet<{ size: number; data: string }>(token, `/messages/${messageId}/attachments/${attachmentId}`);
 
+// The calls log (lib/callBudget.ts) names Gmail calls by their path: "/threads/abc/modify", or null for any other
+// address. Kept here so only the Gmail client knows Gmail's address (tests/gmail-safety.test.ts).
+export function gmailPathOf(url: URL): string | null {
+  const full = `${url.origin}${url.pathname}`;
+  return full.startsWith(GMAIL) ? full.slice(GMAIL.length) : null;
+}
+
 // --- The one change WorkDesk makes in Gmail ---
 
 // Marks a conversation read by removing its UNREAD label. Nothing else can be changed through here:

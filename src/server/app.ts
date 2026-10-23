@@ -13,6 +13,9 @@ import { authUrl, exchangeCode, idTokenClaims } from "./lib/gmail";
 import { ensureUser, seedDemoMailbox, seedDemoReports } from "./lib/users";
 import { todayIn } from "./lib/dates";
 import { DB_ERROR_MESSAGE, classifyDbError } from "./lib/dbErrors";
+import { callLimit, currentBudget, isOutOfCalls, newBudget, withCalls } from "./lib/callBudget";
+import { isChange, notSavedReason, saveFailedChange, writeCallLog } from "./lib/callLog";
+import { setReplay } from "./lib/queue";
 import { calendarFeedRoute, calendarSettingsRoutes } from "./routes/calendar";
 import { threadRoutes } from "./routes/threads";
 import { taskRoutes } from "./routes/tasks";
@@ -62,9 +65,79 @@ export function createApp(opts: Options) {
   const root = new Hono<AppEnv>();
   const app = root.basePath("/api");
 
+  // Every request runs inside a calls budget and its calls are logged as one row at the end (user request 2026-10-23,
+  // "every subrequest made from any part of this website must be logged in this queue, and if failed stored there
+  // for retry"). A request made inside another (an assistant's tools, a saved change done again) shares the outer
+  // budget and log. A change that fails with a server error is saved as a queue job (lib/callLog.ts) and the app is
+  // told so, instead of the change being lost.
+  root.use(async (c, next) => {
+    const outer = currentBudget();
+    const line = `${c.req.method} ${c.req.path}`;
+    if (outer) {
+      const was = outer.inner;
+      outer.inner = line;
+      try {
+        await next();
+      } finally {
+        outer.inner = was;
+      }
+      return;
+    }
+    const method = c.req.method;
+    const path = c.req.path;
+    const query = new URL(c.req.url).search;
+    const keep = isChange(method) && !notSavedReason(path) ? c.req.raw.clone() : null;
+    const budget = newBudget(callLimit(c.env));
+    await withCalls(budget, async () => {
+      await next();
+      if (!budget.log.length) return;
+      const db = c.get("db") ?? (await opts.getDb(c.env));
+      const userId = (c.get("userId") as string | undefined) ?? null;
+      const from = path.startsWith("/api/mcp") ? "assistant" : "app";
+      const logId = crypto.randomUUID();
+      let jobId: string | null = null;
+      if (keep && userId && c.res.status >= 500) {
+        const error = ((await c.res.clone().json().catch(() => null)) as { error?: string } | null)?.error ?? `Answered ${c.res.status}`;
+        const body = await keep.text().catch(() => null);
+        const r = await saveFailedChange(db, { userId, method, path: path + query, body: body || null, from, entries: budget.log, error }, logId).catch((e) => {
+          console.error("Failed change not saved:", e);
+          return null;
+        });
+        if (r) {
+          jobId = r.jobId;
+          c.res = c.json(
+            {
+              error: r.check
+                ? `${r.title} couldn't finish and part of it was saved. It's waiting for your check in Settings › Queue.`
+                : `${r.title} couldn't finish now. It's saved in Settings › Queue and will be tried again.`,
+              code: r.check ? "needs_check" : "saved_for_retry",
+              jobId,
+            },
+            503,
+          );
+        }
+      }
+      await writeCallLog(db, budget, { id: logId, userId, source: from, method, path, status: c.res.status, jobId });
+    });
+  });
+
+  // Saved changes are done again through these same routes as their user (lib/queue.ts), with a session made for
+  // that one request, as the assistant tools do (mcp/server.ts).
+  setReplay(async (env, userId, p) => {
+    const secret = env.SESSION_SECRET;
+    const cookie = isDemo(env, opts) || !secret ? null : `${SESSION_COOKIE}=${await signPayload({ uid: userId, exp: Date.now() + 5 * 60_000 }, secret)}`;
+    return app.request(
+      p.path,
+      { method: p.method, headers: { ...(cookie ? { cookie } : {}), ...(p.body ? { "content-type": "application/json" } : {}) }, body: p.body ?? undefined },
+      env,
+    );
+  });
+
   app.onError((err, c) => {
     if (err instanceof ZodError) return c.json({ error: "Invalid request", issues: err.issues }, 400);
     if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
+    // The request's calls ran out (before Cloudflare's own limit): not a database problem.
+    if (isOutOfCalls(err)) return c.json({ error: "This request needed more calls to the database and Gmail than one request may make.", code: "out_of_calls" }, 503);
     console.error(err);
     // Database down or paused (Neon usage limit): a clear message and a code the app shows a pop-up for.
     const db = classifyDbError(err);

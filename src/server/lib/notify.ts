@@ -4,7 +4,7 @@
 // 10 minutes of its time. Each device that turned notifications on is a push_subscriptions row.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import type { DB } from "../db";
-import { employees, officeEvents, pushSubscriptions, tasks, users } from "../db/schema";
+import { employees, jobs, officeEvents, pushSubscriptions, tasks, users } from "../db/schema";
 import { eventTypeLabel } from "../../shared/eventSchedule";
 import { eventsToday } from "./officeEvents";
 import { incrementOnHome } from "../../shared/staff";
@@ -13,7 +13,7 @@ import { viewFilter } from "../routes/tasks";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { todayIn } from "./dates";
 import { makeVapidKeys, sendPush, type PushMessage, type VapidKeys } from "./webpush";
-import { needCalls } from "./callBudget";
+import { needCalls, spare } from "./callBudget";
 
 // "HH:MM" (24h) now in the app's timezone.
 export function timeIn(tz: string, now = new Date()): string {
@@ -45,15 +45,20 @@ export async function vapidKeysFor(db: DB, env: Env, userId: string): Promise<Va
 }
 
 // Sends the messages to every device of the user; devices that turned notifications off are forgotten.
+// The VAPID keys and contact address a push is signed with.
+export async function pushKeys(db: DB, env: Env, userId: string) {
+  const [u] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId));
+  return { keys: await vapidKeysFor(db, env, userId), subject: `mailto:${u?.email ?? "workdesk@example.com"}` };
+}
+
 export async function pushToUser(db: DB, env: Env, userId: string, messages: PushMessage[], onlyEndpoint?: string): Promise<number> {
   if (!messages.length) return 0;
   const subs = (await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId))).filter((s) => !onlyEndpoint || s.endpoint === onlyEndpoint);
   if (!subs.length) return 0;
-  const [u] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId));
-  const keys = await vapidKeysFor(db, env, userId);
-  const subject = `mailto:${u?.email ?? "workdesk@example.com"}`;
+  const { keys, subject } = await pushKeys(db, env, userId);
   let sent = 0;
   const gone: string[] = [];
+  const refused: { subscriptionId: string; message: PushMessage }[] = [];
   for (const s of subs) {
     for (const m of messages) {
       const r = await sendPush(s, m, keys, subject).catch((e) => {
@@ -65,9 +70,17 @@ export async function pushToUser(db: DB, env: Env, userId: string, messages: Pus
         break;
       }
       if (r === "ok") sent++;
+      else refused.push({ subscriptionId: s.id, message: m });
     }
   }
   if (gone.length) await db.delete(pushSubscriptions).where(inArray(pushSubscriptions.id, gone));
+  // A refused notification is kept in the queue and sent again (user request 2026-10-23, lib/queue.ts "push").
+  if (refused.length) {
+    const at = new Date().toISOString();
+    await spare(() =>
+      db.insert(jobs).values(refused.map((r) => ({ userId, kind: "push" as const, title: `Notification: ${r.message.title}`.slice(0, 200), note: "The push service refused it; sent again shortly.", runAfter: new Date(Date.now() + 2 * 60_000), payload: { ...r, at } }))),
+    ).catch((e) => console.error("Refused push not saved:", e));
+  }
   if (sent) await db.update(pushSubscriptions).set({ lastSentAt: new Date() }).where(and(eq(pushSubscriptions.userId, userId)));
   return sent;
 }

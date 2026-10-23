@@ -165,6 +165,10 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Queue:** the background work (Gmail sync, phone notifications, Gmail task labels, upkeep): what is waiting,
   running, paused or failed, what each run did, with Run now and Retry. Work that doesn't fit in one run waits for
   the next one and failures are tried again, so nothing is lost.
+  A change of yours that fails (for example when the database or Gmail is busy) is saved there and done again
+  automatically, or waits for your check if part of it had already been saved. The **Calls log** lists every call
+  each request made to the database, Gmail and the notification services (never your data), with failed ones kept
+  for 30 days.
 
 ### Assistant (ChatGPT, Gemini)
 - **Ask an AI assistant about your work:** "what is overdue?", "summarise the PDF in the HMIS email", "who retires

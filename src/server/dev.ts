@@ -7,7 +7,7 @@ import { localDb } from "./db/local";
 import { neonDb } from "./db/neon";
 import type { Env } from "./env";
 import { callLimit, installCallCounter, newBudget, withCalls } from "./lib/callBudget";
-import { runScheduledQueue } from "./lib/queue";
+import { runScheduled } from "./lib/queue";
 
 const env = process.env as Env;
 // Counted as in production; without SUBREQUEST_LIMIT in .env there is no limit here.
@@ -21,4 +21,4 @@ serve({ fetch: (req) => app.fetch(req, env), port: 8787 }, () => {
 
 // Same schedule as production's cron trigger: the background queue (notifications, Gmail sync when Google is
 // set up, labels, upkeep).
-setInterval(() => void withCalls(newBudget(callLimit(env)), () => runScheduledQueue(db, env)).catch((e) => console.error("Queue run failed:", e)), 10 * 60_000);
+setInterval(() => void withCalls(newBudget(callLimit(env)), () => runScheduled(db, env)).catch((e) => console.error("Queue run failed:", e)), 10 * 60_000);

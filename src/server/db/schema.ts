@@ -650,11 +650,46 @@ export const jobs = pgTable(
     calls: integer("calls").notNull().default(0),
     ranBy: text("ran_by", { enum: ["schedule", "app"] }),
     note: text("note").notNull().default(""),
+    // A saved change (`action`: method, path, body, from) or refused notification (`push`: device, message, when),
+    // its name, and the calls log row of the request that failed (user request 2026-10-23).
+    payload: jsonb("payload").$type<JobPayload>(),
+    title: text("title").notNull().default(""),
+    callLogId: uuid("call_log_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
-    uniqueIndex("jobs_active").on(t.userId, t.kind).where(sql`${t.status} in ('queued', 'running')`),
+    // One waiting or running job per background kind; saved changes and notifications can be many.
+    uniqueIndex("jobs_active").on(t.userId, t.kind).where(sql`${t.status} in ('queued', 'running') and ${t.kind} in ('notify', 'sync', 'labels', 'upkeep')`),
     index("jobs_user_created").on(t.userId, t.createdAt),
   ],
+);
+
+export type JobPayload =
+  | { method: string; path: string; body: string | null; from: "app" | "assistant" }
+  | { subscriptionId: string; message: import("../lib/webpush").PushMessage; at: string };
+
+// Calls log (user request 2026-10-23, "every subrequest made from any part of this website must be logged"): one row
+// per request or 10-minute run with every outgoing call it made (lib/callLog.ts). Rows that worked are kept 2 days,
+// failed ones 30 days (upkeep).
+export const callLogs = pgTable(
+  "call_logs",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    source: text("source", { enum: ["app", "schedule", "assistant"] }).notNull(),
+    request: text("request").notNull(),
+    status: integer("status"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    ms: integer("ms").notNull().default(0),
+    calls: integer("calls").notNull().default(0),
+    limit: integer("limit"),
+    failed: integer("failed").notNull().default(0),
+    ranOut: boolean("ran_out").notNull().default(false),
+    selfCheck: boolean("self_check").notNull().default(false),
+    jobId: uuid("job_id"),
+    entries: jsonb("entries").$type<import("../../shared/types").CallEntry[]>().notNull().default([]),
+    createdAt: createdAt(),
+  },
+  (t) => [index("call_logs_started").on(t.startedAt), index("call_logs_user_started").on(t.userId, t.startedAt)],
 );

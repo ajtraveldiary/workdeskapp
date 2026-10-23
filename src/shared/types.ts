@@ -380,10 +380,49 @@ export type QueueJob = {
   calls: number;
   ranBy: "schedule" | "app" | null;
   note: string;
+  // A saved change or notification: its name ("Create task") and the request it repeats ("POST /api/tasks").
+  title: string;
+  request: string | null;
+  callLogId: string | null;
   createdAt: string;
   updatedAt: string;
 };
 export type QueueInfo = { limit: number | null; jobs: QueueJob[] };
+
+// One outgoing call (user request 2026-10-23, "every subrequest must be logged"): when in the run it started (ms),
+// how long it took, what it was (a database query by verb and table only, never its values; Gmail by method and
+// path; Google sign-in; a push; anything else by host and path), how it ended, whether it changed something
+// (`repeatable` changes are safe to do twice), and the queue job or inner request it belonged to.
+export type CallEntry = {
+  at: number;
+  ms: number;
+  kind: "db" | "gmail" | "google" | "push" | "other";
+  what: string;
+  write: boolean;
+  repeatable?: boolean;
+  ok: boolean;
+  status?: number;
+  error?: string;
+  job?: string;
+  inner?: string;
+};
+// One request or 10-minute run with every call it made (Settings › Queue › Calls log).
+export type CallLog = {
+  id: string;
+  source: "app" | "schedule" | "assistant";
+  request: string;
+  title: string;
+  status: number | null;
+  startedAt: string;
+  ms: number;
+  calls: number;
+  limit: number | null;
+  failed: number;
+  ranOut: boolean;
+  selfCheck: boolean;
+  jobId: string | null;
+  entries: CallEntry[];
+};
 // What one run did: each job's result, and whether work is still waiting that another run can take now (Sync now
 // keeps calling while it is); fetched / remaining are the Gmail sync's numbers.
 export type QueueRunReport = {
