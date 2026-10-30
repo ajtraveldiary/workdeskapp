@@ -12,6 +12,7 @@ import {
   CircleCheck,
   ExternalLink,
   ListChecks,
+  Landmark,
   ListPlus,
   Mail,
   Pencil,
@@ -349,10 +350,11 @@ function CommandCenter({
             {increments.map((i) => (
               <IncrementRow key={i.employeeId} item={i} today={today} />
             ))}
-            {withMoveGroup(
+            {withFoldGroups(
               byPriority(tasks),
               (t) => <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />,
               (moves, row) => <MoveGroup key="moves" tasks={moves} state="Pending" row={row} lead="tick" textClassName="sm:text-sm" />,
+              (pensions, row) => <PensionGroup key="pension" tasks={pensions} state="Pending" row={row} lead="tick" textClassName="sm:text-sm" />,
             )}
           </ul>
         )}
@@ -439,25 +441,72 @@ const employees = (n: number, what: string) => (
   </>
 );
 
-function MoveGroup({
-  tasks,
-  state,
-  row,
-  lead,
-  textClassName,
-}: {
+type GroupProps = {
   tasks: Task[];
   state: string;
   row: (t: Task) => ReactNode;
   // What stands where the other rows have their tick circle (Due Today) or calendar tile (To-do) on computers.
   lead: "tick" | "tile";
   textClassName?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const swipe = useSwipeMode();
+};
+
+function MoveGroup(props: GroupProps) {
+  const { tasks } = props;
   const joining = tasks.filter((t) => t.systemKind === "joining").length;
   const relieving = tasks.length - joining;
   const words = [joining > 0 && `${joining} joining`, relieving > 0 && `${relieving} relieving`].filter(Boolean).join(", ");
+  return (
+    <FoldGroup {...props} icon={UsersRound} what={`joining and relieving tasks: ${words}`}>
+      {joining > 0 && employees(joining, "joining")}
+      {joining > 0 && relieving > 0 && ", "}
+      {relieving > 0 && employees(relieving, "relieving")}
+    </FoldGroup>
+  );
+}
+
+// Pension papers tasks (user request 2026-10-30) fold the same way on a line of their own,
+// "2 employees' pension papers: Pending" ("2 pension papers" where the row is narrow).
+const isPensionTask = (t: Task) => t.systemKind === "pension";
+
+function PensionGroup(props: GroupProps) {
+  const n = props.tasks.length;
+  return (
+    <FoldGroup {...props} icon={Landmark} what={`pension papers tasks: ${n}`}>
+      <span className="@[24rem]:hidden">
+        {n} pension {n === 1 ? "paper" : "papers"}
+      </span>
+      <span className="hidden @[24rem]:inline">
+        {n} {n === 1 ? "employee's" : "employees'"} pension papers
+      </span>
+    </FoldGroup>
+  );
+}
+
+// The list's rows with its Pension papers tasks on one line where the first of them comes, and its joining /
+// relieving tasks on another (withMoveGroup).
+function withFoldGroups(
+  tasks: Task[],
+  row: (t: Task) => ReactNode,
+  moveGroup: (moves: Task[], row: (t: Task) => ReactNode) => ReactNode,
+  pensionGroup: (pensions: Task[], row: (t: Task) => ReactNode) => ReactNode,
+): ReactNode[] {
+  const pensions = tasks.filter(isPensionTask);
+  const rowOrPensions = (t: Task) => (!isPensionTask(t) ? row(t) : t === pensions[0] ? pensionGroup(pensions, row) : null);
+  return withMoveGroup(tasks, rowOrPensions, moveGroup);
+}
+
+function FoldGroup({
+  tasks,
+  state,
+  row,
+  lead,
+  textClassName,
+  icon: Icon,
+  what,
+  children,
+}: GroupProps & { icon: LucideIcon; what: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const swipe = useSwipeMode();
   return (
     <>
       <li className="row-click -mx-3 flex items-center gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:-mx-5 sm:px-5 sm:py-2">
@@ -465,12 +514,12 @@ function MoveGroup({
           <span className="w-[3px] shrink-0 self-stretch rounded-full bg-brand-500" aria-hidden />
         ) : lead === "tile" ? (
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 text-brand-700" aria-hidden>
-            <UsersRound size={18} />
+            <Icon size={18} />
           </span>
         ) : (
           <>
             <span className="flex size-5 shrink-0 items-center justify-center text-brand-600" aria-hidden>
-              <UsersRound size={16} />
+              <Icon size={16} />
             </span>
             <span className="w-[3px] shrink-0 self-stretch rounded-full bg-brand-500" aria-hidden />
           </>
@@ -478,14 +527,12 @@ function MoveGroup({
         <button
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
-          aria-label={`${open ? "Hide" : "Show"} joining and relieving tasks: ${words}, ${state}`}
+          aria-label={`${open ? "Hide" : "Show"} ${what}, ${state}`}
           className="row-link group/title @container flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          {swipe && <UsersRound size={15} className="shrink-0 text-brand-600" aria-hidden />}
+          {swipe && <Icon size={15} className="shrink-0 text-brand-600" aria-hidden />}
           <span className={cx("min-w-0 flex-1 truncate text-subhead leading-snug font-medium text-ink group-hover/title:text-brand-700", textClassName)}>
-            {joining > 0 && employees(joining, "joining")}
-            {joining > 0 && relieving > 0 && ", "}
-            {relieving > 0 && employees(relieving, "relieving")}: {state}
+            {children}: {state}
           </span>
           <ChevronDown size={16} className={cx("shrink-0 text-slate-400 transition-transform", open && "rotate-180")} aria-hidden />
         </button>
@@ -782,6 +829,7 @@ function TodoPanel({
       else next.delete(id);
       return next;
     });
+  const todoState = tab === "all" ? "Pending" : tab === "waiting" ? "Waiting" : "Done";
   const row = (t: Task) => (
     <TodoRow key={t.id} task={t} today={data!.today} onEdit={onEdit} onOpen={openTask} onDetails={setDetails} selected={selected.has(t.id)} onSelect={(on) => select(t.id, on)} />
   );
@@ -835,9 +883,12 @@ function TodoPanel({
           <Empty icon={ListPlus} title={tag ? "No tasks with this tag here" : tab === "all" ? "No open tasks" : tab === "waiting" ? "Nothing waiting for a reply" : "Nothing completed yet"} />
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
-            {withMoveGroup(tab === "all" ? byPriority(tasks) : tasks, row, (moves, r) => (
-              <MoveGroup key="moves" tasks={moves} state={tab === "all" ? "Pending" : tab === "waiting" ? "Waiting" : "Done"} row={r} lead="tile" />
-            ))}
+            {withFoldGroups(
+              tab === "all" ? byPriority(tasks) : tasks,
+              row,
+              (moves, r) => <MoveGroup key="moves" tasks={moves} state={todoState} row={r} lead="tile" />,
+              (pensions, r) => <PensionGroup key="pension" tasks={pensions} state={todoState} row={r} lead="tile" />,
+            )}
           </ul>
         )}
       </Scroll>
