@@ -22,6 +22,7 @@ import {
   TrendingUp,
   TriangleAlert,
   Undo2,
+  UsersRound,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -50,7 +51,7 @@ import { EmailViewer } from "../components/EmailViewer";
 import { EmailBulkBar } from "../components/EmailBulkBar";
 import { SelectAvatar } from "../components/Avatar";
 import { emailLine } from "../components/ThreadRow";
-import { PriorityGrouped } from "../components/PriorityGroups";
+import { byPriority } from "../components/PriorityGroups";
 import { ChecklistChip } from "../components/Checklist";
 import { RelatedTag } from "../components/Related";
 import { deleteTasksWithUndo, useHiddenTasks } from "../taskDelete";
@@ -348,9 +349,11 @@ function CommandCenter({
             {increments.map((i) => (
               <IncrementRow key={i.employeeId} item={i} today={today} />
             ))}
-            <PriorityGrouped tasks={tasks}>
-              {(t) => <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />}
-            </PriorityGrouped>
+            {withMoveGroup(
+              byPriority(tasks),
+              (t) => <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />,
+              (moves, row) => <MoveGroup key="moves" tasks={moves} state="Pending" row={row} lead="tick" textClassName="sm:text-sm" />,
+            )}
           </ul>
         )}
       </Scroll>
@@ -417,28 +420,78 @@ function taskSwipe(task: Task, a: ReturnType<typeof useTaskActions>, onEdit: (t:
   };
 }
 
-// Joining / relieving tasks (user request 2026-10-30) start folded to one line on the Due Today and To-do
-// cards: tapping the row unfolds it to the usual row, and its chevron folds it again.
-const foldsOnHome = (task: Task) => task.systemKind === "joining" || task.systemKind === "relieving";
+// Joining and relieving tasks (user request 2026-10-30) sit together on the Due Today and To-do cards as one
+// line, "3 employees joining, 3 employees relieving: Pending", where the first of them would be in the list;
+// tapping it shows them all below it, and tapping it again folds them back into the one line.
+const isMoveTask = (t: Task) => t.systemKind === "joining" || t.systemKind === "relieving";
 
-function useFold(task: Task) {
-  const folds = foldsOnHome(task);
-  const [open, setOpen] = useState(false);
-  return { folds, open, folded: folds && !open, unfold: () => setOpen(true), toggle: () => setOpen((o) => !o) };
+function withMoveGroup(tasks: Task[], row: (t: Task) => ReactNode, group: (moves: Task[], row: (t: Task) => ReactNode) => ReactNode): ReactNode[] {
+  const moves = tasks.filter(isMoveTask);
+  if (moves.length === 0) return tasks.map(row);
+  return tasks.flatMap((t) => (!isMoveTask(t) ? [row(t)] : t === moves[0] ? [group(moves, row)] : []));
 }
 
-function FoldButton({ open, title, onToggle }: { open: boolean; title: string; onToggle: () => void }) {
+// "3 employees joining"; where the row is narrow just "3 joining", so the counts and the state still fit.
+const employees = (n: number, what: string) => (
+  <>
+    {n} <span className="hidden @[24rem]:inline">{n === 1 ? "employee" : "employees"} </span>
+    {what}
+  </>
+);
+
+function MoveGroup({
+  tasks,
+  state,
+  row,
+  lead,
+  textClassName,
+}: {
+  tasks: Task[];
+  state: string;
+  row: (t: Task) => ReactNode;
+  // What stands where the other rows have their tick circle (Due Today) or calendar tile (To-do) on computers.
+  lead: "tick" | "tile";
+  textClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const swipe = useSwipeMode();
+  const joining = tasks.filter((t) => t.systemKind === "joining").length;
+  const relieving = tasks.length - joining;
+  const words = [joining > 0 && `${joining} joining`, relieving > 0 && `${relieving} relieving`].filter(Boolean).join(", ");
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      aria-label={`${open ? "Show less" : "Show more"}: ${title}`}
-      title={open ? "Show less" : "Show more"}
-      className="shrink-0 rounded-md p-0.5 text-slate-400 enabled:hover:bg-slate-100 enabled:hover:text-slate-600 active:scale-90"
-    >
-      <ChevronDown size={16} className={cx("transition-transform", open && "rotate-180")} aria-hidden />
-    </button>
+    <>
+      <li className="row-click -mx-3 flex items-center gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:-mx-5 sm:px-5 sm:py-2">
+        {swipe ? (
+          <span className="w-[3px] shrink-0 self-stretch rounded-full bg-brand-500" aria-hidden />
+        ) : lead === "tile" ? (
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 text-brand-700" aria-hidden>
+            <UsersRound size={18} />
+          </span>
+        ) : (
+          <>
+            <span className="flex size-5 shrink-0 items-center justify-center text-brand-600" aria-hidden>
+              <UsersRound size={16} />
+            </span>
+            <span className="w-[3px] shrink-0 self-stretch rounded-full bg-brand-500" aria-hidden />
+          </>
+        )}
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={`${open ? "Hide" : "Show"} joining and relieving tasks: ${words}, ${state}`}
+          className="row-link group/title @container flex min-w-0 flex-1 items-center gap-2 text-left"
+        >
+          {swipe && <UsersRound size={15} className="shrink-0 text-brand-600" aria-hidden />}
+          <span className={cx("min-w-0 flex-1 truncate text-subhead leading-snug font-medium text-ink group-hover/title:text-brand-700", textClassName)}>
+            {joining > 0 && employees(joining, "joining")}
+            {joining > 0 && relieving > 0 && ", "}
+            {relieving > 0 && employees(relieving, "relieving")}: {state}
+          </span>
+          <ChevronDown size={16} className={cx("shrink-0 text-slate-400 transition-transform", open && "rotate-180")} aria-hidden />
+        </button>
+      </li>
+      {open && tasks.map(row)}
+    </>
   );
 }
 
@@ -447,7 +500,6 @@ function FoldButton({ open, title, onToggle }: { open: boolean; title: string; o
 // Phones show them a little larger (user request 2026-10-06): subheadline titles, footnote times, roomier rows.
 function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string; onEdit: (t: Task) => void; onOpen: (t: Task) => void }) {
   const a = useTaskActions(task);
-  const fold = useFold(task);
   // A task waiting for a reply is here because the reply is expected today or is late (user request 2026-10-07).
   const waiting = isWaiting(task);
   const day = waiting ? task.replyBy : task.dueDate;
@@ -474,22 +526,17 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
       <span className={cx("w-[3px] shrink-0 self-stretch rounded-full", PRIORITY_BAR[task.priority])} aria-hidden />
       <div className="min-w-0 flex-1">
         <button
-          onClick={() => (fold.folded ? fold.unfold() : onOpen(task))}
-          className={cx(
-            "row-link w-full text-left text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm",
-            fold.folded ? "truncate" : "line-clamp-3",
-          )}
-          aria-expanded={fold.folds ? fold.open : undefined}
-          aria-label={`${fold.folded ? "Show more" : "Show details"}: ${task.title}`}
+          onClick={() => onOpen(task)}
+          className="row-link line-clamp-3 w-full text-left text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
+          aria-label={`Show details: ${task.title}`}
         >
           {task.report && <CalendarClock size={14} className="mr-1 inline -translate-y-px text-slate-400" aria-label="Reminder" />}
           {waiting && <Hourglass size={14} className="mr-1 inline -translate-y-px text-snooze" aria-label="Waiting for reply" />}
           {task.title}
         </button>
         {/* Tags (user request 2026-10-11): a second line only when the task has some. */}
-        {!fold.folded && <TagChips ids={task.tagIds} className="mt-1" />}
+        <TagChips ids={task.tagIds} className="mt-1" />
       </div>
-      {fold.folds && <FoldButton open={fold.open} title={task.title} onToggle={fold.toggle} />}
       {when && <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
     </SwipeRow>
   );
@@ -788,11 +835,9 @@ function TodoPanel({
           <Empty icon={ListPlus} title={tag ? "No tasks with this tag here" : tab === "all" ? "No open tasks" : tab === "waiting" ? "Nothing waiting for a reply" : "Nothing completed yet"} />
         ) : (
           <ul className="divide-y divide-line px-3 sm:px-5">
-            {tab === "all" ? (
-              <PriorityGrouped tasks={tasks}>{row}</PriorityGrouped>
-            ) : (
-              tasks.map(row)
-            )}
+            {withMoveGroup(tab === "all" ? byPriority(tasks) : tasks, row, (moves, r) => (
+              <MoveGroup key="moves" tasks={moves} state={tab === "all" ? "Pending" : tab === "waiting" ? "Waiting" : "Done"} row={r} lead="tile" />
+            ))}
           </ul>
         )}
       </Scroll>
@@ -842,15 +887,11 @@ function TodoRow({
   // hand-made tasks say nothing there.
   const context = task.thread ? (task.thread.fromName ?? task.thread.fromEmail) : task.report ? "Reminder" : null;
   const swipe = useSwipeMode();
-  const fold = useFold(task);
 
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName={cx(
-        "row-click flex gap-2.5 px-3 py-2 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2.5",
-        fold.folded && "items-center",
-      )}
+      contentClassName="row-click flex gap-2.5 px-3 py-2 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2.5"
       {...taskSwipe(task, a, onEdit)}
     >
       {/* A calendar tile with the date instead of a tick (user request 2026-10-07); tapping it selects the task
@@ -858,50 +899,37 @@ function TodoRow({
       {!swipe && <DateTile task={task} selected={selected} onToggle={onSelect} />}
       {/* The tile shows the priority on computers (user request 2026-10-07: no colour bar there). */}
       {swipe && <span className={cx("w-[3px] self-stretch rounded-full", PRIORITY_BAR[task.priority], a.done && "opacity-40")} aria-hidden />}
-      {fold.folded ? (
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <button onClick={fold.unfold} className="row-link group/title block min-w-0 text-left" aria-expanded={false} aria-label={`Show more: ${task.title}`}>
-            <span className={cx("block truncate text-subhead leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
-          </button>
-          <span className="shrink-0 text-xs sm:text-footnote">
-            <ChecklistChip items={task.checklist} onClick={() => onDetails(task)} />
-          </span>
+      <div className="min-w-0 flex-1">
+        <button
+          onClick={() => onOpen(task)}
+          className="row-link group/title block max-w-full text-left"
+          aria-label={`Show details: ${task.title}`}
+        >
+          <span className={cx("line-clamp-2 text-subhead leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
+        </button>
+        {/* Tags (user request 2026-10-11): their own line, only when the task has some. */}
+        <TagChips ids={task.tagIds} className="mt-1" />
+        <div className="mt-1 flex min-w-0 items-center gap-2">
+          {a.done ? (
+            <>
+              <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap sm:text-footnote", TONE[dueTone(task, today)].soft)}>
+                <CalendarDays size={14} />
+                {task.completedAt ? `Done ${formatWhen(task.completedAt)}` : "Done"}
+              </span>
+            </>
+          ) : isWaiting(task) ? (
+            <WaitingBadge task={task} today={today} />
+          ) : swipe ? (
+            <EditableDue task={task} today={today} layout="joined" />
+          ) : (
+            <EditableDue task={task} today={today} layout="time" />
+          )}
+          {context && <span className="min-w-0 flex-1 truncate text-xs text-slate-500 sm:text-footnote">{context}</span>}
+          {/* What it is about (Staff, user request 2026-10-07). */}
+          <RelatedTag value={task} className={cx("text-xs sm:text-footnote", !context && "mr-auto")} />
+          <ChecklistChip items={task.checklist} onClick={() => onDetails(task)} />
         </div>
-      ) : (
-        <div className="min-w-0 flex-1">
-          <button
-            onClick={() => onOpen(task)}
-            className="row-link group/title block max-w-full text-left"
-            aria-expanded={fold.folds ? true : undefined}
-            aria-label={`Show details: ${task.title}`}
-          >
-            <span className={cx("line-clamp-2 text-subhead leading-snug font-medium", a.done ? "text-slate-400 line-through" : "text-ink group-hover/title:text-brand-700")}>{task.title}</span>
-          </button>
-          {/* Tags (user request 2026-10-11): their own line, only when the task has some. */}
-          <TagChips ids={task.tagIds} className="mt-1" />
-          <div className="mt-1 flex min-w-0 items-center gap-2">
-            {a.done ? (
-              <>
-                <span className={cx("inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap sm:text-footnote", TONE[dueTone(task, today)].soft)}>
-                  <CalendarDays size={14} />
-                  {task.completedAt ? `Done ${formatWhen(task.completedAt)}` : "Done"}
-                </span>
-              </>
-            ) : isWaiting(task) ? (
-              <WaitingBadge task={task} today={today} />
-            ) : swipe ? (
-              <EditableDue task={task} today={today} layout="joined" />
-            ) : (
-              <EditableDue task={task} today={today} layout="time" />
-            )}
-            {context && <span className="min-w-0 flex-1 truncate text-xs text-slate-500 sm:text-footnote">{context}</span>}
-            {/* What it is about (Staff, user request 2026-10-07). */}
-            <RelatedTag value={task} className={cx("text-xs sm:text-footnote", !context && "mr-auto")} />
-            <ChecklistChip items={task.checklist} onClick={() => onDetails(task)} />
-          </div>
-        </div>
-      )}
-      {fold.folds && <FoldButton open={fold.open} title={task.title} onToggle={fold.toggle} />}
+      </div>
       {!swipe && (
         <Menu
           items={[
