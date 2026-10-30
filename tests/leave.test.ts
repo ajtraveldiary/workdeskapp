@@ -1,4 +1,4 @@
-// Leave, phases 1 to 3 (user request 2026-10-30, docs/LEAVE_PLAN.md): leave types, each permanent employee's leave
+// Leave, phases 1 to 4 (user request 2026-10-30, docs/LEAVE_PLAN.md): leave types, each permanent employee's leave
 // account (opening balance, credits, adjustments, lapse above the most that can be kept), "Credit now" once per
 // year, the Gazetted switch (filled from the designation) and the Probation declared switch (no probation task
 // while it is yes).
@@ -423,4 +423,64 @@ describe("leave", () => {
     expect(await balance(a, hpl.id)).toBe(30);
     expect((await call("GET", `/leave/leaves?employeeId=${a}`)).json.leaves).toHaveLength(1);
   });
+
+  // --- Phase 4: EOL moves the increment and probation; surrender of earned leave ---
+
+  it("EOL moves the next increment and the open probation task by its days when asked, with Undo", async () => {
+    await call("POST", "/leave/types/usual");
+    const [eol, hpl] = [await byShort("EOL"), await byShort("HPL")];
+    expect(eol.delaysIncrement).toBe(true);
+    expect(hpl.delaysIncrement).toBe(false);
+    const today = (await call("GET", "/me")).json.today as string;
+    // 2 years of service complete in 3 days: the probation task is there.
+    const joined = yearBefore(yearBefore(shift(today, 3)));
+    const id = await add({ name: NAME, joinedServiceOn: joined, nextIncrementOn: "2027-06-01" });
+    const probationTask = ((await call("GET", "/tasks?view=any")).json.tasks as Task[]).find((t) => t.systemKind === "probation" && t.relatedId === id)!;
+    const made = await call("POST", "/leave/leaves", { employeeId: id, typeId: eol.id, fromDate: "2026-12-01", toDate: "2026-12-20", days: 19.5, postpone: { increment: true, probation: true } });
+    expect(made.json.postponed).toEqual({ increment: { from: "2027-06-01", to: "2027-06-21" }, probation: { taskId: probationTask.id, from: shift(today, 3), to: shift(today, 23) } });
+    expect((await employee(id)).nextIncrementOn).toBe("2027-06-21");
+    expect((await taskOf(probationTask.id)).dueDate).toBe(shift(today, 23));
+    expect((await history()).some((h) => h.summary === `Next increment of ${NAME} moved from 1 Jun 2027 to 21 Jun 2027 (20 days of Extraordinary leave)`)).toBe(true);
+    // Undo puts both back (only while they are still the moved dates).
+    await call("POST", `/leave/leaves/${made.json.id}/postpone/undo`, made.json.postponed);
+    expect((await employee(id)).nextIncrementOn).toBe("2027-06-01");
+    expect((await taskOf(probationTask.id)).dueDate).toBe(shift(today, 3));
+    // Not asked, or a leave that counts (HPL): nothing moves.
+    const other = await call("POST", "/leave/leaves", { employeeId: id, typeId: eol.id, fromDate: "2027-01-10", toDate: "2027-01-12", days: 3 });
+    expect(other.json.postponed).toEqual({});
+    await call("POST", `/leave/accounts/${id}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2026-01-01", days: 40 });
+    const h = await call("POST", "/leave/leaves", { employeeId: id, typeId: hpl.id, fromDate: "2027-02-01", toDate: "2027-02-05", days: 5, postpone: { increment: true, probation: true } });
+    expect(h.json.postponed).toEqual({});
+    expect((await employee(id)).nextIncrementOn).toBe("2027-06-01");
+  });
+
+  it("surrender takes the days off the balance and makes a task with the surrender steps", async () => {
+    await call("POST", "/leave/types/usual");
+    const [el, eol] = [await byShort("EL"), await byShort("EOL")];
+    const id = await add({ name: NAME });
+    await call("POST", `/leave/accounts/${id}/lines`, { typeId: el.id, kind: "opening", onDate: "2026-01-01", days: 120 });
+    const r = await call("POST", `/leave/accounts/${id}/surrender`, { typeId: el.id, days: 30, onDate: "2026-11-01", orderNo: "B2/45/2026", doneSteps: ["application"] });
+    expect(r.status).toBe(201);
+    expect(await balance(id, el.id)).toBe(90);
+    expect((await account(id)).lines[0]).toMatchObject({ kind: "surrender", days: -30, note: "Order B2/45/2026" });
+    const t = await taskOf(r.json.taskId);
+    expect([t.title, t.dueDate, t.systemKind]).toEqual([`Leave surrender: ${NAME} — EL 30 days`, "2026-11-08", "leave"]);
+    expect(t.checklist.map((i) => [i.text, i.done])).toEqual([
+      ["Surrender application received", true],
+      ["Sanction order", false],
+      ["Prepare bill", false],
+      ["Update in SPARK", false],
+      ["SB update", false],
+    ]);
+    await call("PATCH", `/tasks/${t.id}`, { checklist: t.checklist.map((i) => ({ ...i, done: true })) });
+    expect((await taskOf(t.id)).status).toBe("done");
+    expect((await history()).some((h) => h.summary === `Leave account of ${NAME}: Surrendered 30 EL (order B2/45/2026)`)).toBe(true);
+    expect((await call("POST", `/leave/accounts/${id}/surrender`, { typeId: eol.id, days: 5, onDate: "2026-11-01" })).status).toBe(400);
+  });
 });
+
+const shift = (day: string, n: number) => {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};

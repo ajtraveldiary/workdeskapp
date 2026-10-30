@@ -6,7 +6,9 @@
 import { useState, type FormEvent } from "react";
 import { Check, X } from "lucide-react";
 import type { EmployeeLeave, LeaveType, StaffList } from "../../shared/types";
-import { calendarDays, daysWord, formatDays, leaveEnd, leaveShort, leaveSteps, shiftDate } from "../../shared/leave";
+import { calendarDays, daysWord, formatDays, leaveEnd, leaveShort, leaveSteps, postponeDays, shiftDate } from "../../shared/leave";
+import { dayLabel } from "../../shared/reminderSchedule";
+import { showUndo } from "./SwipeRow";
 import { useLeaveAccount, useLeaveActions, useLeaveTypes, useMe, useStaff } from "../api";
 import { Button, ErrorNote, Field, Modal, cx, inputClass } from "./ui";
 
@@ -27,7 +29,7 @@ const takesFrom = (t: LeaveType | undefined) => (!t ? null : t.hasAccount ? { ty
 
 function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFormState>; staff: StaffList; types: LeaveType[]; onDone: () => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
-  const { markLeave, saveLeave, cancelLeave } = useLeaveActions();
+  const { markLeave, saveLeave, cancelLeave, undoPostpone } = useLeaveActions();
   const editing = state.leave ?? null;
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? state.employeeId ?? "");
   const [typeId, setTypeId] = useState(editing?.typeId ?? types[0]?.id ?? "");
@@ -41,6 +43,9 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
   const [orderDate, setOrderDate] = useState(editing?.orderDate ?? "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
   const [doneSteps, setDoneSteps] = useState<string[]>([]);
+  // EOL (phase 4): move the next increment and the Probation declaration task by its days (ticked to start).
+  const [moveIncrement, setMoveIncrement] = useState(true);
+  const [moveProbation, setMoveProbation] = useState(true);
   const account = useLeaveAccount(employeeId).data;
 
   const employee = staff.employees.find((e) => e.id === employeeId);
@@ -68,6 +73,11 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
   const usedAfter = used - (editing && editing.typeId === typeId ? editing.days : 0) + (okDays ? n : 0);
   const pastLimit = type?.serviceLimit != null && usedAfter > type.serviceLimit;
 
+  // A leave that doesn't count for increment or probation (EOL): offer to move those dates.
+  const moveBy = okDays ? postponeDays(n) : 0;
+  const offerIncrement = !editing && !!type?.delaysIncrement && !!employee?.nextIncrementOn;
+  const offerProbation = !editing && !!type?.delaysIncrement && !!employee && !employee.probationDeclared && !employee.probationDeclaredOn;
+
   // Permanent staff in the office (and the one being edited), by designation in its order.
   const people = staff.employees.filter((e) => e.permanent && (!e.leftOn || e.id === employeeId));
   const groups = [
@@ -82,7 +92,12 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
     const fields = { typeId, fromDate, toDate, days: n, orderNo, orderDate: orderDate || null, notes };
     try {
       if (editing) await saveLeave.mutateAsync({ id: editing.id, input: { ...fields, rejoinedOn: rejoinedOn || null } });
-      else await markLeave.mutateAsync({ ...fields, employeeId, doneSteps });
+      else {
+        const postpone = { increment: offerIncrement && moveIncrement, probation: offerProbation && moveProbation };
+        const r = await markLeave.mutateAsync({ ...fields, employeeId, doneSteps, postpone });
+        const moved = [r.postponed.increment && `next increment to ${dayLabel(r.postponed.increment.to)}`, r.postponed.probation && `probation task to ${dayLabel(r.postponed.probation.to)}`].filter(Boolean);
+        if (moved.length) showUndo({ message: `Leave marked; ${moved.join(", ")}`, onUndo: () => undoPostpone.mutate({ id: r.id, ...r.postponed }) });
+      }
       onDone();
     } catch {
       // shown under the form
@@ -188,6 +203,25 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
             </p>
           )}
         </div>
+      )}
+      {(offerIncrement || offerProbation) && moveBy > 0 && (
+        <fieldset className="rounded-lg border border-line px-3 py-2">
+          <legend className="px-1 text-sm font-medium text-ink">{type!.name} doesn't count for increment or probation</legend>
+          {offerIncrement && (
+            <label className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-1.5 hover:bg-slate-50">
+              <input type="checkbox" className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={moveIncrement} onChange={(e) => setMoveIncrement(e.target.checked)} />
+              <span className="text-sm text-ink">
+                Move the next increment by {daysWord(moveBy)}: {dayLabel(employee!.nextIncrementOn!)} → {dayLabel(shiftDate(employee!.nextIncrementOn!, moveBy))}
+              </span>
+            </label>
+          )}
+          {offerProbation && (
+            <label className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-1.5 hover:bg-slate-50">
+              <input type="checkbox" className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={moveProbation} onChange={(e) => setMoveProbation(e.target.checked)} />
+              <span className="text-sm text-ink">Move the Probation declaration task's due date by {daysWord(moveBy)} (when there is one)</span>
+            </label>
+          )}
+        </fieldset>
       )}
       {!editing && employee && (
         <fieldset className="rounded-lg border border-line px-3 py-2">

@@ -442,6 +442,9 @@ export const leaveTypes = pgTable("leave_types", {
   // Automatic yearly credits (phase 3) are made on service anniversaries from this date on (the day they were
   // switched on), never back-dated; null = by hand only (Credit now, an employee's Entry).
   creditsFrom: date("credits_from"),
+  // Doesn't count for increment or probation (EOL; phase 4): marking it offers to move the employee's next increment
+  // date and their open Probation declaration task by its days.
+  delaysIncrement: boolean("delays_increment").notNull().default(false),
   createdAt: createdAt(),
 });
 

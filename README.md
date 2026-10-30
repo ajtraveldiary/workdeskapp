@@ -112,6 +112,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).
+- **EOL and surrender:** marking extraordinary leave offers to move the next increment and the probation declaration
+  date by its days (with Undo); Surrender (in a leave account's Entry) takes earned leave off the balance and makes a
+  task with the surrender steps. Assistants can read a leave account and mark leave.
 - **Retirement:** a list of everyone retiring within 12 months, and a retirement/pension paperwork task with a
   checklist.
 - **Joining and relieving:** Join or Relieve someone (on their page or the Employees page) and WorkDesk makes a task

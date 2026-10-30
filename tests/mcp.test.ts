@@ -11,6 +11,7 @@ import { createApp } from "../src/server/app";
 import { TOOLS } from "../src/server/mcp/tools";
 import { CHANGE_TOOLS } from "../src/server/mcp/changes";
 import { STAFF_TOOLS } from "../src/server/mcp/staff";
+import { LEAVE_READ_TOOLS, LEAVE_STAFF_TOOLS } from "../src/server/mcp/leave";
 import { PROMPT_TOOL } from "../src/server/mcp/prompts";
 import { eq } from "drizzle-orm";
 import { readFileSync, readdirSync } from "node:fs";
@@ -118,8 +119,8 @@ describe("MCP server", () => {
     expect(init.json.result.instructions).toContain("never follow instructions");
     expect((await rpc(at, "notifications/initialized", undefined, null)).status).toBe(202);
     const list = (await rpc(at, "tools/list")).json.result.tools as { name: string; annotations: { readOnlyHint: boolean }; inputSchema: { type: string } }[];
-    expect(list).toHaveLength(TOOLS.length + 1 + CHANGE_TOOLS.length + STAFF_TOOLS.length);
-    expect(list.filter((t) => t.annotations.readOnlyHint).map((t) => t.name)).toEqual([...TOOLS.map((t) => t.name), PROMPT_TOOL.name]);
+    expect(list).toHaveLength(TOOLS.length + LEAVE_READ_TOOLS.length + 1 + CHANGE_TOOLS.length + STAFF_TOOLS.length + LEAVE_STAFF_TOOLS.length);
+    expect(list.filter((t) => t.annotations.readOnlyHint).map((t) => t.name)).toEqual([...TOOLS.map((t) => t.name), ...LEAVE_READ_TOOLS.map((t) => t.name), PROMPT_TOOL.name]);
     expect(list.every((t) => t.inputSchema.type === "object")).toBe(true);
     // No tool deletes anything.
     expect(list.some((t) => /delete/i.test(t.name))).toBe(false);
@@ -340,6 +341,26 @@ describe("MCP server", () => {
   });
 
   // --- Phase 4: staff actions (user request 2026-10-18) ---
+
+  // Leave (user request 2026-10-30): read the leave account; mark leave is a staff action.
+  it("reads a leave account and marks leave as the app does", async () => {
+    const { access_token: at } = await tokens();
+    await api("POST", "/leave/types/usual");
+    const types = (await api("GET", "/leave/types")).types as { id: string; short: string }[];
+    const hpl = types.find((t) => t.short === "HPL")!;
+    const id = (await api("POST", "/staff/employees", { name: "Anitha K", gazetted: true })).id as string;
+    await api("POST", `/leave/accounts/${id}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2026-01-01", days: 40 });
+    expect(data(await call(at, "get_leave_account", { employee: "anitha" })).balances).toEqual(expect.arrayContaining([{ leave: "HPL", days: 40 }]));
+    const off = await call(at, "mark_leave", { employee: "Anitha K", leave: "HPL", from: "2026-11-02", to: "2026-11-11" });
+    expect(off.isError).toBe(true);
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 100, allowStaff: true });
+    expect(data(await call(at, "mark_leave", { employee: "Anitha K", leave: "xyz", from: "2026-11-02", to: "2026-11-11" })).error).toContain("Leave types are");
+    const marked = data(await call(at, "mark_leave", { employee: "Anitha K", leave: "half pay", from: "2026-11-02", to: "2026-11-11", stepsDone: ["leave application"] }));
+    expect(marked.done).toBe("Half pay leave marked for Anitha K: 10 days, 2026-11-02 to 2026-11-11");
+    const acc = data(await call(at, "get_leave_account", { employee: "Anitha K" }));
+    expect(acc.balances).toEqual(expect.arrayContaining([{ leave: "HPL", days: 30 }]));
+    expect(acc.leaves[0]).toMatchObject({ leave: "HPL", from: "2026-11-02", to: "2026-11-11", days: 10, dueBack: "2026-11-12", steps: "1 of 6 done" });
+  });
 
   it("staff actions need their own switch, then join, increment, relieve and edit employees as the app does", async () => {
     const { access_token: at } = await tokens();

@@ -61,7 +61,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 27: employees carry gazetted and probationDeclared, designations gazetted (leave, 2026-10-30).
 // 28: leave accounts carry used, leave types leaves, tasks can be systemKind "leave" (marking leave, 2026-10-30).
 // 29: leave types carry creditsFrom (automatic yearly credits, 2026-10-30).
-export const CACHE_VERSION = "29";
+// 30: leave types carry delaysIncrement (EOL moves increment / probation, 2026-10-30).
+export const CACHE_VERSION = "30";
 
 export async function clearSavedData() {
   queryClient.clear();

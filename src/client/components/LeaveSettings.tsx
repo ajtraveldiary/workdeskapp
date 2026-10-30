@@ -28,6 +28,7 @@ function ruleText(t: LeaveType, types: LeaveType[]) {
   } else parts.push("No balance");
   if (t.serviceLimit != null) parts.push(`${daysWord(t.serviceLimit)} in the whole service`);
   if (t.medical) parts.push("medical certificate");
+  if (t.delaysIncrement) parts.push("not counted for increment");
   return parts.join(" · ");
 }
 
@@ -132,8 +133,8 @@ function TypeForm({ type, types, onDone }: { type: LeaveType | null; types: Leav
   const save = type ? saveType : addType;
   const [v, setV] = useState<LeaveTypeInput>(() =>
     type
-      ? { name: type.name, short: type.short, hasAccount: type.hasAccount, drawsOnId: type.drawsOnId, perDay: type.perDay, mayGoNegative: type.mayGoNegative, maxBalance: type.maxBalance, serviceLimit: type.serviceLimit, medical: type.medical, yearlyDays: type.yearlyDays, fromDuty: type.fromDuty, autoCredit: !!type.creditsFrom }
-      : { name: "", short: "", hasAccount: true, drawsOnId: null, perDay: 1, mayGoNegative: false, maxBalance: null, serviceLimit: null, medical: false, yearlyDays: null, fromDuty: false, autoCredit: false },
+      ? { name: type.name, short: type.short, hasAccount: type.hasAccount, drawsOnId: type.drawsOnId, perDay: type.perDay, mayGoNegative: type.mayGoNegative, maxBalance: type.maxBalance, serviceLimit: type.serviceLimit, medical: type.medical, yearlyDays: type.yearlyDays, fromDuty: type.fromDuty, autoCredit: !!type.creditsFrom, delaysIncrement: type.delaysIncrement }
+      : { name: "", short: "", hasAccount: true, drawsOnId: null, perDay: 1, mayGoNegative: false, maxBalance: null, serviceLimit: null, medical: false, yearlyDays: null, fromDuty: false, autoCredit: false, delaysIncrement: false },
   );
   const set = <K extends keyof LeaveTypeInput>(k: K, value: LeaveTypeInput[K]) => setV((s) => ({ ...s, [k]: value }));
   const sources = types.filter((t) => t.hasAccount && t.id !== type?.id);
@@ -232,6 +233,7 @@ function TypeForm({ type, types, onDone }: { type: LeaveType | null; types: Leav
         <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.serviceLimit ?? ""} onChange={(e) => set("serviceLimit", num(e.target.value))} placeholder="No limit (LND: 360)" />
       </Field>
       <Check2 label="Needs a medical certificate" checked={!!v.medical} onChange={(c) => set("medical", c)} />
+      <Check2 label="Doesn't count for increment or probation (EOL): marking it offers to move those dates" checked={!!v.delaysIncrement} onChange={(c) => set("delaysIncrement", c)} />
       <ErrorNote error={save.error} />
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onDone}>

@@ -10,10 +10,10 @@ import { and, asc, count, desc, eq, gte, inArray, isNull, lte, max, ne, or, sql 
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { employeeLeaves, employees, events, leaveLedger, leaveTypes, tasks } from "../db/schema";
-import { leaveCreditInput, leaveInput, leaveLineInput, leavePatch, leaveTypeInput, orderInput } from "../../shared/schemas";
-import { LEDGER_LABEL, USUAL_LEAVE_TYPES, daysWord, formatDays, leaveEnd, leaveShort, leaveSteps, leaveTitle, rejoinDay, shiftDate } from "../../shared/leave";
+import { leaveCreditInput, leaveInput, leaveLineInput, leavePatch, leaveSurrenderInput, leaveTypeInput, orderInput, postponeUndoInput } from "../../shared/schemas";
+import { LEDGER_LABEL, SURRENDER_STEPS, USUAL_LEAVE_TYPES, daysWord, formatDays, leaveEnd, leaveShort, leaveSteps, leaveTitle, postponeDays, rejoinDay, shiftDate, surrenderTitle } from "../../shared/leave";
 import { dayLabel } from "../../shared/reminderSchedule";
-import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeaveType, Task } from "../../shared/types";
+import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, LeaveType, Task } from "../../shared/types";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { ensureLeaveCredits, lapseAbove, settleLeaveTask } from "../lib/leave";
@@ -117,6 +117,7 @@ export const leaveRoutes = new Hono<AppEnv>()
           medical: !!u.medical,
           yearlyDays: u.yearlyDays ?? null,
           fromDuty: !!u.fromDuty,
+          delaysIncrement: !!u.delaysIncrement,
         })
         .returning();
       byShort.set(lower(u.short), t!);
@@ -314,7 +315,9 @@ export const leaveRoutes = new Hono<AppEnv>()
     // Every step already done (leave entered late): completed straight away.
     await settleLeaveTask(db, userId, task!, [], checklist);
     await log(db, userId, "staff.leave_marked", `Leave of ${e.name}: ${t.name}, ${daysWord(v.days)}, ${dayLabel(v.fromDate)} to ${dayLabel(v.toDate)}${v.extensionOfId ? " (extension)" : ""}`);
-    return c.json({ id: l!.id, taskId: task!.id }, 201);
+    // A leave that doesn't count for increment or probation (EOL): those dates move by its days when asked.
+    const postponed = t.delaysIncrement ? await postpone(db, userId, e, l!, t, v.postpone) : {};
+    return c.json({ id: l!.id, taskId: task!.id, postponed }, 201);
   })
   // The form sends every field. A change of type, dates or days gives the old days back and takes the new ones;
   // rejoinedOn records the joining report (curtailed when earlier than the day after the leave).
@@ -341,6 +344,63 @@ export const leaveRoutes = new Hono<AppEnv>()
     else await log(db, userId, "staff.leave_changed", `Leave of ${e.name} changed: ${t.name}, ${daysWord(v.days)}, ${dayLabel(v.fromDate)} to ${dayLabel(v.toDate)}`);
     return c.json({ ok: true });
   })
+  // Undo of the dates a leave moved: each goes back only while it is still the moved date.
+  .post("/leaves/:id/postpone/undo", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const l = await loadLeave(db, userId, c.req.param("id"));
+    const e = await loadEmployee(db, userId, l.employeeId);
+    const v = postponeUndoInput.parse(await c.req.json());
+    if (v.increment) {
+      const [back] = await db
+        .update(employees)
+        .set({ nextIncrementOn: v.increment.from, updatedAt: new Date() })
+        .where(and(eq(employees.id, e.id), eq(employees.nextIncrementOn, v.increment.to)))
+        .returning({ id: employees.id });
+      if (back) await log(db, userId, "staff.increment_postponed_undone", `Next increment of ${e.name} back to ${dayLabel(v.increment.from)}`);
+    }
+    if (v.probation) {
+      const [back] = await db
+        .update(tasks)
+        .set({ dueDate: v.probation.from, updatedAt: new Date() })
+        .where(and(eq(tasks.id, v.probation.taskId), eq(tasks.userId, userId), eq(tasks.dueDate, v.probation.to)))
+        .returning({ id: tasks.id, title: tasks.title });
+      if (back) await db.insert(events).values({ userId, entityType: "task", entityId: back.id, action: "task.rescheduled", summary: `Due date set to ${v.probation.from}`, detail: { title: back.title } });
+    }
+    return c.json({ ok: true });
+  })
+  // Surrender of earned leave (phase 4): the days come off the balance (a "surrender" line) and a task with the
+  // surrender steps is made, due a week after the date.
+  .post("/accounts/:employeeId/surrender", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const e = await loadEmployee(db, userId, c.req.param("employeeId"));
+    const v = leaveSurrenderInput.parse(await c.req.json());
+    const t = await loadType(db, userId, v.typeId);
+    if (!t.hasAccount) throw new HTTPException(400, { message: `${t.name} keeps no balance to surrender` });
+    const note = [v.orderNo && `Order ${v.orderNo}`, v.note].filter(Boolean).join(" · ") || "Surrender";
+    await db.insert(leaveLedger).values({ userId, employeeId: e.id, typeId: t.id, onDate: v.onDate, days: -v.days, kind: "surrender", note });
+    const checklist = SURRENDER_STEPS.map((s) => ({ id: s.id, text: s.text, done: v.doneSteps.includes(s.id) }));
+    const [task] = await db
+      .insert(tasks)
+      .values({
+        userId,
+        title: surrenderTitle(e.name, t, v.days),
+        notes: [`Surrender of ${daysWord(v.days)} of ${t.name} on ${dayLabel(v.onDate)}.`, v.orderNo && `Order ${v.orderNo}.`, v.note].filter(Boolean).join("\n"),
+        dueDate: shiftDate(v.onDate, 7),
+        priority: "normal",
+        checklist,
+        relatedKind: "employee",
+        relatedId: e.id,
+        madeBySystem: true,
+        systemKind: "leave",
+      })
+      .returning();
+    await db.insert(events).values({ userId, entityType: "task", entityId: task!.id, action: "task.created", summary: "Made by system: leave surrender steps", detail: { title: task!.title } });
+    await settleLeaveTask(db, userId, task!, [], checklist);
+    await log(db, userId, "staff.leave_surrender", `Leave account of ${e.name}: Surrendered ${formatDays(v.days)} ${leaveShort(t)}${v.orderNo ? ` (order ${v.orderNo})` : ""}`);
+    return c.json({ taskId: task!.id }, 201);
+  })
   // Cancelled: the days come back and the open task is completed (both kept, with History).
   .post("/leaves/:id/cancel", async (c) => {
     const db = c.get("db");
@@ -362,6 +422,35 @@ export const leaveRoutes = new Hono<AppEnv>()
     await log(db, userId, "staff.leave_cancelled", `Leave of ${e.name} cancelled: ${t.name}, ${daysWord(l.days)}, ${dayLabel(l.fromDate)} to ${dayLabel(l.toDate)}`);
     return c.json({ ok: true });
   });
+
+// Moves the employee's next increment date and their open Probation declaration task by the leave's days.
+async function postpone(
+  db: DB,
+  userId: string,
+  e: typeof employees.$inferSelect,
+  l: typeof employeeLeaves.$inferSelect,
+  t: typeof leaveTypes.$inferSelect,
+  ask: { increment: boolean; probation: boolean },
+): Promise<LeavePostponed> {
+  const n = postponeDays(l.days);
+  const out: LeavePostponed = {};
+  if (ask.increment && e.nextIncrementOn) {
+    const to = shiftDate(e.nextIncrementOn, n);
+    await db.update(employees).set({ nextIncrementOn: to, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await log(db, userId, "staff.increment_postponed", `Next increment of ${e.name} moved from ${dayLabel(e.nextIncrementOn)} to ${dayLabel(to)} (${daysWord(n)} of ${t.name})`);
+    out.increment = { from: e.nextIncrementOn, to };
+  }
+  if (ask.probation && e.probationTaskId) {
+    const [p] = await db.select().from(tasks).where(and(eq(tasks.id, e.probationTaskId), eq(tasks.status, "open")));
+    if (p?.dueDate) {
+      const to = shiftDate(p.dueDate, n);
+      await db.update(tasks).set({ dueDate: to, updatedAt: new Date() }).where(eq(tasks.id, p.id));
+      await db.insert(events).values({ userId, entityType: "task", entityId: p.id, action: "task.rescheduled", summary: `Due date moved to ${to}: ${daysWord(n)} of ${t.name}`, detail: { title: p.title } });
+      out.probation = { taskId: p.id, from: p.dueDate, to };
+    }
+  }
+  return out;
+}
 
 async function loadLeave(db: DB, userId: string, id: string) {
   const [l] = await db.select().from(employeeLeaves).where(and(eq(employeeLeaves.id, id), eq(employeeLeaves.userId, userId)));

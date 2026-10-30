@@ -13,8 +13,8 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const lower = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
 const ASK = " Before calling, tell the user exactly what will change and wait for their yes.";
 
-class Unclear extends Error {}
-const safely =
+export class Unclear extends Error {}
+export const safely =
   (run: Tool["run"]): Tool["run"] =>
   async (ctx, a) => {
     try {
@@ -26,7 +26,7 @@ const safely =
   };
 
 // An employee by id or name (part of the name is enough when only one fits). withLeft: also those who left.
-function findEmployee(s: StaffList, text: string, withLeft = true): Employee {
+export function findEmployee(s: StaffList, text: string, withLeft = true): Employee {
   const q = lower(text);
   const pool = s.employees.filter((e) => withLeft || !e.leftOn);
   const byId = pool.find((e) => e.id === text);

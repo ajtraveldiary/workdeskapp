@@ -34,6 +34,7 @@ export type UsualLeaveType = {
   medical?: boolean;
   yearlyDays?: number;
   fromDuty?: boolean;
+  delaysIncrement?: boolean;
 };
 export const USUAL_LEAVE_TYPES: UsualLeaveType[] = [
   // 1/11 of the days on duty, credited on the service anniversary to staff whose probation is declared.
@@ -44,7 +45,8 @@ export const USUAL_LEAVE_TYPES: UsualLeaveType[] = [
   { name: "Commuted leave", short: "Commuted", hasAccount: false, drawsOn: "HPL", perDay: 2, medical: true },
   // Half pay leave not yet earned, on a medical certificate: HPL may go below zero; 360 days in the whole service.
   { name: "Leave not due", short: "LND", hasAccount: false, drawsOn: "HPL", mayGoNegative: true, serviceLimit: 360, medical: true },
-  { name: "Extraordinary leave", short: "EOL", hasAccount: false },
+  // Doesn't count for increment or probation: marking it offers to move those dates (phase 4).
+  { name: "Extraordinary leave", short: "EOL", hasAccount: false, delaysIncrement: true },
   { name: "Maternity leave", short: "ML", hasAccount: false },
   { name: "Paternity leave", short: "PL", hasAccount: false },
 ];
@@ -104,5 +106,20 @@ export function addYears(day: string, n: number) {
   const last = new Date(Date.UTC(y + n, m, 0)).getUTCDate();
   return `${y + n}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
 }
+// --- Surrender of earned leave (phase 4) ---
+
+// Its paperwork (the plan's proposal, accepted 2026-10-30), as the surrender task's steps.
+export const SURRENDER_STEPS: LeaveStep[] = [
+  { id: "application", text: "Surrender application received" },
+  { id: "sanction", text: "Sanction order" },
+  { id: "bill", text: "Prepare bill" },
+  { id: "spark", text: "Update in SPARK" },
+  { id: "sb-update", text: "SB update" },
+];
+// "Leave surrender: Priya Nair — EL 30 days".
+export const surrenderTitle = (name: string, type: { name: string; short: string }, days: number) => `Leave surrender: ${name} — ${leaveShort(type)} ${daysWord(days)}`;
+// The whole days a leave moves an increment or probation date by (half a day counts as a day).
+export const postponeDays = (days: number) => Math.ceil(days);
+
 // Earned leave from duty: 1/11 of the days on duty, half a day or more rounding up.
 export const earnedFromDuty = (dutyDays: number) => Math.round(Math.max(0, dutyDays) / 11);

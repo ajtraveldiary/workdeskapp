@@ -270,6 +270,8 @@ export type LeaveType = {
   fromDuty: boolean;
   // Automatic yearly credits from this date (null = by hand only).
   creditsFrom: string | null;
+  // Doesn't count for increment or probation (EOL).
+  delaysIncrement: boolean;
   lines: number;
   // Leaves marked with it (it can't be removed then either).
   leaves: number;
@@ -278,6 +280,8 @@ export type LeaveLine = { id: string; typeId: string; onDate: string; days: numb
 // One employee's account: each type with its own balance, and every line, newest first.
 // used: days of leave taken of each type (not cancelled), for limits such as LND's 360 days in the whole service.
 export type LeaveAccount = { balances: { typeId: string; balance: number }[]; lines: LeaveLine[]; used: { typeId: string; days: number }[] };
+// The dates a leave moved (phase 4: EOL), for Undo.
+export type LeavePostponed = { increment?: { from: string; to: string }; probation?: { taskId: string; from: string; to: string } };
 // A leave marked for an employee (phase 2), with its task (the paperwork steps).
 export type EmployeeLeave = {
   id: string;

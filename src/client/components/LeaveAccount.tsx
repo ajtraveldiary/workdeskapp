@@ -7,7 +7,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { CalendarOff, CalendarPlus, Check, Plus } from "lucide-react";
 import type { Employee, EmployeeLeave, LeaveLine, LeaveType, Task } from "../../shared/types";
-import { HAND_KINDS, LEDGER_LABEL, daysWord, formatDays, leaveEnd, leaveShort, rejoinDay, type HandKind } from "../../shared/leave";
+import { HAND_KINDS, LEDGER_LABEL, SURRENDER_STEPS, daysWord, formatDays, leaveEnd, leaveShort, rejoinDay, type HandKind } from "../../shared/leave";
 import { useEmployeeLeaves, useLeaveAccount, useLeaveActions, useLeaveTypes } from "../api";
 import { Badge, Button, Card, ErrorNote, Field, Modal, SkeletonList, cx, inputClass, type Tone } from "./ui";
 import { ChecklistChip } from "./Checklist";
@@ -199,28 +199,34 @@ function LineRow({ line, type }: { line: LeaveLine; type?: LeaveType }) {
   );
 }
 
-const KIND_HINT: Record<HandKind, string> = {
+// Surrender of earned leave (phase 4) is an entry too, with its own task.
+type EntryKind = HandKind | "surrender";
+const ENTRY_KINDS: EntryKind[] = [...HAND_KINDS, "surrender"];
+const KIND_HINT: Record<EntryKind, string> = {
   opening: "The balance on a date, from the service book. One per leave; correct it later with an adjustment.",
   credit: "Days added to the balance, such as a yearly credit.",
   adjust: "Puts a wrong balance right, adding or taking away days.",
+  surrender: "Earned leave surrendered for pay: the days come off the balance and a task with the surrender steps is made.",
 };
 
 function LineForm({ employee, types, balances, today, onDone }: { employee: Employee; types: LeaveType[]; balances: { typeId: string; balance: number }[]; today: string; onDone: () => void }) {
-  const { addLine } = useLeaveActions();
-  const [kind, setKind] = useState<HandKind>("opening");
+  const { addLine, surrender } = useLeaveActions();
+  const [kind, setKind] = useState<EntryKind>("opening");
+  const [doneSteps, setDoneSteps] = useState<string[]>([]);
   const [typeId, setTypeId] = useState(types[0]?.id ?? "");
   const [onDate, setOnDate] = useState(today);
   const [days, setDays] = useState("");
   const [takeAway, setTakeAway] = useState(false);
   const [note, setNote] = useState("");
   const n = Number(days);
-  const value = days.trim() === "" || Number.isNaN(n) ? null : kind === "adjust" && takeAway ? -n : n;
+  const value = days.trim() === "" || Number.isNaN(n) ? null : (kind === "adjust" && takeAway) || kind === "surrender" ? -n : n;
   const now = balances.find((b) => b.typeId === typeId)?.balance ?? 0;
   const type = types.find((t) => t.id === typeId);
   const submit = (ev: FormEvent) => {
     ev.preventDefault();
     if (value == null) return;
-    addLine.mutate({ employeeId: employee.id, input: { typeId, kind, onDate, days: value, note } }, { onSuccess: onDone });
+    if (kind === "surrender") surrender.mutate({ employeeId: employee.id, input: { typeId, days: n, onDate, note, doneSteps } }, { onSuccess: onDone });
+    else addLine.mutate({ employeeId: employee.id, input: { typeId, kind, onDate, days: value, note } }, { onSuccess: onDone });
   };
   const radio = "inline-flex h-9 items-center rounded-lg border border-line px-3 text-sm text-slate-600 enabled:hover:bg-slate-50 active:scale-[0.97] aria-checked:border-brand-200 aria-checked:bg-tint aria-checked:font-medium aria-checked:text-brand-800";
   return (
@@ -230,9 +236,9 @@ function LineForm({ employee, types, balances, today, onDone }: { employee: Empl
         <span className="mb-1 block text-sm font-medium text-slate-700">Entry</span>
         {/* Its own buttons (type="button"), so choosing never submits the form. */}
         <div role="radiogroup" aria-label="Entry" className="flex flex-wrap gap-1.5">
-          {HAND_KINDS.map((k) => (
+          {ENTRY_KINDS.map((k) => (
             <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)} className={radio}>
-              {LEDGER_LABEL[k]}
+              {k === "surrender" ? "Surrender" : LEDGER_LABEL[k]}
             </button>
           ))}
         </div>
@@ -275,9 +281,26 @@ function LineForm({ employee, types, balances, today, onDone }: { employee: Empl
         <p className="rounded-lg bg-slate-50 px-3 py-2 text-footnote text-slate-600">
           {leaveShort(type)} balance: {formatDays(now)} → <span className="font-medium text-ink">{formatDays(now + value)}</span>
           {type.maxBalance != null && now + value > type.maxBalance && kind === "credit" && ` (above ${daysWord(type.maxBalance)}: the extra lapses)`}
+          {kind === "surrender" && now + value < 0 && " — more than the balance"}
         </p>
       )}
-      <ErrorNote error={addLine.error} />
+      {kind === "surrender" && (
+        <fieldset className="rounded-lg border border-line px-3 py-2">
+          <legend className="px-1 text-sm font-medium text-ink">Steps already done</legend>
+          {SURRENDER_STEPS.map((s) => (
+            <label key={s.id} className="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-1.5 hover:bg-slate-50">
+              <input
+                type="checkbox"
+                className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5"
+                checked={doneSteps.includes(s.id)}
+                onChange={(e) => setDoneSteps((d) => (e.target.checked ? [...d, s.id] : d.filter((x) => x !== s.id)))}
+              />
+              <span className="text-sm text-ink">{s.text}</span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+      <ErrorNote error={addLine.error ?? surrender.error} />
       <div className="flex flex-wrap justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onDone}>
           Cancel

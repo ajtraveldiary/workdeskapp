@@ -1,10 +1,11 @@
 # Leave of employees — plan
 
-Status: **Phases 1 to 3 built** (2026-10-30): gazetted and probation declared switches, gazetted posts, leave types,
+Status: **All four phases built** (2026-10-30): gazetted and probation declared switches, gazetted posts, leave types,
 leave accounts with opening balances, credits and adjustments by hand, Credit now; marking leave with its account line
 and its task (gazetted / non-gazetted steps), editing, rejoining early, cancelling, the On leave card; automatic yearly
 credits (switched on per leave type in Settings › Leave), the Leave balances CSV, the leave tables in the backup.
-Phase 4 not built yet; the "Leave" CSV export of every leave was left out. Not done in phase 2: the joining report step asking for the rejoining date (record it in the leave instead),
+Phase 4: EOL moves the increment and probation task (choice with Undo), surrender of EL with its task, and the
+assistant commands get_leave_account and mark_leave. Left out: the "Leave" CSV export of every leave. Not done in phase 2: the joining report step asking for the rejoining date (record it in the leave instead),
 extensions from the form (the API takes `extensionOfId`), and a step-state table like Joining & relieving (steps are
 ticked in the task). Written 2026-10-30.
 

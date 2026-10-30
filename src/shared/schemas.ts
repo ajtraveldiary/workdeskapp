@@ -314,6 +314,8 @@ export const leaveTypeInput = z.object({
   fromDuty: z.boolean().default(false),
   // Credit it automatically on each service anniversary (phase 3), from the day this is switched on.
   autoCredit: z.boolean().default(false),
+  // Doesn't count for increment or probation (EOL, phase 4).
+  delaysIncrement: z.boolean().default(false),
 });
 export type LeaveTypeInput = z.input<typeof leaveTypeInput>;
 // A line added by hand on the employee's page: opening balance (from the service book), a credit or an adjustment
@@ -341,7 +343,14 @@ const leaveFields = {
 };
 const datesInOrder = (v: { fromDate: string; toDate: string }) => v.toDate >= v.fromDate;
 export const leaveInput = z
-  .object({ employeeId: z.uuid(), ...leaveFields, doneSteps: z.array(z.string().max(40)).max(20).default([]), extensionOfId: z.uuid().nullable().default(null) })
+  .object({
+    employeeId: z.uuid(),
+    ...leaveFields,
+    doneSteps: z.array(z.string().max(40)).max(20).default([]),
+    extensionOfId: z.uuid().nullable().default(null),
+    // A type that doesn't count for increment / probation (EOL, phase 4): move those dates by its days.
+    postpone: z.object({ increment: z.boolean().default(false), probation: z.boolean().default(false) }).default({ increment: false, probation: false }),
+  })
   .refine(datesInOrder, { message: "The leave ends before it starts", path: ["toDate"] });
 export type LeaveInput = z.input<typeof leaveInput>;
 // Editing: every field again, and the rejoining date once the joining report is in.
@@ -350,6 +359,19 @@ export const leavePatch = z
   .refine(datesInOrder, { message: "The leave ends before it starts", path: ["toDate"] })
   .refine((v) => !v.rejoinedOn || v.rejoinedOn > v.fromDate, { message: "Rejoined before the leave started", path: ["rejoinedOn"] });
 export type LeavePatch = z.input<typeof leavePatch>;
+// Undo of the dates a leave moved: each goes back only if it is still the moved date.
+const moved = z.object({ from: day, to: day });
+export const postponeUndoInput = z.object({ increment: moved.optional(), probation: moved.extend({ taskId: z.uuid() }).optional() });
+// Surrender of earned leave (phase 4): the days come off the balance and a task with the surrender steps is made.
+export const leaveSurrenderInput = z.object({
+  typeId: z.uuid(),
+  days: z.number().min(0.5).max(365).multipleOf(0.5, "Use whole or half days"),
+  onDate: day,
+  orderNo: z.string().trim().max(100).default(""),
+  note: z.string().trim().max(300).default(""),
+  doneSteps: z.array(z.string().max(40)).max(20).default([]),
+});
+export type LeaveSurrenderInput = z.input<typeof leaveSurrenderInput>;
 // "Credit now" for every permanent employee still in the office: creditFor is the year it counts for.
 export const leaveCreditInput = z.object({
   creditFor: z.string().regex(/^\d{4}$/, "Give the year, e.g. 2027"),

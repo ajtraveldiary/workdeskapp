@@ -4,8 +4,8 @@ import { clearSavedData } from "./queryClient";
 import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
   AssistantInfo, AssistantUnseen, CallLog, QueueInfo, QueueRunReport, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
-import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput, LeaveInput, LeaveLineInput, LeavePatch, LeaveTypeInput } from "../shared/schemas";
-import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeaveType } from "../shared/types";
+import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput, LeaveInput, LeaveLineInput, LeavePatch, LeaveSurrenderInput, LeaveTypeInput } from "../shared/schemas";
+import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, LeaveType } from "../shared/types";
 
 export class ApiError extends Error {
   constructor(
@@ -289,8 +289,8 @@ export const useEmployeeLeaves = (employeeId: string) =>
 export const useCurrentLeaves = () => useQuery({ queryKey: ["leave", "leaves", "now"], queryFn: () => api<{ today: string; leaves: EmployeeLeave[] }>("/leave/leaves") });
 export function useLeaveActions() {
   const qc = useQueryClient();
-  // Marking leave makes a task, so the task lists refresh too.
-  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["leave", "history", "tasks", "summary"].includes(q.queryKey[0] as string) || (q.queryKey[0] === "staff" && q.queryKey[1] === "profile") });
+  // Marking leave makes a task, so the task lists refresh too; EOL can move an employee's increment date (staff).
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["leave", "history", "tasks", "summary", "staff"].includes(q.queryKey[0] as string) });
   const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
   return {
     addType: m((input: LeaveTypeInput) => api<{ id: string }>("/leave/types", { method: "POST", body: input })),
@@ -315,9 +315,12 @@ export function useLeaveActions() {
       api<LeaveCreditPlan & { credited?: number; skipped?: number; lapsed?: number }>(`/leave/types/${id}/credit`, { method: "POST", body }),
     ),
     addLine: m(({ employeeId, input }: { employeeId: string; input: LeaveLineInput }) => api(`/leave/accounts/${employeeId}/lines`, { method: "POST", body: input })),
-    markLeave: m((input: LeaveInput) => api<{ id: string; taskId: string }>("/leave/leaves", { method: "POST", body: input })),
+    markLeave: m((input: LeaveInput) => api<{ id: string; taskId: string; postponed: LeavePostponed }>("/leave/leaves", { method: "POST", body: input })),
     saveLeave: m(({ id, input }: { id: string; input: LeavePatch }) => api(`/leave/leaves/${id}`, { method: "PUT", body: input })),
     cancelLeave: m((id: string) => api(`/leave/leaves/${id}/cancel`, { method: "POST" })),
+    // Phase 4: Undo of the dates an EOL moved, and surrender of earned leave.
+    undoPostpone: m(({ id, ...body }: LeavePostponed & { id: string }) => api(`/leave/leaves/${id}/postpone/undo`, { method: "POST", body })),
+    surrender: m(({ employeeId, input }: { employeeId: string; input: LeaveSurrenderInput }) => api<{ taskId: string }>(`/leave/accounts/${employeeId}/surrender`, { method: "POST", body: input })),
   };
 }
 // Joining and relieving (user request 2026-10-15). Under "staff", so employee and task changes refresh it.
