@@ -286,6 +286,8 @@ export const useLeaveAccount = (employeeId: string) =>
 // Leaves marked (phase 2): one employee's, or the ones that matter now (on leave, starting soon, due back).
 export const useEmployeeLeaves = (employeeId: string) =>
   useQuery({ queryKey: ["leave", "leaves", employeeId], queryFn: () => api<{ today: string; leaves: EmployeeLeave[] }>(`/leave/leaves?employeeId=${employeeId}`) });
+// Every leave, newest first (the Leave page's history).
+export const useAllLeaves = () => useQuery({ queryKey: ["leave", "leaves", "all"], queryFn: () => api<{ today: string; leaves: EmployeeLeave[] }>("/leave/leaves?all=1") });
 export const useCurrentLeaves = () => useQuery({ queryKey: ["leave", "leaves", "now"], queryFn: () => api<{ today: string; leaves: EmployeeLeave[] }>("/leave/leaves") });
 export function useLeaveActions() {
   const qc = useQueryClient();

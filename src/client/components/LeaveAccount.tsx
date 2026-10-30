@@ -2,15 +2,16 @@
 // leave that keeps one (EL, HPL…) and every line of the account, newest first, like the leave account in a service
 // book. Lines are only added (opening balance from the service book, a credit, an adjustment), never changed:
 // a wrong line is put right with an adjustment. Phase 2: Mark leave, and their leaves with each one's state and
-// paperwork steps (tap a leave to edit it, record the rejoining date or cancel it).
+// paperwork steps (tap a leave to edit it, record the rejoining date or cancel it). Since 2026-10-31 (user request,
+// "move leave to a standalone page") the card is on the Leave page (/leave?employee=…), and the employee's page has
+// only LeaveSummary, one line that opens it.
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { CalendarOff, CalendarPlus, Check, Plus } from "lucide-react";
-import type { Employee, EmployeeLeave, LeaveLine, LeaveType, Task } from "../../shared/types";
+import { CalendarOff, CalendarPlus, Check, ChevronRight, Hourglass, Plus } from "lucide-react";
+import type { ChecklistItem, Employee, EmployeeLeave, LeaveLine, LeaveType, Task } from "../../shared/types";
 import { HAND_KINDS, LEDGER_LABEL, SURRENDER_STEPS, daysWord, financialYearStart, formatDays, leaveEnd, leaveShort, rejoinDay, type HandKind } from "../../shared/leave";
 import { useEmployeeLeaves, useLeaveAccount, useLeaveActions, useLeaveTypes } from "../api";
-import { Badge, Button, Card, ErrorNote, Field, Modal, SkeletonList, cx, inputClass, type Tone } from "./ui";
-import { ChecklistChip } from "./Checklist";
+import { Badge, Button, Card, ErrorNote, Field, Modal, SkeletonList, TONE, cx, inputClass, type Tone } from "./ui";
 import { LeaveDialog, type LeaveFormState } from "./LeaveDialog";
 import { TaskDetails } from "./TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "./TaskDialog";
@@ -18,7 +19,8 @@ import { TaskDialog, type TaskDialogMode } from "./TaskDialog";
 const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${formatDays(Math.abs(n))}`;
 
-export function LeaveCard({ employee, today }: { employee: Employee; today: string }) {
+// hideLeaves: their leaves are listed by the page instead (the Leave page's history).
+export function LeaveCard({ employee, today, hideLeaves }: { employee: Employee; today: string; hideLeaves?: boolean }) {
   const types = useLeaveTypes().data?.types;
   const account = useLeaveAccount(employee.id);
   const [adding, setAdding] = useState(false);
@@ -83,7 +85,7 @@ export function LeaveCard({ employee, today }: { employee: Employee; today: stri
               );
             })}
           </ul>
-          <Leaves employeeId={employee.id} types={types} onOpen={(l) => setLeaveForm({ leave: l })} />
+          {!hideLeaves && <Leaves employeeId={employee.id} types={types} onOpen={(l) => setLeaveForm({ leave: l })} />}
           {lines.length === 0 ? (
             <p className="border-t border-line px-4 py-3 text-footnote text-slate-500 sm:px-5">No entries yet. Start with each leave's opening balance from the service book (Add).</p>
           ) : (
@@ -104,6 +106,33 @@ export function LeaveCard({ employee, today }: { employee: Employee; today: stri
       <Modal open={adding} onClose={() => setAdding(false)} title="Leave account entry">
         {adding && <LineForm employee={employee} types={withAccount} balances={account.data?.balances ?? []} lines={lines} today={today} onDone={() => setAdding(false)} />}
       </Modal>
+    </Card>
+  );
+}
+
+// The employee's page (user request 2026-10-31): one line, "Leave · EL 120 · HPL 40 · On leave till 10 Nov", that
+// opens their account and leaves on the Leave page.
+export function LeaveSummary({ employee }: { employee: Employee }) {
+  const types = useLeaveTypes().data?.types;
+  const account = useLeaveAccount(employee.id).data;
+  const leaves = useEmployeeLeaves(employee.id).data;
+  const balances = (types ?? []).filter((t) => t.hasAccount).map((t) => `${leaveShort(t)} ${formatDays(account?.balances.find((b) => b.typeId === t.id)?.balance ?? 0)}`);
+  // What matters now: on leave or due back, else the next leave starting.
+  const now = leaves?.leaves
+    .map((l) => ({ l, st: leaveState(l, leaves.today) }))
+    .filter((x) => ["On leave", "Due back", "Upcoming"].includes(x.st.label))
+    .sort((a, b) => (a.st.label === "Upcoming" ? 1 : 0) - (b.st.label === "Upcoming" ? 1 : 0) || a.l.fromDate.localeCompare(b.l.fromDate))[0];
+  const status = !now ? null : now.st.label === "On leave" ? `On leave till ${shortDate(leaveEnd(now.l))}` : now.st.label === "Due back" ? `Due back since ${shortDate(rejoinDay(now.l))}` : `Leave from ${shortDate(now.l.fromDate)}`;
+  return (
+    <Card className="overflow-hidden">
+      <Link to={`/leave?employee=${employee.id}`} className="group/title flex items-center gap-2 px-4 py-2.5 hover:bg-slate-50 active:bg-slate-100 sm:px-5">
+        <CalendarOff size={15} className="shrink-0 text-brand-700" />
+        <span className="shrink-0 text-footnote font-semibold text-slate-600 group-hover/title:text-brand-700">Leave</span>
+        <span className="min-w-0 flex-1 truncate text-footnote text-slate-600">
+          {!types || !account ? "…" : [balances.join(" · ") || "No balances yet", status].filter(Boolean).join(" · ")}
+        </span>
+        <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden />
+      </Link>
     </Card>
   );
 }
@@ -155,8 +184,21 @@ function Leaves({ employeeId, types, onOpen }: { employeeId: string; types: Leav
   );
 }
 
+// The step of a leave's task that changed last (user request 2026-10-31: the status shown is the last updated step):
+// the newest `at`; steps ticked before steps had times count in their order, the last ticked one first.
+export function lastStep(items: ChecklistItem[]) {
+  const timed = items.filter((i) => i.at).sort((a, b) => b.at!.localeCompare(a.at!))[0];
+  if (timed) return timed;
+  return [...items].reverse().find((i) => i.done || i.waiting) ?? null;
+}
+const STEP_TONE = (i: ChecklistItem): Tone => (i.done ? "low" : i.waiting ? "medium" : "neutral");
+const stepWord = (i: ChecklistItem) => (i.done ? "Done" : i.waiting ? "Waiting" : "Pending");
+
 export function LeaveRow({ leave: l, type, today, onOpen, onTask, who }: { leave: EmployeeLeave; type?: LeaveType; today: string; onOpen: () => void; onTask: (t: Task) => void; who?: string }) {
   const st = leaveState(l, today);
+  const items = l.task?.checklist ?? [];
+  const step = lastStep(items);
+  const done = items.filter((i) => i.done).length;
   return (
     <li className={cx("row-click flex items-start gap-3 px-4 py-2 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5", l.status === "cancelled" && "opacity-60")}>
       <button type="button" onClick={onOpen} aria-label={`Open ${who ? `${who}'s ` : ""}${type ? type.name : "leave"}, ${leaveDates(l)}`} className="row-link group/title min-w-0 flex-1 text-left">
@@ -168,15 +210,30 @@ export function LeaveRow({ leave: l, type, today, onOpen, onTask, who }: { leave
           {leaveDates(l)}
           {l.status === "active" && (l.rejoinedOn ? ` · rejoined ${fullDate(l.rejoinedOn)}` : ` · back ${fullDate(rejoinDay(l))}`)}
           {l.onMedical && " · medical certificate"}
+          {l.status === "active" && ` · ${st.label}`}
         </span>
       </button>
-      <span className="flex shrink-0 flex-col items-end gap-1">
-        <Badge tone={st.tone}>{st.label}</Badge>
-        {l.task && (
-          <span className="relative z-10 text-footnote">
-            <ChecklistChip items={l.task.checklist} onClick={() => onTask(l.task!)} />
-          </span>
+      {/* The status: the step of its task updated last, which opens the task's details (Cancelled for a cancelled
+          leave; "No step done yet" before any). */}
+      <span className="flex max-w-[45%] shrink-0 flex-col items-end gap-1">
+        {l.status === "cancelled" || !l.task ? (
+          <Badge tone={st.tone}>{st.label}</Badge>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onTask(l.task!)}
+            aria-label={step ? `Last updated step: ${step.text}, ${stepWord(step)}. Show steps` : "No step done yet. Show steps"}
+            title={step?.at ? `Updated ${new Date(step.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : undefined}
+            className={cx(
+              "relative z-10 inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-xs font-medium enabled:hover:brightness-95 active:scale-[0.97]",
+              TONE[step ? STEP_TONE(step) : "neutral"].soft,
+            )}
+          >
+            {step?.done ? <Check size={12} className="shrink-0" aria-hidden /> : step?.waiting ? <Hourglass size={12} className="shrink-0" aria-hidden /> : null}
+            <span className="line-clamp-2 [overflow-wrap:anywhere]">{step ? (step.done ? step.text : `${step.text}: ${stepWord(step)}`) : "No step done yet"}</span>
+          </button>
         )}
+        {l.task && <span className="text-caption text-slate-500 tabular-nums">{done}/{items.length} steps</span>}
       </span>
     </li>
   );

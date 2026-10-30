@@ -111,6 +111,47 @@ describe("leave", () => {
     expect([financialYearStart("2026-11-03"), financialYearStart("2027-03-31"), financialYearStart("2027-04-01")]).toEqual(["2026-04-01", "2026-04-01", "2027-04-01"]);
   });
 
+  it("the Leave page lists every leave, newest first, while the plain list keeps only the ones that matter now", async () => {
+    const hpl = await byShort("HPL");
+    const eol = await byShort("EOL");
+    const a = await add({ name: NAME });
+    const b = await add({ name: "Biju" });
+    await call("POST", `/leave/accounts/${a}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2020-01-01", days: 40 });
+    const today = (await call("GET", "/me")).json.today as string;
+    await call("POST", "/leave/leaves", { employeeId: a, typeId: hpl.id, fromDate: "2021-03-01", toDate: "2021-03-05", days: 5 });
+    await call("POST", "/leave/leaves", { employeeId: b, typeId: eol.id, fromDate: today, toDate: shift(today, 2), days: 3 });
+    const all = (await call("GET", "/leave/leaves?all=1")).json.leaves as EmployeeLeave[];
+    expect(all.map((l) => [l.employeeId, l.fromDate])).toEqual([
+      [b, today],
+      [a, "2021-03-01"],
+    ]);
+    expect(((await call("GET", "/leave/leaves")).json.leaves as EmployeeLeave[]).map((l) => l.employeeId)).toEqual([b]);
+  });
+
+  it("each step of a leave's task keeps when it last changed, so the leave shows the step updated last", async () => {
+    const hpl = await byShort("HPL");
+    const id = await add({ name: NAME });
+    await call("POST", `/leave/accounts/${id}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2026-01-01", days: 40 });
+    const made = await call("POST", "/leave/leaves", { employeeId: id, typeId: hpl.id, fromDate: "2026-12-01", toDate: "2026-12-05", days: 5, doneSteps: ["application"] });
+    const first = await taskOf(made.json.taskId);
+    const stamped = first.checklist.filter((i) => i.at).map((i) => i.id);
+    expect(stamped).toEqual(["application"]);
+    // Ticking a later step, then setting a step to waiting: each gets the time it changed; the others keep theirs.
+    const at0 = first.checklist[0]!.at!;
+    await new Promise((r) => setTimeout(r, 5));
+    await call("PATCH", `/tasks/${first.id}`, { checklist: first.checklist.map((i) => (i.id === "spark" ? { ...i, done: true, at: "1999-01-01T00:00:00Z" } : i)) });
+    const second = await taskOf(first.id);
+    const spark = second.checklist.find((i) => i.id === "spark")!;
+    expect(second.checklist[0]!.at).toBe(at0);
+    expect(spark.at! > at0).toBe(true);
+    await new Promise((r) => setTimeout(r, 5));
+    await call("PATCH", `/tasks/${first.id}`, { checklist: second.checklist.map((i) => (i.id === "proceedings" ? { ...i, waiting: true } : i)) });
+    const third = await taskOf(first.id);
+    const latest = [...third.checklist].sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""))[0]!;
+    expect([latest.id, latest.waiting]).toEqual(["proceedings", true]);
+    expect(third.checklist.find((i) => i.id === "spark")!.at).toBe(spark.at);
+  });
+
   it("a leave on a medical certificate: kept on the leave, counted apart for LND, and EOL on one moves no dates", async () => {
     const [eol, lnd] = [await byShort("EOL"), await byShort("LND")];
     const id = await add({ name: NAME, nextIncrementOn: "2027-06-01" });

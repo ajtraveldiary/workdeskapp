@@ -8,7 +8,8 @@ export type Priority = "low" | "normal" | "high" | "urgent";
 
 // One step of a task's checklist (user request 2026-10-07).
 // waiting: marked Waiting (joining / relieving steps, user request 2026-10-15); a done step is never waiting.
-export type ChecklistItem = { id: string; text: string; done: boolean; waiting?: boolean };
+// at: when its done / waiting state last changed (set by the server, lib/checklist.ts; 2026-10-31).
+export type ChecklistItem = { id: string; text: string; done: boolean; waiting?: boolean; at?: string };
 
 // A link kept with a reminder, e.g. the Google Sheet to fill in (user request 2026-10-07). Empty name = show
 // the kind of file ("Google Sheet") instead.

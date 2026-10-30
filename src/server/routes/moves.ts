@@ -10,6 +10,7 @@ import type { DB } from "../db";
 import { designations, employeeMoves, employees, events, tasks } from "../db/schema";
 import { moveInput, moveStepInput } from "../../shared/schemas";
 import { MOVE_STEPS, stepState, withState } from "../../shared/moves";
+import { stampChecklist } from "../lib/checklist";
 import { dayLabel } from "../../shared/reminderSchedule";
 import type { StaffMove } from "../../shared/types";
 import { settleMoveTask, startMove } from "../lib/moves";
@@ -80,7 +81,7 @@ export const moveRoutes = new Hono<AppEnv>()
     // A step taken out of the task comes back where it belongs.
     const has = before.some((i) => i.id === step);
     const after = has ? before.map((i) => (i.id === step ? withState(i, state) : i)) : [...before, withState({ id: known.id, text: known.text, done: false }, state)];
-    await db.update(tasks).set({ checklist: after, updatedAt: new Date() }).where(eq(tasks.id, t.id));
+    await db.update(tasks).set({ checklist: stampChecklist(before, after), updatedAt: new Date() }).where(eq(tasks.id, t.id));
     await settleMoveTask(db, userId, t, before, after);
     return c.json({ ok: true });
   });

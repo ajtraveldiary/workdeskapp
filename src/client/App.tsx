@@ -8,6 +8,7 @@ import {
   TriangleAlert,
   WifiOff,
   CalendarCheck,
+  CalendarOff,
   CalendarRange,
   ChevronDown,
   UsersRound,
@@ -57,6 +58,7 @@ import { RemindersPage } from "./pages/Reminders";
 import { SettingsPage } from "./pages/Settings";
 import { LoginPage } from "./pages/Login";
 import { RegistersPage } from "./pages/Registers";
+import { LeavePage } from "./pages/Leave";
 
 export function App() {
   const me = useMe();
@@ -91,6 +93,8 @@ export function App() {
         <Route path="/import-export" element={<Navigate to="/settings#import-export" replace />} />
         {/* Was /staff before the page was renamed Employees (user request 2026-10-07). */}
         <Route path="/staff" element={<StaffRedirect />} />
+        {/* Leave (user request 2026-10-31): moved from the employee's page to its own page. */}
+        <Route path="/leave" element={<Page><LeavePage /></Page>} />
         <Route path="/files" element={<Page><FilesPage /></Page>} />
         {/* Registers (user request 2026-10-16): two halves side by side on wide screens. */}
         <Route path="/registers" element={<Page wide><RegistersPage /></Page>} />
@@ -126,6 +130,8 @@ const NAV: NavItem[] = [
   { to: "/events", label: "Events", icon: CalendarRange },
   // Employees page (formerly Staff, user request 2026-10-07): in the side rail on wider screens, in the profile menu on phones.
   { to: "/employees", label: "Employees", icon: UsersRound },
+  // Leave (user request 2026-10-31), after Employees: rail on wider screens, profile menu on phones.
+  { to: "/leave", label: "Leave", icon: CalendarOff },
   // File register (user request 2026-10-07), next to Staff: rail on wider screens, profile menu on phones.
   { to: "/files", label: "Files", icon: FolderOpen },
   // Registers (user request 2026-10-16), after Files: rail on wider screens, profile menu on phones.
@@ -196,7 +202,7 @@ function Shell({ children }: { children: ReactNode }) {
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
           corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
       <nav className="tabbar fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
-        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/registers" && n.to !== "/logins" && n.to !== "/events").map((n) => (
+        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/leave" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/registers" && n.to !== "/logins" && n.to !== "/events").map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -608,6 +614,7 @@ function UserMenu() {
         {[
           { to: "/events", label: "Events", icon: CalendarRange },
           { to: "/employees", label: "Employees", icon: UsersRound },
+          { to: "/leave", label: "Leave", icon: CalendarOff },
           { to: "/files", label: "File register", icon: FolderOpen },
           { to: "/registers", label: "Registers", icon: BookOpen },
           { to: "/logins", label: "Logins", icon: KeyRound },
@@ -646,6 +653,9 @@ function UserMenu() {
           {/* Employees (formerly Staff, user request 2026-10-07): next to Settings in the profile menu. */}
           <Link to="/employees" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <UsersRound size={16} /> Employees
+          </Link>
+          <Link to="/leave" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
+            <CalendarOff size={16} /> Leave
           </Link>
           <Link to="/files" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <FolderOpen size={16} /> File register

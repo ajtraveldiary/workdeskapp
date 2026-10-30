@@ -17,6 +17,7 @@ import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, Leav
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { ensureKsrLeaveTypes, ensureLeaveCredits, ksrValues, lapseAbove, settleLeaveTask } from "../lib/leave";
+import { stampChecklist } from "../lib/checklist";
 import { saveOrder } from "./staff";
 import { selectTasks, toTask } from "./tasks";
 
@@ -256,12 +257,14 @@ export const leaveRoutes = new Hono<AppEnv>()
   })
 
   // --- Leaves marked (phase 2) ---
-  // ?employeeId=… : that employee's leaves, newest first. Otherwise the leaves that matter now (Employees page):
-  // not cancelled, not yet rejoined, ending from a month ago and starting within the next 30 days.
+  // ?employeeId=… : that employee's leaves, newest first. ?all=1: every leave, newest first (the Leave page's
+  // history). Otherwise the leaves that matter now (the On leave tag): not cancelled, not yet rejoined, ending from
+  // a month ago and starting within the next 30 days.
   .get("/leaves", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
     const employeeId = c.req.query("employeeId");
+    const all = c.req.query("all") === "1";
     const today = todayIn(timezone(c.env));
     const rows = await db
       .select()
@@ -271,11 +274,13 @@ export const leaveRoutes = new Hono<AppEnv>()
           eq(employeeLeaves.userId, userId),
           employeeId
             ? eq(employeeLeaves.employeeId, employeeId)
-            : and(eq(employeeLeaves.status, "active"), or(isNull(employeeLeaves.rejoinedOn), sql`${employeeLeaves.rejoinedOn} > ${today}`), gte(employeeLeaves.toDate, shiftDate(today, -31)), lte(employeeLeaves.fromDate, shiftDate(today, 30))),
+            : all
+              ? undefined
+              : and(eq(employeeLeaves.status, "active"), or(isNull(employeeLeaves.rejoinedOn), sql`${employeeLeaves.rejoinedOn} > ${today}`), gte(employeeLeaves.toDate, shiftDate(today, -31)), lte(employeeLeaves.fromDate, shiftDate(today, 30))),
         ),
       )
       .orderBy(desc(employeeLeaves.fromDate), desc(employeeLeaves.createdAt))
-      .limit(500);
+      .limit(all ? 2000 : 500);
     return c.json({ today, leaves: await withTasks(db, rows) });
   })
   .post("/leaves", async (c) => {
@@ -295,7 +300,7 @@ export const leaveRoutes = new Hono<AppEnv>()
       .values({ userId, employeeId: e.id, typeId: t.id, fromDate: v.fromDate, toDate: v.toDate, days: v.days, onMedical: v.onMedical, orderNo: v.orderNo, orderDate: v.orderDate, notes: v.notes, extensionOfId: v.extensionOfId })
       .returning();
     await takeDays(db, userId, l!, t);
-    const checklist = leaveSteps(e.gazetted).map((s) => ({ id: s.id, text: s.text, done: v.doneSteps.includes(s.id) }));
+    const checklist = stampChecklist([], leaveSteps(e.gazetted).map((s) => ({ id: s.id, text: s.text, done: v.doneSteps.includes(s.id) })));
     const [task] = await db
       .insert(tasks)
       .values({
@@ -382,7 +387,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     if (!t.hasAccount) throw new HTTPException(400, { message: `${t.name} keeps no balance to surrender` });
     const note = [v.terminal && "Terminal surrender (retirement)", v.orderNo && `Order ${v.orderNo}`, v.note].filter(Boolean).join(" · ") || "Surrender";
     await db.insert(leaveLedger).values({ userId, employeeId: e.id, typeId: t.id, onDate: v.onDate, days: -v.days, kind: "surrender", note, terminal: v.terminal });
-    const checklist = SURRENDER_STEPS.map((s) => ({ id: s.id, text: s.text, done: v.doneSteps.includes(s.id) }));
+    const checklist = stampChecklist([], SURRENDER_STEPS.map((s) => ({ id: s.id, text: s.text, done: v.doneSteps.includes(s.id) })));
     const [task] = await db
       .insert(tasks)
       .values({

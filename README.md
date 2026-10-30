@@ -113,7 +113,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   paperwork steps, different for gazetted officers (application, apply leave, leave CTC, joining report, joining CTC,
   AG payslip) and others (application, check leave account, office proceedings, SPARK, attendance, SB update, joining
   report), due the day they are back. Record the rejoining date (an early return gives the days back), change or
-  cancel a leave; the On leave card shows who is on leave, due back or starting soon.
+  cancel a leave. The **Leave** page lists every leave, newest first, with where it stands (on leave, due back,
+  upcoming, rejoined, cancelled), filtered by employee, type or state; choosing an employee shows their leave
+  account there. An employee's page has one line with their balances that opens it.
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).

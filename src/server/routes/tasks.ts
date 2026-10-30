@@ -15,6 +15,7 @@ import { settleMoveTask } from "../lib/moves";
 import { settleLeaveTask } from "../lib/leave";
 import { entryFollowsTask } from "../lib/registers";
 import { addedEmailsOfTasks, tasksOfThreads } from "../lib/linkedEmails";
+import { stampChecklist } from "../lib/checklist";
 import { bulkIds, taskInput, taskPatch } from "../../shared/schemas";
 import type { Task, TaskView } from "../../shared/types";
 
@@ -179,7 +180,7 @@ export const taskRoutes = new Hono<AppEnv>()
     input.tagIds = (await checkTags(db, userId, input.tagIds))!;
     const [task] = await db
       .insert(tasks)
-      .values({ ...input, ...related, userId, ...waitingFields(waiting, replyBy) })
+      .values({ ...input, ...(input.checklist ? { checklist: stampChecklist([], input.checklist) } : {}), ...related, userId, ...waitingFields(waiting, replyBy) })
       .returning();
     await logEvent(db, { userId, entityType: "task", entityId: task!.id, action: "task.created", summary: "Created manually", detail: { title: task!.title } });
     if (waiting) await logEvent(db, { userId, entityType: "task", entityId: task!.id, action: "task.waiting", summary: waitingSummary(replyBy), detail: { title: task!.title } });
@@ -192,6 +193,8 @@ export const taskRoutes = new Hono<AppEnv>()
     const { waiting, replyBy, relatedKind, relatedId, ...input } = taskPatch.parse(await c.req.json());
     const t = await loadTask(db, userId, c.req.param("id"));
     if (input.tagIds !== undefined) input.tagIds = await checkTags(db, userId, input.tagIds);
+    // When each step last changed (2026-10-31): the server's time, for the steps whose state changed.
+    if (input.checklist !== undefined) input.checklist = stampChecklist(t.checklist ?? [], input.checklist);
     // What the task is about (Staff, user request 2026-10-07): only when sent.
     const relatedSent = relatedKind !== undefined || relatedId !== undefined;
     const related = relatedSent ? await checkRelated(db, userId, relatedKind !== undefined ? relatedKind : t.relatedKind, relatedId !== undefined ? relatedId : t.relatedId) : null;
