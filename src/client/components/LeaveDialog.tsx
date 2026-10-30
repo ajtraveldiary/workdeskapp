@@ -2,14 +2,16 @@
 // from–to (editable: holidays left out, half days); the form shows the balance before and after and warns, without
 // stopping, when it would go below zero or past the type's limit in the whole service. A new leave makes its task
 // with the gazetted or non-gazetted steps (ones already done can be ticked); editing records the rejoining date
-// (an earlier one curtails the leave) and can cancel the leave (its days come back).
+// (an earlier one curtails the leave) and can cancel the leave (its days come back). The KSR limits of the type
+// (at a time, without a medical certificate, EL + commuted in one run, LND only when nothing else is at credit) are
+// listed as warnings naming the rule (leaveWarnings); they never stop saving.
 import { useState, type FormEvent } from "react";
 import { Check, X } from "lucide-react";
 import type { EmployeeLeave, LeaveType, StaffList } from "../../shared/types";
-import { calendarDays, daysWord, formatDays, leaveEnd, leaveShort, leaveSteps, postponeDays, shiftDate } from "../../shared/leave";
+import { calendarDays, daysWord, formatDays, leaveEnd, leaveShort, leaveSteps, leaveWarnings, postponeDays, shiftDate, spellDays } from "../../shared/leave";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { showUndo } from "./SwipeRow";
-import { useLeaveAccount, useLeaveActions, useLeaveTypes, useMe, useStaff } from "../api";
+import { useEmployeeLeaves, useLeaveAccount, useLeaveActions, useLeaveTypes, useMe, useStaff } from "../api";
 import { Button, ErrorNote, Field, Modal, cx, inputClass } from "./ui";
 
 export type LeaveFormState = { employeeId?: string; leave?: EmployeeLeave } | null;
@@ -32,7 +34,9 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
   const { markLeave, saveLeave, cancelLeave, undoPostpone } = useLeaveActions();
   const editing = state.leave ?? null;
   const [employeeId, setEmployeeId] = useState(editing?.employeeId ?? state.employeeId ?? "");
-  const [typeId, setTypeId] = useState(editing?.typeId ?? types[0]?.id ?? "");
+  // Switched-off types aren't offered (a leave already marked as one keeps it).
+  const offered = types.filter((t) => t.active || t.id === editing?.typeId);
+  const [typeId, setTypeId] = useState(editing?.typeId ?? offered[0]?.id ?? "");
   const [fromDate, setFrom] = useState(editing?.fromDate ?? today);
   const [toDate, setTo] = useState(editing?.toDate ?? today);
   const [rejoinedOn, setRejoined] = useState(editing?.rejoinedOn ?? "");
@@ -43,10 +47,13 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
   const [orderDate, setOrderDate] = useState(editing?.orderDate ?? "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
   const [doneSteps, setDoneSteps] = useState<string[]>([]);
+  // On a medical certificate: ticked to start for a type given on one (commuted leave).
+  const [onMedical, setOnMedical] = useState(editing?.onMedical ?? !!types.find((t) => t.id === typeId)?.medical);
   // EOL (phase 4): move the next increment and the Probation declaration task by its days (ticked to start).
   const [moveIncrement, setMoveIncrement] = useState(true);
   const [moveProbation, setMoveProbation] = useState(true);
   const account = useLeaveAccount(employeeId).data;
+  const theirLeaves = useEmployeeLeaves(employeeId).data?.leaves ?? [];
 
   const employee = staff.employees.find((e) => e.id === employeeId);
   const type = types.find((t) => t.id === typeId);
@@ -72,11 +79,27 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
   const used = (type && account?.used.find((u) => u.typeId === type.id)?.days) ?? 0;
   const usedAfter = used - (editing && editing.typeId === typeId ? editing.days : 0) + (okDays ? n : 0);
   const pastLimit = type?.serviceLimit != null && usedAfter > type.serviceLimit;
+  // The KSR limits (warnings only).
+  const usedNonMedical = ((type && account?.used.find((u) => u.typeId === type.id)?.nonMedical) ?? 0) - (editing && editing.typeId === typeId && !editing.onMedical ? editing.days : 0);
+  const spellTypes = new Set(types.filter((t) => t.spellLimit != null).map((t) => t.id));
+  const warnings =
+    type && okDays && fromDate && toDate >= fromDate
+      ? leaveWarnings({
+          type,
+          days: n,
+          onMedical,
+          usedNonMedical,
+          spell: type.spellLimit != null ? spellDays(theirLeaves, fromDate, end, n, spellTypes, editing?.id) : n,
+          atCredit: types.filter((t) => t.hasAccount).map((t) => ({ short: leaveShort(t), balance: (account?.balances.find((b) => b.typeId === t.id)?.balance ?? 0) + (was && was.typeId === t.id ? editing!.days * was.perDay : 0) })),
+        })
+      : [];
 
   // A leave that doesn't count for increment or probation (EOL): offer to move those dates.
   const moveBy = okDays ? postponeDays(n) : 0;
-  const offerIncrement = !editing && !!type?.delaysIncrement && !!employee?.nextIncrementOn;
-  const offerProbation = !editing && !!type?.delaysIncrement && !!employee && !employee.probationDeclared && !employee.probationDeclaredOn;
+  // On a medical certificate it still counts (KSR Rule 88), so nothing is offered.
+  const delays = !editing && !!type?.delaysIncrement && !onMedical;
+  const offerIncrement = delays && !!employee?.nextIncrementOn;
+  const offerProbation = delays && !!employee && !employee.probationDeclared && !employee.probationDeclaredOn;
 
   // Permanent staff in the office (and the one being edited), by designation in its order.
   const people = staff.employees.filter((e) => e.permanent && (!e.leftOn || e.id === employeeId));
@@ -89,7 +112,7 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
   const submit = async (ev: FormEvent) => {
     ev.preventDefault();
     if (!okDays || !employeeId || !typeId) return;
-    const fields = { typeId, fromDate, toDate, days: n, orderNo, orderDate: orderDate || null, notes };
+    const fields = { typeId, fromDate, toDate, days: n, onMedical, orderNo, orderDate: orderDate || null, notes };
     try {
       if (editing) await saveLeave.mutateAsync({ id: editing.id, input: { ...fields, rejoinedOn: rejoinedOn || null } });
       else {
@@ -131,8 +154,17 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
       )}
       {cancelled && <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-600">This leave was cancelled; its days went back to the balance.</p>}
       <Field label="Leave">
-        <select className={inputClass} value={typeId} onChange={(e) => setTypeId(e.target.value)} required disabled={cancelled}>
-          {types.map((t) => (
+        <select
+          className={inputClass}
+          value={typeId}
+          onChange={(e) => {
+            setTypeId(e.target.value);
+            if (!editing) setOnMedical(!!types.find((t) => t.id === e.target.value)?.medical);
+          }}
+          required
+          disabled={cancelled}
+        >
+          {offered.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
               {t.short && t.short !== t.name ? ` (${t.short})` : ""}
@@ -175,6 +207,10 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
           <input type="date" min={shiftDate(fromDate, 1)} className={inputClass} value={rejoinedOn} onChange={(e) => setDates(fromDate, toDate, e.target.value)} />
         </Field>
       )}
+      <label className="-my-1 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-1.5 hover:bg-slate-50">
+        <input type="checkbox" className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={onMedical} disabled={cancelled} onChange={(e) => setOnMedical(e.target.checked)} />
+        <span className="text-sm text-ink">On a medical certificate</span>
+      </label>
       <div className="grid gap-3 min-[400px]:grid-cols-2">
         <Field label="Order number">
           <input className={inputClass} value={orderNo} onChange={(e) => setOrderNo(e.target.value)} maxLength={100} disabled={cancelled} placeholder="e.g. A1/1234/2026" />
@@ -187,7 +223,7 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
         <textarea className={cx(inputClass, "h-auto py-2")} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} disabled={cancelled} />
       </Field>
       {!cancelled && employee && (
-        <div className={cx("space-y-1 rounded-lg px-3 py-2 text-footnote", short || pastLimit ? "bg-urgent-soft text-urgent-ink" : "bg-slate-50 text-slate-600")}>
+        <div className={cx("space-y-1 rounded-lg px-3 py-2 text-footnote", short || pastLimit || warnings.length ? "bg-urgent-soft text-urgent-ink" : "bg-slate-50 text-slate-600")}>
           {source && after != null ? (
             <p>
               {leaveShort(source)} balance: {formatDays(now)} → <span className="font-semibold">{formatDays(after)}</span>
@@ -202,6 +238,12 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
               {leaveShort(type)} in the whole service: {formatDays(usedAfter)} of {formatDays(type.serviceLimit)} days{pastLimit && " — past the limit"}.
             </p>
           )}
+          {warnings.map((w) => (
+            <p key={w} className="[overflow-wrap:anywhere]">
+              {w}
+            </p>
+          ))}
+          {warnings.length > 0 && !short && <p className="text-slate-600">It can still be saved if the leave is sanctioned.</p>}
         </div>
       )}
       {(offerIncrement || offerProbation) && moveBy > 0 && (

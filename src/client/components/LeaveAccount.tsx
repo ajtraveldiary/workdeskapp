@@ -7,7 +7,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { CalendarOff, CalendarPlus, Check, Plus } from "lucide-react";
 import type { Employee, EmployeeLeave, LeaveLine, LeaveType, Task } from "../../shared/types";
-import { HAND_KINDS, LEDGER_LABEL, SURRENDER_STEPS, daysWord, formatDays, leaveEnd, leaveShort, rejoinDay, type HandKind } from "../../shared/leave";
+import { HAND_KINDS, LEDGER_LABEL, SURRENDER_STEPS, daysWord, financialYearStart, formatDays, leaveEnd, leaveShort, rejoinDay, type HandKind } from "../../shared/leave";
 import { useEmployeeLeaves, useLeaveAccount, useLeaveActions, useLeaveTypes } from "../api";
 import { Badge, Button, Card, ErrorNote, Field, Modal, SkeletonList, cx, inputClass, type Tone } from "./ui";
 import { ChecklistChip } from "./Checklist";
@@ -102,7 +102,7 @@ export function LeaveCard({ employee, today }: { employee: Employee; today: stri
       )}
       <LeaveDialog state={leaveForm} onClose={() => setLeaveForm(null)} />
       <Modal open={adding} onClose={() => setAdding(false)} title="Leave account entry">
-        {adding && <LineForm employee={employee} types={withAccount} balances={account.data?.balances ?? []} today={today} onDone={() => setAdding(false)} />}
+        {adding && <LineForm employee={employee} types={withAccount} balances={account.data?.balances ?? []} lines={lines} today={today} onDone={() => setAdding(false)} />}
       </Modal>
     </Card>
   );
@@ -167,6 +167,7 @@ export function LeaveRow({ leave: l, type, today, onOpen, onTask, who }: { leave
         <span className="block text-footnote text-slate-500">
           {leaveDates(l)}
           {l.status === "active" && (l.rejoinedOn ? ` · rejoined ${fullDate(l.rejoinedOn)}` : ` · back ${fullDate(rejoinDay(l))}`)}
+          {l.onMedical && " · medical certificate"}
         </span>
       </button>
       <span className="flex shrink-0 flex-col items-end gap-1">
@@ -206,10 +207,24 @@ const KIND_HINT: Record<EntryKind, string> = {
   opening: "The balance on a date, from the service book. One per leave; correct it later with an adjustment.",
   credit: "Days added to the balance, such as a yearly credit.",
   adjust: "Puts a wrong balance right, adding or taking away days.",
-  surrender: "Earned leave surrendered for pay: the days come off the balance and a task with the surrender steps is made.",
+  surrender: "Earned leave surrendered for pay: the days come off the balance and a task with the surrender steps is made. KSR: 30 days a financial year, and up to 300 days at retirement.",
 };
 
-function LineForm({ employee, types, balances, today, onDone }: { employee: Employee; types: LeaveType[]; balances: { typeId: string; balance: number }[]; today: string; onDone: () => void }) {
+function LineForm({
+  employee,
+  types,
+  balances,
+  lines,
+  today,
+  onDone,
+}: {
+  employee: Employee;
+  types: LeaveType[];
+  balances: { typeId: string; balance: number }[];
+  lines: LeaveLine[];
+  today: string;
+  onDone: () => void;
+}) {
   const { addLine, surrender } = useLeaveActions();
   const [kind, setKind] = useState<EntryKind>("opening");
   const [doneSteps, setDoneSteps] = useState<string[]>([]);
@@ -218,14 +233,31 @@ function LineForm({ employee, types, balances, today, onDone }: { employee: Empl
   const [days, setDays] = useState("");
   const [takeAway, setTakeAway] = useState(false);
   const [note, setNote] = useState("");
+  // Surrender at retirement: not counted in the financial year's limit.
+  const [terminal, setTerminal] = useState(false);
   const n = Number(days);
   const value = days.trim() === "" || Number.isNaN(n) ? null : (kind === "adjust" && takeAway) || kind === "surrender" ? -n : n;
   const now = balances.find((b) => b.typeId === typeId)?.balance ?? 0;
   const type = types.find((t) => t.id === typeId);
+  // The KSR surrender limits (warnings only): a financial year's surrenders (not at retirement), or at retirement.
+  const fy = financialYearStart(onDate || today);
+  const surrenderedThisYear = -lines.filter((l) => l.kind === "surrender" && l.typeId === typeId && !l.terminal && financialYearStart(l.onDate) === fy).reduce((a, l) => a + l.days, 0);
+  const fyLabel = `${fy.slice(0, 4)}-${String((Number(fy.slice(0, 4)) + 1) % 100).padStart(2, "0")}`;
+  const rule = type?.rule ? ` (${type.rule})` : "";
+  const surrenderWarnings =
+    kind !== "surrender" || !type || value == null
+      ? []
+      : terminal
+        ? type.terminalSurrender != null && n > type.terminalSurrender
+          ? [`At most ${daysWord(type.terminalSurrender)} of ${leaveShort(type)} can be surrendered at retirement${rule}.`]
+          : []
+        : type.surrenderPerYear != null && surrenderedThisYear + n > type.surrenderPerYear
+          ? [`At most ${daysWord(type.surrenderPerYear)} of ${leaveShort(type)} a financial year: ${fyLabel} would come to ${formatDays(surrenderedThisYear + n)}${rule}.`]
+          : [];
   const submit = (ev: FormEvent) => {
     ev.preventDefault();
     if (value == null) return;
-    if (kind === "surrender") surrender.mutate({ employeeId: employee.id, input: { typeId, days: n, onDate, note, doneSteps } }, { onSuccess: onDone });
+    if (kind === "surrender") surrender.mutate({ employeeId: employee.id, input: { typeId, days: n, onDate, note, doneSteps, terminal } }, { onSuccess: onDone });
     else addLine.mutate({ employeeId: employee.id, input: { typeId, kind, onDate, days: value, note } }, { onSuccess: onDone });
   };
   const radio = "inline-flex h-9 items-center rounded-lg border border-line px-3 text-sm text-slate-600 enabled:hover:bg-slate-50 active:scale-[0.97] aria-checked:border-brand-200 aria-checked:bg-tint aria-checked:font-medium aria-checked:text-brand-800";
@@ -278,11 +310,29 @@ function LineForm({ employee, types, balances, today, onDone }: { employee: Empl
         <input className={inputClass} value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} placeholder={kind === "opening" ? "e.g. From service book, page 14" : "e.g. Order No. A1/123/2026"} />
       </Field>
       {type && value != null && (
-        <p className="rounded-lg bg-slate-50 px-3 py-2 text-footnote text-slate-600">
-          {leaveShort(type)} balance: {formatDays(now)} → <span className="font-medium text-ink">{formatDays(now + value)}</span>
-          {type.maxBalance != null && now + value > type.maxBalance && kind === "credit" && ` (above ${daysWord(type.maxBalance)}: the extra lapses)`}
-          {kind === "surrender" && now + value < 0 && " — more than the balance"}
-        </p>
+        <div className={cx("space-y-1 rounded-lg px-3 py-2 text-footnote", surrenderWarnings.length ? "bg-urgent-soft text-urgent-ink" : "bg-slate-50 text-slate-600")}>
+          <p>
+            {leaveShort(type)} balance: {formatDays(now)} → <span className="font-medium">{formatDays(now + value)}</span>
+            {type.maxBalance != null && now + value > type.maxBalance && kind === "credit" && ` (above ${daysWord(type.maxBalance)}: the extra lapses)`}
+            {kind === "surrender" && now + value < 0 && " — more than the balance"}
+          </p>
+          {kind === "surrender" && !terminal && type.surrenderPerYear != null && !surrenderWarnings.length && (
+            <p>
+              Surrendered in {fyLabel}: {formatDays(surrenderedThisYear)} of {formatDays(type.surrenderPerYear)} days.
+            </p>
+          )}
+          {surrenderWarnings.map((w) => (
+            <p key={w} className="[overflow-wrap:anywhere]">
+              {w} It can still be saved if it is sanctioned.
+            </p>
+          ))}
+        </div>
+      )}
+      {kind === "surrender" && (
+        <label className="-my-1 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-1.5 hover:bg-slate-50">
+          <input type="checkbox" className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={terminal} onChange={(e) => setTerminal(e.target.checked)} />
+          <span className="text-sm text-ink">At retirement (terminal surrender)</span>
+        </label>
       )}
       {kind === "surrender" && (
         <fieldset className="rounded-lg border border-line px-3 py-2">

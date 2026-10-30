@@ -294,7 +294,8 @@ export function useLeaveActions() {
   const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
   return {
     addType: m((input: LeaveTypeInput) => api<{ id: string }>("/leave/types", { method: "POST", body: input })),
-    addUsual: m(() => api<{ added: number }>("/leave/types/usual", { method: "POST" })),
+    // A built-in KSR type's figures back to the rule's.
+    resetType: m((id: string) => api(`/leave/types/${id}/reset`, { method: "POST" })),
     saveType: m(({ id, input }: { id: string; input: LeaveTypeInput }) => api(`/leave/types/${id}`, { method: "PUT", body: input })),
     removeType: m((id: string) => api(`/leave/types/${id}`, { method: "DELETE" })),
     // Drag and drop: the new order shows at once.

@@ -11,12 +11,12 @@ import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { employeeLeaves, employees, events, leaveLedger, leaveTypes, tasks } from "../db/schema";
 import { leaveCreditInput, leaveInput, leaveLineInput, leavePatch, leaveSurrenderInput, leaveTypeInput, orderInput, postponeUndoInput } from "../../shared/schemas";
-import { LEDGER_LABEL, SURRENDER_STEPS, USUAL_LEAVE_TYPES, daysWord, formatDays, leaveEnd, leaveShort, leaveSteps, leaveTitle, postponeDays, rejoinDay, shiftDate, surrenderTitle } from "../../shared/leave";
+import { LEDGER_LABEL, SURRENDER_STEPS, daysWord, ksrType, formatDays, leaveEnd, leaveShort, leaveSteps, leaveTitle, postponeDays, rejoinDay, shiftDate, surrenderTitle } from "../../shared/leave";
 import { dayLabel } from "../../shared/reminderSchedule";
 import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, LeaveType, Task } from "../../shared/types";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
-import { ensureLeaveCredits, lapseAbove, settleLeaveTask } from "../lib/leave";
+import { ensureKsrLeaveTypes, ensureLeaveCredits, ksrValues, lapseAbove, settleLeaveTask } from "../lib/leave";
 import { saveOrder } from "./staff";
 import { selectTasks, toTask } from "./tasks";
 
@@ -58,12 +58,27 @@ async function checkedType(db: DB, userId: string, raw: unknown, today: string, 
   }
   return hasAccount
     ? { ...v, hasAccount, drawsOnId: null, perDay: 1, mayGoNegative: v.mayGoNegative, creditsFrom }
-    : { ...v, hasAccount, maxBalance: null, yearlyDays: null, fromDuty: false, mayGoNegative: v.drawsOnId ? v.mayGoNegative : false, perDay: v.drawsOnId ? v.perDay : 1, creditsFrom: null };
+    : {
+        ...v,
+        hasAccount,
+        maxBalance: null,
+        yearlyDays: null,
+        fromDuty: false,
+        mayGoNegative: v.drawsOnId ? v.mayGoNegative : false,
+        perDay: v.drawsOnId ? v.perDay : 1,
+        creditsFrom: null,
+        surrenderPerYear: null,
+        terminalSurrender: null,
+      };
 }
 
 async function listTypes(db: DB, userId: string): Promise<LeaveType[]> {
+  const typeRows = () => db.select().from(leaveTypes).where(eq(leaveTypes.userId, userId)).orderBy(asc(leaveTypes.sortOrder), asc(leaveTypes.name));
+  let found = await typeRows();
+  // The built-in KSR types are put in the first time the list is read (and again if one is missing).
+  if (await ensureKsrLeaveTypes(db, userId, found)) found = await typeRows();
   const [rows, used, marked] = await Promise.all([
-    db.select().from(leaveTypes).where(eq(leaveTypes.userId, userId)).orderBy(asc(leaveTypes.sortOrder), asc(leaveTypes.name)),
+    found,
     db.select({ typeId: leaveLedger.typeId, n: count() }).from(leaveLedger).where(eq(leaveLedger.userId, userId)).groupBy(leaveLedger.typeId),
     db.select({ typeId: employeeLeaves.typeId, n: count() }).from(employeeLeaves).where(eq(employeeLeaves.userId, userId)).groupBy(employeeLeaves.typeId),
   ]);
@@ -87,44 +102,28 @@ export const leaveRoutes = new Hono<AppEnv>()
     await log(db, userId, "staff.leave_type_added", `Leave type added: ${v.name}`);
     return c.json(t, 201);
   })
-  // The Kerala Service Rules leaves (USUAL_LEAVE_TYPES); ones already there (same name) are skipped.
+  // The KSR types (KSR_LEAVE_TYPES) that are missing; once used by "Add the usual leaves", now they are always there.
   .post("/types/usual", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const have = await db.select().from(leaveTypes).where(eq(leaveTypes.userId, userId));
-    const names = new Set(have.map((t) => lower(t.name)));
-    const byShort = new Map(have.map((t) => [lower(t.short), t]));
-    let order = Math.max(0, ...have.map((t) => t.sortOrder));
-    let added = 0;
-    // One at a time, in order, so commuted leave and LND find the HPL just made.
-    for (const u of USUAL_LEAVE_TYPES) {
-      if (names.has(lower(u.name))) continue;
-      const from = u.drawsOn ? byShort.get(lower(u.drawsOn)) : undefined;
-      const drawsOnId = from?.hasAccount ? from.id : null;
-      const [t] = await db
-        .insert(leaveTypes)
-        .values({
-          userId,
-          name: u.name,
-          short: u.short,
-          sortOrder: ++order,
-          hasAccount: u.hasAccount,
-          drawsOnId,
-          perDay: drawsOnId ? (u.perDay ?? 1) : 1,
-          mayGoNegative: !!drawsOnId && !!u.mayGoNegative,
-          maxBalance: u.maxBalance ?? null,
-          serviceLimit: u.serviceLimit ?? null,
-          medical: !!u.medical,
-          yearlyDays: u.yearlyDays ?? null,
-          fromDuty: !!u.fromDuty,
-          delaysIncrement: !!u.delaysIncrement,
-        })
-        .returning();
-      byShort.set(lower(u.short), t!);
-      added++;
-    }
-    if (added) await log(db, userId, "staff.leave_types_usual", `Added ${added} usual leave type${added === 1 ? "" : "s"}`);
+    const added = await ensureKsrLeaveTypes(db, userId);
+    if (added) await log(db, userId, "staff.leave_types_usual", `Added ${added} KSR leave type${added === 1 ? "" : "s"}`);
     return c.json({ added });
+  })
+  // Reset to KSR: a built-in type's figures go back to the rule's (it stays switched on or off, and keeps its
+  // automatic credits).
+  .post("/types/:id/reset", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const t = await loadType(db, userId, c.req.param("id"));
+    const k = ksrType(t.ksrKey);
+    if (!k) throw new HTTPException(400, { message: `${t.name} is the office's own leave type, not a KSR one` });
+    const [from] = k.drawsOn ? await db.select().from(leaveTypes).where(and(eq(leaveTypes.userId, userId), eq(leaveTypes.ksrKey, k.drawsOn))) : [];
+    const values = ksrValues(k, from?.id ?? null);
+    const v = await checkedType(db, userId, { ...values, active: t.active, autoCredit: !!t.creditsFrom }, todayIn(timezone(c.env)), t);
+    await db.update(leaveTypes).set(v).where(eq(leaveTypes.id, t.id));
+    await log(db, userId, "staff.leave_type_reset", `Leave type reset to the KSR figures: ${k.name}`);
+    return c.json({ ok: true });
   })
   // The form sends every field.
   .put("/types/:id", async (c) => {
@@ -153,6 +152,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const t = await loadType(db, userId, c.req.param("id"));
+    if (t.ksrKey) throw new HTTPException(409, { message: `${t.name} is a KSR leave type, so it can't be removed. Switch it off instead.` });
     const [n] = await db.select({ n: count() }).from(leaveLedger).where(eq(leaveLedger.typeId, t.id));
     if (Number(n?.n ?? 0) > 0) throw new HTTPException(409, { message: `${t.name} is used in leave accounts, so it can't be removed. Rename it instead.` });
     const [l] = await db.select({ n: count() }).from(employeeLeaves).where(eq(employeeLeaves.typeId, t.id));
@@ -215,7 +215,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     const [e] = await db.select({ id: employees.id }).from(employees).where(and(eq(employees.id, c.req.param("employeeId")), eq(employees.userId, userId)));
     if (!e) throw new HTTPException(404, { message: "Employee not found" });
     const lines = await db
-      .select({ id: leaveLedger.id, typeId: leaveLedger.typeId, onDate: leaveLedger.onDate, days: leaveLedger.days, kind: leaveLedger.kind, creditFor: leaveLedger.creditFor, note: leaveLedger.note, createdAt: leaveLedger.createdAt })
+      .select({ id: leaveLedger.id, typeId: leaveLedger.typeId, onDate: leaveLedger.onDate, days: leaveLedger.days, kind: leaveLedger.kind, creditFor: leaveLedger.creditFor, note: leaveLedger.note, terminal: leaveLedger.terminal, createdAt: leaveLedger.createdAt })
       .from(leaveLedger)
       .where(eq(leaveLedger.employeeId, e.id))
       .orderBy(desc(leaveLedger.onDate), desc(leaveLedger.createdAt));
@@ -224,7 +224,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     const [types, used] = await Promise.all([
       db.select({ id: leaveTypes.id }).from(leaveTypes).where(and(eq(leaveTypes.userId, userId), eq(leaveTypes.hasAccount, true))).orderBy(asc(leaveTypes.sortOrder)),
       db
-        .select({ typeId: employeeLeaves.typeId, days: sql<string>`sum(${employeeLeaves.days})` })
+        .select({ typeId: employeeLeaves.typeId, days: sql<string>`sum(${employeeLeaves.days})`, nonMedical: sql<string>`coalesce(sum(${employeeLeaves.days}) filter (where not ${employeeLeaves.onMedical}), 0)` })
         .from(employeeLeaves)
         .where(and(eq(employeeLeaves.employeeId, e.id), eq(employeeLeaves.status, "active")))
         .groupBy(employeeLeaves.typeId),
@@ -232,7 +232,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     const account: LeaveAccount = {
       balances: types.map((t) => ({ typeId: t.id, balance: Math.round((total.get(t.id) ?? 0) * 10) / 10 })),
       lines: lines.map((l) => ({ ...l, createdAt: l.createdAt.toISOString() })),
-      used: used.map((u) => ({ typeId: u.typeId, days: Number(u.days) })),
+      used: used.map((u) => ({ typeId: u.typeId, days: Number(u.days), nonMedical: Number(u.nonMedical) })),
     };
     return c.json(account);
   })
@@ -284,6 +284,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     const v = leaveInput.parse(await c.req.json());
     const e = await loadEmployee(db, userId, v.employeeId);
     const t = await loadType(db, userId, v.typeId);
+    if (!t.active) throw new HTTPException(400, { message: `${t.name} is switched off in Settings › Leave` });
     if (v.extensionOfId) {
       const first = await loadLeave(db, userId, v.extensionOfId);
       if (first.employeeId !== e.id) throw new HTTPException(400, { message: "That leave is someone else's" });
@@ -291,7 +292,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     await checkOverlap(db, e.id, v.fromDate, v.toDate, null);
     const [l] = await db
       .insert(employeeLeaves)
-      .values({ userId, employeeId: e.id, typeId: t.id, fromDate: v.fromDate, toDate: v.toDate, days: v.days, orderNo: v.orderNo, orderDate: v.orderDate, notes: v.notes, extensionOfId: v.extensionOfId })
+      .values({ userId, employeeId: e.id, typeId: t.id, fromDate: v.fromDate, toDate: v.toDate, days: v.days, onMedical: v.onMedical, orderNo: v.orderNo, orderDate: v.orderDate, notes: v.notes, extensionOfId: v.extensionOfId })
       .returning();
     await takeDays(db, userId, l!, t);
     const checklist = leaveSteps(e.gazetted).map((s) => ({ id: s.id, text: s.text, done: v.doneSteps.includes(s.id) }));
@@ -315,8 +316,9 @@ export const leaveRoutes = new Hono<AppEnv>()
     // Every step already done (leave entered late): completed straight away.
     await settleLeaveTask(db, userId, task!, [], checklist);
     await log(db, userId, "staff.leave_marked", `Leave of ${e.name}: ${t.name}, ${daysWord(v.days)}, ${dayLabel(v.fromDate)} to ${dayLabel(v.toDate)}${v.extensionOfId ? " (extension)" : ""}`);
-    // A leave that doesn't count for increment or probation (EOL): those dates move by its days when asked.
-    const postponed = t.delaysIncrement ? await postpone(db, userId, e, l!, t, v.postpone) : {};
+    // A leave that doesn't count for increment or probation (EOL, unless on a medical certificate): those dates move
+    // by its days when asked.
+    const postponed = t.delaysIncrement && !v.onMedical ? await postpone(db, userId, e, l!, t, v.postpone) : {};
     return c.json({ id: l!.id, taskId: task!.id, postponed }, 201);
   })
   // The form sends every field. A change of type, dates or days gives the old days back and takes the new ones;
@@ -332,7 +334,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     await checkOverlap(db, e.id, v.fromDate, v.rejoinedOn ? leaveEnd({ toDate: v.toDate, rejoinedOn: v.rejoinedOn }) : v.toDate, l.id);
     const [saved] = await db
       .update(employeeLeaves)
-      .set({ typeId: t.id, fromDate: v.fromDate, toDate: v.toDate, days: v.days, orderNo: v.orderNo, orderDate: v.orderDate, notes: v.notes, rejoinedOn: v.rejoinedOn, updatedAt: new Date() })
+      .set({ typeId: t.id, fromDate: v.fromDate, toDate: v.toDate, days: v.days, onMedical: v.onMedical, orderNo: v.orderNo, orderDate: v.orderDate, notes: v.notes, rejoinedOn: v.rejoinedOn, updatedAt: new Date() })
       .where(eq(employeeLeaves.id, l.id))
       .returning();
     if (t.id !== l.typeId || v.days !== l.days || v.fromDate !== l.fromDate || v.toDate !== l.toDate) {
@@ -378,15 +380,15 @@ export const leaveRoutes = new Hono<AppEnv>()
     const v = leaveSurrenderInput.parse(await c.req.json());
     const t = await loadType(db, userId, v.typeId);
     if (!t.hasAccount) throw new HTTPException(400, { message: `${t.name} keeps no balance to surrender` });
-    const note = [v.orderNo && `Order ${v.orderNo}`, v.note].filter(Boolean).join(" · ") || "Surrender";
-    await db.insert(leaveLedger).values({ userId, employeeId: e.id, typeId: t.id, onDate: v.onDate, days: -v.days, kind: "surrender", note });
+    const note = [v.terminal && "Terminal surrender (retirement)", v.orderNo && `Order ${v.orderNo}`, v.note].filter(Boolean).join(" · ") || "Surrender";
+    await db.insert(leaveLedger).values({ userId, employeeId: e.id, typeId: t.id, onDate: v.onDate, days: -v.days, kind: "surrender", note, terminal: v.terminal });
     const checklist = SURRENDER_STEPS.map((s) => ({ id: s.id, text: s.text, done: v.doneSteps.includes(s.id) }));
     const [task] = await db
       .insert(tasks)
       .values({
         userId,
         title: surrenderTitle(e.name, t, v.days),
-        notes: [`Surrender of ${daysWord(v.days)} of ${t.name} on ${dayLabel(v.onDate)}.`, v.orderNo && `Order ${v.orderNo}.`, v.note].filter(Boolean).join("\n"),
+        notes: [`${v.terminal ? "Terminal surrender" : "Surrender"} of ${daysWord(v.days)} of ${t.name} on ${dayLabel(v.onDate)}.`, v.orderNo && `Order ${v.orderNo}.`, v.note].filter(Boolean).join("\n"),
         dueDate: shiftDate(v.onDate, 7),
         priority: "normal",
         checklist,
@@ -493,7 +495,7 @@ async function giveBack(db: DB, userId: string, leaveId: string, note: string) {
 
 function taskNotes(l: typeof employeeLeaves.$inferSelect, t: typeof leaveTypes.$inferSelect) {
   return [
-    `${t.name}, ${dayLabel(l.fromDate)} to ${dayLabel(l.toDate)} (${daysWord(l.days)}).`,
+    `${t.name}, ${dayLabel(l.fromDate)} to ${dayLabel(l.toDate)} (${daysWord(l.days)})${l.onMedical ? ", on a medical certificate" : ""}.`,
     l.orderNo || l.orderDate ? `Order ${[l.orderNo, l.orderDate && dayLabel(l.orderDate)].filter(Boolean).join(" dated ")}.` : "",
     l.rejoinedOn ? `Rejoined on ${dayLabel(l.rejoinedOn)}.` : `Due back on ${dayLabel(rejoinDay(l))}.`,
     l.notes,
@@ -517,6 +519,7 @@ async function withTasks(db: DB, rows: (typeof employeeLeaves.$inferSelect)[]): 
     orderDate: r.orderDate,
     notes: r.notes,
     rejoinedOn: r.rejoinedOn,
+    onMedical: r.onMedical,
     status: r.status,
     extensionOfId: r.extensionOfId,
     task: (r.taskId && byId.get(r.taskId)) || null,

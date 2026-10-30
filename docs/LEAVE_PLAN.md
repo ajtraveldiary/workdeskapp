@@ -7,7 +7,8 @@ credits (switched on per leave type in Settings › Leave), the Leave balances C
 Phase 4: EOL moves the increment and probation task (choice with Undo), surrender of EL with its task, and the
 assistant commands get_leave_account and mark_leave. Left out: the "Leave" CSV export of every leave. Not done in phase 2: the joining report step asking for the rejoining date (record it in the leave instead),
 extensions from the form (the API takes `extensionOfId`), and a step-state table like Joining & relieving (steps are
-ticked in the task). Written 2026-10-30.
+ticked in the task). Written 2026-10-30. Then (same day) the Kerala Service Rules leave types were built in with
+their limits: section 3a.
 
 The office marks the longer leaves of its permanent staff (earned leave, half pay leave, commuted leave and the like),
 keeps each employee's **leave account** (credits, leave taken, balance), credits the yearly leave (such as 20 days of
@@ -66,6 +67,40 @@ commuted), **may go below zero** (LND), **maximum balance** (e.g. EL 300; credit
 **medical certificate needed** (commuted, LND; see 9.2), and its **yearly credit** (section 5). The user can add others
 (special disability leave, hospital leave, study leave…) with the same fields. The figures above are the usual rules;
 the user checks them once in Settings, where all of them can be changed.
+
+## 3a. Built-in KSR leave types (user request 2026-10-30, built)
+
+"Leave types and their logic based on KSR and Kerala government rules must be hardcoded with an option to edit them
+in the app." User's choices: always there and editable (Reset to KSR; a type not used is switched off, never
+removed; the office can still add its own), these extra types too, an "On a medical certificate" tick on each leave,
+and limits that **warn** but still allow saving (government orders sometimes allow more).
+
+Researched from KSR Part I, Chapter IX (KSR study sites and government orders, not the gazette text, so every figure
+stays editable):
+
+| Leave | Rule | Built in as |
+|---|---|---|
+| Earned leave (EL) | 78, 79, 74 | Own balance, 1/11 of duty, up to 300; 180 at a time; EL + commuted 240 in one run; surrender 30 a financial year (since 1 Apr 2006), 300 at retirement |
+| Half pay leave (HPL) | 82, 83 | Own balance, 20 days per completed year, no limit |
+| Commuted leave | 84, 74 | 2 HPL a day (so at most half the HPL due), on a medical certificate; 240 in one run with EL |
+| Leave not due (LND) | 85 | From HPL, below zero allowed; 360 in service; without a medical certificate 90 at a time and 180 in all; only when no other leave is at credit |
+| Extraordinary leave (EOL) | 88 | No balance; doesn't count for increment unless on a medical certificate (the dates are offered to move only then) |
+| Maternity leave | 100 | 180 days |
+| Maternity leave (miscarriage / abortion) | 101 | 6 weeks (42 days), medical certificate |
+| Hysterectomy leave | 101A | 45 days, medical certificate |
+| Paternity leave | 102B | 10 days at a time, 20 in service (two deliveries) |
+| Child adoption leave | 102A | 180 days |
+| Special disability leave | 97, 98 | Up to 24 months (730 days), medical certificate |
+| Hospital leave | 103–106 | No balance, medical certificate |
+
+Not checked (no data in WorkDesk): women-only leaves (no gender field), the child's age for adoption, 3 months after
+the birth for paternity leave, non-permanent staff rules (leave is for permanent staff only), vacation departments.
+
+Data: `KSR_LEAVE_TYPES` in `src/shared/leave.ts` (key, rule, a sentence on what the rule says, figures);
+`leave_types.ksr_key` / `rule` / `active` and the limits (migration 0051, which also turns the usual types of the
+same name into the KSR ones); `employee_leaves.on_medical`; `leave_ledger.terminal`. `ensureKsrLeaveTypes` adds any
+missing KSR type when the list is read. Warnings: `leaveWarnings` and `spellDays` (shared by the Mark leave form and
+the assistants' mark_leave).
 
 ## 4. The leave account
 

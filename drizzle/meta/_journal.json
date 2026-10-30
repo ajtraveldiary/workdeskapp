@@ -358,6 +358,13 @@
       "when": 1793370924248,
       "tag": "0050_leave_delays_increment",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1793384127542,
+      "tag": "0051_ksr_leave_types",
+      "breakpoints": true
     }
   ]
 }

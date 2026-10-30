@@ -445,8 +445,25 @@ export const leaveTypes = pgTable("leave_types", {
   // Doesn't count for increment or probation (EOL; phase 4): marking it offers to move the employee's next increment
   // date and their open Probation declaration task by its days.
   delaysIncrement: boolean("delays_increment").notNull().default(false),
+  // Built in from the Kerala Service Rules (user request 2026-10-30, KSR_LEAVE_TYPES in src/shared/leave.ts): which
+  // KSR leave this is (null = the office's own type) and the rule it cites. Built-in types can be edited, reset to
+  // the KSR figures or switched off (active = false: not offered in Mark leave), never removed.
+  ksrKey: text("ksr_key"),
+  rule: text("rule").notNull().default(""),
+  active: boolean("active").notNull().default(true),
+  // The KSR limits, each only warned about when crossed: days at a time (EL 180); without a medical certificate at a
+  // time and in the whole service (LND 90 / 180); days in one unbroken spell together with the other types that have
+  // a spell limit (EL + commuted 240); only when no other leave is at credit (LND); surrender of an own balance per
+  // financial year (EL 30) and at retirement (EL 300).
+  atOnce: numeric("at_once", { precision: 6, scale: 1, mode: "number" }),
+  nonMedicalAtOnce: numeric("non_medical_at_once", { precision: 6, scale: 1, mode: "number" }),
+  nonMedicalLimit: numeric("non_medical_limit", { precision: 6, scale: 1, mode: "number" }),
+  spellLimit: numeric("spell_limit", { precision: 6, scale: 1, mode: "number" }),
+  lastResort: boolean("last_resort").notNull().default(false),
+  surrenderPerYear: numeric("surrender_per_year", { precision: 6, scale: 1, mode: "number" }),
+  terminalSurrender: numeric("terminal_surrender", { precision: 6, scale: 1, mode: "number" }),
   createdAt: createdAt(),
-});
+}, (t) => [uniqueIndex("leave_types_ksr").on(t.userId, t.ksrKey)]);
 
 // A leave marked for an employee (user request 2026-10-30, phase 2): its type, dates, days (calendar days from–to
 // unless edited, half days allowed), the sanction order, rejoinedOn (the joining report's date; earlier than the
@@ -470,6 +487,9 @@ export const employeeLeaves = pgTable(
     orderDate: date("order_date"),
     notes: text("notes").notNull().default(""),
     rejoinedOn: date("rejoined_on"),
+    // On a medical certificate (KSR): commuted leave needs it, LND without it has lower limits, EOL with it still
+    // counts for increment.
+    onMedical: boolean("on_medical").notNull().default(false),
     status: text("status", { enum: ["active", "cancelled"] }).notNull().default("active"),
     extensionOfId: uuid("extension_of_id").references((): AnyPgColumn => employeeLeaves.id, { onDelete: "set null" }),
     taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
@@ -500,6 +520,8 @@ export const leaveLedger = pgTable(
     note: text("note").notNull().default(""),
     // The leave this line belongs to (a "leave" line and the "cancel" lines that undo it).
     leaveId: uuid("leave_id").references((): AnyPgColumn => employeeLeaves.id, { onDelete: "set null" }),
+    // A surrender at retirement (terminal surrender), not counted in the financial year's limit.
+    terminal: boolean("terminal").notNull().default(false),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("leave_ledger_credit").on(t.employeeId, t.typeId, t.creditFor), index("leave_ledger_employee").on(t.employeeId, t.typeId)],

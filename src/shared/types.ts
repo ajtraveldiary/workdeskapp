@@ -272,14 +272,26 @@ export type LeaveType = {
   creditsFrom: string | null;
   // Doesn't count for increment or probation (EOL).
   delaysIncrement: boolean;
+  // Built in from the Kerala Service Rules (null = the office's own type), the rule it cites, and its limits.
+  ksrKey: string | null;
+  rule: string;
+  active: boolean;
+  atOnce: number | null;
+  nonMedicalAtOnce: number | null;
+  nonMedicalLimit: number | null;
+  spellLimit: number | null;
+  lastResort: boolean;
+  surrenderPerYear: number | null;
+  terminalSurrender: number | null;
   lines: number;
   // Leaves marked with it (it can't be removed then either).
   leaves: number;
 };
-export type LeaveLine = { id: string; typeId: string; onDate: string; days: number; kind: LedgerKind; creditFor: string | null; note: string; createdAt: string };
+export type LeaveLine = { id: string; typeId: string; onDate: string; days: number; kind: LedgerKind; creditFor: string | null; note: string; terminal: boolean; createdAt: string };
 // One employee's account: each type with its own balance, and every line, newest first.
-// used: days of leave taken of each type (not cancelled), for limits such as LND's 360 days in the whole service.
-export type LeaveAccount = { balances: { typeId: string; balance: number }[]; lines: LeaveLine[]; used: { typeId: string; days: number }[] };
+// used: days of leave taken of each type (not cancelled), for limits such as LND's 360 days in the whole service;
+// nonMedical: those of them not on a medical certificate (LND: 180 days).
+export type LeaveAccount = { balances: { typeId: string; balance: number }[]; lines: LeaveLine[]; used: { typeId: string; days: number; nonMedical: number }[] };
 // The dates a leave moved (phase 4: EOL), for Undo.
 export type LeavePostponed = { increment?: { from: string; to: string }; probation?: { taskId: string; from: string; to: string } };
 // A leave marked for an employee (phase 2), with its task (the paperwork steps).
@@ -294,6 +306,7 @@ export type EmployeeLeave = {
   orderDate: string | null;
   notes: string;
   rejoinedOn: string | null;
+  onMedical: boolean;
   status: "active" | "cancelled";
   extensionOfId: string | null;
   task: Task | null;

@@ -316,6 +316,16 @@ export const leaveTypeInput = z.object({
   autoCredit: z.boolean().default(false),
   // Doesn't count for increment or probation (EOL, phase 4).
   delaysIncrement: z.boolean().default(false),
+  // The KSR rule it follows and its limits (each only warned about), and whether it is offered in Mark leave.
+  rule: z.string().trim().max(120).default(""),
+  active: z.boolean().default(true),
+  atOnce: leaveDays(9999).nullable().default(null),
+  nonMedicalAtOnce: leaveDays(9999).nullable().default(null),
+  nonMedicalLimit: leaveDays(9999).nullable().default(null),
+  spellLimit: leaveDays(9999).nullable().default(null),
+  lastResort: z.boolean().default(false),
+  surrenderPerYear: leaveDays(9999).nullable().default(null),
+  terminalSurrender: leaveDays(9999).nullable().default(null),
 });
 export type LeaveTypeInput = z.input<typeof leaveTypeInput>;
 // A line added by hand on the employee's page: opening balance (from the service book), a credit or an adjustment
@@ -340,6 +350,9 @@ const leaveFields = {
   orderNo: z.string().trim().max(100).default(""),
   orderDate: day.nullable().default(null),
   notes: z.string().max(2_000).default(""),
+  // On a medical certificate (commuted leave needs one; LND without one has lower limits; EOL with one counts for
+  // increment).
+  onMedical: z.boolean().default(false),
 };
 const datesInOrder = (v: { fromDate: string; toDate: string }) => v.toDate >= v.fromDate;
 export const leaveInput = z
@@ -370,6 +383,8 @@ export const leaveSurrenderInput = z.object({
   orderNo: z.string().trim().max(100).default(""),
   note: z.string().trim().max(300).default(""),
   doneSteps: z.array(z.string().max(40)).max(20).default([]),
+  // At retirement (terminal surrender): not counted in the financial year's limit.
+  terminal: z.boolean().default(false),
 });
 export type LeaveSurrenderInput = z.input<typeof leaveSurrenderInput>;
 // "Credit now" for every permanent employee still in the office: creditFor is the year it counts for.

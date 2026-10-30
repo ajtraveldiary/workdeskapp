@@ -62,7 +62,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 28: leave accounts carry used, leave types leaves, tasks can be systemKind "leave" (marking leave, 2026-10-30).
 // 29: leave types carry creditsFrom (automatic yearly credits, 2026-10-30).
 // 30: leave types carry delaysIncrement (EOL moves increment / probation, 2026-10-30).
-export const CACHE_VERSION = "30";
+// 31: KSR leave types (ksrKey, rule, active, limits), leaves onMedical, account used.nonMedical, lines terminal.
+export const CACHE_VERSION = "31";
 
 export async function clearSavedData() {
   queryClient.clear();

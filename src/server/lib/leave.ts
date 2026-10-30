@@ -4,7 +4,7 @@
 import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { DB } from "../db";
 import { employeeLeaves, employees, events, leaveLedger, leaveTypes, tasks } from "../db/schema";
-import { addYears, calendarDays, daysWord, earnedFromDuty, formatDays, leaveEnd, leaveShort, shiftDate } from "../../shared/leave";
+import { KSR_LEAVE_TYPES, addYears, calendarDays, daysWord, earnedFromDuty, formatDays, leaveEnd, leaveShort, shiftDate, type KsrLeaveType } from "../../shared/leave";
 import { dayLabel } from "../../shared/reminderSchedule";
 import type { ChecklistItem } from "../../shared/types";
 
@@ -142,4 +142,72 @@ export async function ensureLeaveCredits(db: DB, today: string, userId?: string)
     if (who.length) await lapseAbove(db, t.userId, t, who, today);
   }
   return done.length;
+}
+
+// The KSR figures of a built-in type, as leave_types values (drawsOnId: the type it takes from, found by its key).
+export function ksrValues(k: KsrLeaveType, drawsOnId: string | null) {
+  const own = k.hasAccount;
+  const from = !own && !!drawsOnId;
+  return {
+    name: k.name,
+    short: k.short,
+    rule: k.rule,
+    hasAccount: own,
+    drawsOnId: from ? drawsOnId : null,
+    perDay: from ? (k.perDay ?? 1) : 1,
+    mayGoNegative: from && !!k.mayGoNegative,
+    maxBalance: own ? (k.maxBalance ?? null) : null,
+    serviceLimit: k.serviceLimit ?? null,
+    medical: !!k.medical,
+    yearlyDays: own ? (k.yearlyDays ?? null) : null,
+    fromDuty: own && !!k.fromDuty,
+    delaysIncrement: !!k.delaysIncrement,
+    atOnce: k.atOnce ?? null,
+    nonMedicalAtOnce: k.nonMedicalAtOnce ?? null,
+    nonMedicalLimit: k.nonMedicalLimit ?? null,
+    spellLimit: k.spellLimit ?? null,
+    lastResort: !!k.lastResort,
+    surrenderPerYear: own ? (k.surrenderPerYear ?? null) : null,
+    terminalSurrender: own ? (k.terminalSurrender ?? null) : null,
+  };
+}
+
+// Every account has the KSR leave types (user request 2026-10-30). A missing one is added after the others, or an
+// older type of the same name (made by "Add the usual leaves", or restored from a backup) becomes it, keeping its
+// figures and getting the KSR limits it had no fields for. Returns how many were added. Cheap when nothing is missing: one query.
+export async function ensureKsrLeaveTypes(db: DB, userId: string, have?: (typeof leaveTypes.$inferSelect)[]) {
+  const rows = have ?? (await db.select().from(leaveTypes).where(eq(leaveTypes.userId, userId)));
+  if (KSR_LEAVE_TYPES.every((k) => rows.some((r) => r.ksrKey === k.key))) return 0;
+  const byKey = new Map(rows.filter((r) => r.ksrKey).map((r) => [r.ksrKey!, r]));
+  let order = Math.max(0, ...rows.map((r) => r.sortOrder));
+  let added = 0;
+  // In order, so commuted leave and LND find the HPL just made.
+  for (const k of KSR_LEAVE_TYPES) {
+    if (byKey.has(k.key)) continue;
+    const same = rows.find((r) => !r.ksrKey && r.name.trim().toLowerCase() === k.name.toLowerCase());
+    if (same) {
+      // Its own figures stay; the KSR limits (fields it never had) are filled in.
+      const v = ksrValues(k, null);
+      const limits = { atOnce: v.atOnce, nonMedicalAtOnce: v.nonMedicalAtOnce, nonMedicalLimit: v.nonMedicalLimit, spellLimit: v.spellLimit, lastResort: v.lastResort };
+      const surrender = same.hasAccount ? { surrenderPerYear: v.surrenderPerYear, terminalSurrender: v.terminalSurrender } : {};
+      const [t] = await db
+        .update(leaveTypes)
+        .set({ ksrKey: k.key, rule: same.rule || k.rule, ...limits, ...surrender })
+        .where(and(eq(leaveTypes.id, same.id), isNull(leaveTypes.ksrKey)))
+        .returning();
+      if (t) byKey.set(k.key, t);
+      continue;
+    }
+    const from = k.drawsOn ? byKey.get(k.drawsOn) : undefined;
+    const [t] = await db
+      .insert(leaveTypes)
+      .values({ userId, sortOrder: ++order, ksrKey: k.key, ...ksrValues(k, from?.hasAccount ? from.id : null) })
+      .onConflictDoNothing()
+      .returning();
+    if (t) {
+      byKey.set(k.key, t);
+      added++;
+    }
+  }
+  return added;
 }

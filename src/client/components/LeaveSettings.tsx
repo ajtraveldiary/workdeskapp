@@ -1,11 +1,12 @@
 // Settings › Leave (user request 2026-10-30, docs/LEAVE_PLAN.md): the kinds of leave the office keeps (earned leave,
 // half pay leave, commuted leave…, never casual or compensation leave) with their rules, "Credit now" for a year's
-// credit to every permanent employee, and which designations are gazetted posts.
+// credit to every permanent employee, and which designations are gazetted posts. The Kerala Service Rules types are
+// built in (KSR_LEAVE_TYPES): their figures can be edited and reset, and a type not used is switched off.
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { CalendarOff, Check, ListPlus, Pencil, Plus, Trash2, BadgeCheck, CalendarPlus } from "lucide-react";
+import { CalendarOff, Check, Pencil, Plus, Trash2, BadgeCheck, CalendarPlus, RotateCcw } from "lucide-react";
 import type { LeaveType } from "../../shared/types";
 import type { LeaveTypeInput } from "../../shared/schemas";
-import { USUAL_LEAVE_TYPES, daysWord, formatDays, leaveShort } from "../../shared/leave";
+import { daysWord, formatDays, ksrType, leaveShort } from "../../shared/leave";
 import { useLeaveActions, useLeaveTypes, useMe, useStaff, useStaffActions } from "../api";
 import { Button, Card, ErrorNote, Field, Loading, Modal, cx, inputClass } from "./ui";
 import { SortableList } from "./SortableList";
@@ -26,7 +27,13 @@ function ruleText(t: LeaveType, types: LeaveType[]) {
     parts.push(`Takes ${t.perDay === 1 ? "" : `${formatDays(t.perDay)} days of `}${from ? leaveShort(from) : "another leave"}${t.perDay === 1 ? "" : " a day"}`);
     if (t.mayGoNegative) parts.push("may go below zero");
   } else parts.push("No balance");
+  if (t.atOnce != null) parts.push(`${daysWord(t.atOnce)} at a time`);
   if (t.serviceLimit != null) parts.push(`${daysWord(t.serviceLimit)} in the whole service`);
+  if (t.nonMedicalAtOnce != null || t.nonMedicalLimit != null)
+    parts.push(`without a medical certificate ${[t.nonMedicalAtOnce != null && `${daysWord(t.nonMedicalAtOnce)} at a time`, t.nonMedicalLimit != null && `${daysWord(t.nonMedicalLimit)} in all`].filter(Boolean).join(", ")}`);
+  if (t.spellLimit != null) parts.push(`${daysWord(t.spellLimit)} in one run with ${types.filter((x) => x.id !== t.id && x.spellLimit != null).map(leaveShort).join(", ") || "others"}`);
+  if (t.lastResort) parts.push("only when no other leave is at credit");
+  if (t.surrenderPerYear != null) parts.push(`surrender ${daysWord(t.surrenderPerYear)} a year`);
   if (t.medical) parts.push("medical certificate");
   if (t.delaysIncrement) parts.push("not counted for increment");
   return parts.join(" · ");
@@ -47,8 +54,6 @@ function LeaveTypes() {
   const [form, setForm] = useState<LeaveType | "new" | null>(null);
   const [credit, setCredit] = useState<LeaveType | null>(null);
   const types = data?.types ?? [];
-  const have = new Set(types.map((t) => t.name.toLowerCase()));
-  const missing = USUAL_LEAVE_TYPES.filter((u) => !have.has(u.name.toLowerCase())).length;
   const remove = (t: LeaveType) => confirm(`Remove the leave type "${t.name}"?`) && a.removeType.mutate(t.id);
   return (
     <Card className="p-5">
@@ -56,7 +61,7 @@ function LeaveTypes() {
         <CalendarOff size={18} className="text-brand-700" /> Leave types
       </h2>
       <p className="mt-1 text-sm text-slate-600">
-        The leaves kept in each permanent employee's leave account (on their page). Casual leave, compensation leave and other short office leaves aren't kept here.
+        The leaves kept in each permanent employee's leave account (on their page). The Kerala Service Rules leaves are built in with their rules; every figure can be edited, and a leave the office doesn't use can be switched off. Casual leave, compensation leave and other short office leaves aren't kept here.
       </p>
       {error ? (
         <ErrorNote error={error} />
@@ -64,16 +69,6 @@ function LeaveTypes() {
         <Loading className="py-4" />
       ) : (
         <div className="mt-4 space-y-3">
-          {missing > 0 && (
-            <div className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-50 px-3 py-2.5">
-              <p className="min-w-0 flex-1 text-footnote text-slate-600">
-                Add the usual Kerala Service Rules leaves (EL, HPL, commuted leave, LND, EOL, maternity and paternity leave) with their usual rules. Check the figures once; every one can be changed.
-              </p>
-              <Button size="sm" onClick={() => a.addUsual.mutate()} disabled={a.addUsual.isPending}>
-                <ListPlus size={15} /> {missing === USUAL_LEAVE_TYPES.length ? "Add the usual leaves" : `Add ${missing} more`}
-              </Button>
-            </div>
-          )}
           <div className="overflow-hidden rounded-lg border border-line">
             {types.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-slate-500">None yet.</p>
@@ -81,11 +76,14 @@ function LeaveTypes() {
               <SortableList items={types} label={(t) => t.name} onReorder={(ids) => a.orderTypes.mutate(ids)} rowClassName="py-1.5 pr-2 pl-1.5">
                 {(t) => (
                   <>
-                    <span className="min-w-0 flex-1 py-0.5">
+                    <span className={cx("min-w-0 flex-1 py-0.5", !t.active && "opacity-60")}>
                       <span className="block text-sm text-ink [overflow-wrap:anywhere]">
                         {t.name}
                         {t.short && t.short !== t.name && <span className="text-slate-500"> ({t.short})</span>}
+                        {t.ksrKey && <span className="ml-1.5 inline-block rounded bg-tint px-1.5 align-[1px] text-caption2 font-medium text-brand-800">KSR</span>}
+                        {!t.active && <span className="ml-1.5 inline-block rounded bg-slate-100 px-1.5 align-[1px] text-caption2 font-medium text-slate-600">Off</span>}
                       </span>
+                      {t.rule && <span className="block text-caption text-slate-500 [overflow-wrap:anywhere]">{t.rule}</span>}
                       <span className="block text-footnote text-slate-500 [overflow-wrap:anywhere]">{ruleText(t, types)}</span>
                     </span>
                     {t.hasAccount && (
@@ -96,9 +94,11 @@ function LeaveTypes() {
                     <IconButton label={`Edit ${t.name}`} onClick={() => setForm(t)}>
                       <Pencil size={16} />
                     </IconButton>
-                    <IconButton label={`Remove ${t.name}`} onClick={() => remove(t)} danger>
-                      <Trash2 size={16} />
-                    </IconButton>
+                    {!t.ksrKey && (
+                      <IconButton label={`Remove ${t.name}`} onClick={() => remove(t)} danger>
+                        <Trash2 size={16} />
+                      </IconButton>
+                    )}
                   </>
                 )}
               </SortableList>
@@ -109,10 +109,10 @@ function LeaveTypes() {
               </Button>
             </div>
           </div>
-          <ErrorNote error={a.addUsual.error ?? a.removeType.error ?? a.orderTypes.error} />
+          <ErrorNote error={a.removeType.error ?? a.orderTypes.error} />
           <p className="text-footnote text-slate-500">
             <CalendarPlus size={13} className="inline align-[-2px]" /> credits a year's leave to every permanent employee still in the office (for example 20 days of HPL); anyone already credited for that year is skipped.
-            A leave used in an account can't be removed; rename it instead.
+            KSR leaves can't be removed (switch one off instead); the office's own leave can be removed until it is used in an account.
           </p>
         </div>
       )}
@@ -133,9 +133,43 @@ function TypeForm({ type, types, onDone }: { type: LeaveType | null; types: Leav
   const save = type ? saveType : addType;
   const [v, setV] = useState<LeaveTypeInput>(() =>
     type
-      ? { name: type.name, short: type.short, hasAccount: type.hasAccount, drawsOnId: type.drawsOnId, perDay: type.perDay, mayGoNegative: type.mayGoNegative, maxBalance: type.maxBalance, serviceLimit: type.serviceLimit, medical: type.medical, yearlyDays: type.yearlyDays, fromDuty: type.fromDuty, autoCredit: !!type.creditsFrom, delaysIncrement: type.delaysIncrement }
-      : { name: "", short: "", hasAccount: true, drawsOnId: null, perDay: 1, mayGoNegative: false, maxBalance: null, serviceLimit: null, medical: false, yearlyDays: null, fromDuty: false, autoCredit: false, delaysIncrement: false },
+      ? {
+          name: type.name,
+          short: type.short,
+          hasAccount: type.hasAccount,
+          drawsOnId: type.drawsOnId,
+          perDay: type.perDay,
+          mayGoNegative: type.mayGoNegative,
+          maxBalance: type.maxBalance,
+          serviceLimit: type.serviceLimit,
+          medical: type.medical,
+          yearlyDays: type.yearlyDays,
+          fromDuty: type.fromDuty,
+          autoCredit: !!type.creditsFrom,
+          delaysIncrement: type.delaysIncrement,
+          rule: type.rule,
+          active: type.active,
+          atOnce: type.atOnce,
+          nonMedicalAtOnce: type.nonMedicalAtOnce,
+          nonMedicalLimit: type.nonMedicalLimit,
+          spellLimit: type.spellLimit,
+          lastResort: type.lastResort,
+          surrenderPerYear: type.surrenderPerYear,
+          terminalSurrender: type.terminalSurrender,
+        }
+      : { name: "", short: "", hasAccount: true, drawsOnId: null, perDay: 1, mayGoNegative: false, maxBalance: null, serviceLimit: null, medical: false, yearlyDays: null, fromDuty: false, autoCredit: false, delaysIncrement: false, rule: "", active: true, lastResort: false },
   );
+  const ksr = ksrType(type?.ksrKey);
+  const { resetType } = useLeaveActions();
+  const reset = async () => {
+    if (!type || !ksr || !confirm(`Put every figure of ${type.name} back to the KSR's?`)) return;
+    try {
+      await resetType.mutateAsync(type.id);
+      onDone();
+    } catch {
+      // shown under the form
+    }
+  };
   const set = <K extends keyof LeaveTypeInput>(k: K, value: LeaveTypeInput[K]) => setV((s) => ({ ...s, [k]: value }));
   const sources = types.filter((t) => t.hasAccount && t.id !== type?.id);
   const balance: Balance = v.drawsOnId ? "other" : v.hasAccount ? "own" : "none";
@@ -169,6 +203,12 @@ function TypeForm({ type, types, onDone }: { type: LeaveType | null; types: Leav
   );
   return (
     <form onSubmit={submit} className="space-y-4">
+      {ksr && (
+        <div className="rounded-lg bg-tint px-3 py-2.5 text-footnote text-brand-800">
+          <p className="font-semibold">{ksr.rule}</p>
+          <p className="mt-0.5 [overflow-wrap:anywhere]">{ksr.about}</p>
+        </div>
+      )}
       <div className="grid gap-3 min-[400px]:grid-cols-[1fr_8rem]">
         <Field label="Name">
           <input className={inputClass} value={v.name} onChange={(e) => set("name", e.target.value)} required maxLength={80} autoFocus={!type} placeholder="e.g. Half pay leave" />
@@ -209,6 +249,12 @@ function TypeForm({ type, types, onDone }: { type: LeaveType | null; types: Leav
             <Field label="Most that can be kept (days)">
               <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.maxBalance ?? ""} onChange={(e) => set("maxBalance", num(e.target.value))} placeholder="No limit" />
             </Field>
+            <Field label="Surrender a year (days)">
+              <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.surrenderPerYear ?? ""} onChange={(e) => set("surrenderPerYear", num(e.target.value))} placeholder="No limit (EL: 30)" />
+            </Field>
+            <Field label="Surrender at retirement (days)">
+              <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.terminalSurrender ?? ""} onChange={(e) => set("terminalSurrender", num(e.target.value))} placeholder="No limit (EL: 300)" />
+            </Field>
           </div>
         </>
       )}
@@ -229,13 +275,38 @@ function TypeForm({ type, types, onDone }: { type: LeaveType | null; types: Leav
         </div>
       )}
       {balance === "other" && <Check2 label="The balance may go below zero (leave not due)" checked={!!v.mayGoNegative} onChange={(c) => set("mayGoNegative", c)} />}
-      <Field label="Days allowed in the whole service">
-        <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.serviceLimit ?? ""} onChange={(e) => set("serviceLimit", num(e.target.value))} placeholder="No limit (LND: 360)" />
+      <div className="grid gap-3 min-[400px]:grid-cols-2">
+        <Field label="Days at a time">
+          <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.atOnce ?? ""} onChange={(e) => set("atOnce", num(e.target.value))} placeholder="No limit (EL: 180)" />
+        </Field>
+        <Field label="Days in the whole service">
+          <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.serviceLimit ?? ""} onChange={(e) => set("serviceLimit", num(e.target.value))} placeholder="No limit (LND: 360)" />
+        </Field>
+        <Field label="Without a medical certificate: at a time">
+          <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.nonMedicalAtOnce ?? ""} onChange={(e) => set("nonMedicalAtOnce", num(e.target.value))} placeholder="No limit (LND: 90)" />
+        </Field>
+        <Field label="Without a medical certificate: in all">
+          <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.nonMedicalLimit ?? ""} onChange={(e) => set("nonMedicalLimit", num(e.target.value))} placeholder="No limit (LND: 180)" />
+        </Field>
+      </div>
+      <Field label="Days in one run of leave, together with the other leaves that have this limit">
+        <input type="number" inputMode="decimal" min={0} max={9999} step={0.5} className={inputClass} value={v.spellLimit ?? ""} onChange={(e) => set("spellLimit", num(e.target.value))} placeholder="No limit (EL and commuted leave: 240)" />
       </Field>
-      <Check2 label="Needs a medical certificate" checked={!!v.medical} onChange={(c) => set("medical", c)} />
-      <Check2 label="Doesn't count for increment or probation (EOL): marking it offers to move those dates" checked={!!v.delaysIncrement} onChange={(c) => set("delaysIncrement", c)} />
-      <ErrorNote error={save.error} />
+      <Field label="Rule">
+        <input className={inputClass} value={v.rule ?? ""} onChange={(e) => set("rule", e.target.value)} maxLength={120} placeholder="e.g. KSR Part I, Rule 83, or a GO" />
+      </Field>
+      <Check2 label="Given on a medical certificate" checked={!!v.medical} onChange={(c) => set("medical", c)} />
+      <Check2 label="Only when no other leave is at credit (leave not due)" checked={!!v.lastResort} onChange={(c) => set("lastResort", c)} />
+      <Check2 label="Doesn't count for increment or probation unless on a medical certificate (EOL): marking it offers to move those dates" checked={!!v.delaysIncrement} onChange={(c) => set("delaysIncrement", c)} />
+      <Check2 label="Used in this office (offered in Mark leave)" checked={v.active !== false} onChange={(c) => set("active", c)} />
+      <p className="-mt-3 px-1.5 text-footnote text-slate-500">The limits only warn when a leave crosses them; the leave can still be marked if it is sanctioned.</p>
+      <ErrorNote error={save.error ?? resetType.error} />
       <div className="flex flex-wrap justify-end gap-2">
+        {ksr && (
+          <Button type="button" variant="ghost" onClick={reset} disabled={resetType.isPending} className="mr-auto">
+            <RotateCcw size={15} /> Reset to KSR
+          </Button>
+        )}
         <Button type="button" variant="ghost" onClick={onDone}>
           Cancel
         </Button>

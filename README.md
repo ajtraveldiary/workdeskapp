@@ -100,11 +100,16 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Probation:** when an employee nears the end of probation, a task to declare it or change the date.
 - **Leave account:** each permanent employee's page keeps their leave account: the balance of earned leave, half pay
   leave and the other leaves you keep, with every entry (opening balance from the service book, credits,
-  adjustments). Settings › Leave lists the leave types with their rules (the usual Kerala Service Rules leaves in one
-  tap), credits a year's leave to everyone at once (for example 20 days of HPL), and marks the gazetted posts.
+  adjustments). Settings › Leave lists the leave types with their rules: the Kerala Service Rules leaves (EL, HPL,
+  commuted leave, LND, EOL, maternity, miscarriage, hysterectomy, paternity, adoption, special disability and
+  hospital leave) are built in with their rule numbers and limits, every figure editable with Reset to KSR, and a
+  leave not used can be switched off. It credits a year's leave to everyone at once (for example 20 days of HPL),
+  and marks the gazetted posts.
   Employees have Gazetted officer and Probation declared Yes / No in their details.
 - **Marking leave:** Mark leave (on the employee's page or the Employees page) takes the days off the balance
-  (commuted leave takes double HPL; LND may go below zero), warns when there isn't enough, and makes a task with the
+  (commuted leave takes double HPL; LND may go below zero), warns when there isn't enough or a KSR limit is crossed
+  (180 days of EL at a time, EL + commuted over 240 in one run, LND without a medical certificate, LND while other
+  leave is at credit…), notes whether it is on a medical certificate, and makes a task with the
   paperwork steps, different for gazetted officers (application, apply leave, leave CTC, joining report, joining CTC,
   AG payslip) and others (application, check leave account, office proceedings, SPARK, attendance, SB update, joining
   report), due the day they are back. Record the rejoining date (an early return gives the days back), change or
