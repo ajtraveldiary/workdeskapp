@@ -5,6 +5,7 @@ import { RELATED_KINDS } from "../../shared/staff";
 import { EVENT_KINDS, type EventChange } from "../../shared/eventSchedule";
 import { MOVE_KINDS } from "../../shared/moves";
 import { JOB_KINDS, JOB_STATUSES } from "../../shared/jobs";
+import { LEDGER_KINDS } from "../../shared/leave";
 import type { ChecklistItem, ReminderLink } from "../../shared/types";
 
 const id = () => uuid("id").primaryKey().defaultRandom();
@@ -347,6 +348,8 @@ export const designations = pgTable("designations", {
   userId: uuid("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
   sortOrder: integer("sort_order").notNull().default(0),
+  // A gazetted post (user request 2026-10-30): fills the Gazetted switch of its employees.
+  gazetted: boolean("gazetted").notNull().default(false),
   createdAt: createdAt(),
 });
 
@@ -405,9 +408,63 @@ export const employees = pgTable("employees", {
   // The "Probation" task made when 2 years of service are near and probation isn't declared (user request
   // 2026-10-08); set once, so a deleted task isn't made again.
   probationTaskId: uuid("probation_task_id"),
+  // Gazetted officer (user request 2026-10-30): their leave tasks get the gazetted steps. Filled from the
+  // designation's "Gazetted post" tick, changeable per employee.
+  gazetted: boolean("gazetted").notNull().default(false),
+  // Probation declared, yes or no (user request 2026-10-30): a missing declared date doesn't mean it isn't declared
+  // (old staff whose date was never entered), so this decides. No Probation declaration task while it is yes;
+  // earned leave is credited from duty only when yes (docs/LEAVE_PLAN.md). Set whenever probationDeclaredOn is.
+  probationDeclared: boolean("probation_declared").notNull().default(false),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+// Leave (user request 2026-10-30, docs/LEAVE_PLAN.md): the kinds of leave the office keeps (Settings › Leave), in
+// this order. A type has its own balance (EL, HPL), takes from another type's (commuted and LND take from HPL,
+// `perDay` days of it for each day), or has none (EOL, maternity). maxBalance: credits above it lapse;
+// serviceLimit: days allowed in the whole service (LND 360); yearlyDays / fromDuty: its yearly credit (HPL 20 days,
+// EL 1/11 of duty).
+export const leaveTypes = pgTable("leave_types", {
+  id: id(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  short: text("short").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  hasAccount: boolean("has_account").notNull().default(true),
+  drawsOnId: uuid("draws_on_id").references((): AnyPgColumn => leaveTypes.id, { onDelete: "set null" }),
+  perDay: numeric("per_day", { precision: 3, scale: 1, mode: "number" }).notNull().default(1),
+  mayGoNegative: boolean("may_go_negative").notNull().default(false),
+  maxBalance: numeric("max_balance", { precision: 6, scale: 1, mode: "number" }),
+  serviceLimit: numeric("service_limit", { precision: 6, scale: 1, mode: "number" }),
+  medical: boolean("medical").notNull().default(false),
+  yearlyDays: numeric("yearly_days", { precision: 5, scale: 1, mode: "number" }),
+  fromDuty: boolean("from_duty").notNull().default(false),
+  createdAt: createdAt(),
+});
+
+// An employee's leave account: one line per change to their balance of one type (+ credit, − taken). Never
+// rewritten; a wrong line is put right with an adjustment. creditFor ("2027"): the yearly credit this line is, so
+// the same year is never credited twice.
+export const leaveLedger = pgTable(
+  "leave_ledger",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    typeId: uuid("type_id")
+      .notNull()
+      .references(() => leaveTypes.id),
+    onDate: date("on_date").notNull(),
+    days: numeric("days", { precision: 6, scale: 1, mode: "number" }).notNull(),
+    kind: text("kind", { enum: LEDGER_KINDS }).notNull(),
+    creditFor: text("credit_for"),
+    note: text("note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("leave_ledger_credit").on(t.employeeId, t.typeId, t.creditFor), index("leave_ledger_employee").on(t.employeeId, t.typeId)],
+);
 
 // Joining and relieving (user request 2026-10-15): one row per join or relieve of an employee, with the date and
 // its task (whose checklist holds the steps, MOVE_STEPS in src/shared/moves.ts). Deleting the task removes the row.

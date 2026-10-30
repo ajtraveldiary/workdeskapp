@@ -5,7 +5,7 @@ import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, inArray, max, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { designations, employeeTypes, employees, events, reports, tasks, eventTypes, registers } from "../db/schema";
+import { designations, employeeTypes, employees, events, reports, tasks, eventTypes, registers, leaveTypes } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { designationInput, employeeInput, orderInput } from "../../shared/schemas";
@@ -21,7 +21,7 @@ const log = (db: DB, userId: string, action: string, summary: string) => db.inse
 // Saves a list's order after drag and drop (user request 2026-10-08): the ids sent come first, in that order;
 // any the app didn't send (added meanwhile) keep their order after them. One UPDATE for the whole list.
 // Returns true when something moved.
-export async function saveOrder(db: DB, table: typeof designations | typeof employeeTypes | typeof eventTypes | typeof registers, userId: string, sent: string[]) {
+export async function saveOrder(db: DB, table: typeof designations | typeof employeeTypes | typeof eventTypes | typeof registers | typeof leaveTypes, userId: string, sent: string[]) {
   const list = await db.select({ id: table.id, sortOrder: table.sortOrder }).from(table).where(eq(table.userId, userId)).orderBy(asc(table.sortOrder), asc(table.name));
   const have = new Set(list.map((r) => r.id));
   const first = [...new Set(sent)].filter((id) => have.has(id));
@@ -37,11 +37,20 @@ export async function saveOrder(db: DB, table: typeof designations | typeof empl
 
 // A temporary employee keeps only name, designation, engagement, type, phone, email, category, date of birth,
 // date of joining, contract days, pay per day and contract end date (user request 2026-10-07); a permanent one
-// has none of the temporary details.
+// has none of the temporary details. Probation declared and gazetted (user request 2026-10-30) are permanent staff's
+// only; a declared date means probation is declared. Callers fill in the two when the form left them out
+// (withSwitches).
 export function employeeValues(input: ReturnType<typeof employeeInput.parse>) {
   return input.permanent
-    ? { ...input, engagedTill: null, engagement: "", typeId: null, contractDays: null, payPerDay: null }
-    : { ...input, pen: "", joinedOfficeOn: null, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null, payScale: "", basicPay: null, address: "", notes: "" };
+    ? { ...input, engagedTill: null, engagement: "", typeId: null, contractDays: null, payPerDay: null, probationDeclared: !!input.probationDeclaredOn || !!input.probationDeclared, gazetted: !!input.gazetted }
+    : { ...input, pen: "", joinedOfficeOn: null, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null, payScale: "", basicPay: null, address: "", notes: "", probationDeclared: false, gazetted: false };
+}
+
+// The Probation declared and Gazetted switches when the form (or an assistant's whole-form update) left them out:
+// the saved values, or for a new employee no and the designation's gazetted tick.
+async function withSwitches(db: DB, userId: string, input: ReturnType<typeof employeeInput.parse>, saved?: typeof employees.$inferSelect) {
+  const gazetted = input.gazetted ?? saved?.gazetted ?? (input.designationId ? (await loadDesignation(db, userId, input.designationId)).gazetted : false);
+  return { ...input, gazetted, probationDeclared: input.probationDeclared ?? saved?.probationDeclared ?? false };
 }
 
 function toEmployee(e: typeof employees.$inferSelect): Employee {
@@ -93,7 +102,7 @@ export const staffRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const [d, t, e] = await Promise.all([
-      db.select({ id: designations.id, name: designations.name, sortOrder: designations.sortOrder }).from(designations).where(eq(designations.userId, userId)).orderBy(asc(designations.sortOrder), asc(designations.name)),
+      db.select({ id: designations.id, name: designations.name, sortOrder: designations.sortOrder, gazetted: designations.gazetted }).from(designations).where(eq(designations.userId, userId)).orderBy(asc(designations.sortOrder), asc(designations.name)),
       db.select({ id: employeeTypes.id, name: employeeTypes.name, sortOrder: employeeTypes.sortOrder }).from(employeeTypes).where(eq(employeeTypes.userId, userId)).orderBy(asc(employeeTypes.sortOrder), asc(employeeTypes.name)),
       db.select().from(employees).where(eq(employees.userId, userId)).orderBy(asc(employees.name)),
     ]);
@@ -132,6 +141,24 @@ export const staffRoutes = new Hono<AppEnv>()
     await db.update(designations).set({ name }).where(eq(designations.id, d.id));
     if (name !== d.name) await log(db, userId, "staff.designation_renamed", `Designation renamed: ${d.name} → ${name}`);
     return c.json({ ok: true });
+  })
+  // A gazetted post or not (user request 2026-10-30, Settings › Leave): its permanent employees' Gazetted switch
+  // follows (still changeable per employee afterwards).
+  .post("/designations/:id/gazetted", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const d = await loadDesignation(db, userId, c.req.param("id"));
+    const { gazetted } = (await c.req.json()) as { gazetted: boolean };
+    if (typeof gazetted !== "boolean") throw new HTTPException(400, { message: "gazetted must be true or false" });
+    await db.update(designations).set({ gazetted }).where(eq(designations.id, d.id));
+    const changed = await db
+      .update(employees)
+      .set({ gazetted, updatedAt: new Date() })
+      .where(and(eq(employees.userId, userId), eq(employees.designationId, d.id), eq(employees.permanent, true), eq(employees.gazetted, !gazetted)))
+      .returning({ id: employees.id });
+    if (gazetted !== d.gazetted || changed.length)
+      await log(db, userId, "staff.designation_gazetted", `${d.name} ${gazetted ? "is" : "is not"} a gazetted post${changed.length ? ` (${changed.length} employee${changed.length === 1 ? "" : "s"} changed)` : ""}`);
+    return c.json({ ok: true, changed: changed.length });
   })
   // Arranged by drag and drop in Settings > Employees (user request 2026-10-08).
   .post("/designations/order", async (c) => {
@@ -238,7 +265,7 @@ export const staffRoutes = new Hono<AppEnv>()
     const input = employeeInput.parse(await c.req.json());
     await checkDesignation(db, userId, input.designationId);
     if (!input.permanent && input.typeId) await loadType(db, userId, input.typeId);
-    const [e] = await db.insert(employees).values({ ...employeeValues(input), userId }).returning();
+    const [e] = await db.insert(employees).values({ ...employeeValues(await withSwitches(db, userId, input)), userId }).returning();
     await log(db, userId, "staff.employee_added", `Employee added: ${e!.name}`);
     // Retiring within 12 months: their Pension papers task straight away (user request 2026-10-08); a contract
     // ending within 7 days: its Contract ends task; 2 years of service near: its Probation declaration task.
@@ -255,7 +282,7 @@ export const staffRoutes = new Hono<AppEnv>()
     const input = employeeInput.parse(await c.req.json());
     await checkDesignation(db, userId, input.designationId);
     if (!input.permanent && input.typeId) await loadType(db, userId, input.typeId);
-    await db.update(employees).set({ ...employeeValues(input), updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await db.update(employees).set({ ...employeeValues(await withSwitches(db, userId, input, e)), updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.employee_changed", `Employee details changed: ${input.name}`);
     await ensurePensionTasks(db, todayIn(timezone(c.env)), userId);
     await ensureContractTasks(db, todayIn(timezone(c.env)), userId);
@@ -362,13 +389,13 @@ export const staffRoutes = new Hono<AppEnv>()
     if (!e.permanent) throw new HTTPException(400, { message: `${e.name} is a temporary employee` });
     if (undo) {
       if (!declaredOn || e.probationDeclaredOn !== declaredOn) return c.json({ declaredOn: e.probationDeclaredOn });
-      await db.update(employees).set({ probationDeclaredOn: null, updatedAt: new Date() }).where(eq(employees.id, e.id));
+      await db.update(employees).set({ probationDeclaredOn: null, probationDeclared: false, updatedAt: new Date() }).where(eq(employees.id, e.id));
       await log(db, userId, "staff.probation_undone", `Probation of ${e.name} not declared after all`);
       await setContractTask(db, userId, e.probationTaskId, false);
       return c.json({ declaredOn: null });
     }
     const today = todayIn(timezone(c.env));
-    await db.update(employees).set({ probationDeclaredOn: today, updatedAt: new Date() }).where(eq(employees.id, e.id));
+    await db.update(employees).set({ probationDeclaredOn: today, probationDeclared: true, updatedAt: new Date() }).where(eq(employees.id, e.id));
     await log(db, userId, "staff.probation_declared", `Probation of ${e.name} declared on ${today}`);
     await setContractTask(db, userId, e.probationTaskId, true);
     return c.json({ declaredOn: today });

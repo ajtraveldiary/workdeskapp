@@ -4,6 +4,7 @@ import { MAX_TAGS_PER_ITEM, MAX_TAG_NAME, TAG_COLORS } from "./tags";
 import { REPEATS } from "./reminderSchedule";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, RELATED_KINDS } from "./staff";
 import { MOVE_KINDS, STEP_STATES } from "./moves";
+import { HAND_KINDS } from "./leave";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 // The user's own Gmail labels only (system labels like INBOX are never accepted).
@@ -288,10 +289,52 @@ export const employeeInput = z.object({
   // Basic pay in ₹ (user request 2026-10-08). Optional so an older form that doesn't send it leaves it alone.
   basicPay: z.number().min(0).max(10_000_000).nullable().optional(),
   probationDeclaredOn: day.nullable().default(null),
+  // Yes / no (user request 2026-10-30). Optional: left out keeps the saved value (a new employee: no, or the
+  // designation's gazetted tick); a declared date always means yes.
+  probationDeclared: z.boolean().optional(),
+  gazetted: z.boolean().optional(),
   address: z.string().trim().max(500).default(""),
   notes: z.string().max(5_000).default(""),
 });
 export type EmployeeInput = z.input<typeof employeeInput>;
+
+// Leave (user request 2026-10-30, docs/LEAVE_PLAN.md).
+const leaveDays = (max: number) => z.number().min(0).max(max).multipleOf(0.5, "Use whole or half days");
+export const leaveTypeInput = z.object({
+  name: z.string().trim().min(1, "Name is required").max(80),
+  short: z.string().trim().max(12).default(""),
+  hasAccount: z.boolean().default(true),
+  drawsOnId: z.uuid().nullable().default(null),
+  perDay: z.number().min(0.5).max(5).multipleOf(0.5).default(1),
+  mayGoNegative: z.boolean().default(false),
+  maxBalance: leaveDays(9999).nullable().default(null),
+  serviceLimit: leaveDays(9999).nullable().default(null),
+  medical: z.boolean().default(false),
+  yearlyDays: leaveDays(365).nullable().default(null),
+  fromDuty: z.boolean().default(false),
+});
+export type LeaveTypeInput = z.input<typeof leaveTypeInput>;
+// A line added by hand on the employee's page: opening balance (from the service book), a credit or an adjustment
+// (+ or −).
+export const leaveLineInput = z
+  .object({
+    typeId: z.uuid(),
+    kind: z.enum(HAND_KINDS),
+    onDate: day,
+    days: z.number().min(-9999).max(9999).multipleOf(0.5, "Use whole or half days"),
+    note: z.string().trim().max(300).default(""),
+  })
+  .refine((v) => v.kind === "opening" || v.days !== 0, { message: "Enter the number of days", path: ["days"] })
+  .refine((v) => v.kind !== "credit" || v.days > 0, { message: "A credit adds days; use an adjustment to take days away", path: ["days"] });
+export type LeaveLineInput = z.input<typeof leaveLineInput>;
+// "Credit now" for every permanent employee still in the office: creditFor is the year it counts for.
+export const leaveCreditInput = z.object({
+  creditFor: z.string().regex(/^\d{4}$/, "Give the year, e.g. 2027"),
+  onDate: day,
+  days: z.number().min(0.5).max(365).multipleOf(0.5, "Use whole or half days"),
+  note: z.string().trim().max(300).default(""),
+  dryRun: z.boolean().default(false),
+});
 
 // File register (user request 2026-10-07).
 export const officeFileInput = z.object({

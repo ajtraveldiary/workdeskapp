@@ -556,6 +556,11 @@ export function YouTag({ id, className }: { id: string; className?: string }) {
   return <span className={cx("inline-flex shrink-0 items-center rounded-full bg-tint px-2 py-0.5 text-caption font-medium text-brand-800", className)}>You</span>;
 }
 
+// A gazetted officer (user request 2026-10-30): their leave tasks have the gazetted steps.
+export function GazettedTag({ className }: { className?: string }) {
+  return <span className={cx("inline-flex shrink-0 items-center rounded-full bg-info-soft px-2 py-0.5 text-caption font-medium text-info-ink", className)}>Gazetted</span>;
+}
+
 export function TemporaryTag({ className }: { className?: string }) {
   return (
     <span className={cx("inline-flex shrink-0 items-center gap-1 rounded-full bg-high-soft px-2 py-0.5 text-caption font-medium text-high-ink", className)}>
@@ -604,7 +609,8 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
         ["Retirement", e.retiresOn && `${fullDate(e.retiresOn)}${e.retiresOn > today ? ` (in ${yearsBetween(today, e.retiresOn) > 0 ? plural(yearsBetween(today, e.retiresOn), "year") : "less than a year"})` : ""}`],
         ["Basic pay", e.basicPay != null && rupees(e.basicPay)],
         ["Pay scale", e.payScale],
-        ["Probation declared", e.probationDeclaredOn && fullDate(e.probationDeclaredOn)],
+        ["Probation declared", e.probationDeclaredOn ? fullDate(e.probationDeclaredOn) : e.probationDeclared && "Yes (date not entered)"],
+        ["Gazetted officer", e.gazetted && "Yes"],
         ["Home address", e.address && <span className="whitespace-pre-wrap">{e.address}</span>],
         ["Notes", e.notes && <span className="whitespace-pre-wrap">{e.notes}</span>],
       ]
@@ -633,10 +639,11 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
         <div className="min-w-0 flex-1">
           <h3 className="text-lg font-semibold text-ink [overflow-wrap:anywhere]">{e.name}</h3>
           <p className="text-sm text-slate-600">{designation ?? "No designation"}</p>
-          {(!e.permanent || e.leftOn || isMe) && (
+          {(!e.permanent || e.leftOn || isMe || e.gazetted) && (
             <div className="mt-1 flex flex-wrap gap-1.5">
               <YouTag id={e.id} />
               {!e.permanent && <TemporaryTag />}
+              {e.permanent && e.gazetted && <GazettedTag />}
               {e.leftOn && <Badge>Left the office on {fullDate(e.leftOn)}</Badge>}
             </div>
           )}
@@ -747,6 +754,8 @@ const EMPTY: EmployeeInput = {
   payScale: "",
   basicPay: null,
   probationDeclaredOn: null,
+  probationDeclared: false,
+  gazetted: false,
   address: "",
   notes: "",
 };
@@ -838,7 +847,12 @@ function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee
         <input className={inputClass} value={v.name} onChange={(e) => set("name", e.target.value)} required autoFocus={!employee} maxLength={120} />
       </Field>
       <Field label="Designation">
-        <select className={inputClass} value={v.designationId ?? ""} onChange={(e) => set("designationId", e.target.value || null)}>
+        <select
+          className={inputClass}
+          value={v.designationId ?? ""}
+          // A gazetted post fills the Gazetted switch (user request 2026-10-30); it can still be changed.
+          onChange={(e) => setV((s) => ({ ...s, designationId: e.target.value || null, gazetted: !!staff.designations.find((d) => d.id === e.target.value)?.gazetted }))}
+        >
           <option value="">No designation</option>
           {staff.designations.map((d) => (
             <option key={d.id} value={d.id}>
@@ -863,12 +877,18 @@ function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee
             {date("joinedOfficeOn", "Joined this office on")}
             {date("nextIncrementOn", "Next increment date")}
             {date("retiresOn", "Date of retirement")}
-            {date("probationDeclaredOn", "Probation declared on")}
+            <Field label="Probation declared on">
+              {/* A date means declared (user request 2026-10-30). */}
+              <input type="date" className={inputClass} value={v.probationDeclaredOn ?? ""} onChange={(e) => setV((s) => ({ ...s, probationDeclaredOn: e.target.value || null, probationDeclared: e.target.value ? true : s.probationDeclared }))} />
+            </Field>
+            {/* Yes / no (user request 2026-10-30): a missing date doesn't mean it isn't declared. No clears the date. */}
+            <YesNo label="Probation declared" value={!!v.probationDeclared || !!v.probationDeclaredOn} onChange={(yes) => setV((s) => ({ ...s, probationDeclared: yes, probationDeclaredOn: yes ? s.probationDeclaredOn : null }))} />
             {text("payScale", "Pay scale", { maxLength: 100, placeholder: "e.g. 35600-75400" })}
             {/* Basic pay on its own (user request 2026-10-08): in the Employees table, asked for again at each increment. */}
             <Field label="Basic pay (₹)">
               <input type="number" inputMode="decimal" min={0} step="1" className={inputClass} value={v.basicPay ?? ""} onChange={(e) => set("basicPay", num(e.target.value, false))} placeholder="e.g. 41300" />
             </Field>
+            <YesNo label="Gazetted officer" value={!!v.gazetted} onChange={(yes) => set("gazetted", yes)} />
           </Section>
           <Field label="Home address">
             <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={v.address} onChange={(e) => set("address", e.target.value)} maxLength={500} />
@@ -948,6 +968,32 @@ function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee
         </Button>
       </div>
     </form>
+  );
+}
+
+// Its own buttons (type="button"), so choosing never submits the form.
+function YesNo({ label, value, onChange }: { label: string; value: boolean; onChange: (yes: boolean) => void }) {
+  return (
+    <div>
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      <div role="radiogroup" aria-label={label} className="inline-flex gap-1.5">
+        {([
+          [true, "Yes"],
+          [false, "No"],
+        ] as const).map(([yes, text]) => (
+          <button
+            key={text}
+            type="button"
+            role="radio"
+            aria-checked={value === yes}
+            onClick={() => onChange(yes)}
+            className="inline-flex h-10 min-w-14 items-center justify-center rounded-lg border border-line px-3 text-sm text-slate-600 enabled:hover:bg-slate-50 active:scale-[0.97] aria-checked:border-brand-200 aria-checked:bg-tint aria-checked:font-medium aria-checked:text-brand-800 pointer-coarse:h-9"
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

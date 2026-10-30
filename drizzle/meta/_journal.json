@@ -330,6 +330,13 @@
       "when": 1792736717689,
       "tag": "0046_call_log",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793352515265,
+      "tag": "0047_leave",
+      "breakpoints": true
     }
   ]
 }

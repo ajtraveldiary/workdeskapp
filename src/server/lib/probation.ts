@@ -5,7 +5,8 @@
 // (employees.probation_task_id), so a deleted task isn't made again; a declared date entered in the employee
 // form completes the open task. Only joinings in the last few years (PROBATION_LOOKBACK_YEARS after the 2), so
 // old staff whose declaration date was never entered don't each get one. Safe on every page load and the cron.
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+// Probation declared "yes" without a date (user request 2026-10-30, the employee's switch) counts as declared too.
+import { and, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import type { DB } from "../db";
 import { employees, events, tasks } from "../db/schema";
 import { CONTRACT_HOME_DAYS, PROBATION_LOOKBACK_YEARS, contractEnd, probationDue, probationTaskTitle, yearBefore } from "../../shared/staff";
@@ -22,7 +23,7 @@ export async function ensureProbationTasks(db: DB, today: string, userId?: strin
   const declared = await db
     .select({ userId: employees.userId, taskId: employees.probationTaskId })
     .from(employees)
-    .where(and(mine, isNotNull(employees.probationTaskId), isNotNull(employees.probationDeclaredOn)));
+    .where(and(mine, isNotNull(employees.probationTaskId), or(isNotNull(employees.probationDeclaredOn), eq(employees.probationDeclared, true))));
   if (declared.length) {
     const closed = await db
       .update(tasks)
@@ -37,7 +38,7 @@ export async function ensureProbationTasks(db: DB, today: string, userId?: strin
     await db
       .select({ id: employees.id, userId: employees.userId, name: employees.name, joined: employees.joinedServiceOn })
       .from(employees)
-      .where(and(mine, eq(employees.permanent, true), isNull(employees.leftOn), isNull(employees.probationDeclaredOn), isNull(employees.probationTaskId), isNotNull(employees.joinedServiceOn)))
+      .where(and(mine, eq(employees.permanent, true), isNull(employees.leftOn), isNull(employees.probationDeclaredOn), eq(employees.probationDeclared, false), isNull(employees.probationTaskId), isNotNull(employees.joinedServiceOn)))
   )
     .map((e) => ({ ...e, due: probationDue(e.joined!) }))
     .filter((e) => e.due <= windowEnd && e.due >= oldest);

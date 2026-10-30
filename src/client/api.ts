@@ -4,7 +4,8 @@ import { clearSavedData } from "./queryClient";
 import type { MoveKind, StepState } from "../shared/moves";
 import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, EmailState, Me, MutedSender, OfficeEvent,
   AssistantInfo, AssistantUnseen, CallLog, QueueInfo, QueueRunReport, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
-import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput } from "../shared/schemas";
+import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput, LeaveLineInput, LeaveTypeInput } from "../shared/schemas";
+import type { LeaveAccount, LeaveCreditPlan, LeaveType } from "../shared/types";
 
 export class ApiError extends Error {
   constructor(
@@ -265,6 +266,49 @@ export function useStaffActions() {
     saveEmployee: m(({ id, input }: { id: string; input: EmployeeInput }) => api(`/staff/employees/${id}`, { method: "PUT", body: input })),
     setLeft: m(({ id, left }: { id: string; left: boolean }) => api(`/staff/employees/${id}/left`, { method: "POST", body: { left } })),
     removeEmployee: m((id: string) => api(`/staff/employees/${id}`, { method: "DELETE" })),
+    // A gazetted post (user request 2026-10-30): its employees' switch follows. Shown at once.
+    setGazettedPost: useMutation({
+      mutationFn: ({ id, gazetted }: { id: string; gazetted: boolean }) => api(`/staff/designations/${id}/gazetted`, { method: "POST", body: { gazetted } }),
+      onMutate: async ({ id, gazetted }) => {
+        await qc.cancelQueries({ queryKey: ["staff"], exact: true });
+        qc.setQueryData<StaffList>(["staff"], (old) => (old ? { ...old, designations: old.designations.map((d) => (d.id === id ? { ...d, gazetted } : d)) } : old));
+      },
+      onSettled: refresh,
+    }),
+  };
+}
+
+// Leave (user request 2026-10-30, docs/LEAVE_PLAN.md): the leave types (Settings › Leave) and an employee's leave
+// account. Under "leave"; changes also refresh History.
+export const useLeaveTypes = () => useQuery({ queryKey: ["leave", "types"], queryFn: () => api<{ types: LeaveType[] }>("/leave/types") });
+export const useLeaveAccount = (employeeId: string) => useQuery({ queryKey: ["leave", "account", employeeId], queryFn: () => api<LeaveAccount>(`/leave/accounts/${employeeId}`) });
+export function useLeaveActions() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["leave", "history"].includes(q.queryKey[0] as string) || (q.queryKey[0] === "staff" && q.queryKey[1] === "profile") });
+  const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
+  return {
+    addType: m((input: LeaveTypeInput) => api<{ id: string }>("/leave/types", { method: "POST", body: input })),
+    addUsual: m(() => api<{ added: number }>("/leave/types/usual", { method: "POST" })),
+    saveType: m(({ id, input }: { id: string; input: LeaveTypeInput }) => api(`/leave/types/${id}`, { method: "PUT", body: input })),
+    removeType: m((id: string) => api(`/leave/types/${id}`, { method: "DELETE" })),
+    // Drag and drop: the new order shows at once.
+    orderTypes: useMutation({
+      mutationFn: (ids: string[]) => api("/leave/types/order", { method: "POST", body: { ids } }),
+      onMutate: async (ids: string[]) => {
+        await qc.cancelQueries({ queryKey: ["leave", "types"] });
+        qc.setQueryData<{ types: LeaveType[] }>(["leave", "types"], (old) => {
+          if (!old) return old;
+          const at = new Map(ids.map((id, k) => [id, k]));
+          return { types: [...old.types].sort((a, b) => (at.get(a.id) ?? Infinity) - (at.get(b.id) ?? Infinity)).map((t, k) => ({ ...t, sortOrder: k })) };
+        });
+      },
+      onSettled: refresh,
+    }),
+    // "Credit now": dryRun shows who gets it.
+    credit: m(({ id, ...body }: { id: string; creditFor: string; onDate: string; days: number; note: string; dryRun: boolean }) =>
+      api<LeaveCreditPlan & { credited?: number; skipped?: number; lapsed?: number }>(`/leave/types/${id}/credit`, { method: "POST", body }),
+    ),
+    addLine: m(({ employeeId, input }: { employeeId: string; input: LeaveLineInput }) => api(`/leave/accounts/${employeeId}/lines`, { method: "POST", body: input })),
   };
 }
 // Joining and relieving (user request 2026-10-15). Under "staff", so employee and task changes refresh it.

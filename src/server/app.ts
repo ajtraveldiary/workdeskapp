@@ -30,6 +30,7 @@ import { tagRoutes } from "./routes/tags";
 import { officeEventRoutes } from "./routes/officeEvents";
 import { eventTypeRoutes } from "./routes/eventTypes";
 import { moveRoutes } from "./routes/moves";
+import { leaveRoutes } from "./routes/leave";
 import { entryRoutes, registerRoutes } from "./routes/registers";
 import { linkedEmailRoutes } from "./routes/linkedEmails";
 import { transferRoutes } from "./routes/transfer";
@@ -283,6 +284,7 @@ export function createApp(opts: Options) {
   app.route("/office-events", officeEventRoutes);
   app.route("/event-types", eventTypeRoutes);
   app.route("/moves", moveRoutes);
+  app.route("/leave", leaveRoutes);
   app.route("/registers", registerRoutes);
   app.route("/register-entries", entryRoutes);
   app.route("/linked-emails", linkedEmailRoutes);

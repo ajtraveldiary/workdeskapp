@@ -7,7 +7,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { BadgeCheck, CalendarClock, ChevronLeft, FileClock, Hourglass, KeyRound, ListChecks, Mail, MessageCircle, Pencil, Phone, Plus, Trash2, TrendingUp, UserMinus, UserPlus, Wallet, CalendarRange } from "lucide-react";
 import type { AuditEvent, Employee, StaffList, Task } from "../../shared/types";
-import { ENGAGEMENT_LABELS, PROBATION_LOOKBACK_YEARS, incrementDue, probationDue, type Engagement } from "../../shared/staff";
+import { ENGAGEMENT_LABELS, incrementDue, probationDue, type Engagement } from "../../shared/staff";
 import { useEmployeeProfile, useLogins, useMe, useOfficeEvents, useStaff, useStaffActions, useMoves } from "../api";
 import { eventOccurrences, eventTypeLabel, shiftDay } from "../../shared/eventSchedule";
 import { openEventDetails } from "../components/EventDetails";
@@ -23,7 +23,8 @@ import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { TaskRow } from "../components/TaskRow";
 import { Badge, Button, Card, ErrorNote, Segmented, SkeletonList, cx } from "../components/ui";
-import { EmployeeDialog, TemporaryTag, YouTag } from "./Staff";
+import { EmployeeDialog, GazettedTag, TemporaryTag, YouTag } from "./Staff";
+import { LeaveCard } from "../components/LeaveAccount";
 import { MoveDialog } from "../components/StaffMoves";
 import type { MoveKind } from "../../shared/moves";
 
@@ -108,10 +109,11 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
             {designation ?? "No designation"}
             {e.permanent && e.pen && <span className="select-text"> · PEN {e.pen}</span>}
           </p>
-          {(!e.permanent || e.leftOn || isMe) && (
+          {(!e.permanent || e.leftOn || isMe || e.gazetted) && (
             <div className="mt-1 flex flex-wrap gap-1.5">
               <YouTag id={e.id} />
               {!e.permanent && <TemporaryTag />}
+              {e.permanent && e.gazetted && <GazettedTag />}
               {e.leftOn && <Badge>Left the office on {fullDate(e.leftOn)}</Badge>}
             </div>
           )}
@@ -165,6 +167,8 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <div className="space-y-4">
           <AtAGlance e={e} today={today} tasks={[...(profile.data?.open ?? []), ...(profile.data?.done ?? [])]} />
+          {/* Leave account (user request 2026-10-30): permanent staff only. */}
+          {e.permanent && <LeaveCard employee={e} today={today} />}
           <AllDetails e={e} staff={staff} today={today} />
         </div>
         <div className="space-y-4">
@@ -230,11 +234,13 @@ function AtAGlance({ e, today, tasks }: { e: Employee; today: string; tasks: Tas
     items.push({
       icon: BadgeCheck,
       label: "Probation",
+      // The Probation declared switch decides (user request 2026-10-30): yes without a date is declared.
       value: e.probationDeclaredOn ? (
         `Declared on ${fullDate(e.probationDeclaredOn)}`
-      ) : e.joinedServiceOn && probationDue(e.joinedServiceOn) < `${Number(today.slice(0, 4)) - PROBATION_LOOKBACK_YEARS}${today.slice(4)}` ? (
-        // Long-serving staff: the declared date just wasn't entered (no task is made for them either).
-        <Muted>Declared date not entered</Muted>
+      ) : e.probationDeclared ? (
+        <>
+          Declared <Muted>(date not entered)</Muted>
+        </>
       ) : e.joinedServiceOn ? (
         <span className={cx(probationDue(e.joinedServiceOn) < today && "font-medium text-high-ink")}>
           Not declared · 2 years {probationDue(e.joinedServiceOn) < today ? "completed" : "complete"} {fullDate(probationDue(e.joinedServiceOn))}
@@ -242,7 +248,7 @@ function AtAGlance({ e, today, tasks }: { e: Employee; today: string; tasks: Tas
       ) : (
         <Muted>Not declared</Muted>
       ),
-      action: !e.probationDeclaredOn && taskChip(probation, "Done"),
+      action: !e.probationDeclaredOn && !e.probationDeclared && taskChip(probation, "Done"),
     });
     const pension = kind("pension");
     items.push({
@@ -320,7 +326,8 @@ function AllDetails({ e, staff, today }: { e: Employee; staff: StaffList; today:
             ["Joined service", e.joinedServiceOn && `${fullDate(e.joinedServiceOn)} (${plural(Math.max(0, yearsBetween(e.joinedServiceOn, today)), "year")} of service)`],
             ["Joined this office", e.joinedOfficeOn && fullDate(e.joinedOfficeOn)],
             ["Next increment", e.nextIncrementOn && fullDate(e.nextIncrementOn)],
-            ["Probation declared", e.probationDeclaredOn && fullDate(e.probationDeclaredOn)],
+            ["Probation declared", e.probationDeclaredOn ? fullDate(e.probationDeclaredOn) : e.probationDeclared ? "Yes (date not entered)" : "No"],
+            ["Gazetted officer", e.gazetted ? "Yes" : "No"],
             ["Retirement", e.retiresOn && fullDate(e.retiresOn)],
           ],
         ],

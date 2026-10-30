@@ -51,6 +51,9 @@ export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
     { key: "nextIncrementOn", header: "Next increment date", sample: ["2027-06-01", ""] },
     { key: "retiresOn", header: "Date of retirement", sample: ["2036-05-31", ""] },
     { key: "probationDeclaredOn", header: "Probation declared on", sample: ["2010-06-02", ""] },
+    // Yes / No (user request 2026-10-30): probation declared even when its date isn't known, and gazetted officer.
+    { key: "probationDeclared", header: "Probation declared", sample: ["Yes", ""] },
+    { key: "gazetted", header: "Gazetted", sample: ["No", ""] },
     // Basic pay got its own column (user request 2026-10-08); files with the old "Pay scale / basic pay" header still import.
     { key: "payScale", header: "Pay scale", aliases: ["Pay scale / basic pay"], sample: ["35600-75400", ""] },
     { key: "basicPay", header: "Basic pay", sample: ["41300", ""] },

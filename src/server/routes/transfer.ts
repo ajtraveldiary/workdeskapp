@@ -128,6 +128,8 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
         designation: dn.get(e.designationId ?? "") ?? "",
         type: tn.get(e.typeId ?? "") ?? "",
         engagement: ENGAGEMENT_LABELS[e.engagement as Engagement] ?? "",
+        probationDeclared: e.permanent ? (e.probationDeclared ? "Yes" : "No") : "",
+        gazetted: e.permanent ? (e.gazetted ? "Yes" : "No") : "",
       }),
     );
   }
@@ -309,6 +311,7 @@ async function planEmployees(db: DB, userId: string, rows: Row[], result: Import
     db.select().from(employeeTypes).where(eq(employeeTypes.userId, userId)),
   ]);
   const desig = new Map(d.map((x) => [lower(x.name), x.id]));
+  const gazettedPost = new Set(d.filter((x) => x.gazetted).map((x) => x.id));
   const types = new Map(t.map((x) => [lower(x.name), x.id]));
   // New designations / types named in the file: made when the import runs (key "new:<name>").
   const newDesig = new Map<string, string>();
@@ -338,6 +341,13 @@ async function planEmployees(db: DB, userId: string, rows: Row[], result: Import
         if (k !== "temporary" && !c.get("engagement")) v.engagement = k === "contract" ? "contract" : "daily_wage";
       } else errors.push(`Employment: "${c.get("employment")}" should be Permanent or Temporary`);
     }
+    // Yes / No switches (user request 2026-10-30); empty leaves them as they are.
+    for (const [key, header] of [["probationDeclared", "Probation declared"], ["gazetted", "Gazetted"]] as const) {
+      if (!c.get(key)) continue;
+      const yes = parseYesNo(c.get(key)!);
+      if (yes == null) errors.push(`${header}: "${c.get(key)}" should be Yes or No`);
+      else v[key] = yes;
+    }
     if (c.has("category")) {
       const cat = EMPLOYEE_CATEGORIES.find((x) => lower(x) === lower(c.get("category")!));
       if (c.get("category") && !cat) errors.push(`Category: "${c.get("category")}" should be one of ${EMPLOYEE_CATEGORIES.join(", ")}`);
@@ -358,7 +368,11 @@ async function planEmployees(db: DB, userId: string, rows: Row[], result: Import
     if (c.has("designation")) {
       const n = c.get("designation")!.trim();
       if (!n) v.designationId = null;
-      else if (desig.has(lower(n))) v.designationId = desig.get(lower(n));
+      else if (desig.has(lower(n))) {
+        v.designationId = desig.get(lower(n));
+        // A new employee of a gazetted post is gazetted unless the file says otherwise.
+        if (v.gazetted === undefined) v.gazetted = gazettedPost.has(v.designationId as string);
+      }
       else {
         if (!newDesig.has(lower(n))) newDesig.set(lower(n), n);
         v.designationId = `new:${lower(n)}`;

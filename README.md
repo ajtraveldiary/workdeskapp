@@ -98,6 +98,11 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Increments:** due increments appear on Home; marking one done asks for the new pay and moves the date a year on.
 - **Contracts ending:** a week before a temporary contract ends, a task asks whether to renew or end it.
 - **Probation:** when an employee nears the end of probation, a task to declare it or change the date.
+- **Leave account:** each permanent employee's page keeps their leave account: the balance of earned leave, half pay
+  leave and the other leaves you keep, with every entry (opening balance from the service book, credits,
+  adjustments). Settings › Leave lists the leave types with their rules (the usual Kerala Service Rules leaves in one
+  tap), credits a year's leave to everyone at once (for example 20 days of HPL), and marks the gazetted posts.
+  Employees have Gazetted officer and Probation declared Yes / No in their details.
 - **Retirement:** a list of everyone retiring within 12 months, and a retirement/pension paperwork task with a
   checklist.
 - **Joining and relieving:** Join or Relieve someone (on their page or the Employees page) and WorkDesk makes a task
@@ -156,6 +161,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Mail:** hidden senders, hidden text (signatures, disclaimers), task/done labels, sections, Gmail labels.
 - **Employees:** which employee you are (your row and page get a "You" tag), designations and types of temporary
   employees.
+- **Leave:** leave types and their rules, Credit now, gazetted posts.
 - **Events:** the types of events (Meeting, Training, Programme…).
 - **Registers:** the registers you keep (add, rename, arrange, remove).
 - **Tags:** rename, recolour, delete and arrange tags.

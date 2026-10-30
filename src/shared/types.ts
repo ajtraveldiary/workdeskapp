@@ -1,3 +1,4 @@
+import type { LedgerKind } from "./leave";
 // Shapes exchanged between the API and the dashboard.
 import type { Repeat } from "./reminderSchedule";
 import type { RelatedKind } from "./staff";
@@ -213,7 +214,8 @@ export type EmailMessageContent = {
 export type EmailContent = { threadId: string; version: number; messages: EmailMessageContent[] };
 
 // Staff page (user request 2026-10-07).
-export type Designation = { id: string; name: string; sortOrder: number };
+// gazetted: a gazetted post (user request 2026-10-30), filling its employees' Gazetted switch.
+export type Designation = { id: string; name: string; sortOrder: number; gazetted: boolean };
 export type Employee = {
   id: string;
   name: string;
@@ -239,6 +241,9 @@ export type Employee = {
   // Basic pay in ₹ (permanent staff; user request 2026-10-08).
   basicPay: number | null;
   probationDeclaredOn: string | null;
+  // Probation declared yes / no and gazetted officer (user request 2026-10-30; permanent staff).
+  probationDeclared: boolean;
+  gazetted: boolean;
   address: string;
   notes: string;
   // Left the office on (null = still here). Hidden from the pickers, kept for old tasks.
@@ -247,6 +252,29 @@ export type Employee = {
 // A type of temporary employee (HMC, NHM…), user request 2026-10-07.
 export type EmployeeType = { id: string; name: string; sortOrder: number };
 export type StaffList = { designations: Designation[]; types: EmployeeType[]; employees: Employee[] };
+
+// Leave (user request 2026-10-30, docs/LEAVE_PLAN.md). lines: how many account lines use it (it can't be removed then).
+export type LeaveType = {
+  id: string;
+  name: string;
+  short: string;
+  sortOrder: number;
+  hasAccount: boolean;
+  drawsOnId: string | null;
+  perDay: number;
+  mayGoNegative: boolean;
+  maxBalance: number | null;
+  serviceLimit: number | null;
+  medical: boolean;
+  yearlyDays: number | null;
+  fromDuty: boolean;
+  lines: number;
+};
+export type LeaveLine = { id: string; typeId: string; onDate: string; days: number; kind: LedgerKind; creditFor: string | null; note: string; createdAt: string };
+// One employee's account: each type with its own balance, and every line, newest first.
+export type LeaveAccount = { balances: { typeId: string; balance: number }[]; lines: LeaveLine[] };
+// "Credit now" (Settings › Leave): who gets the credit, and who already had that year's.
+export type LeaveCreditPlan = { creditFor: string; days: number; employees: { id: string; name: string; already: boolean }[] };
 
 // An employee's increment shown in Home's Due Today (user request 2026-10-07).
 export type IncrementDue = { employeeId: string; name: string; designation: string | null; due: string; basicPay: number | null };
