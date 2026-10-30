@@ -13,6 +13,7 @@ import {
   ExternalLink,
   ListChecks,
   Landmark,
+  CalendarOff,
   ListPlus,
   Mail,
   Pencil,
@@ -355,6 +356,7 @@ function CommandCenter({
               (t) => <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />,
               (moves, row) => <MoveGroup key="moves" tasks={moves} state="Pending" row={row} lead="tick" textClassName="sm:text-sm" />,
               (pensions, row) => <PensionGroup key="pension" tasks={pensions} state="Pending" row={row} lead="tick" textClassName="sm:text-sm" />,
+              (leaves, row) => <LeaveGroup key="leave" tasks={leaves} state="Pending" row={row} lead="tick" textClassName="sm:text-sm" />,
             )}
           </ul>
         )}
@@ -482,17 +484,41 @@ function PensionGroup(props: GroupProps) {
   );
 }
 
-// The list's rows with its Pension papers tasks on one line where the first of them comes, and its joining /
-// relieving tasks on another (withMoveGroup).
+// Leave tasks (user request 2026-10-31), the paperwork of each leave marked and of each surrender of earned leave,
+// fold the same way on a line of their own: "3 employees' leave, 1 leave surrender: Pending" ("3 leaves,
+// 1 surrender" where the row is narrow).
+const isLeaveTask = (t: Task) => t.systemKind === "leave";
+const isSurrender = (t: Task) => t.title.startsWith("Leave surrender:");
+
+function LeaveGroup(props: GroupProps) {
+  const surrenders = props.tasks.filter(isSurrender).length;
+  const leaves = props.tasks.length - surrenders;
+  return (
+    <FoldGroup {...props} icon={CalendarOff} what={`leave tasks: ${[leaves > 0 && `${leaves} leave`, surrenders > 0 && `${surrenders} surrender`].filter(Boolean).join(", ")}`}>
+      <span className="@[24rem]:hidden">
+        {[leaves > 0 && `${leaves} ${leaves === 1 ? "leave" : "leaves"}`, surrenders > 0 && `${surrenders} ${surrenders === 1 ? "surrender" : "surrenders"}`].filter(Boolean).join(", ")}
+      </span>
+      <span className="hidden @[24rem]:inline">
+        {[leaves > 0 && `${leaves} ${leaves === 1 ? "employee's" : "employees'"} leave`, surrenders > 0 && `${surrenders} leave ${surrenders === 1 ? "surrender" : "surrenders"}`].filter(Boolean).join(", ")}
+      </span>
+    </FoldGroup>
+  );
+}
+
+// The list's rows with its Pension papers tasks on one line where the first of them comes, its leave tasks on
+// another, and its joining / relieving tasks on another (withMoveGroup).
 function withFoldGroups(
   tasks: Task[],
   row: (t: Task) => ReactNode,
   moveGroup: (moves: Task[], row: (t: Task) => ReactNode) => ReactNode,
   pensionGroup: (pensions: Task[], row: (t: Task) => ReactNode) => ReactNode,
+  leaveGroup: (leaves: Task[], row: (t: Task) => ReactNode) => ReactNode,
 ): ReactNode[] {
   const pensions = tasks.filter(isPensionTask);
-  const rowOrPensions = (t: Task) => (!isPensionTask(t) ? row(t) : t === pensions[0] ? pensionGroup(pensions, row) : null);
-  return withMoveGroup(tasks, rowOrPensions, moveGroup);
+  const leaves = tasks.filter(isLeaveTask);
+  const folded = (t: Task) =>
+    isPensionTask(t) ? (t === pensions[0] ? pensionGroup(pensions, row) : null) : isLeaveTask(t) ? (t === leaves[0] ? leaveGroup(leaves, row) : null) : row(t);
+  return withMoveGroup(tasks, folded, moveGroup);
 }
 
 function FoldGroup({
@@ -888,6 +914,7 @@ function TodoPanel({
               row,
               (moves, r) => <MoveGroup key="moves" tasks={moves} state={todoState} row={r} lead="tile" />,
               (pensions, r) => <PensionGroup key="pension" tasks={pensions} state={todoState} row={r} lead="tile" />,
+              (leaves, r) => <LeaveGroup key="leave" tasks={leaves} state={todoState} row={r} lead="tile" />,
             )}
           </ul>
         )}

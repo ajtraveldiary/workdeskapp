@@ -249,7 +249,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 
 | File | Screen |
 |---|---|
-| `Home.tsx` | Home: four stat cards, Due Today (Today / Overdue / Upcoming, with today's events and increments), To-do card (calendar tiles, selection bar), Pending Emails card. Joining / relieving tasks, and Pension papers tasks, each shown together as one line on both task cards, tap to show them (`withFoldGroups`, `MoveGroup`, `PensionGroup`, `FoldGroup`). |
+| `Home.tsx` | Home: four stat cards, Due Today (Today / Overdue / Upcoming, with today's events and increments), To-do card (calendar tiles, selection bar), Pending Emails card. Joining / relieving tasks, and Pension papers tasks, each shown together as one line on both task cards, tap to show them (`withFoldGroups`, `MoveGroup`, `PensionGroup`, `FoldGroup`); leave tasks (leave paperwork and surrenders) fold into one line too (`LeaveGroup`). |
 | `Inbox.tsx` | Emails: Pending / Other sections / Removed / All tabs, search, label and unread filters, toolbar; on wide screens an opened email shows in a pane beside the list (split mode). |
 | `Tasks.tsx` | Tasks: views (Today, Upcoming, No date, Waiting, Completed…), in priority order. |
 | `Reminders.tsx` | Reminders: Due next and All reminders; tap opens Reminder details. |
