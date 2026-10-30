@@ -1,9 +1,10 @@
 # Leave of employees — plan
 
-Status: **Phases 1 and 2 built** (2026-10-30): gazetted and probation declared switches, gazetted posts, leave types,
+Status: **Phases 1 to 3 built** (2026-10-30): gazetted and probation declared switches, gazetted posts, leave types,
 leave accounts with opening balances, credits and adjustments by hand, Credit now; marking leave with its account line
-and its task (gazetted / non-gazetted steps), editing, rejoining early, cancelling, the On leave card. Phases 3–4 not
-built yet. Not done in phase 2: the joining report step asking for the rejoining date (record it in the leave instead),
+and its task (gazetted / non-gazetted steps), editing, rejoining early, cancelling, the On leave card; automatic yearly
+credits (switched on per leave type in Settings › Leave), the Leave balances CSV, the leave tables in the backup.
+Phase 4 not built yet; the "Leave" CSV export of every leave was left out. Not done in phase 2: the joining report step asking for the rejoining date (record it in the leave instead),
 extensions from the form (the API takes `extensionOfId`), and a step-state table like Joining & relieving (steps are
 ticked in the task). Written 2026-10-30.
 

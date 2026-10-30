@@ -6,6 +6,7 @@ import { ensurePensionTasks } from "./pension";
 import { ensureContractTasks } from "./contracts";
 import { ensureProbationTasks } from "./probation";
 import { ensureEventTasks } from "./officeEvents";
+import { ensureLeaveCredits } from "./leave";
 import { cleanAssistantData } from "../mcp/oauth";
 
 // Housekeeping that read endpoints used to run on every request (waking snoozed emails, creating report
@@ -30,6 +31,8 @@ export async function maintain(db: DB, userId: string, today: string, force = fa
   await ensureProbationTasks(db, today, userId);
   // "Prepare" tasks for events in the next 30 days (user request 2026-10-11).
   await ensureEventTasks(db, today, userId);
+  // Yearly leave credits on service anniversaries, for leave types switched to automatic (user request 2026-10-30).
+  await ensureLeaveCredits(db, today, userId);
   // Expired assistant sign-ins and assistant log rows older than a year (MCP, 2026-10-18).
   await cleanAssistantData(db);
 }

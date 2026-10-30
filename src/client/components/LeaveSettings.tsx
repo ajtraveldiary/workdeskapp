@@ -19,6 +19,7 @@ function ruleText(t: LeaveType, types: LeaveType[]) {
     parts.push("Own balance");
     if (t.fromDuty) parts.push("1/11 of the days on duty each year");
     else if (t.yearlyDays) parts.push(`${daysWord(t.yearlyDays)} a year`);
+    if (t.creditsFrom) parts.push("credited automatically");
     if (t.maxBalance != null) parts.push(`up to ${daysWord(t.maxBalance)}`);
   } else if (t.drawsOnId) {
     const from = types.find((x) => x.id === t.drawsOnId);
@@ -131,8 +132,8 @@ function TypeForm({ type, types, onDone }: { type: LeaveType | null; types: Leav
   const save = type ? saveType : addType;
   const [v, setV] = useState<LeaveTypeInput>(() =>
     type
-      ? { name: type.name, short: type.short, hasAccount: type.hasAccount, drawsOnId: type.drawsOnId, perDay: type.perDay, mayGoNegative: type.mayGoNegative, maxBalance: type.maxBalance, serviceLimit: type.serviceLimit, medical: type.medical, yearlyDays: type.yearlyDays, fromDuty: type.fromDuty }
-      : { name: "", short: "", hasAccount: true, drawsOnId: null, perDay: 1, mayGoNegative: false, maxBalance: null, serviceLimit: null, medical: false, yearlyDays: null, fromDuty: false },
+      ? { name: type.name, short: type.short, hasAccount: type.hasAccount, drawsOnId: type.drawsOnId, perDay: type.perDay, mayGoNegative: type.mayGoNegative, maxBalance: type.maxBalance, serviceLimit: type.serviceLimit, medical: type.medical, yearlyDays: type.yearlyDays, fromDuty: type.fromDuty, autoCredit: !!type.creditsFrom }
+      : { name: "", short: "", hasAccount: true, drawsOnId: null, perDay: 1, mayGoNegative: false, maxBalance: null, serviceLimit: null, medical: false, yearlyDays: null, fromDuty: false, autoCredit: false },
   );
   const set = <K extends keyof LeaveTypeInput>(k: K, value: LeaveTypeInput[K]) => setV((s) => ({ ...s, [k]: value }));
   const sources = types.filter((t) => t.hasAccount && t.id !== type?.id);
@@ -183,11 +184,21 @@ function TypeForm({ type, types, onDone }: { type: LeaveType | null; types: Leav
           )}
           <p className="-mt-2 text-footnote text-slate-500">
             {credit === "duty"
-              ? "Earned leave: on each service anniversary, 1/11 of the days on duty, for employees whose probation is declared (automatic credits come in a later update; until then use Credit now or Add on the employee's page)."
+              ? "Earned leave: on each service anniversary, 1/11 of the days on duty in the year just ended (less leave marked here), for employees whose probation is declared."
               : credit === "fixed"
-                ? "On each service anniversary, for each completed year of service (automatic credits come in a later update; until then use Credit now)."
-                : "Credited by hand only."}
+                ? "On each service anniversary, for each completed year of service."
+                : "Credited by hand only (Credit now, or Entry on the employee's page)."}
           </p>
+          {credit !== "none" && (
+            <>
+              <Check2 label="Credit it automatically on each service anniversary" checked={!!v.autoCredit} onChange={(c) => set("autoCredit", c)} />
+              <p className="-mt-3 px-1.5 text-footnote text-slate-500">
+                {type?.creditsFrom && v.autoCredit
+                  ? `Automatic since ${type.creditsFrom.split("-").reverse().join("/")}.`
+                  : "From today on; earlier years are never added. Anniversaries on or before an employee's opening balance date are left out, and a year already credited (by hand or Credit now) isn't credited again."}
+              </p>
+            </>
+          )}
           <div className="grid gap-3 min-[400px]:grid-cols-2">
             {credit === "fixed" && (
               <Field label="Days a year">

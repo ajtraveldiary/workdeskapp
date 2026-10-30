@@ -3,7 +3,7 @@
 // headers in any order and case, and the app also reads .xlsx files. Dates go out as YYYY-MM-DD and come back
 // as YYYY-MM-DD or day-first (31/03/2027, 31-03-2027, 31.03.2027), as Excel in India saves them.
 
-export const CSV_KINDS = ["files", "employees", "tasks", "reminders", "events"] as const;
+export const CSV_KINDS = ["files", "employees", "tasks", "reminders", "events", "leave"] as const;
 export type CsvKind = (typeof CSV_KINDS)[number];
 
 export type CsvColumn = {
@@ -18,7 +18,7 @@ export type CsvColumn = {
   required?: boolean;
 };
 
-export const CSV_TITLES: Record<CsvKind, string> = { files: "File register", employees: "Employees", tasks: "Tasks", reminders: "Reminders", events: "Events" };
+export const CSV_TITLES: Record<CsvKind, string> = { files: "File register", employees: "Employees", tasks: "Tasks", reminders: "Reminders", events: "Events", leave: "Leave balances" };
 
 // What a row is matched on (a match is updated, anything else is added; user's choice 2026-10-07).
 export const CSV_MATCH: Record<CsvKind, string> = {
@@ -27,6 +27,7 @@ export const CSV_MATCH: Record<CsvKind, string> = {
   tasks: "the same ID (from an export), or the same title of an open task",
   reminders: "the same ID (from an export), or the same name",
   events: "the same ID (from an export), or the same title on the same date",
+  leave: "the employee (PEN, or name) and the leave: an opening balance when they have none of that leave yet, otherwise an adjustment to the balance given",
 };
 
 export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
@@ -120,6 +121,15 @@ export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
     { key: "links", header: "Links", sample: ["", ""] },
     { key: "prepDays", header: "Prepare task (days before)", sample: ["2", ""] },
     { key: "nextOn", header: "Next on", exportOnly: true, sample: ["", ""] },
+  ],
+  // Leave balances (user request 2026-10-30, leave phase 3): one row per permanent employee and leave that keeps a
+  // balance. Import: a first balance becomes the opening balance; a later one is reached with an adjustment.
+  leave: [
+    { key: "pen", header: "PEN", sample: ["765432", ""] },
+    { key: "name", header: "Name", required: true, sample: ["Lakshmi K S", "Lakshmi K S"] },
+    { key: "leave", header: "Leave", required: true, sample: ["EL", "HPL"] },
+    { key: "balance", header: "Balance", required: true, sample: ["124.5", "46"] },
+    { key: "asOn", header: "As on", required: true, sample: ["2026-10-01", "2026-10-01"] },
   ],
 };
 
@@ -245,6 +255,9 @@ export const BACKUP_TABLES = [
   "hiddenSnippets",
   "mutedSenders",
   "officeProfiles",
+  "leaveTypes",
+  "employeeLeaves",
+  "leaveLedger",
 ] as const;
 export type BackupTable = (typeof BACKUP_TABLES)[number];
 export const BACKUP_TABLE_NAMES: Record<BackupTable, string> = {
@@ -266,5 +279,8 @@ export const BACKUP_TABLE_NAMES: Record<BackupTable, string> = {
   hiddenSnippets: "Hidden text",
   mutedSenders: "Hidden senders",
   officeProfiles: "Office details",
+  leaveTypes: "Leave types",
+  employeeLeaves: "Leaves",
+  leaveLedger: "Leave accounts",
 };
 export type Backup = { app: "WorkDesk"; version: 1; exportedAt: string; tables: Partial<Record<BackupTable, Record<string, unknown>[]>> };

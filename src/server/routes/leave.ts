@@ -16,7 +16,7 @@ import { dayLabel } from "../../shared/reminderSchedule";
 import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeaveType, Task } from "../../shared/types";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
-import { settleLeaveTask } from "../lib/leave";
+import { ensureLeaveCredits, lapseAbove, settleLeaveTask } from "../lib/leave";
 import { saveOrder } from "./staff";
 import { selectTasks, toTask } from "./tasks";
 
@@ -36,8 +36,9 @@ async function loadEmployee(db: DB, userId: string, id: string) {
 }
 
 // A type keeps its own balance, or takes from another type's (which must keep one), or has none.
-async function checkedType(db: DB, userId: string, raw: unknown, self?: typeof leaveTypes.$inferSelect) {
-  const v = leaveTypeInput.parse(raw);
+// autoCredit (phase 3): automatic yearly credits from today on (kept when already on), or by hand only.
+async function checkedType(db: DB, userId: string, raw: unknown, today: string, self?: typeof leaveTypes.$inferSelect) {
+  const { autoCredit, ...v } = leaveTypeInput.parse(raw);
   const same = await db.select({ id: leaveTypes.id }).from(leaveTypes).where(and(eq(leaveTypes.userId, userId), sql`lower(${leaveTypes.name}) = ${lower(v.name)}`));
   if (same.some((x) => x.id !== self?.id)) throw new HTTPException(409, { message: `There is already a leave type called ${v.name}` });
   if (v.drawsOnId) {
@@ -46,6 +47,7 @@ async function checkedType(db: DB, userId: string, raw: unknown, self?: typeof l
     if (!other.hasAccount) throw new HTTPException(400, { message: `${other.name} keeps no balance of its own to take from` });
   }
   const hasAccount = v.drawsOnId ? false : v.hasAccount;
+  const creditsFrom = autoCredit && hasAccount && (v.fromDuty || v.yearlyDays != null) ? (self?.creditsFrom ?? today) : null;
   if (self && self.hasAccount && !hasAccount) {
     const [n] = await db.select({ n: count() }).from(leaveLedger).where(eq(leaveLedger.typeId, self.id));
     if (Number(n?.n ?? 0) > 0) throw new HTTPException(409, { message: `${self.name} has lines in leave accounts, so it keeps its own balance` });
@@ -55,8 +57,8 @@ async function checkedType(db: DB, userId: string, raw: unknown, self?: typeof l
     if (Number(d?.n ?? 0) > 0) throw new HTTPException(409, { message: `Other leave types take from ${self.name}, so it keeps its own balance` });
   }
   return hasAccount
-    ? { ...v, hasAccount, drawsOnId: null, perDay: 1, mayGoNegative: v.mayGoNegative }
-    : { ...v, hasAccount, maxBalance: null, yearlyDays: null, fromDuty: false, mayGoNegative: v.drawsOnId ? v.mayGoNegative : false, perDay: v.drawsOnId ? v.perDay : 1 };
+    ? { ...v, hasAccount, drawsOnId: null, perDay: 1, mayGoNegative: v.mayGoNegative, creditsFrom }
+    : { ...v, hasAccount, maxBalance: null, yearlyDays: null, fromDuty: false, mayGoNegative: v.drawsOnId ? v.mayGoNegative : false, perDay: v.drawsOnId ? v.perDay : 1, creditsFrom: null };
 }
 
 async function listTypes(db: DB, userId: string): Promise<LeaveType[]> {
@@ -73,36 +75,13 @@ async function listTypes(db: DB, userId: string): Promise<LeaveType[]> {
   });
 }
 
-// Each employee's balance of one type, for the employees given.
-async function balancesOf(db: DB, typeId: string, employeeIds: string[]) {
-  if (!employeeIds.length) return new Map<string, number>();
-  const rows = await db
-    .select({ employeeId: leaveLedger.employeeId, total: sql<string>`sum(${leaveLedger.days})` })
-    .from(leaveLedger)
-    .where(and(eq(leaveLedger.typeId, typeId), inArray(leaveLedger.employeeId, employeeIds)))
-    .groupBy(leaveLedger.employeeId);
-  return new Map(rows.map((r) => [r.employeeId, Number(r.total)]));
-}
-
-// A credit that takes a balance above the type's maximum: the extra lapses, as its own line.
-async function lapseAbove(db: DB, userId: string, type: typeof leaveTypes.$inferSelect, employeeIds: string[], onDate: string) {
-  if (type.maxBalance == null || !employeeIds.length) return 0;
-  const bal = await balancesOf(db, type.id, employeeIds);
-  const over = employeeIds.map((id) => ({ id, extra: (bal.get(id) ?? 0) - type.maxBalance! })).filter((x) => x.extra > 0);
-  if (over.length)
-    await db.insert(leaveLedger).values(
-      over.map((x) => ({ userId, employeeId: x.id, typeId: type.id, onDate, days: -x.extra, kind: "lapse" as const, note: `Above the most that can be kept (${daysWord(type.maxBalance!)})` })),
-    );
-  return over.length;
-}
-
 export const leaveRoutes = new Hono<AppEnv>()
   // --- Leave types (Settings › Leave) ---
   .get("/types", async (c) => c.json({ types: await listTypes(c.get("db"), c.get("userId")) }))
   .post("/types", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const v = await checkedType(db, userId, await c.req.json());
+    const v = await checkedType(db, userId, await c.req.json(), todayIn(timezone(c.env)));
     const [m] = await db.select({ m: max(leaveTypes.sortOrder) }).from(leaveTypes).where(eq(leaveTypes.userId, userId));
     const [t] = await db.insert(leaveTypes).values({ ...v, userId, sortOrder: (m?.m ?? 0) + 1 }).returning({ id: leaveTypes.id });
     await log(db, userId, "staff.leave_type_added", `Leave type added: ${v.name}`);
@@ -151,9 +130,14 @@ export const leaveRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const t = await loadType(db, userId, c.req.param("id"));
-    const v = await checkedType(db, userId, await c.req.json(), t);
+    const v = await checkedType(db, userId, await c.req.json(), todayIn(timezone(c.env)), t);
     await db.update(leaveTypes).set(v).where(eq(leaveTypes.id, t.id));
     await log(db, userId, "staff.leave_type_changed", t.name === v.name ? `Leave type changed: ${v.name}` : `Leave type changed: ${t.name} → ${v.name}`);
+    if (!t.creditsFrom && v.creditsFrom) {
+      await log(db, userId, "staff.leave_auto_on", `${v.name}: credited automatically on each service anniversary from ${dayLabel(v.creditsFrom)}`);
+      // An anniversary today is credited straight away.
+      await ensureLeaveCredits(db, todayIn(timezone(c.env)), userId);
+    } else if (t.creditsFrom && !v.creditsFrom) await log(db, userId, "staff.leave_auto_off", `${v.name}: automatic credits switched off`);
     return c.json({ ok: true });
   })
   .post("/types/order", async (c) => {

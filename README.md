@@ -109,6 +109,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   AG payslip) and others (application, check leave account, office proceedings, SPARK, attendance, SB update, joining
   report), due the day they are back. Record the rejoining date (an early return gives the days back), change or
   cancel a leave; the On leave card shows who is on leave, due back or starting soon.
+- **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
+  service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
+  whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).
 - **Retirement:** a list of everyone retiring within 12 months, and a retirement/pension paperwork task with a
   checklist.
 - **Joining and relieving:** Join or Relieve someone (on their page or the Employees page) and WorkDesk makes a task
@@ -159,7 +162,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 ### Import and Export (in Settings)
 - **Full backup** of everything WorkDesk keeps, and a restore that only adds what is missing.
 - **Spreadsheet (CSV) import and export**, with sample files, for the file register, employees, tasks,
-  reminders and events.
+  reminders, events and leave balances.
 
 ### Settings
 - **General:** light, dark or automatic appearance; phone notifications; the Gmail connection; office details

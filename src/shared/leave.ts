@@ -95,3 +95,14 @@ export const leaveEnd = (l: { toDate: string; rejoinedOn: string | null }) => (l
 export const rejoinDay = (l: { toDate: string; rejoinedOn: string | null }) => l.rejoinedOn ?? shiftDate(l.toDate, 1);
 // "Leave: Priya Nair — HPL 10 days".
 export const leaveTitle = (name: string, type: { name: string; short: string }, days: number) => `Leave: ${name} — ${leaveShort(type)} ${daysWord(days)}`;
+
+// --- Automatic yearly credits (phase 3) ---
+
+// The same date n years on (29 Feb → 28 Feb in a year without it).
+export function addYears(day: string, n: number) {
+  const [y, m, d] = day.split("-").map(Number) as [number, number, number];
+  const last = new Date(Date.UTC(y + n, m, 0)).getUTCDate();
+  return `${y + n}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
+// Earned leave from duty: 1/11 of the days on duty, half a day or more rounding up.
+export const earnedFromDuty = (dutyDays: number) => Math.round(Math.max(0, dutyDays) / 11);

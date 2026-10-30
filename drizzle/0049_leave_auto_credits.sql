@@ -1,0 +1,1 @@
+ALTER TABLE "leave_types" ADD COLUMN "credits_from" date;

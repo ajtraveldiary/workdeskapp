@@ -268,6 +268,8 @@ export type LeaveType = {
   medical: boolean;
   yearlyDays: number | null;
   fromDuty: boolean;
+  // Automatic yearly credits from this date (null = by hand only).
+  creditsFrom: string | null;
   lines: number;
   // Leaves marked with it (it can't be removed then either).
   leaves: number;

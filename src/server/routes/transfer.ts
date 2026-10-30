@@ -4,7 +4,7 @@
 // History entry.
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, eq, getTableColumns, inArray, isNull, max } from "drizzle-orm";
+import { and, asc, eq, getTableColumns, inArray, isNull, max, sql } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
@@ -26,7 +26,10 @@ import {
   employeeMoves,
   registers,
   registerEntries,
-  linkedEmails, officeProfiles } from "../db/schema";
+  linkedEmails, officeProfiles,
+  leaveTypes,
+  employeeLeaves,
+  leaveLedger } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { ensureReportPeriods } from "../lib/reports";
@@ -60,6 +63,7 @@ import {
 import { employeeValues } from "./staff";
 import { ensureTagsByName, tagNames } from "../lib/tags";
 import { splitTagNames } from "../../shared/tags";
+import { formatDays, leaveShort } from "../../shared/leave";
 
 const log = (db: DB, userId: string, action: string, summary: string) => db.insert(events).values({ userId, entityType: "sync", action, summary });
 const lower = (s: string) => s.trim().toLowerCase();
@@ -112,6 +116,17 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
     return rows.map((f) =>
       out({ subject: f.subject, kind: f.physical ? "Physical file" : "E-file", efileNumber: f.efileNumber, notes: f.notes, tags: (f.tagIds ?? []).map((id) => fileTag.get(id)).filter(Boolean).join(", ") }),
     );
+  }
+  if (kind === "leave") {
+    // Every permanent employee still here and every leave with a balance, as on today.
+    const [people, types, sums] = await Promise.all([
+      db.select().from(employees).where(and(eq(employees.userId, userId), eq(employees.permanent, true), isNull(employees.leftOn))).orderBy(asc(employees.name)),
+      db.select().from(leaveTypes).where(and(eq(leaveTypes.userId, userId), eq(leaveTypes.hasAccount, true))).orderBy(asc(leaveTypes.sortOrder)),
+      db.select({ employeeId: leaveLedger.employeeId, typeId: leaveLedger.typeId, total: sql<string>`sum(${leaveLedger.days})` }).from(leaveLedger).where(eq(leaveLedger.userId, userId)).groupBy(leaveLedger.employeeId, leaveLedger.typeId),
+    ]);
+    const bal = new Map(sums.map((s) => [`${s.employeeId}:${s.typeId}`, Number(s.total)]));
+    const today = todayIn(tz);
+    return people.flatMap((e) => types.map((t) => out({ pen: e.pen, name: e.name, leave: leaveShort(t), balance: formatDays(bal.get(`${e.id}:${t.id}`) ?? 0), asOn: today })));
   }
   if (kind === "employees") {
     const [rows, d, t] = await Promise.all([
@@ -811,12 +826,86 @@ async function planEvents(db: DB, userId: string, rows: Row[], result: ImportRes
   };
 }
 
+// Leave balances (leave phase 3): a balance as on a date for a permanent employee and a leave that keeps one. None
+// of that leave yet → its opening balance; otherwise an adjustment by the difference (the account is never
+// rewritten); the same balance is skipped. Each line is in History, naming the employee.
+async function planLeave(db: DB, userId: string, rows: Row[], result: ImportResult): Promise<Plan> {
+  const [people, types, sums] = await Promise.all([
+    db.select({ id: employees.id, name: employees.name, pen: employees.pen }).from(employees).where(and(eq(employees.userId, userId), eq(employees.permanent, true))),
+    db.select().from(leaveTypes).where(and(eq(leaveTypes.userId, userId), eq(leaveTypes.hasAccount, true))),
+    db.select({ employeeId: leaveLedger.employeeId, typeId: leaveLedger.typeId, total: sql<string>`sum(${leaveLedger.days})` }).from(leaveLedger).where(eq(leaveLedger.userId, userId)).groupBy(leaveLedger.employeeId, leaveLedger.typeId),
+  ]);
+  const bal = new Map(sums.map((s) => [`${s.employeeId}:${s.typeId}`, Number(s.total)]));
+  type Line = { employeeId: string; name: string; typeId: string; short: string; onDate: string; days: number; kind: "opening" | "adjust" };
+  const lines: Line[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const c = row.cells;
+    const pen = (c.get("pen") ?? "").trim();
+    const name = lower(c.get("name") ?? "");
+    const e = (pen && people.find((p) => p.pen === pen)) || (name && people.find((p) => lower(p.name) === name)) || null;
+    if (!e) {
+      problem(result, row, `No permanent employee with ${pen ? `PEN ${pen} or ` : ""}the name "${c.get("name") ?? ""}"`);
+      continue;
+    }
+    const l = lower(c.get("leave") ?? "");
+    const t = types.find((x) => lower(x.short) === l || lower(x.name) === l);
+    if (!t) {
+      problem(result, row, `Leave: "${c.get("leave") ?? ""}" isn't a leave that keeps a balance (Settings › Leave): use ${types.map(leaveShort).join(", ") || "none yet"}`);
+      continue;
+    }
+    const b = num(c.get("balance") ?? "", false);
+    if (b == null || !Number.isInteger(b * 2) || Math.abs(b) > 9999) {
+      problem(result, row, `Balance: "${c.get("balance") ?? ""}" should be a number of days (half days allowed)`);
+      continue;
+    }
+    const on = parseDay(c.get("asOn") ?? "");
+    if (!on) {
+      problem(result, row, `As on: "${c.get("asOn") ?? ""}" is not a date (use 31/03/2027 or 2027-03-31)`);
+      continue;
+    }
+    const key = `${e.id}:${t.id}`;
+    if (seen.has(key)) {
+      problem(result, row, `${e.name}'s ${leaveShort(t)} is in the file twice`);
+      continue;
+    }
+    seen.add(key);
+    const now = bal.get(key);
+    if (now === undefined) {
+      lines.push({ employeeId: e.id, name: e.name, typeId: t.id, short: leaveShort(t), onDate: on, days: b, kind: "opening" });
+      result.added++;
+    } else if (Math.round((b - now) * 10) === 0) result.skipped++;
+    else {
+      lines.push({ employeeId: e.id, name: e.name, typeId: t.id, short: leaveShort(t), onDate: on, days: Math.round((b - now) * 10) / 10, kind: "adjust" });
+      result.updated++;
+    }
+  }
+  return {
+    result,
+    write: async () => {
+      if (!lines.length) return;
+      await db.insert(leaveLedger).values(
+        lines.map((x) => ({ userId, employeeId: x.employeeId, typeId: x.typeId, onDate: x.onDate, days: x.days, kind: x.kind, note: x.kind === "opening" ? "From the leave balances file" : `To the balance in the leave balances file (${formatDays(x.days + (bal.get(`${x.employeeId}:${x.typeId}`) ?? 0))} as on ${x.onDate})` })),
+      );
+      await db.insert(events).values(
+        lines.map((x) => ({
+          userId,
+          entityType: "sync" as const,
+          action: `staff.leave_${x.kind}`,
+          summary: `Leave account of ${x.name}: ${x.kind === "opening" ? `Opening balance ${formatDays(x.days)}` : `Adjustment ${x.days > 0 ? "+" : ""}${formatDays(x.days)}`} ${x.short} (from the leave balances file)`,
+        })),
+      );
+    },
+  };
+}
+
 const PLANNERS: Record<CsvKind, (db: DB, userId: string, rows: Row[], result: ImportResult) => Promise<Plan>> = {
   files: planFiles,
   employees: planEmployees,
   tasks: planTasks,
   reminders: planReminders,
   events: planEvents,
+  leave: planLeave,
 };
 
 // --- Master backup ---
@@ -843,6 +932,10 @@ const BACKUP: Record<BackupTable, TableInfo> = {
   mutedSenders: { table: mutedSenders as never },
   // One per account: a restore keeps details already saved here (the row conflicts and is skipped).
   officeProfiles: { table: officeProfiles as never },
+  // Leave (user request 2026-10-30): types (one taking from another is in the same part), leaves, account lines.
+  leaveTypes: { table: leaveTypes as never },
+  employeeLeaves: { table: employeeLeaves as never, refs: { employeeId: { table: employees, required: true }, typeId: { table: leaveTypes, required: true }, taskId: { table: tasks }, extensionOfId: { table: employeeLeaves } } },
+  leaveLedger: { table: leaveLedger as never, refs: { employeeId: { table: employees, required: true }, typeId: { table: leaveTypes, required: true }, leaveId: { table: employeeLeaves } } },
 };
 type AnyTable = PgTable & { id: PgColumn; userId: PgColumn };
 
@@ -882,6 +975,18 @@ async function makeRoomForTypes(db: DB, userId: string, rows: Record<string, unk
   if (free.length) await db.delete(eventTypes).where(inArray(eventTypes.id, free));
 }
 
+async function makeRoomForLeaveTypes(db: DB, userId: string, rows: Record<string, unknown>[]) {
+  const [have, lined, marked] = await Promise.all([
+    db.select({ id: leaveTypes.id, name: leaveTypes.name }).from(leaveTypes).where(eq(leaveTypes.userId, userId)),
+    db.selectDistinct({ id: leaveLedger.typeId }).from(leaveLedger).where(eq(leaveLedger.userId, userId)),
+    db.selectDistinct({ id: employeeLeaves.typeId }).from(employeeLeaves).where(eq(employeeLeaves.userId, userId)),
+  ]);
+  const inUse = new Set([...lined, ...marked].map((u) => u.id));
+  const incoming = new Map(rows.map((r) => [lower(String(r.name ?? "")), String(r.id)]));
+  const free = have.filter((t) => incoming.has(lower(t.name)) && incoming.get(lower(t.name)) !== t.id && !inUse.has(t.id)).map((t) => t.id);
+  if (free.length) await db.delete(leaveTypes).where(inArray(leaveTypes.id, free));
+}
+
 export const transferRoutes = new Hono<AppEnv>()
   .get("/backup", async (c) => {
     const db = c.get("db");
@@ -907,6 +1012,8 @@ export const transferRoutes = new Hono<AppEnv>()
     // Event types: a new account starts with Meeting, Training and Programme; the backup's own type of the same
     // name takes the place of one no event uses yet, so its events keep their type and names aren't doubled.
     if (table === "eventTypes") await makeRoomForTypes(db, userId, clean);
+    // Leave types the same way: an unused one of the same name (say from "Add the usual leaves") makes room.
+    if (table === "leaveTypes") await makeRoomForLeaveTypes(db, userId, clean);
     const t = info.table as AnyTable;
     try {
       const added = await db.insert(t as PgTable).values(clean as never).onConflictDoNothing().returning({ id: t.id });

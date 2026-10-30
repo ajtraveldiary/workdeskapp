@@ -439,6 +439,9 @@ export const leaveTypes = pgTable("leave_types", {
   medical: boolean("medical").notNull().default(false),
   yearlyDays: numeric("yearly_days", { precision: 5, scale: 1, mode: "number" }),
   fromDuty: boolean("from_duty").notNull().default(false),
+  // Automatic yearly credits (phase 3) are made on service anniversaries from this date on (the day they were
+  // switched on), never back-dated; null = by hand only (Credit now, an employee's Entry).
+  creditsFrom: date("credits_from"),
   createdAt: createdAt(),
 });
 

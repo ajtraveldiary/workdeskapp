@@ -1,4 +1,4 @@
-// Leave, phases 1 and 2 (user request 2026-10-30, docs/LEAVE_PLAN.md): leave types, each permanent employee's leave
+// Leave, phases 1 to 3 (user request 2026-10-30, docs/LEAVE_PLAN.md): leave types, each permanent employee's leave
 // account (opening balance, credits, adjustments, lapse above the most that can be kept), "Credit now" once per
 // year, the Gazetted switch (filled from the designation) and the Probation declared switch (no probation task
 // while it is yes).
@@ -10,6 +10,9 @@ import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
 import { ensureProbationTasks } from "../src/server/lib/probation";
+import { ensureLeaveCredits } from "../src/server/lib/leave";
+import { BACKUP_TABLES } from "../src/shared/transfer";
+import { eq as eqId } from "drizzle-orm";
 import { yearBefore } from "../src/shared/staff";
 import type { AuditEvent, Employee, EmployeeLeave, LeaveAccount, LeaveType, StaffList, Task } from "../src/shared/types";
 
@@ -308,5 +311,116 @@ describe("leave", () => {
     const temp = await add({ name: "Temporary", permanent: false });
     expect((await call("POST", "/leave/leaves", { employeeId: temp, typeId: eol.id, fromDate: plus(1), toDate: plus(2), days: 2 })).status).toBe(400);
     expect((await call("POST", "/leave/leaves", { employeeId: a, typeId: eol.id, fromDate: plus(20), toDate: plus(19), days: 1 })).status).toBe(400);
+  });
+
+  // --- Phase 3: automatic credits, the leave balances file, the backup ---
+  const setAuto = async (t: LeaveType, on: boolean) =>
+    call("PUT", `/leave/types/${t.id}`, { name: t.name, short: t.short, hasAccount: t.hasAccount, drawsOnId: t.drawsOnId, perDay: t.perDay, mayGoNegative: t.mayGoNegative, maxBalance: t.maxBalance, serviceLimit: t.serviceLimit, medical: t.medical, yearlyDays: t.yearlyDays, fromDuty: t.fromDuty, autoCredit: on });
+
+  it("credits HPL on each service anniversary from the day it is switched on, once a year, never before the opening balance", async () => {
+    await call("POST", "/leave/types/usual");
+    const hpl = await byShort("HPL");
+    const a = await add({ name: NAME, joinedServiceOn: "2010-11-15" });
+    const b = await add({ name: "Biju", joinedServiceOn: "2015-06-01" });
+    const c = await add({ name: "Opened later", joinedServiceOn: "2012-03-10" });
+    await add({ name: "Temporary", permanent: false, joinedServiceOn: "2010-01-01" });
+    await call("POST", `/leave/accounts/${c}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2027-04-01", days: 100 });
+    // Switched on on 30 Oct 2026 (the test's "today" is passed in below).
+    expect((await setAuto(hpl, true)).status).toBe(200);
+    const on = (await byShort("HPL")).creditsFrom!;
+    expect(on).toBeTruthy();
+    await db.update(schema.leaveTypes).set({ creditsFrom: "2026-10-30" }).where(eqId(schema.leaveTypes.id, hpl.id));
+    // Nothing before 30 Oct 2026; 15 Nov 2026 for a, 1 Jun 2027 for b; c's 10 Mar 2027 is before its opening date.
+    expect(await ensureLeaveCredits(db, "2026-11-14")).toBe(0);
+    expect(await ensureLeaveCredits(db, "2026-11-15")).toBe(1);
+    expect(await ensureLeaveCredits(db, "2026-11-20")).toBe(0);
+    expect(await balance(a, hpl.id)).toBe(20);
+    expect((await account(a)).lines[0]).toMatchObject({ kind: "credit", creditFor: "2026", onDate: "2026-11-15", note: "Service anniversary 15 Nov 2026 (16 years of service)" });
+    // A year already credited by Credit now isn't credited again.
+    await call("POST", `/leave/types/${hpl.id}/credit`, { creditFor: "2027", onDate: "2027-01-01", days: 20 });
+    expect(await ensureLeaveCredits(db, "2027-12-31")).toBe(0);
+    expect([await balance(a, hpl.id), await balance(b, hpl.id), await balance(c, hpl.id)]).toEqual([40, 20, 120]);
+    expect((await history()).some((h) => h.summary === `Leave account of ${NAME}: Credit +20 HPL for 2026 (service anniversary, automatic)`)).toBe(true);
+    // Switched off: nothing more.
+    await setAuto(await byShort("HPL"), false);
+    expect((await byShort("HPL")).creditsFrom).toBeNull();
+    expect(await ensureLeaveCredits(db, "2028-12-31")).toBe(0);
+  });
+
+  it("credits EL as 1/11 of the days on duty, only when probation is declared, leaving out leave marked", async () => {
+    await call("POST", "/leave/types/usual");
+    const [el, eol] = [await byShort("EL"), await byShort("EOL")];
+    const a = await add({ name: "Declared", joinedServiceOn: "2020-07-01", probationDeclared: true });
+    const b = await add({ name: "Not declared", joinedServiceOn: "2024-07-01", probationDeclared: false });
+    await call("POST", `/leave/accounts/${a}/lines`, { typeId: el.id, kind: "opening", onDate: "2026-01-01", days: 290 });
+    // 22 days of EOL inside the service year 1 Jul 2026 – 30 Jun 2027.
+    await call("POST", "/leave/leaves", { employeeId: a, typeId: eol.id, fromDate: "2026-09-01", toDate: "2026-09-22", days: 22 });
+    await setAuto(el, true);
+    await db.update(schema.leaveTypes).set({ creditsFrom: "2026-01-01" }).where(eqId(schema.leaveTypes.id, el.id));
+    // 1 Jul 2026: the year since the opening (1 Jan – 30 Jun 2026: 181 days) → 16 days; 290 + 16 = 306, so 6 lapse.
+    expect(await ensureLeaveCredits(db, "2026-07-01")).toBe(1);
+    expect(await balance(a, el.id)).toBe(300);
+    const credit = (await account(a)).lines.find((l) => l.kind === "credit")!;
+    expect(credit).toMatchObject({ days: 16, creditFor: "2026", note: "Service anniversary 1 Jul 2026: 181 days, 0 on leave → 181 on duty ÷ 11" });
+    // 1 Jul 2027: 365 days, 22 on leave → 343 ÷ 11 = 31.
+    await call("POST", `/leave/accounts/${a}/lines`, { typeId: el.id, kind: "adjust", onDate: "2027-01-01", days: -100 });
+    expect(await ensureLeaveCredits(db, "2027-07-01")).toBe(1);
+    expect(await balance(a, el.id)).toBe(231);
+    expect((await account(a)).balances.length).toBeGreaterThan(0);
+    expect((await account(b)).lines).toEqual([]);
+  });
+
+  it("the leave balances file: opening balances first, then adjustments to the balance given; and the export", async () => {
+    await call("POST", "/leave/types/usual");
+    const [el, hpl] = [await byShort("EL"), await byShort("HPL")];
+    const a = await add({ name: NAME, pen: "765432" });
+    await add({ name: "Biju" });
+    const imp = (rows: string[][], dryRun = false) => call("POST", "/transfer/leave/import", { headers: ["PEN", "Name", "Leave", "Balance", "As on"], rows, firstLine: 2, dryRun });
+    const first = await imp([
+      ["765432", "", "EL", "124.5", "01/10/2026"],
+      ["", NAME, "Half pay leave", "46", "2026-10-01"],
+      ["", "Biju", "EOL", "5", "2026-10-01"],
+      ["", "Nobody", "EL", "5", "2026-10-01"],
+      ["", "Biju", "EL", "abc", "2026-10-01"],
+    ]);
+    expect(first.json).toMatchObject({ added: 2, updated: 0 });
+    expect(first.json.problems.map((p: { row: number }) => p.row)).toEqual([4, 5, 6]);
+    expect([await balance(a, el.id), await balance(a, hpl.id)]).toEqual([124.5, 46]);
+    // Again with a new HPL figure: an adjustment; the same EL is skipped.
+    const again = await imp([
+      ["765432", "", "EL", "124.5", "2026-10-30"],
+      ["765432", "", "HPL", "40", "2026-10-30"],
+    ]);
+    expect(again.json).toMatchObject({ added: 0, updated: 1, skipped: 1 });
+    expect(await balance(a, hpl.id)).toBe(40);
+    expect((await account(a)).lines.map((l) => l.kind).sort()).toEqual(["adjust", "opening", "opening"]);
+    expect((await history()).some((h) => h.summary === `Leave account of ${NAME}: Adjustment -6 HPL (from the leave balances file)`)).toBe(true);
+    const csv = await (await app.request("/api/transfer/leave/csv", {}, {})).text();
+    expect(csv.split("\r\n")[0]).toContain("PEN,Name,Leave,Balance,As on");
+    // The name has a comma, so it is quoted.
+    expect(csv).toContain(`765432,"${NAME}",EL,124.5,`);
+    expect(csv).toContain("Biju,HPL,0,");
+  });
+
+  it("the backup brings leave types, leaves and accounts back into an empty WorkDesk", async () => {
+    await call("POST", "/leave/types/usual");
+    const [hpl, commuted] = [await byShort("HPL"), await byShort("Commuted")];
+    const a = await add({ name: NAME });
+    await call("POST", `/leave/accounts/${a}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2026-01-01", days: 40 });
+    await call("POST", "/leave/leaves", { employeeId: a, typeId: commuted.id, fromDate: "2026-11-01", toDate: "2026-11-05", days: 5 });
+    const backup = (await call("GET", "/transfer/backup")).json as { tables: Record<string, unknown[]> };
+    expect(backup.tables.leaveTypes).toHaveLength(7);
+    const d = drizzle({ client: new PGlite(), schema });
+    await migrate(d, { migrationsFolder: "drizzle" });
+    db = d as unknown as DB;
+    app = createApp({ getDb: () => db, allowDemo: true });
+    // This WorkDesk already added the usual leaves (unused): they make room for the backup's.
+    await call("POST", "/leave/types/usual");
+    for (const t of BACKUP_TABLES) await call("POST", "/transfer/backup", { table: t, rows: backup.tables[t] ?? [] });
+    const list = await types();
+    expect(list).toHaveLength(7);
+    expect(list.find((t) => t.short === "Commuted")!.drawsOnId).toBe(hpl.id);
+    expect(await balance(a, hpl.id)).toBe(30);
+    expect((await call("GET", `/leave/leaves?employeeId=${a}`)).json.leaves).toHaveLength(1);
   });
 });

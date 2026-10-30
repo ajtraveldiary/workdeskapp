@@ -312,6 +312,8 @@ export const leaveTypeInput = z.object({
   medical: z.boolean().default(false),
   yearlyDays: leaveDays(365).nullable().default(null),
   fromDuty: z.boolean().default(false),
+  // Credit it automatically on each service anniversary (phase 3), from the day this is switched on.
+  autoCredit: z.boolean().default(false),
 });
 export type LeaveTypeInput = z.input<typeof leaveTypeInput>;
 // A line added by hand on the employee's page: opening balance (from the service book), a credit or an adjustment
