@@ -1,14 +1,19 @@
 // An employee's leave account (user request 2026-10-30, docs/LEAVE_PLAN.md), on their page: the balance of each
 // leave that keeps one (EL, HPL…) and every line of the account, newest first, like the leave account in a service
 // book. Lines are only added (opening balance from the service book, a credit, an adjustment), never changed:
-// a wrong line is put right with an adjustment.
+// a wrong line is put right with an adjustment. Phase 2: Mark leave, and their leaves with each one's state and
+// paperwork steps (tap a leave to edit it, record the rejoining date or cancel it).
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { CalendarOff, Check, Plus } from "lucide-react";
-import type { Employee, LeaveLine, LeaveType } from "../../shared/types";
-import { HAND_KINDS, LEDGER_LABEL, daysWord, formatDays, leaveShort, type HandKind } from "../../shared/leave";
-import { useLeaveAccount, useLeaveActions, useLeaveTypes } from "../api";
-import { Button, Card, ErrorNote, Field, Modal, SkeletonList, cx, inputClass } from "./ui";
+import { CalendarOff, CalendarPlus, Check, Plus } from "lucide-react";
+import type { Employee, EmployeeLeave, LeaveLine, LeaveType, Task } from "../../shared/types";
+import { HAND_KINDS, LEDGER_LABEL, daysWord, formatDays, leaveEnd, leaveShort, rejoinDay, type HandKind } from "../../shared/leave";
+import { useEmployeeLeaves, useLeaveAccount, useLeaveActions, useLeaveTypes } from "../api";
+import { Badge, Button, Card, ErrorNote, Field, Modal, SkeletonList, cx, inputClass, type Tone } from "./ui";
+import { ChecklistChip } from "./Checklist";
+import { LeaveDialog, type LeaveFormState } from "./LeaveDialog";
+import { TaskDetails } from "./TaskDetails";
+import { TaskDialog, type TaskDialogMode } from "./TaskDialog";
 
 const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${formatDays(Math.abs(n))}`;
@@ -22,6 +27,8 @@ export function LeaveCard({ employee, today }: { employee: Employee; today: stri
   const byId = new Map((types ?? []).map((t) => [t.id, t]));
   const lines = account.data?.lines ?? [];
   const shown = all ? lines : lines.slice(0, 8);
+  const [leaveForm, setLeaveForm] = useState<LeaveFormState>(null);
+  const limited = (types ?? []).filter((t) => t.serviceLimit != null);
   return (
     <Card className="overflow-hidden">
       <div className="flex items-center border-b border-line pr-2">
@@ -29,9 +36,14 @@ export function LeaveCard({ employee, today }: { employee: Employee; today: stri
           <CalendarOff size={15} className="text-brand-700" />
           Leave account
         </h2>
+        {(types?.length ?? 0) > 0 && (
+          <Button size="sm" variant="ghost" onClick={() => setLeaveForm({ employeeId: employee.id })}>
+            <CalendarPlus size={15} /> Mark leave
+          </Button>
+        )}
         {withAccount.length > 0 && (
           <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
-            <Plus size={15} /> Add
+            <Plus size={15} /> Entry
           </Button>
         )}
       </div>
@@ -57,7 +69,21 @@ export function LeaveCard({ employee, today }: { employee: Employee; today: stri
                 </li>
               );
             })}
+            {/* Days used against a limit in the whole service (LND 360). */}
+            {limited.map((t) => {
+              const u = account.data?.used.find((x) => x.typeId === t.id)?.days ?? 0;
+              return (
+                <li key={t.id} className="min-w-16 rounded-lg border border-dashed border-line px-2.5 py-1.5" title={`${t.name} used in the whole service`}>
+                  <p className="text-caption text-slate-500">{leaveShort(t)} used</p>
+                  <p className={cx("text-subhead font-semibold tabular-nums", u > t.serviceLimit! ? "text-urgent-ink" : "text-ink")}>
+                    {formatDays(u)}
+                    <span className="text-footnote font-normal text-slate-500">/{formatDays(t.serviceLimit!)}</span>
+                  </p>
+                </li>
+              );
+            })}
           </ul>
+          <Leaves employeeId={employee.id} types={types} onOpen={(l) => setLeaveForm({ leave: l })} />
           {lines.length === 0 ? (
             <p className="border-t border-line px-4 py-3 text-footnote text-slate-500 sm:px-5">No entries yet. Start with each leave's opening balance from the service book (Add).</p>
           ) : (
@@ -74,10 +100,84 @@ export function LeaveCard({ employee, today }: { employee: Employee; today: stri
           )}
         </>
       )}
+      <LeaveDialog state={leaveForm} onClose={() => setLeaveForm(null)} />
       <Modal open={adding} onClose={() => setAdding(false)} title="Leave account entry">
         {adding && <LineForm employee={employee} types={withAccount} balances={account.data?.balances ?? []} today={today} onDone={() => setAdding(false)} />}
       </Modal>
     </Card>
+  );
+}
+
+// Where a leave stands today.
+export function leaveState(l: EmployeeLeave, today: string): { label: string; tone: Tone } {
+  if (l.status === "cancelled") return { label: "Cancelled", tone: "neutral" };
+  if (l.rejoinedOn && l.rejoinedOn <= today) return { label: "Rejoined", tone: "low" };
+  if (today < l.fromDate) return { label: "Upcoming", tone: "info" };
+  if (today <= leaveEnd(l)) return { label: "On leave", tone: "brand" };
+  return { label: "Due back", tone: "high" };
+}
+const shortDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+// "1 Nov – 10 Nov 2026".
+export const leaveDates = (l: EmployeeLeave) => (l.fromDate === leaveEnd(l) ? fullDate(l.fromDate) : `${shortDate(l.fromDate)} – ${fullDate(leaveEnd(l))}`);
+
+// Their leaves, newest first (5, then Show all): state, type and days, dates, and the paperwork steps.
+function Leaves({ employeeId, types, onOpen }: { employeeId: string; types: LeaveType[]; onOpen: (l: EmployeeLeave) => void }) {
+  const { data } = useEmployeeLeaves(employeeId);
+  const [all, setAll] = useState(false);
+  const [task, setTask] = useState<Task | null>(null);
+  const [form, setForm] = useState<TaskDialogMode | null>(null);
+  const leaves = data?.leaves ?? [];
+  if (!data || leaves.length === 0) return null;
+  const shown = all ? leaves : leaves.slice(0, 5);
+  return (
+    <div className="border-t border-line">
+      <p className="px-4 pt-2.5 text-caption font-semibold text-slate-500 sm:px-5">Leaves</p>
+      <ul className="divide-y divide-line">
+        {shown.map((l) => (
+          <LeaveRow key={l.id} leave={l} type={types.find((t) => t.id === l.typeId)} today={data.today} onOpen={() => onOpen(l)} onTask={setTask} />
+        ))}
+      </ul>
+      {!all && leaves.length > shown.length && (
+        <button type="button" onClick={() => setAll(true)} className="w-full border-t border-line px-4 py-2 text-left text-footnote font-medium text-brand-700 hover:bg-slate-50 sm:px-5">
+          Show all {leaves.length} leaves
+        </button>
+      )}
+      <TaskDetails
+        task={task}
+        onClose={() => setTask(null)}
+        onEdit={(t) => {
+          setTask(null);
+          setForm({ kind: "edit", task: t });
+        }}
+      />
+      <TaskDialog mode={form} onClose={() => setForm(null)} />
+    </div>
+  );
+}
+
+export function LeaveRow({ leave: l, type, today, onOpen, onTask, who }: { leave: EmployeeLeave; type?: LeaveType; today: string; onOpen: () => void; onTask: (t: Task) => void; who?: string }) {
+  const st = leaveState(l, today);
+  return (
+    <li className={cx("row-click flex items-start gap-3 px-4 py-2 has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5", l.status === "cancelled" && "opacity-60")}>
+      <button type="button" onClick={onOpen} aria-label={`Open ${who ? `${who}'s ` : ""}${type ? type.name : "leave"}, ${leaveDates(l)}`} className="row-link group/title min-w-0 flex-1 text-left">
+        <span className="block text-sm text-ink group-hover/title:text-brand-700 [overflow-wrap:anywhere]">
+          {who && <span className="font-medium">{who} · </span>}
+          {type ? leaveShort(type) : "Leave"} · {daysWord(l.days)}
+        </span>
+        <span className="block text-footnote text-slate-500">
+          {leaveDates(l)}
+          {l.status === "active" && (l.rejoinedOn ? ` · rejoined ${fullDate(l.rejoinedOn)}` : ` · back ${fullDate(rejoinDay(l))}`)}
+        </span>
+      </button>
+      <span className="flex shrink-0 flex-col items-end gap-1">
+        <Badge tone={st.tone}>{st.label}</Badge>
+        {l.task && (
+          <span className="relative z-10 text-footnote">
+            <ChecklistChip items={l.task.checklist} onClick={() => onTask(l.task!)} />
+          </span>
+        )}
+      </span>
+    </li>
   );
 }
 

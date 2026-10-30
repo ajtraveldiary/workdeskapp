@@ -1,4 +1,4 @@
-// Leave, phase 1 (user request 2026-10-30, docs/LEAVE_PLAN.md): leave types, each permanent employee's leave
+// Leave, phases 1 and 2 (user request 2026-10-30, docs/LEAVE_PLAN.md): leave types, each permanent employee's leave
 // account (opening balance, credits, adjustments, lapse above the most that can be kept), "Credit now" once per
 // year, the Gazetted switch (filled from the designation) and the Probation declared switch (no probation task
 // while it is yes).
@@ -11,7 +11,7 @@ import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
 import { ensureProbationTasks } from "../src/server/lib/probation";
 import { yearBefore } from "../src/shared/staff";
-import type { AuditEvent, Employee, LeaveAccount, LeaveType, StaffList, Task } from "../src/shared/types";
+import type { AuditEvent, Employee, EmployeeLeave, LeaveAccount, LeaveType, StaffList, Task } from "../src/shared/types";
 
 const NAME = "ശ്രീമതി. ലക്ഷ്മി കുട്ടി അമ്മ കെ. എസ്. (ജൂനിയർ പബ്ലിക് ഹെൽത്ത് നഴ്സ്, പ്രാഥമികാരോഗ്യ കേന്ദ്രം)";
 
@@ -202,5 +202,111 @@ describe("leave", () => {
     const csv = await res.text();
     expect(csv.split("\n")[0]).toContain("Probation declared,Gazetted");
     expect(csv).toMatch(/Dr\. Asha,.*,Yes,Yes/);
+  });
+
+  // --- Phase 2: marking leave ---
+  const leaves = async (q = "") => (await call("GET", `/leave/leaves${q}`)).json as { today: string; leaves: EmployeeLeave[] };
+  const taskOf = async (id: string) => ((await call("GET", "/tasks?view=any")).json.tasks as Task[]).find((t) => t.id === id)!;
+
+  it("marks leave: the days come off the balance, and a task with the non-gazetted steps is due the day they are back", async () => {
+    await call("POST", "/leave/types/usual");
+    const hpl = await byShort("HPL");
+    const id = await add({ name: NAME });
+    await call("POST", `/leave/accounts/${id}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2026-01-01", days: 40 });
+    const made = await call("POST", "/leave/leaves", { employeeId: id, typeId: hpl.id, fromDate: "2026-11-01", toDate: "2026-11-10", days: 10, orderNo: "A1/12/2026", doneSteps: ["application"] });
+    expect(made.status).toBe(201);
+    expect(await balance(id, hpl.id)).toBe(30);
+    const t = await taskOf(made.json.taskId);
+    expect([t.title, t.dueDate, t.systemKind, t.madeBySystem, t.relatedId, t.priority]).toEqual([`Leave: ${NAME} — HPL 10 days`, "2026-11-11", "leave", true, id, "high"]);
+    expect(t.checklist.map((i) => [i.text, i.done])).toEqual([
+      ["Application received", true],
+      ["Check leave account", false],
+      ["Office proceedings", false],
+      ["Update in SPARK", false],
+      ["Mark in attendance", false],
+      ["SB update", false],
+      ["Joining report", false],
+    ]);
+    expect(t.notes).toContain("Order A1/12/2026.");
+    // All steps done completes the task; one set back reopens it.
+    await call("PATCH", `/tasks/${t.id}`, { checklist: t.checklist.map((i) => ({ ...i, done: true })) });
+    expect((await taskOf(t.id)).status).toBe("done");
+    await call("PATCH", `/tasks/${t.id}`, { checklist: t.checklist.map((i, k) => ({ ...i, done: k > 0 })) });
+    expect((await taskOf(t.id)).status).toBe("open");
+    const mine = (await leaves(`?employeeId=${id}`)).leaves;
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ days: 10, status: "active", orderNo: "A1/12/2026", task: { id: t.id } });
+    expect((await history()).some((h) => h.summary === `Leave of ${NAME}: Half pay leave, 10 days, 1 Nov 2026 to 10 Nov 2026`)).toBe(true);
+    // Two leaves can't share a day.
+    expect((await call("POST", "/leave/leaves", { employeeId: id, typeId: hpl.id, fromDate: "2026-11-10", toDate: "2026-11-12", days: 3 })).status).toBe(409);
+  });
+
+  it("gazetted officers get the gazetted steps; commuted leave takes double HPL; LND may go below zero; EOL takes nothing", async () => {
+    await call("POST", "/leave/types/usual");
+    const [hpl, commuted, lnd, eol] = [await byShort("HPL"), await byShort("Commuted"), await byShort("LND"), await byShort("EOL")];
+    const id = await add({ name: "Dr. Rema", gazetted: true });
+    await call("POST", `/leave/accounts/${id}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2026-01-01", days: 20 });
+    const c1 = await call("POST", "/leave/leaves", { employeeId: id, typeId: commuted.id, fromDate: "2026-02-01", toDate: "2026-02-05", days: 5 });
+    expect((await taskOf(c1.json.taskId)).checklist.map((i) => i.text)).toEqual(["Leave application received", "Apply leave", "Update leave CTC", "Joining report", "Joining CTC", "AG payslip"]);
+    expect(await balance(id, hpl.id)).toBe(10);
+    await call("POST", "/leave/leaves", { employeeId: id, typeId: lnd.id, fromDate: "2026-03-01", toDate: "2026-03-15", days: 15 });
+    expect(await balance(id, hpl.id)).toBe(-5);
+    await call("POST", "/leave/leaves", { employeeId: id, typeId: eol.id, fromDate: "2026-04-01", toDate: "2026-04-30", days: 30 });
+    expect(await balance(id, hpl.id)).toBe(-5);
+    expect((await account(id)).used).toEqual(expect.arrayContaining([{ typeId: lnd.id, days: 15 }, { typeId: eol.id, days: 30 }, { typeId: commuted.id, days: 5 }]));
+    // A type with marked leave can't be removed.
+    expect((await call("DELETE", `/leave/types/${eol.id}`)).status).toBe(409);
+  });
+
+  it("editing gives the old days back and takes the new; rejoining early curtails it; cancelling gives the days back", async () => {
+    await call("POST", "/leave/types/usual");
+    const [el, hpl] = [await byShort("EL"), await byShort("HPL")];
+    const id = await add({ name: "Anitha" });
+    await call("POST", `/leave/accounts/${id}/lines`, { typeId: el.id, kind: "opening", onDate: "2026-01-01", days: 100 });
+    await call("POST", `/leave/accounts/${id}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2026-01-01", days: 50 });
+    const made = await call("POST", "/leave/leaves", { employeeId: id, typeId: el.id, fromDate: "2026-11-01", toDate: "2026-11-20", days: 20 });
+    const lid = made.json.id as string;
+    expect(await balance(id, el.id)).toBe(80);
+    // Rejoined on the 11th: 10 days.
+    await call("PUT", `/leave/leaves/${lid}`, { typeId: el.id, fromDate: "2026-11-01", toDate: "2026-11-20", days: 10, rejoinedOn: "2026-11-11" });
+    expect(await balance(id, el.id)).toBe(90);
+    expect((await taskOf(made.json.taskId))).toMatchObject({ dueDate: "2026-11-11", title: "Leave: Anitha — EL 10 days" });
+    expect((await history()).some((h) => h.summary === "Anitha rejoined on 11 Nov 2026 after Earned leave (10 days)")).toBe(true);
+    // Changed to HPL: EL back, HPL taken.
+    await call("PUT", `/leave/leaves/${lid}`, { typeId: hpl.id, fromDate: "2026-11-01", toDate: "2026-11-20", days: 10, rejoinedOn: "2026-11-11" });
+    expect([await balance(id, el.id), await balance(id, hpl.id)]).toEqual([100, 40]);
+    // Only the notes changed: no new lines.
+    const before = (await account(id)).lines.length;
+    await call("PUT", `/leave/leaves/${lid}`, { typeId: hpl.id, fromDate: "2026-11-01", toDate: "2026-11-20", days: 10, rejoinedOn: "2026-11-11", notes: "Medical" });
+    expect((await account(id)).lines.length).toBe(before);
+    // Cancelled: days back, the task completed, the leave kept; no more changes.
+    await call("POST", `/leave/leaves/${lid}/cancel`);
+    expect(await balance(id, hpl.id)).toBe(50);
+    expect((await taskOf(made.json.taskId)).status).toBe("done");
+    expect((await leaves(`?employeeId=${id}`)).leaves[0]!.status).toBe("cancelled");
+    expect((await call("PUT", `/leave/leaves/${lid}`, { typeId: hpl.id, fromDate: "2026-11-01", toDate: "2026-11-20", days: 10 })).status).toBe(409);
+    // Nothing in the account was rewritten: every line is still there.
+    expect((await account(id)).lines.filter((l) => l.kind === "leave")).toHaveLength(3);
+    // The dates are free again.
+    expect((await call("POST", "/leave/leaves", { employeeId: id, typeId: el.id, fromDate: "2026-11-05", toDate: "2026-11-06", days: 2 })).status).toBe(201);
+  });
+
+  it("lists the leaves that matter now, and refuses temporary staff and dates in the wrong order", async () => {
+    await call("POST", "/leave/types/usual");
+    const eol = await byShort("EOL");
+    const today = (await call("GET", "/me")).json.today as string;
+    const plus = (n: number) => {
+      const d = new Date(`${today}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+    const a = await add({ name: "On leave now" });
+    const b = await add({ name: "Long ago" });
+    await call("POST", "/leave/leaves", { employeeId: a, typeId: eol.id, fromDate: plus(-2), toDate: plus(3), days: 6 });
+    await call("POST", "/leave/leaves", { employeeId: b, typeId: eol.id, fromDate: plus(-200), toDate: plus(-190), days: 11 });
+    expect((await leaves()).leaves.map((l) => l.employeeId)).toEqual([a]);
+    const temp = await add({ name: "Temporary", permanent: false });
+    expect((await call("POST", "/leave/leaves", { employeeId: temp, typeId: eol.id, fromDate: plus(1), toDate: plus(2), days: 2 })).status).toBe(400);
+    expect((await call("POST", "/leave/leaves", { employeeId: a, typeId: eol.id, fromDate: plus(20), toDate: plus(19), days: 1 })).status).toBe(400);
   });
 });

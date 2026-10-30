@@ -12,6 +12,7 @@ import { clearTaskLabels, reconcileThreadLabels } from "../lib/taskLabels";
 import { checkRelated, relatedName } from "../lib/staff";
 import { checkTags, tagNameMatches } from "../lib/tags";
 import { settleMoveTask } from "../lib/moves";
+import { settleLeaveTask } from "../lib/leave";
 import { entryFollowsTask } from "../lib/registers";
 import { addedEmailsOfTasks, tasksOfThreads } from "../lib/linkedEmails";
 import { bulkIds, taskInput, taskPatch } from "../../shared/schemas";
@@ -231,6 +232,8 @@ export const taskRoutes = new Hono<AppEnv>()
     if (reopened && t.threadId) await reconcileThreadLabels(db, c.env, userId, [t.threadId]).catch(() => undefined);
     // Joining / relieving steps (user request 2026-10-15): all done completes the task, a step set back reopens it.
     if (input.checklist !== undefined) await settleMoveTask(db, userId, t, t.checklist ?? [], input.checklist);
+    // A leave's paperwork steps (user request 2026-10-30) work the same way.
+    if (input.checklist !== undefined) await settleLeaveTask(db, userId, t, t.checklist ?? [], input.checklist);
     if (input.dueDate !== undefined && input.dueDate !== t.dueDate) {
       await logEvent(db, {
         userId,

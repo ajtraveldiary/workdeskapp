@@ -13,7 +13,7 @@ export const LEDGER_LABEL: Record<LedgerKind, string> = {
   opening: "Opening balance",
   credit: "Credit",
   leave: "Leave",
-  cancel: "Leave cancelled",
+  cancel: "Days given back",
   adjust: "Adjustment",
   lapse: "Lapsed",
   surrender: "Surrendered",
@@ -54,3 +54,44 @@ export const formatDays = (n: number) => (Number.isInteger(n) ? String(n) : n.to
 export const daysWord = (n: number) => `${formatDays(n)} ${Math.abs(n) === 1 ? "day" : "days"}`;
 // The type's short name, else its name.
 export const leaveShort = (t: { name: string; short: string }) => t.short || t.name;
+
+// --- Marking a leave (phase 2) ---
+
+// A leave's paperwork, as its task's steps (the user's lists, 2026-10-30). Fixed ids, so a step keeps its place.
+export type LeaveStep = { id: string; text: string };
+export const LEAVE_STEPS: { gazetted: LeaveStep[]; nonGazetted: LeaveStep[] } = {
+  gazetted: [
+    { id: "application", text: "Leave application received" },
+    { id: "apply", text: "Apply leave" },
+    { id: "leave-ctc", text: "Update leave CTC" },
+    { id: "joining-report", text: "Joining report" },
+    { id: "joining-ctc", text: "Joining CTC" },
+    { id: "ag-payslip", text: "AG payslip" },
+  ],
+  nonGazetted: [
+    { id: "application", text: "Application received" },
+    { id: "check-account", text: "Check leave account" },
+    { id: "proceedings", text: "Office proceedings" },
+    { id: "spark", text: "Update in SPARK" },
+    { id: "attendance", text: "Mark in attendance" },
+    { id: "sb-update", text: "SB update" },
+    { id: "joining-report", text: "Joining report" },
+  ],
+};
+export const leaveSteps = (gazetted: boolean) => (gazetted ? LEAVE_STEPS.gazetted : LEAVE_STEPS.nonGazetted);
+
+// Days from one date to another, both counted ("2026-11-01" to "2026-11-10" = 10).
+export function calendarDays(from: string, to: string) {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+}
+export function shiftDate(day: string, n: number) {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+// The leave's last day: the day before rejoining when they came back early, else its "to" date.
+export const leaveEnd = (l: { toDate: string; rejoinedOn: string | null }) => (l.rejoinedOn && shiftDate(l.rejoinedOn, -1) < l.toDate ? shiftDate(l.rejoinedOn, -1) : l.toDate);
+// The day they are due back (the leave task is due then): the rejoining date, else the day after the leave.
+export const rejoinDay = (l: { toDate: string; rejoinedOn: string | null }) => l.rejoinedOn ?? shiftDate(l.toDate, 1);
+// "Leave: Priya Nair — HPL 10 days".
+export const leaveTitle = (name: string, type: { name: string; short: string }, days: number) => `Leave: ${name} — ${leaveShort(type)} ${daysWord(days)}`;

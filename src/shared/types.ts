@@ -76,7 +76,7 @@ export type Task = {
   // Which kind of system task: "pension" (Pension papers), "contract" (contract ending; ticking it asks Renew or
   // Contract ended) or "probation" (probation declaration pending; ticking it asks Declared or Change due
   // date). Null for every other task.
-  systemKind: "pension" | "contract" | "probation" | "joining" | "relieving" | null;
+  systemKind: "pension" | "contract" | "probation" | "joining" | "relieving" | "leave" | null;
   // A "Prepare" task for an event (user request 2026-10-11): the event and the occurrence's scheduled day.
   eventId: string | null;
   eventDate: string | null;
@@ -269,10 +269,29 @@ export type LeaveType = {
   yearlyDays: number | null;
   fromDuty: boolean;
   lines: number;
+  // Leaves marked with it (it can't be removed then either).
+  leaves: number;
 };
 export type LeaveLine = { id: string; typeId: string; onDate: string; days: number; kind: LedgerKind; creditFor: string | null; note: string; createdAt: string };
 // One employee's account: each type with its own balance, and every line, newest first.
-export type LeaveAccount = { balances: { typeId: string; balance: number }[]; lines: LeaveLine[] };
+// used: days of leave taken of each type (not cancelled), for limits such as LND's 360 days in the whole service.
+export type LeaveAccount = { balances: { typeId: string; balance: number }[]; lines: LeaveLine[]; used: { typeId: string; days: number }[] };
+// A leave marked for an employee (phase 2), with its task (the paperwork steps).
+export type EmployeeLeave = {
+  id: string;
+  employeeId: string;
+  typeId: string;
+  fromDate: string;
+  toDate: string;
+  days: number;
+  orderNo: string;
+  orderDate: string | null;
+  notes: string;
+  rejoinedOn: string | null;
+  status: "active" | "cancelled";
+  extensionOfId: string | null;
+  task: Task | null;
+};
 // "Credit now" (Settings › Leave): who gets the credit, and who already had that year's.
 export type LeaveCreditPlan = { creditFor: string; days: number; employees: { id: string; name: string; already: boolean }[] };
 

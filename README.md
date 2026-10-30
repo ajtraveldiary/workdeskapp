@@ -103,6 +103,12 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   adjustments). Settings › Leave lists the leave types with their rules (the usual Kerala Service Rules leaves in one
   tap), credits a year's leave to everyone at once (for example 20 days of HPL), and marks the gazetted posts.
   Employees have Gazetted officer and Probation declared Yes / No in their details.
+- **Marking leave:** Mark leave (on the employee's page or the Employees page) takes the days off the balance
+  (commuted leave takes double HPL; LND may go below zero), warns when there isn't enough, and makes a task with the
+  paperwork steps, different for gazetted officers (application, apply leave, leave CTC, joining report, joining CTC,
+  AG payslip) and others (application, check leave account, office proceedings, SPARK, attendance, SB update, joining
+  report), due the day they are back. Record the rejoining date (an early return gives the days back), change or
+  cancel a leave; the On leave card shows who is on leave, due back or starting soon.
 - **Retirement:** a list of everyone retiring within 12 months, and a retirement/pension paperwork task with a
   checklist.
 - **Joining and relieving:** Join or Relieve someone (on their page or the Employees page) and WorkDesk makes a task

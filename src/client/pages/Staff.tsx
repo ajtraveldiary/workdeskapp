@@ -36,6 +36,7 @@ import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
 import { Badge, Button, Card, ErrorNote, Fab, Field, Loading, Modal, PageHeader, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
 import { MovesCard, openMoveForm } from "../components/StaffMoves";
+import { OnLeaveCard, OnLeaveTag } from "../components/OnLeave";
 
 const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 // Whole years from a to b (both YYYY-MM-DD).
@@ -85,6 +86,8 @@ export function StaffPage() {
           <RetiringSoon onOpen={setOpenId} />
           {/* Joining & relieving with each step's state (user request 2026-10-15). */}
           <MovesCard staff={data} />
+          {/* Who is on leave, due back or starting leave (user request 2026-10-30). */}
+          <OnLeaveCard staff={data} />
           {/* A row of the list or table opens the employee's own page (user request 2026-10-08). */}
           <Employees staff={data} onOpen={(id) => navigate(`/employees/${id}`)} onAdd={add} onDesignations={() => navigate("/settings#employees")} />
         </div>
@@ -411,6 +414,7 @@ function EmployeeRow({ employee: e, designation, type, onOpen }: { employee: Emp
         )}
       </div>
       <YouTag id={e.id} />
+      <OnLeaveTag id={e.id} />
       {!e.permanent && <TemporaryTag />}
       {e.leftOn && <Badge>Left {fullDate(e.leftOn)}</Badge>}
     </li>
@@ -535,6 +539,7 @@ function EmployeeTable({ people, permanent, staff, onOpen }: { people: Employee[
                   <span className="line-clamp-2 font-medium text-ink [overflow-wrap:anywhere] group-hover/title:text-brand-700">{e.name}</span>
                 </button>
                 <YouTag id={e.id} className="relative z-10 mt-0.5" />
+                <OnLeaveTag id={e.id} className="relative z-10 mt-0.5" />
                 {e.leftOn && <span className="mt-0.5 block text-caption text-slate-500">Left {fullDate(e.leftOn)}</span>}
               </td>
               {cols.map((c) => (

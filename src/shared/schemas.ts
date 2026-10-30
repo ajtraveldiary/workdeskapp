@@ -327,6 +327,27 @@ export const leaveLineInput = z
   .refine((v) => v.kind === "opening" || v.days !== 0, { message: "Enter the number of days", path: ["days"] })
   .refine((v) => v.kind !== "credit" || v.days > 0, { message: "A credit adds days; use an adjustment to take days away", path: ["days"] });
 export type LeaveLineInput = z.input<typeof leaveLineInput>;
+// Marking a leave (phase 2). days: calendar days from–to unless edited (holidays left out), half days allowed.
+const leaveFields = {
+  typeId: z.uuid(),
+  fromDate: day,
+  toDate: day,
+  days: z.number().min(0.5, "At least half a day").max(9999).multipleOf(0.5, "Use whole or half days"),
+  orderNo: z.string().trim().max(100).default(""),
+  orderDate: day.nullable().default(null),
+  notes: z.string().max(2_000).default(""),
+};
+const datesInOrder = (v: { fromDate: string; toDate: string }) => v.toDate >= v.fromDate;
+export const leaveInput = z
+  .object({ employeeId: z.uuid(), ...leaveFields, doneSteps: z.array(z.string().max(40)).max(20).default([]), extensionOfId: z.uuid().nullable().default(null) })
+  .refine(datesInOrder, { message: "The leave ends before it starts", path: ["toDate"] });
+export type LeaveInput = z.input<typeof leaveInput>;
+// Editing: every field again, and the rejoining date once the joining report is in.
+export const leavePatch = z
+  .object({ ...leaveFields, rejoinedOn: day.nullable().default(null) })
+  .refine(datesInOrder, { message: "The leave ends before it starts", path: ["toDate"] })
+  .refine((v) => !v.rejoinedOn || v.rejoinedOn > v.fromDate, { message: "Rejoined before the leave started", path: ["rejoinedOn"] });
+export type LeavePatch = z.input<typeof leavePatch>;
 // "Credit now" for every permanent employee still in the office: creditFor is the year it counts for.
 export const leaveCreditInput = z.object({
   creditFor: z.string().regex(/^\d{4}$/, "Give the year, e.g. 2027"),

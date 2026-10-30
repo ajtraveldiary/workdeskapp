@@ -1,7 +1,11 @@
 # Leave of employees — plan
 
-Status: **Phase 1 built** (2026-10-30): gazetted and probation declared switches, gazetted posts, leave types, leave
-accounts with opening balances, credits and adjustments by hand, Credit now. Phases 2–4 not built yet. Written 2026-10-30.
+Status: **Phases 1 and 2 built** (2026-10-30): gazetted and probation declared switches, gazetted posts, leave types,
+leave accounts with opening balances, credits and adjustments by hand, Credit now; marking leave with its account line
+and its task (gazetted / non-gazetted steps), editing, rejoining early, cancelling, the On leave card. Phases 3–4 not
+built yet. Not done in phase 2: the joining report step asking for the rejoining date (record it in the leave instead),
+extensions from the form (the API takes `extensionOfId`), and a step-state table like Joining & relieving (steps are
+ticked in the task). Written 2026-10-30.
 
 The office marks the longer leaves of its permanent staff (earned leave, half pay leave, commuted leave and the like),
 keeps each employee's **leave account** (credits, leave taken, balance), credits the yearly leave (such as 20 days of

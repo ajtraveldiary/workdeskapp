@@ -337,6 +337,13 @@
       "when": 1793352515265,
       "tag": "0047_leave",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1793353733600,
+      "tag": "0048_employee_leaves",
+      "breakpoints": true
     }
   ]
 }

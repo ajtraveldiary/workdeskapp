@@ -269,7 +269,7 @@ export const tasks = pgTable(
     // Which kind of system task (user request 2026-10-08): "pension" (Pension papers), "contract" (a temporary
     // employee's contract ending: ticking it asks Renew or Contract ended) or "probation" (probation declaration
     // pending: ticking it asks Declared or Change due date). Null for every other task.
-    systemKind: text("system_kind", { enum: ["pension", "contract", "probation", "joining", "relieving"] }),
+    systemKind: text("system_kind", { enum: ["pension", "contract", "probation", "joining", "relieving", "leave"] }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -442,6 +442,37 @@ export const leaveTypes = pgTable("leave_types", {
   createdAt: createdAt(),
 });
 
+// A leave marked for an employee (user request 2026-10-30, phase 2): its type, dates, days (calendar days from–to
+// unless edited, half days allowed), the sanction order, rejoinedOn (the joining report's date; earlier than the
+// day after toDate when curtailed) and its task (the gazetted / non-gazetted steps). Never deleted: cancelled
+// leave keeps its row with status "cancelled" and its account lines given back. extensionOfId: the leave it extends.
+export const employeeLeaves = pgTable(
+  "employee_leaves",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    typeId: uuid("type_id")
+      .notNull()
+      .references(() => leaveTypes.id),
+    fromDate: date("from_date").notNull(),
+    toDate: date("to_date").notNull(),
+    days: numeric("days", { precision: 6, scale: 1, mode: "number" }).notNull(),
+    orderNo: text("order_no").notNull().default(""),
+    orderDate: date("order_date"),
+    notes: text("notes").notNull().default(""),
+    rejoinedOn: date("rejoined_on"),
+    status: text("status", { enum: ["active", "cancelled"] }).notNull().default("active"),
+    extensionOfId: uuid("extension_of_id").references((): AnyPgColumn => employeeLeaves.id, { onDelete: "set null" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("employee_leaves_employee").on(t.employeeId, t.fromDate)],
+);
+
 // An employee's leave account: one line per change to their balance of one type (+ credit, − taken). Never
 // rewritten; a wrong line is put right with an adjustment. creditFor ("2027"): the yearly credit this line is, so
 // the same year is never credited twice.
@@ -461,6 +492,8 @@ export const leaveLedger = pgTable(
     kind: text("kind", { enum: LEDGER_KINDS }).notNull(),
     creditFor: text("credit_for"),
     note: text("note").notNull().default(""),
+    // The leave this line belongs to (a "leave" line and the "cancel" lines that undo it).
+    leaveId: uuid("leave_id").references((): AnyPgColumn => employeeLeaves.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("leave_ledger_credit").on(t.employeeId, t.typeId, t.creditFor), index("leave_ledger_employee").on(t.employeeId, t.typeId)],
