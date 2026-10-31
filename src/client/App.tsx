@@ -64,9 +64,11 @@ import { LoginPage } from "./pages/Login";
 import { RegistersPage } from "./pages/Registers";
 import { LeavePage } from "./pages/Leave";
 import { AttendancePage } from "./pages/Attendance";
+import { MarkAttendancePage } from "./pages/MarkAttendance";
 
 export function App() {
   const me = useMe();
+  const { pathname } = useLocation();
   // Opened offline before WorkDesk was ever loaded on this device: nothing saved to show yet.
   if (me.isPending) return me.fetchStatus === "paused" ? <OfflineStart /> : <Splash />;
   if (me.error instanceof ApiError && me.error.status === 401) return <LoginPage />;
@@ -77,6 +79,8 @@ export function App() {
     if (!(me.error instanceof ApiError)) return <OfflineStart onRetry={() => void me.refetch()} />;
     return <div className="p-8 text-sm text-urgent-ink">Could not reach WorkDesk: {me.error.message}</div>;
   }
+  // Quick attendance marking (user request 2026-10-31): a standalone page for phones, outside the shell.
+  if (pathname === "/markattendance") return <MarkAttendancePage />;
 
   return (
     <Shell>

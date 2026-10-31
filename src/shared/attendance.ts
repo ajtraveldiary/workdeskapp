@@ -139,6 +139,41 @@ export function weeklyOff(days: WeeklyDay[], start?: { offsDue: number; towards:
   return { offsDue: due, towards: counted % every, run, long };
 }
 
+// An off only once it is earned (user request 2026-10-31, "allow off only if 6 duty + CL + CH completed"): the days
+// as weeklyOff counts them, with the days asked for as offs (`asked`, and `was`: the day's state without the off). An
+// asked off is allowed while an off is due before it; otherwise it is refused, with the days still to count for one
+// (`need`), and the day keeps its own state.
+export type OffCheckDay = WeeklyDay & { asked?: boolean; was?: WeeklyDay["state"] };
+export function offsEarned(days: OffCheckDay[], start?: { offsDue: number; towards: number }, figures?: { offEvery?: number }) {
+  const every = figures?.offEvery ?? OFF_EVERY;
+  let counted = start?.towards ?? 0;
+  let due = start?.offsDue ?? 0;
+  const ok: string[] = [];
+  const refused = new Map<string, number>();
+  for (const d of days) {
+    let state = d.state;
+    if (d.asked) {
+      if (due >= 1) ok.push(d.date);
+      else {
+        refused.set(d.date, dutyForOff(due, counted % every, every));
+        state = d.was ?? "skip";
+      }
+    }
+    if (state === "count") {
+      counted++;
+      if (counted % every === 0) due++;
+    } else if (state === "off") due--;
+  }
+  return { ok, refused };
+}
+// Days of duty (present, CL, CH…) still to count before an off can be taken: none while one is due.
+export const dutyForOff = (offsDue: number, towards: number, every: number) => (offsDue >= 1 ? 0 : (1 - offsDue) * every - towards);
+// "1 off due", or "4 more days for an off".
+export function offLine(w: { offsDue: number; towards: number }, every: number) {
+  const need = dutyForOff(w.offsDue, w.towards, every);
+  return need === 0 ? `${w.offsDue} ${w.offsDue === 1 ? "off" : "offs"} due` : `${need} more ${need === 1 ? "day" : "days"} for an off`;
+}
+
 // The days of a run of absence (KSR Appendix VII: CL or CH with the holidays around it, at most 15 days in a row):
 // CL, CH, a weekly off, and a holiday or Sunday-off staff's Sunday not worked.
 export const CL_RUN_MAX = 15;

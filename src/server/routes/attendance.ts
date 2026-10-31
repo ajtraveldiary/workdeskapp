@@ -24,10 +24,12 @@ import {
   offByItself,
   weekdayOf,
   weeklyOff,
+  offsEarned,
   awayDay,
   CL_RUN_MAX,
   type AttendanceSettings,
   type ChOpen,
+  type OffCheckDay,
   type WeeklyDay,
 } from "../../shared/attendance";
 import { leaveEnd, leaveShort, shiftDate } from "../../shared/leave";
@@ -145,10 +147,73 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
       days.push({ date: d, state });
     }
     const w = weeklyOff(days, settings.start[p.id], settings);
-    // The run when the month starts, so the register can work out the month's runs (and the bar its warnings).
-    const runBefore = weeklyOff(days.filter((d) => d.date < first), settings.start[p.id], settings).run;
-    return { employeeId: p.id, offsDue: w.offsDue, towards: w.towards, run: w.run, long: w.long.filter((d) => d >= first), runBefore };
+    // The run, offs due and days towards the next when the month starts, so the register can work out the month's
+    // runs and which offs are earned (and the bar its warnings).
+    const before = weeklyOff(days.filter((d) => d.date < first), settings.start[p.id], settings);
+    return { employeeId: p.id, offsDue: w.offsDue, towards: w.towards, run: w.run, long: w.long.filter((d) => d >= first), runBefore: before.run, dueBefore: before.offsDue, towardsBefore: before.towards };
   });
+}
+
+// Which offs asked for are earned (user request 2026-10-31, "allow off only if 6 duty + CL + CH completed"): each
+// weekly-off person's days from where their counting starts (the day after their starting figures, else their first
+// mark) to the last day asked, as weeklyFigures sees them, with the days asked as offs (offsEarned). Answers the
+// "employeeId|date" keys allowed.
+async function earnedOffs(db: DB, userId: string, settings: AttendanceSettings, people: { id: string; from: string | null; until: string | null }[], asked: Map<string, Set<string>>) {
+  const ok = new Set<string>();
+  if (!people.length) return ok;
+  const ids = people.map((p) => p.id);
+  const all = [...asked.values()].flatMap((x) => [...x]).sort();
+  const end = all[all.length - 1]!;
+  const firstMarks = await db
+    .select({ employeeId: attendanceMarks.employeeId, first: min(attendanceMarks.date) })
+    .from(attendanceMarks)
+    .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids)))
+    .groupBy(attendanceMarks.employeeId);
+  const starts = new Map(
+    people.map((p) => {
+      const s = settings.start[p.id];
+      const mine = [...asked.get(p.id)!].sort()[0]!;
+      const fm = firstMarks.find((f) => f.employeeId === p.id)?.first;
+      let from = s ? shiftDate(s.asOn, 1) : fm && fm < mine ? fm : mine;
+      if (p.from && from < p.from) from = p.from;
+      return [p.id, from];
+    }),
+  );
+  const earliest = [...starts.values()].sort()[0]!;
+  const [marks, leaves, hols] =
+    earliest <= end
+      ? await Promise.all([
+          db
+            .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark })
+            .from(attendanceMarks)
+            .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), gte(attendanceMarks.date, earliest), lte(attendanceMarks.date, end))),
+          leavesIn(db, userId, earliest, end, ids),
+          holidayMap(db, userId, earliest, end),
+        ])
+      : [[], [], new Map<string, string>()];
+  const markOf = new Map(marks.map((m) => [`${m.employeeId}|${m.date}`, m.mark]));
+  for (const p of people) {
+    const mine = asked.get(p.id)!;
+    const last = [...mine].sort()[mine.size - 1]!;
+    const days: OffCheckDay[] = [];
+    for (let d = starts.get(p.id)!; d <= last && (!p.until || d <= p.until); d = shiftDate(d, 1)) {
+      const m = markOf.get(`${p.id}|${d}`);
+      const state: WeeklyDay["state"] = leaves.some((l) => l.employeeId === p.id && l.from <= d && d <= l.to)
+        ? "reset"
+        : m === "off"
+          ? "off"
+          : m === "absent"
+            ? "reset"
+            : m
+              ? "count"
+              : holidayOn(d, hols, settings)
+                ? "count"
+                : "skip";
+      days.push(mine.has(d) ? { date: d, state: "off", asked: true, was: state } : { date: d, state });
+    }
+    for (const d of offsEarned(days, settings.start[p.id], settings).ok) ok.add(`${p.id}|${d}`);
+  }
+  return ok;
 }
 
 // Days of absence in a row just before the month and just after it (CL, CH, offs, holidays not worked), up to 15
@@ -315,7 +380,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
   })
   // Marks every cell given. Left out (and counted by reason): someone not in the office that day, a day of leave
   // from the Leave page, a holiday (or a Sunday-off employee's Sunday) for any mark but Present (holiday duty), an off
-  // for Sunday-off staff, and a cell with another mark already unless replace.
+  // for Sunday-off staff, an off not earned yet (earnedOffs), and a cell with another mark already unless replace.
   .post("/mark", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
@@ -339,7 +404,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
     const chTaken = await takenFor(db, userId, ids, from);
     const skipped: Record<string, number> = {};
     const skip = (why: string) => void (skipped[why] = (skipped[why] ?? 0) + 1);
-    const rows: (typeof attendanceMarks.$inferInsert)[] = [];
+    let rows: (typeof attendanceMarks.$inferInsert)[] = [];
     const seen = new Set<string>();
     for (const cell of v.cells) {
       const key = `${cell.employeeId}|${cell.date}`;
@@ -358,6 +423,22 @@ export const attendanceRoutes = new Hono<AppEnv>()
       else if (had.has(key) && !v.replace) skip("has another mark");
       else if (chTaken.has(key)) skip("its CH is taken");
       else rows.push({ userId, employeeId: e.id, date: cell.date, mark: v.mark, chHoliday: null });
+    }
+    // An off only once one is earned (6 counted days: duty, CL, CH…).
+    if (v.mark === "off" && rows.length) {
+      const asked = new Map<string, Set<string>>();
+      for (const r of rows) {
+        if (!asked.has(r.employeeId)) asked.set(r.employeeId, new Set());
+        asked.get(r.employeeId)!.add(r.date as string);
+      }
+      const ok = await earnedOffs(
+        db,
+        userId,
+        settings,
+        people.filter((e) => asked.has(e.id)).map((e) => ({ id: e.id, from: e.joinedOfficeOn, until: e.leftOn })),
+        asked,
+      );
+      rows = rows.filter((r) => ok.has(`${r.employeeId}|${r.date}`) || (skip("no off earned yet"), false));
     }
     if (rows.length) {
       await db

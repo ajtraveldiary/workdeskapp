@@ -2,7 +2,7 @@
 // (everyone's summary, or one person's days), and mark attendance as the register does (a staff action: needs Allow
 // changes and Allow staff actions, logged like every change). Both go through the app's own routes as the user.
 import { z } from "zod";
-import { MARK_NAME, MARK_SHORT, monthCounts, offByItself, type AttendanceMark } from "../../shared/attendance";
+import { MARK_NAME, MARK_SHORT, dutyForOff, monthCounts, offByItself, type AttendanceMark } from "../../shared/attendance";
 import type { AttendanceMonth, StaffList } from "../../shared/types";
 import { clean, type Tool } from "./tools";
 import { Unclear, findEmployee, safely } from "./staff";
@@ -51,7 +51,7 @@ export const ATTENDANCE_READ_TOOLS: Tool[] = [
               thisMonth: { present: c.present, holidayDuty: c.holidayDuty, cl: c.cl, ch: c.ch, offs: c.off, absent: c.absent, leaveDays: c.leave, notMarked: c.notMarked },
               thisYear: { cl: totals.get(e.id)?.cl ?? 0, ch: totals.get(e.id)?.ch ?? 0, clPerYear: m.settings.clPerYear, chLimit: m.chLimits.find((x) => x.employeeId === e.id)?.limit ?? "no limit" },
               chToTake: m.chOpen.filter((o) => o.employeeId === e.id && o.expires >= m.today).map((o) => ({ holiday: o.holiday, name: o.name, takeBy: o.expires })),
-              weeklyOff: w ? { offsDue: w.offsDue, daysTowardsNext: `${w.towards} of ${m.settings.offEvery}`, daysInARow: w.run, overTheMostOn: w.long.length ? w.long : undefined } : undefined,
+              weeklyOff: w ? { offsDue: w.offsDue, daysTowardsNext: `${w.towards} of ${m.settings.offEvery}`, daysOfDutyStillNeededForAnOff: dutyForOff(w.offsDue, w.towards, m.settings.offEvery), daysInARow: w.run, overTheMostOn: w.long.length ? w.long : undefined } : undefined,
               days: one
                 ? m.days.map((d) => {
                     const leave = m.leaves.find((l) => l.employeeId === e.id && l.from <= d.date && d.date <= l.to);
@@ -74,7 +74,7 @@ export const ATTENDANCE_STAFF_TOOLS: Tool[] = [
     write: true,
     staff: true,
     description:
-      "Mark the attendance register as the app does, for everyone in the office or named employees, on one day or from–to: present, off (weekly-off staff only), cl, half day cl, absent, or ch (compensation leave: give holidayWorked, the holiday they worked that it is for, within the last 3 months). Holidays and Sundays of Sunday-off staff take only present (holiday duty, which earns a CH); days of leave from the Leave page and cells already marked otherwise are left out unless replace (the answer says what was left out and why)." +
+      "Mark the attendance register as the app does, for everyone in the office or named employees, on one day or from–to: present, off (weekly-off staff only, and only once earned: 6 counted days of duty, CL or CH per off; an off not earned is left out as 'no off earned yet'), cl, half day cl, absent, or ch (compensation leave: give holidayWorked, the holiday they worked that it is for, within the last 3 months). Holidays and Sundays of Sunday-off staff take only present (holiday duty, which earns a CH); days of leave from the Leave page and cells already marked otherwise are left out unless replace (the answer says what was left out and why)." +
       ASK,
     input: z.object({
       date: day.describe("The day, or the first day"),

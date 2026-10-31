@@ -9,7 +9,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { DEFAULT_ATTENDANCE_SETTINGS, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
+import { DEFAULT_ATTENDANCE_SETTINGS, dutyForOff, offLine, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
 import type { AttendanceMonth, AuditEvent, LeaveType } from "../src/shared/types";
 import { unmarkedToday } from "../src/server/routes/attendance";
 import { BACKUP_TABLES } from "../src/shared/transfer";
@@ -87,7 +87,8 @@ describe("attendance register", () => {
     expect(cl.json).toEqual({ marked: 1, skipped: { holiday: 5 } });
     // Present on a holiday is holiday duty, allowed.
     expect((await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-10-02" }], mark: "present" })).json.marked).toBe(1);
-    // An off is for weekly-off staff only.
+    // An off is for weekly-off staff only (and only once earned: Weekly brings one in from the starting figures).
+    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-09-30", clTaken: 0, chOpen: [], offsDue: 1, towards: 0 } } });
     const off = await call("POST", "/attendance/mark", { cells: [a, w].map((employeeId) => ({ employeeId, date: "2026-10-06" })), mark: "off" });
     expect(off.json).toEqual({ marked: 1, skipped: { "Sunday-off staff": 1 } });
     // A cell with another mark stays unless replace; the same mark is left alone.
@@ -233,7 +234,7 @@ describe("attendance register", () => {
     await call("POST", "/attendance/mark", { cells: sep(25, 26), mark: "present" });
     const m = await month("2026-09");
     // Counted: 7 + 13 + 2 = 22 → 3 offs earned, 1 taken; 4 towards the next. The run is 2 since the leave.
-    expect(m.weekly).toEqual([{ employeeId: w, offsDue: 2, towards: 4, run: 2, long: ["2026-09-21"], runBefore: 0 }]);
+    expect(m.weekly).toEqual([{ employeeId: w, offsDue: 2, towards: 4, run: 2, long: ["2026-09-21"], runBefore: 0, dueBefore: 0, towardsBefore: 0 }]);
     // October starts with the run of 26 Sep carried in (27–30 Sep not marked keep it).
     expect((await month("2026-10")).weekly[0]).toMatchObject({ runBefore: 2 });
     // 7 days earn an off instead of 6.
@@ -241,6 +242,48 @@ describe("attendance register", () => {
     expect((await month("2026-09")).weekly[0]).toMatchObject({ offsDue: 2, towards: 1 });
     // Sunday-off staff have no weekly figures.
     expect(m.weekly.some((x) => x.employeeId === s)).toBe(false);
+  });
+
+  it("an off only once earned (6 days of duty, CL or CH), with the days still needed", async () => {
+    const w = await add({ name: "Weekly", offDay: "weekly" });
+    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 0, towards: 0 } } });
+    const day = (d: number) => ({ employeeId: w, date: `2026-09-${String(d).padStart(2, "0")}` });
+    const off = async (days: number[], replace = false) => (await call("POST", "/attendance/mark", { cells: days.map(day), mark: "off", replace })).json;
+    // 1–3 Sep present and 4 Sep CL: 4 counted, so an off on 5 Sep is 2 days short.
+    await call("POST", "/attendance/mark", { cells: [1, 2, 3].map(day), mark: "present" });
+    await call("POST", "/attendance/mark", { cells: [day(4)], mark: "cl" });
+    expect(await off([5])).toEqual({ marked: 0, skipped: { "no off earned yet": 1 } });
+    // 5–6 Sep present make 6: the off on 7 Sep is earned; another on 8 Sep is not.
+    await call("POST", "/attendance/mark", { cells: [5, 6].map(day), mark: "present" });
+    expect(await off([7])).toEqual({ marked: 1, skipped: {} });
+    expect(await off([8])).toEqual({ marked: 0, skipped: { "no off earned yet": 1 } });
+    // 9–14 Sep present (the second Saturday worked): one off earned, so of 15 and 16 Sep only the first is marked.
+    await call("POST", "/attendance/mark", { cells: [9, 10, 11, 12, 13, 14].map(day), mark: "present" });
+    expect(await off([15, 16])).toEqual({ marked: 1, skipped: { "no off earned yet": 1 } });
+    // Turning 14 Sep (present) into an off leaves 9–13 Sep: 5 days, not enough.
+    expect(await off([14], true)).toEqual({ marked: 0, skipped: { "no off earned yet": 1 } });
+    const sep = await month("2026-09");
+    expect(markOf(sep, w, "2026-09-07")).toBe("off");
+    expect(markOf(sep, w, "2026-09-16")).toBeUndefined();
+    // 12 counted, 2 offs taken: none due and 6 more days needed; October starts from there.
+    expect(sep.weekly[0]).toMatchObject({ offsDue: 0, towards: 0 });
+    expect(offLine(sep.weekly[0]!, 6)).toBe("6 more days for an off");
+    expect((await month("2026-10")).weekly[0]).toMatchObject({ dueBefore: 0, towardsBefore: 0 });
+    // The rule itself: days asked for as offs are allowed while one is due, refused with the days still needed.
+    const r = offsEarned(
+      [
+        { date: "a", state: "count" },
+        { date: "b", state: "off", asked: true, was: "skip" },
+        { date: "c", state: "count" },
+        { date: "d", state: "off", asked: true, was: "count" },
+      ],
+      { offsDue: 0, towards: 4 },
+      { offEvery: 6 },
+    );
+    expect(r.ok).toEqual(["d"]);
+    expect([...r.refused]).toEqual([["b", 1]]);
+    expect(dutyForOff(1, 3, 6)).toBe(0);
+    expect(dutyForOff(-1, 2, 6)).toBe(10);
   });
 
   it("a run of CL / CH with holidays is seen across the month's edges", async () => {
@@ -287,6 +330,8 @@ describe("attendance register", () => {
 
   it("sums up a person's month: present, holiday duty, CL with halves, CH, offs, absent, leave, not marked", async () => {
     const a = await add({ name: NAME, offDay: "weekly" });
+    // An off due from before the register, so the off on 5 Sep is earned.
+    await call("PUT", "/attendance/settings", { start: { [a]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 1, towards: 0 } } });
     await call("POST", "/attendance/holidays", { date: "2026-09-15", name: "Onam" });
     await call("POST", "/attendance/mark", { cells: ["2026-09-01", "2026-09-02", "2026-09-15"].map((date) => ({ employeeId: a, date })), mark: "present" });
     await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-09-03" }], mark: "cl" });

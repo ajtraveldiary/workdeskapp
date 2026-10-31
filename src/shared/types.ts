@@ -523,7 +523,7 @@ export type AttendanceMonth = {
   chOpen: import("./attendance").ChOpen[];
   chFor: { employeeId: string; date: string; holiday: string }[];
   chLimits: { employeeId: string; limit: number | null }[];
-  weekly: { employeeId: string; offsDue: number; towards: number; run: number; long: string[]; runBefore: number }[];
+  weekly: { employeeId: string; offsDue: number; towards: number; run: number; long: string[]; runBefore: number; dueBefore: number; towardsBefore: number }[];
   // Days of absence in a row (CL, CH, offs, holidays not worked) just before the month and just after it, so a
   // 15-day run that crosses the month's edge is seen.
   edges: { employeeId: string; before: number; after: number }[];

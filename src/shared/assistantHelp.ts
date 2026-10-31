@@ -231,7 +231,7 @@ export const HELP_GROUPS: HelpGroup[] = [
         name: "mark_attendance",
         title: "Mark attendance",
         kind: "staff",
-        hint: "Marks the register as the app does: present, off, CL, half day CL, absent or CH, for everyone in the office or named people, on a day or from–to. A CH needs the holiday worked it is for. Leave days and holidays are left out as in the app.",
+        hint: "Marks the register as the app does: present, off, CL, half day CL, absent or CH, for everyone in the office or named people, on a day or from–to. A CH needs the holiday worked it is for, and an off is marked only once earned (6 days of duty, CL or CH). Leave days and holidays are left out as in the app.",
         example: "Mark everyone present today, and Mary on CL.",
         note: "It tells you what was left out and why (on leave, holiday, already marked).",
       },
