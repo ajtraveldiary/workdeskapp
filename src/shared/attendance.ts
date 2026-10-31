@@ -27,8 +27,11 @@ export type AttendanceSettings = {
   // figures by employee id.
   chLimits: Record<string, number | null>;
   start: Record<string, StartFigures>;
+  // Weekly off (the user's rules): counted days that earn an off (6), and the most days in a row without one (12).
+  offEvery: number;
+  maxRun: number;
 };
-export const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = { secondSaturday: true, clPerYear: 20, chLimits: {}, start: {} };
+export const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = { secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12 };
 
 const utc = (day: string) => new Date(`${day}T00:00:00Z`);
 // 0 = Sunday … 6 = Saturday.
@@ -109,27 +112,34 @@ export const chFits = (o: { holiday: string; expires: string }, date: string) =>
 export type StartFigures = { asOn: string; clTaken: number; chOpen: { date: string; name: string }[]; offsDue: number; towards: number };
 
 // Weekly off (the user's rules, 2026-10-31): 6 counted days earn an off, carried over; more than 12 counted days in a
-// row without an off is warned about. Counted: days present (holiday duty too), CL, half-day CL, CH, and holidays not
+// row without an off is warned about (both figures can be changed in Settings › Attendance). Counted: days present (holiday duty too), CL, half-day CL, CH, and holidays not
 // worked. Regular leave (EL, HPL, commuted…) and absent days count nothing and start the run again; an off is taken
 // from the offs due and starts the run again; days not marked yet count nothing and keep the run.
 export const OFF_EVERY = 6;
 export const MAX_RUN = 12;
 export type WeeklyDay = { date: string; state: "count" | "off" | "reset" | "skip" };
-export function weeklyOff(days: WeeklyDay[], start?: { offsDue: number; towards: number }) {
+export function weeklyOff(days: WeeklyDay[], start?: { offsDue: number; towards: number }, figures?: { offEvery?: number; maxRun?: number }, startRun = 0) {
+  const every = figures?.offEvery ?? OFF_EVERY;
+  const max = figures?.maxRun ?? MAX_RUN;
   let counted = start?.towards ?? 0;
   let due = start?.offsDue ?? 0;
-  let run = 0;
+  let run = startRun;
   const long: string[] = [];
   for (const d of days) {
     if (d.state === "count") {
       counted++;
       run++;
-      if (counted % OFF_EVERY === 0) due++;
-      if (run > MAX_RUN) long.push(d.date);
+      if (counted % every === 0) due++;
+      if (run > max) long.push(d.date);
     } else if (d.state === "off") {
       due--;
       run = 0;
     } else if (d.state === "reset") run = 0;
   }
-  return { offsDue: due, towards: counted % OFF_EVERY, run, long };
+  return { offsDue: due, towards: counted % every, run, long };
 }
+
+// The days of a run of absence (KSR Appendix VII: CL or CH with the holidays around it, at most 15 days in a row):
+// CL, CH, a weekly off, and a holiday or Sunday-off staff's Sunday not worked.
+export const CL_RUN_MAX = 15;
+export const awayDay = (mark: AttendanceMark | null | undefined, offItself: boolean) => mark === "cl" || mark === "ch" || mark === "off" || (offItself && !mark);

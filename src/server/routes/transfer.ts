@@ -29,7 +29,9 @@ import {
   linkedEmails, officeProfiles,
   leaveTypes,
   employeeLeaves,
-  leaveLedger } from "../db/schema";
+  leaveLedger,
+  attendanceSettings } from "../db/schema";
+import { DEFAULT_ATTENDANCE_SETTINGS, type AttendanceSettings, type StartFigures } from "../../shared/attendance";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { ensureReportPeriods } from "../lib/reports";
@@ -116,6 +118,20 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
     return rows.map((f) =>
       out({ subject: f.subject, kind: f.physical ? "Physical file" : "E-file", efileNumber: f.efileNumber, notes: f.notes, tags: (f.tagIds ?? []).map((id) => fileTag.get(id)).filter(Boolean).join(", ") }),
     );
+  }
+  if (kind === "attendance") {
+    // Each employee's attendance starting figures (attendance phase 2).
+    const [people, [row]] = await Promise.all([
+      db.select({ id: employees.id, name: employees.name, pen: employees.pen }).from(employees).where(eq(employees.userId, userId)).orderBy(asc(employees.name)),
+      db.select().from(attendanceSettings).where(eq(attendanceSettings.userId, userId)),
+    ]);
+    const start = row?.data.start ?? {};
+    return people
+      .filter((e) => start[e.id])
+      .map((e) => {
+        const f = start[e.id]!;
+        return out({ pen: e.pen, name: e.name, asOn: f.asOn, clTaken: formatDays(f.clTaken), chOpen: f.chOpen.map((c) => `${c.date}${c.name ? ` ${c.name}` : ""}`).join("; "), offsDue: String(f.offsDue), towards: String(f.towards) });
+      });
   }
   if (kind === "leave") {
     // Every permanent employee still here and every leave with a balance, as on today.
@@ -906,6 +922,76 @@ async function planLeave(db: DB, userId: string, rows: Row[], result: ImportResu
   };
 }
 
+// Attendance starting figures (attendance phase 2): one row per employee (PEN, or name), replacing any figures they
+// had. Holidays worked with CH still to take are "date name; date name". One History entry for the file.
+async function planAttendance(db: DB, userId: string, rows: Row[], result: ImportResult): Promise<Plan> {
+  const [people, [saved]] = await Promise.all([
+    db.select({ id: employees.id, name: employees.name, pen: employees.pen }).from(employees).where(eq(employees.userId, userId)),
+    db.select().from(attendanceSettings).where(eq(attendanceSettings.userId, userId)),
+  ]);
+  const settings: AttendanceSettings = { ...DEFAULT_ATTENDANCE_SETTINGS, ...(saved?.data ?? {}) };
+  const next: Record<string, StartFigures> = {};
+  for (const row of rows) {
+    const c = row.cells;
+    const pen = (c.get("pen") ?? "").trim();
+    const name = lower(c.get("name") ?? "");
+    const e = (pen && people.find((p) => p.pen === pen)) || (name && people.find((p) => lower(p.name) === name)) || null;
+    if (!e) {
+      problem(result, row, `No employee with ${pen ? `PEN ${pen} or ` : ""}the name "${c.get("name") ?? ""}"`);
+      continue;
+    }
+    if (next[e.id]) {
+      problem(result, row, `${e.name} is in the file twice`);
+      continue;
+    }
+    const asOn = parseDay(c.get("asOn") ?? "");
+    if (!asOn) {
+      problem(result, row, `As on: "${c.get("asOn") ?? ""}" is not a date (use 31/03/2027 or 2027-03-31)`);
+      continue;
+    }
+    const cl = num(c.get("clTaken") ?? "", false);
+    const offs = num(c.get("offsDue") ?? "", true);
+    const towards = num(c.get("towards") ?? "", true);
+    if (cl === undefined || (cl != null && (cl < 0 || cl > 60 || !Number.isInteger(cl * 2)))) {
+      problem(result, row, `CL taken: "${c.get("clTaken")}" should be days (half days allowed)`);
+      continue;
+    }
+    if (offs === undefined || (offs != null && (offs < -30 || offs > 60))) {
+      problem(result, row, `Offs due: "${c.get("offsDue")}" should be a whole number`);
+      continue;
+    }
+    if (towards === undefined || (towards != null && (towards < 0 || towards >= settings.offEvery))) {
+      problem(result, row, `Days towards the next off: "${c.get("towards")}" should be 0 to ${settings.offEvery - 1}`);
+      continue;
+    }
+    const chOpen: StartFigures["chOpen"] = [];
+    let bad = "";
+    for (const part of (c.get("chOpen") ?? "").split(/[;\n]/).map((x) => x.trim()).filter(Boolean)) {
+      const [first, ...rest] = part.split(/\s+/);
+      const d = parseDay(first ?? "");
+      if (!d) bad ||= part;
+      else chOpen.push({ date: d, name: rest.join(" ").slice(0, 100) });
+    }
+    if (bad) {
+      problem(result, row, `Holidays worked: "${bad}" should start with a date, e.g. "2026-09-15 Onam"`);
+      continue;
+    }
+    next[e.id] = { asOn, clTaken: cl ?? 0, chOpen: chOpen.slice(0, 30), offsDue: offs ?? 0, towards: towards ?? 0 };
+    if (settings.start[e.id]) result.updated++;
+    else result.added++;
+  }
+  return {
+    result,
+    write: async () => {
+      const n = Object.keys(next).length;
+      if (!n) return;
+      const data = { ...settings, start: { ...settings.start, ...next } };
+      await db.insert(attendanceSettings).values({ userId, data }).onConflictDoUpdate({ target: attendanceSettings.userId, set: { data, updatedAt: new Date() } });
+      await db.insert(events).values({ userId, entityType: "sync", action: "data.attendance_imported", summary: `Attendance starting figures from a file: ${n} ${n === 1 ? "person" : "people"}` });
+    },
+  };
+}
+
 const PLANNERS: Record<CsvKind, (db: DB, userId: string, rows: Row[], result: ImportResult) => Promise<Plan>> = {
   files: planFiles,
   employees: planEmployees,
@@ -913,6 +999,7 @@ const PLANNERS: Record<CsvKind, (db: DB, userId: string, rows: Row[], result: Im
   reminders: planReminders,
   events: planEvents,
   leave: planLeave,
+  attendance: planAttendance,
 };
 
 // --- Master backup ---

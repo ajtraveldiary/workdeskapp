@@ -24,6 +24,8 @@ import {
   offByItself,
   weekdayOf,
   weeklyOff,
+  awayDay,
+  CL_RUN_MAX,
   type AttendanceSettings,
   type ChOpen,
   type WeeklyDay,
@@ -142,8 +144,43 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
                 : "skip";
       days.push({ date: d, state });
     }
-    const w = weeklyOff(days, settings.start[p.id]);
-    return { employeeId: p.id, offsDue: w.offsDue, towards: w.towards, run: w.run, long: w.long.filter((d) => d >= first) };
+    const w = weeklyOff(days, settings.start[p.id], settings);
+    // The run when the month starts, so the register can work out the month's runs (and the bar its warnings).
+    const runBefore = weeklyOff(days.filter((d) => d.date < first), settings.start[p.id], settings).run;
+    return { employeeId: p.id, offsDue: w.offsDue, towards: w.towards, run: w.run, long: w.long.filter((d) => d >= first), runBefore };
+  });
+}
+
+// Days of absence in a row just before the month and just after it (CL, CH, offs, holidays not worked), up to 15
+// each way: a run past 15 days with the month's CL / CH can cross its edge.
+async function awayEdges(db: DB, userId: string, settings: AttendanceSettings, people: { id: string; offDay: "sunday" | "weekly"; from: string | null; until: string | null }[], first: string, last: string) {
+  if (!people.length) return [];
+  const before = shiftDate(first, -CL_RUN_MAX);
+  const after = shiftDate(last, CL_RUN_MAX);
+  const ids = people.map((p) => p.id);
+  const [marks, hols, leaves] = await Promise.all([
+    db
+      .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark })
+      .from(attendanceMarks)
+      .where(
+        and(
+          eq(attendanceMarks.userId, userId),
+          inArray(attendanceMarks.employeeId, ids),
+          or(and(gte(attendanceMarks.date, before), lte(attendanceMarks.date, shiftDate(first, -1))), and(gte(attendanceMarks.date, shiftDate(last, 1)), lte(attendanceMarks.date, after))),
+        ),
+      ),
+    holidayMap(db, userId, before, after),
+    leavesIn(db, userId, before, after, ids),
+  ]);
+  const markOf = new Map(marks.map((m) => [`${m.employeeId}|${m.date}`, m.mark]));
+  return people.map((p) => {
+    const away = (d: string) =>
+      (!p.from || d >= p.from) && (!p.until || d <= p.until) && !leaves.some((l) => l.employeeId === p.id && l.from <= d && d <= l.to) && awayDay(markOf.get(`${p.id}|${d}`), offByItself(d, holidayOn(d, hols, settings), p.offDay));
+    let b = 0;
+    while (b < CL_RUN_MAX && away(shiftDate(first, -(b + 1)))) b++;
+    let a = 0;
+    while (a < CL_RUN_MAX && away(shiftDate(last, a + 1))) a++;
+    return { employeeId: p.id, before: b, after: a };
   });
 }
 
@@ -210,7 +247,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
       else t.cl += clDays(r.mark) * Number(r.n);
       totals.set(r.employeeId, t);
     }
-    const [ch, weekly] = await Promise.all([
+    const [ch, weekly, edges] = await Promise.all([
       openCh(db, userId, settings, ids, addMonths(first, -4), last),
       weeklyFigures(
         db,
@@ -220,6 +257,14 @@ export const attendanceRoutes = new Hono<AppEnv>()
         first,
         last,
         today,
+      ),
+      awayEdges(
+        db,
+        userId,
+        settings,
+        people.map((p) => ({ id: p.e.id, offDay: p.e.offDay, from: p.e.joinedOfficeOn, until: p.e.leftOn })),
+        first,
+        last,
       ),
     ]);
     const out: AttendanceMonth = {
@@ -238,6 +283,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
         limit: e.designationId && e.designationId in settings.chLimits ? settings.chLimits[e.designationId]! : guessChLimit(designation),
       })),
       weekly,
+      edges,
     };
     return c.json(out);
   })

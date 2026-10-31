@@ -6,12 +6,14 @@
 // shaded; leave from the Leave page fills its days, read-only. Phones show one day at a time. Phase 2: Mark CH asks
 // which holiday worked each CH is for (ChPicker); a holiday worked shows a dot (blue while its CH is open); the
 // CL / CH column adds the CH open and, for weekly-off staff, the offs due; days past 12 in a row are outlined red;
-// the bar warns about offs not earned, CL / CH with holidays past 15 days, CH limits and CH held past 10.
+// the bar warns about offs not earned, CL / CH with holidays past 15 days (across the month's edges too), CH limits,
+// CH held past 10 and a run of days that marking would take past 12; CH that must be taken within a week are listed
+// above the register; the CL / CH cell opens the person's figures (DetailsDialog), and phones show them in each row.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, Check, ChevronLeft, ChevronRight, Eraser, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
-import { CH_HOLD_MAX, MARK_NAME, MARK_SHORT, OFF_EVERY, WEEKDAY_LETTER, chFits, clDays, monthLabel, offByItself, shiftMonth, type AttendanceMark, type ChOpen } from "../../shared/attendance";
+import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, monthLabel, offByItself, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type WeeklyDay } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendance, useAttendanceActions, useMe, useOfficeProfile, type AttendanceCell } from "../api";
@@ -124,9 +126,15 @@ export function AttendancePage() {
       ) : data.employees.length === 0 ? (
         <Card className="p-6 text-center text-sm text-slate-500">No employees in the office in {monthLabel(month)}. Add them on the Employees page.</Card>
       ) : wide ? (
-        <Register data={data} cells={cells} selected={selected} setSelected={setSelected} />
+        <>
+          <ChDueSoon data={data} />
+          <Register data={data} cells={cells} selected={selected} setSelected={setSelected} />
+        </>
       ) : (
-        <DayView data={data} cells={cells} selected={selected} setSelected={setSelected} onMonth={setMonth} />
+        <>
+          <ChDueSoon data={data} />
+          <DayView data={data} cells={cells} selected={selected} setSelected={setSelected} onMonth={setMonth} />
+        </>
       )}
       {data && cells && selected.size > 0 && (
         <>
@@ -153,6 +161,7 @@ function useChLookups(data: AttendanceMonth) {
       weekly: new Map(data.weekly.map((w) => [w.employeeId, w])),
       long: new Set(data.weekly.flatMap((w) => w.long.map((d) => key(w.employeeId, d)))),
       limit: new Map(data.chLimits.map((x) => [x.employeeId, x.limit])),
+      edges: new Map(data.edges.map((x) => [x.employeeId, x])),
     };
   }, [data]);
 }
@@ -160,27 +169,120 @@ type Lookups = ReturnType<typeof useChLookups>;
 
 // CL and CH this year, the CH still to take (+n, red when one must be taken within a week) and, for weekly-off
 // staff, the offs due.
-function TotalsCell({ id, cl, ch, data, lookups }: { id: string; cl: number; ch: number; data: AttendanceMonth; lookups: Lookups }) {
+// Tapping it opens the person's figures (DetailsDialog), so they are reachable by touch too.
+function TotalsCell({ id, cl, ch, data, lookups, onOpen }: { id: string; cl: number; ch: number; data: AttendanceMonth; lookups: Lookups; onOpen: () => void }) {
   const open = lookups.open.get(id) ?? [];
   const soon = open.some((o) => o.expires <= addDays(data.today, 7));
   const w = lookups.weekly.get(id);
   const limit = lookups.limit.get(id);
-  const title = [
-    `This year: CL ${cl} of ${data.settings.clPerYear}; CH ${ch}${limit == null ? "" : ` of ${limit}`}`,
-    open.length ? `CH to take: ${open.length} (${open.map((o) => `${o.name} ${dayLabel(o.holiday)}, by ${dayLabel(o.expires)}`).join("; ")})` : "",
-    w ? `Weekly off: ${w.offsDue} due, ${w.towards} of ${OFF_EVERY} days towards the next, ${w.run} days in a row so far` : "",
+  return (
+    <td className="sticky left-48 z-10 w-16 min-w-16 border border-slate-300 bg-white p-0 text-center leading-tight tabular-nums">
+      <button type="button" onClick={onOpen} aria-label="Show their CL, CH and weekly-off figures" title="Show the figures" className="no-tap flex w-full flex-col items-center px-1 py-1 hover:bg-slate-50 active:bg-slate-100">
+        <span className={cx("block", cl > data.settings.clPerYear ? "font-semibold text-urgent-ink" : "text-slate-700")}>CL {String(cl).padStart(2, "0")}</span>
+        <span className={cx("block", limit != null && ch > limit ? "font-semibold text-urgent-ink" : "text-slate-700")}>
+          CH {String(ch).padStart(2, "0")}
+          {open.length > 0 && <span className={cx("ml-0.5 text-caption2 font-semibold", soon ? "text-urgent-ink" : "text-info-ink")}>+{open.length}</span>}
+        </span>
+        {w && <span className={cx("block text-caption2", w.offsDue < 0 ? "font-semibold text-urgent-ink" : w.offsDue > 0 ? "font-medium text-low-ink" : "text-slate-500")}>Off {w.offsDue}</span>}
+      </button>
+    </td>
+  );
+}
+
+// One line of a person's figures, for the phones' day view and the details: "CL 3 of 20 · CH 1, 2 to take · 1 off due
+// · 5 days in a row".
+function figuresLine(id: string, data: AttendanceMonth, lookups: Lookups) {
+  const t = data.totals.find((x) => x.employeeId === id) ?? { cl: 0, ch: 0 };
+  const open = lookups.open.get(id) ?? [];
+  const w = lookups.weekly.get(id);
+  const limit = lookups.limit.get(id);
+  return [
+    `CL ${t.cl} of ${data.settings.clPerYear}`,
+    `CH ${t.ch}${limit == null ? "" : ` of ${limit}`}${open.length ? `, ${open.length} to take` : ""}`,
+    w && `${w.offsDue} ${Math.abs(w.offsDue) === 1 ? "off" : "offs"} due`,
+    w && `${w.run} ${w.run === 1 ? "day" : "days"} in a row`,
   ]
     .filter(Boolean)
-    .join("\n");
+    .join(" · ");
+}
+
+// A person's figures this year (tap the CL / CH cell): CL and CH taken with the limits, each holiday worked whose CH
+// is still to take and its last day, and for weekly-off staff the offs due, the days towards the next and the run.
+function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data: AttendanceMonth; lookups: Lookups; onClose: () => void }) {
+  const e = data.employees.find((x) => x.id === id);
+  const t = data.totals.find((x) => x.employeeId === id) ?? { cl: 0, ch: 0 };
+  const open = (id && lookups.open.get(id)) || [];
+  const w = id ? lookups.weekly.get(id) : undefined;
+  const limit = id ? lookups.limit.get(id) : null;
+  const row = (label: string, value: string, bad?: boolean) => (
+    <div className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
+      <span className="text-slate-600">{label}</span>
+      <span className={cx("text-right tabular-nums", bad ? "font-semibold text-urgent-ink" : "text-ink")}>{value}</span>
+    </div>
+  );
   return (
-    <td className="sticky left-48 z-10 w-16 min-w-16 border border-slate-300 bg-white px-1 text-center leading-tight tabular-nums" title={title}>
-      <span className={cx("block", cl > data.settings.clPerYear ? "font-semibold text-urgent-ink" : "text-slate-700")}>CL {String(cl).padStart(2, "0")}</span>
-      <span className={cx("block", limit != null && ch > limit ? "font-semibold text-urgent-ink" : "text-slate-700")}>
-        CH {String(ch).padStart(2, "0")}
-        {open.length > 0 && <span className={cx("ml-0.5 text-caption2 font-semibold", soon ? "text-urgent-ink" : "text-info-ink")}>+{open.length}</span>}
-      </span>
-      {w && <span className={cx("block text-caption2", w.offsDue < 0 ? "font-semibold text-urgent-ink" : w.offsDue > 0 ? "font-medium text-low-ink" : "text-slate-500")}>Off {w.offsDue}</span>}
-    </td>
+    <Modal open={!!e} onClose={onClose} title={e?.name ?? "Figures"} closeOnBackdrop>
+      {e && (
+        <div className="divide-y divide-line">
+          {row(`Casual leave in ${data.month.slice(0, 4)}`, `${t.cl} of ${data.settings.clPerYear}`, t.cl > data.settings.clPerYear)}
+          {row(`Compensation leave in ${data.month.slice(0, 4)}`, `${t.ch}${limit == null ? " (no limit for this post)" : ` of ${limit}`}`, limit != null && t.ch > limit)}
+          <div className="py-1.5 text-sm">
+            <span className="text-slate-600">Holidays worked, CH to take</span>
+            {open.length === 0 ? (
+              <p className="text-ink">None</p>
+            ) : (
+              <ul className="mt-1 space-y-0.5">
+                {open.map((o) => (
+                  <li key={o.holiday} className={cx("[overflow-wrap:anywhere]", o.expires <= addDays(data.today, 7) ? "font-medium text-urgent-ink" : "text-ink")}>
+                    {o.name}, {dayLabel(o.holiday)}: take by {dayLabel(o.expires)}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {open.length > CH_HOLD_MAX && <p className="mt-1 text-footnote text-urgent-ink">More than {CH_HOLD_MAX} held; at most {CH_HOLD_MAX} may be.</p>}
+          </div>
+          {w && (
+            <>
+              {row("Offs due", String(w.offsDue), w.offsDue < 0)}
+              {row("Days towards the next off", `${w.towards} of ${data.settings.offEvery}`)}
+              {row("Days in a row so far", `${w.run} (at most ${data.settings.maxRun})`, w.run > data.settings.maxRun)}
+            </>
+          )}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// A weekly-off person's days of the month as the counting sees them (weeklyOff), with some cells taken as marked.
+function monthStates(data: AttendanceMonth, cells: Cells, e: Person, as?: { dates: Set<string>; mark: AttendanceMark }): WeeklyDay[] {
+  return data.days.map((d) => {
+    const info = cells.info(e, d.date);
+    if (info.out) return { date: d.date, state: "skip" as const };
+    if (info.leave) return { date: d.date, state: "reset" as const };
+    const m = as?.dates.has(d.date) ? as.mark : info.mark;
+    const state: WeeklyDay["state"] = m === "off" ? "off" : m === "absent" ? "reset" : m ? "count" : d.holiday ? "count" : "skip";
+    return { date: d.date, state };
+  });
+}
+
+// CH that must be taken within a week (this month's register): "Rajesh Kumar: Gandhi Jayanthi (2 Oct), by 2 Jan".
+function ChDueSoon({ data }: { data: AttendanceMonth }) {
+  const lookups = useChLookups(data);
+  if (!data.today.startsWith(data.month)) return null;
+  const soon = data.employees.flatMap((e) => (lookups.open.get(e.id) ?? []).filter((o) => o.expires <= addDays(data.today, 7)).map((o) => ({ e, o })));
+  if (!soon.length) return null;
+  return (
+    <div className="mb-3 rounded-lg border border-urgent-soft bg-urgent-soft px-3 py-2 text-footnote text-urgent-ink">
+      <p className="font-semibold">CH to take within a week (3 months from the holiday worked)</p>
+      <ul className="mt-0.5">
+        {soon.map(({ e, o }) => (
+          <li key={`${e.id}${o.holiday}`} className="[overflow-wrap:anywhere]">
+            {e.name}: {o.name} ({dayLabel(o.holiday)}), by {dayLabel(o.expires)}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 const addDays = (day: string, n: number) => {
@@ -197,6 +299,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
   const settings = data.settings;
   const totals = new Map(data.totals.map((t) => [t.employeeId, t]));
   const ch = useChLookups(data);
+  const [details, setDetails] = useState<string | null>(null);
   useEffect(() => {
     const end = () => (drag.current = null);
     window.addEventListener("pointerup", end);
@@ -349,11 +452,16 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                         <span className="block truncate text-caption2 text-slate-500">
                           {[e.designation, !e.permanent && "Temporary", e.offDay === "weekly" && OFF_DAY_LABELS.weekly].filter(Boolean).join(" · ")}
                         </span>
-                        {(ch.weekly.get(e.id)?.long.length ?? 0) > 0 && <span className="block text-caption2 font-medium text-urgent-ink">Over 12 days in a row without an off</span>}
+                        {ch.weekly.get(e.id) && (
+                          <span className={cx("block text-caption2", (ch.weekly.get(e.id)!.long.length ?? 0) > 0 ? "font-medium text-urgent-ink" : "text-slate-500")}>
+                            {ch.weekly.get(e.id)!.offsDue} off due · {ch.weekly.get(e.id)!.run} in a row
+                            {ch.weekly.get(e.id)!.long.length > 0 && ` · over ${data.settings.maxRun} this month`}
+                          </span>
+                        )}
                       </span>
                     </button>
                   </th>
-                  <TotalsCell id={e.id} cl={t.cl} ch={t.ch} data={data} lookups={ch} />
+                  <TotalsCell id={e.id} cl={t.cl} ch={t.ch} data={data} lookups={ch} onOpen={() => setDetails(e.id)} />
                   {tds}
                 </tr>
               );
@@ -365,6 +473,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
         ✓ Present · O Weekly off · CL Casual leave · ½CL Half day · CH Compensation leave · A Absent · grey: holiday or Sunday off · a blue dot: holiday worked, CH open (grey once taken) · EL, HPL…: leave from the
         Leave page · a red dot under a day: someone not marked yet · red outline: more than 12 days in a row without an off. CL and CH are this year's; +n: CH still to take.
       </p>
+      <DetailsDialog id={details} data={data} lookups={ch} onClose={() => setDetails(null)} />
     </Card>
   );
 }
@@ -384,6 +493,7 @@ function DayView({ data, cells, selected, setSelected, onMonth }: SelectProps & 
     setSelected(new Set());
   };
   const people = data.employees.filter((e) => !cells.info(e, day.date).out);
+  const lookups = useChLookups(data);
   const keys = people.filter((e) => cells.selectable(e, day.date)).map((e) => key(e.id, day.date));
   const all = keys.length > 0 && keys.every((k) => selected.has(k));
   const toggle = (k: string) => {
@@ -420,6 +530,8 @@ function DayView({ data, cells, selected, setSelected, onMonth }: SelectProps & 
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm text-ink [overflow-wrap:anywhere]">{e.name}</span>
                   <span className="block truncate text-footnote text-slate-500">{[e.designation, e.offDay === "weekly" && OFF_DAY_LABELS.weekly].filter(Boolean).join(" · ")}</span>
+                  {/* Their figures, since phones have no CL / CH column (attendance phase 2). */}
+                  <span className={cx("block text-caption [overflow-wrap:anywhere]", (lookups.weekly.get(e.id)?.long.length ?? 0) > 0 ? "text-urgent-ink" : "text-slate-500")}>{figuresLine(e.id, data, lookups)}</span>
                 </span>
                 <span className="shrink-0 text-sm">
                   {info.leave ? (
@@ -479,12 +591,13 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
     .map((id) => {
       const e = byId.get(id)!;
       const extra = new Set(picked.filter((c) => c.employeeId === id).map((c) => c.date));
+      const edge = lookups.edges.get(id) ?? { before: 0, after: 0 };
       let best = 0;
-      let len = 0;
+      // The days just before the month carry into its first run, and those just after it end its last one.
+      let len = edge.before;
       let touches = false;
       for (const d of data.days) {
-        const m = cells.marks.get(key(id, d.date));
-        const away = extra.has(d.date) || m === "cl" || m === "ch" || (cells.holiday(e, d.date) && m !== "present");
+        const away = extra.has(d.date) || awayDay(cells.marks.get(key(id, d.date)), cells.holiday(e, d.date));
         if (away) {
           len++;
           touches ||= extra.has(d.date);
@@ -494,9 +607,24 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
           touches = false;
         }
       }
+      if (touches && len > 0) best = Math.max(best, len + edge.after);
       return { id, days: best };
     })
-    .filter((x) => x.days > 15);
+    .filter((x) => x.days > CL_RUN_MAX);
+  // Weekly-off staff: the days in a row that marking the cells as worked (present, CL or CH) would make, past the
+  // most allowed.
+  const overRun = people
+    .filter((id) => byId.get(id)?.offDay === "weekly")
+    .map((id) => {
+      const e = byId.get(id)!;
+      const w = lookups.weekly.get(id);
+      const figures = { offEvery: data.settings.offEvery, maxRun: data.settings.maxRun };
+      const before = new Set(weeklyOff(monthStates(data, cells, e), undefined, figures, w?.runBefore ?? 0).long);
+      const after = weeklyOff(monthStates(data, cells, e, { dates: new Set(picked.filter((c) => c.employeeId === id).map((c) => c.date)), mark: "present" }), undefined, figures, w?.runBefore ?? 0).long;
+      const added = after.filter((d) => !before.has(d));
+      return { id, first: added[0] };
+    })
+    .filter((x) => x.first);
   const run = (m: Markable) =>
     mark.mutate(
       { cells: picked, mark: m, replace },
@@ -558,6 +686,11 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
       {offsShort.length > 0 && (
         <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
           As offs: {offsShort.map((x) => `${byId.get(x.id)?.name} has ${x.due} due, ${x.n} marked`).join(", ")} (an off is earned by 6 days of work).
+        </p>
+      )}
+      {overRun.length > 0 && (
+        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+          As Present, CL or CH: {overRun.map((x) => `${byId.get(x.id)?.name} past ${data.settings.maxRun} days in a row on ${dayLabel(x.first!)}`).join(", ")}; an off is due first.
         </p>
       )}
       {longAway.length > 0 && (

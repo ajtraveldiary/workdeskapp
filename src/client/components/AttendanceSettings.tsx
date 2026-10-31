@@ -4,7 +4,7 @@
 // CH limit a year of each post (G.O.(Ms) 43/2021/H&FWD) and each employee's starting figures.
 import { useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Plus, Trash2, X } from "lucide-react";
-import { CH_LIMIT_CHOICES, DEFAULT_ATTENDANCE_SETTINGS, OFF_EVERY, WEEKDAY_LETTER, guessChLimit, isSecondSaturday, monthDays, monthLabel, shiftMonth, weekdayOf, type StartFigures } from "../../shared/attendance";
+import { CH_LIMIT_CHOICES, DEFAULT_ATTENDANCE_SETTINGS, WEEKDAY_LETTER, guessChLimit, isSecondSaturday, monthDays, monthLabel, shiftMonth, weekdayOf, type StartFigures } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { useAttendanceActions, useAttendanceSettings, useHolidays, useMe, useStaff } from "../api";
 import { Button, Card, ErrorNote, Field, Loading, cx, inputClass } from "./ui";
@@ -134,12 +134,21 @@ function RegisterSettings() {
   const { data } = useAttendanceSettings();
   const { saveSettings } = useAttendanceActions();
   const [cl, setCl] = useState("");
+  // Weekly off (the user's rules): days that earn an off, and the most days in a row without one.
+  const [every, setEvery] = useState("");
+  const [max, setMax] = useState("");
   useEffect(() => {
-    if (data) setCl(String(data.settings.clPerYear));
+    if (!data) return;
+    setCl(String(data.settings.clPerYear));
+    setEvery(String(data.settings.offEvery));
+    setMax(String(data.settings.maxRun));
   }, [data]);
   if (!data) return null;
   const s = data.settings;
   const n = Number(cl);
+  const e = Number(every);
+  const m = Number(max);
+  const weeklyOk = Number.isInteger(e) && e >= 2 && e <= 13 && Number.isInteger(m) && m >= 3 && m <= 31;
   return (
     <Card className="p-5">
       <h2 className="font-semibold text-slate-900">Register</h2>
@@ -159,6 +168,22 @@ function RegisterSettings() {
         )}
       </div>
       <p className="mt-1 text-footnote text-slate-500">KSR Part I, Appendix VII: 20 days in a calendar year. The register warns when someone goes past it.</p>
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-slate-700">Weekly off: days of work for an off</span>
+          <input type="number" inputMode="numeric" min={2} max={13} className={cx(inputClass, "w-28")} value={every} onChange={(ev) => setEvery(ev.target.value)} />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-slate-700">Most days in a row</span>
+          <input type="number" inputMode="numeric" min={3} max={31} className={cx(inputClass, "w-28")} value={max} onChange={(ev) => setMax(ev.target.value)} />
+        </label>
+        {(every !== String(s.offEvery) || max !== String(s.maxRun)) && (
+          <Button onClick={() => saveSettings.mutate({ ...s, offEvery: e, maxRun: m })} disabled={!weeklyOk || saveSettings.isPending}>
+            <Check size={15} /> Save
+          </Button>
+        )}
+      </div>
+      <p className="mt-1 text-footnote text-slate-500">For weekly-off staff: 6 days of work earn the 7th day off, and everyone takes an off after at most 12 days in a row (more is flagged).</p>
       <ErrorNote error={saveSettings.error} />
     </Card>
   );
@@ -280,8 +305,8 @@ function StartingFigures() {
                   <Field label="Offs due">
                     <input type="number" inputMode="numeric" min={-30} max={60} step={1} className={inputClass} value={f.offsDue} onChange={(e) => setF({ ...f, offsDue: num(e.target.value) })} />
                   </Field>
-                  <Field label={`Days towards the next off (0–${OFF_EVERY - 1})`}>
-                    <input type="number" inputMode="numeric" min={0} max={OFF_EVERY - 1} step={1} className={inputClass} value={f.towards} onChange={(e) => setF({ ...f, towards: num(e.target.value) })} />
+                  <Field label={`Days towards the next off (0–${s.offEvery - 1})`}>
+                    <input type="number" inputMode="numeric" min={0} max={s.offEvery - 1} step={1} className={inputClass} value={f.towards} onChange={(e) => setF({ ...f, towards: num(e.target.value) })} />
                   </Field>
                 </>
               )}

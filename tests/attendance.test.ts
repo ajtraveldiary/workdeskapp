@@ -136,7 +136,7 @@ describe("attendance register", () => {
     expect((await call("GET", "/attendance/holidays?year=2026")).json.holidays).toMatchObject([{ date: "2026-12-25", name: "ക്രിസ്മസ്" }]);
     expect((await call("DELETE", "/attendance/holidays/2026-12-25")).status).toBe(200);
     expect((await call("DELETE", "/attendance/holidays/2026-12-25")).status).toBe(404);
-    expect((await call("GET", "/attendance/settings")).json.settings).toEqual({ secondSaturday: true, clPerYear: 20, chLimits: {}, start: {} });
+    expect((await call("GET", "/attendance/settings")).json.settings).toEqual({ secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12 });
     await call("PUT", "/attendance/settings", { secondSaturday: false, clPerYear: 20 });
     expect((await month("2026-10")).days.find((d) => d.date === "2026-10-10")!.holiday).toBeNull();
     const h = await history();
@@ -157,6 +157,8 @@ describe("attendance register", () => {
     const w = weeklyOff(days([...Array(10).fill("count"), "skip", ...Array(3).fill("count"), "reset", "count"]));
     expect(w).toMatchObject({ offsDue: 2, towards: 2, run: 1, long: ["2026-09-14"] });
     expect(weeklyOff([], { offsDue: 2, towards: 4 })).toEqual({ offsDue: 2, towards: 4, run: 0, long: [] });
+    // Other figures from Settings, and a run carried in from before.
+    expect(weeklyOff(days(Array(5).fill("count")), undefined, { offEvery: 5, maxRun: 6 }, 3)).toMatchObject({ offsDue: 1, towards: 0, run: 8, long: ["2026-09-04", "2026-09-05"] });
   });
 
   it("CH: earned by a holiday worked (not a Sunday), taken once within 3 months, tied to its holiday", async () => {
@@ -227,8 +229,53 @@ describe("attendance register", () => {
     await call("POST", "/attendance/mark", { cells: sep(25, 26), mark: "present" });
     const m = await month("2026-09");
     // Counted: 7 + 13 + 2 = 22 → 3 offs earned, 1 taken; 4 towards the next. The run is 2 since the leave.
-    expect(m.weekly).toEqual([{ employeeId: w, offsDue: 2, towards: 4, run: 2, long: ["2026-09-21"] }]);
+    expect(m.weekly).toEqual([{ employeeId: w, offsDue: 2, towards: 4, run: 2, long: ["2026-09-21"], runBefore: 0 }]);
+    // October starts with the run of 26 Sep carried in (27–30 Sep not marked keep it).
+    expect((await month("2026-10")).weekly[0]).toMatchObject({ runBefore: 2 });
+    // 7 days earn an off instead of 6.
+    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 0, towards: 0 } }, offEvery: 7 });
+    expect((await month("2026-09")).weekly[0]).toMatchObject({ offsDue: 2, towards: 1 });
     // Sunday-off staff have no weekly figures.
     expect(m.weekly.some((x) => x.employeeId === s)).toBe(false);
+  });
+
+  it("a run of CL / CH with holidays is seen across the month's edges", async () => {
+    const a = await add({ name: NAME });
+    // 25 Sep (Fri) CL, 26–27 Sep the weekend's Sunday and a holiday, 28–30 Sep CL; 1–2 Nov CL.
+    await call("POST", "/attendance/holidays", { date: "2026-09-26", name: "Local holiday" });
+    await call("POST", "/attendance/mark", { cells: ["2026-09-25", "2026-09-28", "2026-09-29", "2026-09-30", "2026-11-02"].map((date) => ({ employeeId: a, date })), mark: "cl" });
+    // Before October: 25–30 Sep (6 days). After it: 1 Nov (a Sunday) and 2 Nov (CL); the register adds them only
+    // when October's last days are part of the run.
+    const oct = await month("2026-10");
+    expect(oct.edges).toEqual([{ employeeId: a, before: 6, after: 2 }]);
+    // Present on 30 Sep breaks it.
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-09-30" }], mark: "present", replace: true });
+    expect((await month("2026-10")).edges[0]!.before).toBe(0);
+  });
+
+  it("starting figures come from a CSV and go out to one", async () => {
+    const a = await add({ name: NAME, pen: "765432" });
+    const w = await add({ name: "Weekly", offDay: "weekly" });
+    const imp = await call("POST", "/transfer/attendance/import", {
+      headers: ["PEN", "Name", "As on", "CL taken", "Holidays worked, CH to take", "Offs due", "Days towards the next off"],
+      rows: [
+        ["765432", "", "30/09/2026", "4.5", "2026-09-15 തിരുവോണം; 2026-09-26", "", ""],
+        ["", "Weekly", "2026-09-30", "1", "", "2", "3"],
+        ["", "Nobody", "2026-09-30", "", "", "", ""],
+        ["", "Weekly", "2026-09-30", "", "", "", ""],
+        ["", "Bad holiday", "2026-09-30", "", "Onam", "", ""],
+      ],
+      firstLine: 2,
+      dryRun: false,
+    });
+    expect(imp.json).toMatchObject({ added: 2, updated: 0 });
+    expect(imp.json.problems).toHaveLength(3);
+    const settings = (await call("GET", "/attendance/settings")).json.settings;
+    expect(settings.start[a]).toEqual({ asOn: "2026-09-30", clTaken: 4.5, chOpen: [{ date: "2026-09-15", name: "തിരുവോണം" }, { date: "2026-09-26", name: "" }], offsDue: 0, towards: 0 });
+    expect(settings.start[w]).toMatchObject({ offsDue: 2, towards: 3, clTaken: 1 });
+    expect(await history()).toContain("Attendance starting figures from a file: 2 people");
+    const csv = await (await app.request("/api/transfer/attendance/csv", {}, {})).text();
+    expect(csv).toContain("765432");
+    expect(csv).toContain("2026-09-15 തിരുവോണം; 2026-09-26");
   });
 });
