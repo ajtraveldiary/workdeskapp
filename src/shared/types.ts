@@ -513,7 +513,14 @@ export type AttendanceMonth = {
   marks: { employeeId: string; date: string; mark: import("./attendance").AttendanceMark }[];
   // Leave from the Leave page in this month, read-only in the register (its short name, EL, HPL…).
   leaves: { employeeId: string; from: string; to: string; short: string; name: string }[];
-  // Casual leave and compensation leave taken in the month's calendar year.
+  // Casual leave (with the starting figures) and compensation leave taken in the month's calendar year.
   totals: { employeeId: string; cl: number; ch: number }[];
+  // Phase 2: holidays worked whose CH isn't taken (from 4 months before the month), each CH's holiday, each
+  // person's CH limit a year (null = no limit), and for weekly-off staff the offs due, days towards the next, the run
+  // of counted days so far and the month's days past 12 in a row.
+  chOpen: import("./attendance").ChOpen[];
+  chFor: { employeeId: string; date: string; holiday: string }[];
+  chLimits: { employeeId: string; limit: number | null }[];
+  weekly: { employeeId: string; offsDue: number; towards: number; run: number; long: string[] }[];
 };
 export type Holiday = { id: string; date: string; name: string };

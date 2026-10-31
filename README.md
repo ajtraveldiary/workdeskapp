@@ -125,7 +125,10 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   a column per day of the month. Tap a day's number to select everyone and mark them present in one go, or pick
   cells (a person's month, a range) and mark Off, CL, half-day CL or Absent. Holidays (set in Settings ›
   Attendance, with second Saturdays) and Sundays are shaded, and leave marked on the Leave page fills its days by
-  itself. Phones show one day at a time.
+  itself. Phones show one day at a time. **CH**: work on a holiday earns a compensation leave; Mark CH asks which
+  holiday each one is for and only offers holidays worked in the last 3 months, with each post's yearly limit
+  (G.O. 43/2021). **Weekly-off staff**: 6 days of work earn an off; offs due show by the name, and more than 12 days
+  in a row is flagged. Starting figures carry over a year already under way.
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).

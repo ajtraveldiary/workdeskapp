@@ -1,10 +1,12 @@
 # Attendance register — plan
 
-Status: **Phase 1 built** (2026-10-31; the user started it with the recommended answers): holidays and second
-Saturdays in Settings › Attendance, the register page (its look, selecting a day's column, a person's month or cells,
-Present / Off / CL / ½CL / Absent / Clear, the year's CL and CH totals, the CL warning), leave from the Leave page in
-its days, the phones' day view. Phases 2 (CH, weekly-off counting, starting figures) and 3 (print, summary, backup,
-Home reminder) are next. Written 2026-10-31.
+Status: **Phases 1 and 2 built** (2026-10-31; the user started Phase 1 with the recommended answers). Phase 1:
+holidays and second Saturdays in Settings › Attendance, the register page (its look, selecting a day's column, a
+person's month or cells, Present / Off / CL / ½CL / Absent / Clear, the year's CL and CH totals, the CL warning),
+leave from the Leave page in its days, the phones' day view. Phase 2: CH tied to a holiday worked (the pop-up, 3
+months, once each, the holiday's mark kept while its CH stands), CH limits by post and the 10-held warning, weekly-off
+counting (offs due, days towards the next, more than 12 days in a row outlined), the 15-day CL / CH warning, and
+starting figures. Phase 3 (print, summary, backup, Home reminder) is next. Written 2026-10-31.
 
 The office keeps a daily attendance register for **every employee** (permanent and temporary), on a page that looks
 like the paper register: one row per person, one column per day of the month. A whole day is marked for everyone

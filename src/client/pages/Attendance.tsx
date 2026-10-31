@@ -3,18 +3,21 @@
 // (Sl, name, the year's CL and CH) and a column per day. Tap a day's number to select everyone that day, a name for
 // their month, or cells one by one (drag or shift-click for a range), then mark them Present, Off, CL, ½CL or Absent
 // from the bar at the bottom, or clear them. Holidays (Settings › Attendance) and Sunday-off staff's Sundays are
-// shaded; leave from the Leave page fills its days, read-only. Phones show one day at a time.
+// shaded; leave from the Leave page fills its days, read-only. Phones show one day at a time. Phase 2: Mark CH asks
+// which holiday worked each CH is for (ChPicker); a holiday worked shows a dot (blue while its CH is open); the
+// CL / CH column adds the CH open and, for weekly-off staff, the offs due; days past 12 in a row are outlined red;
+// the bar warns about offs not earned, CL / CH with holidays past 15 days, CH limits and CH held past 10.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, Check, ChevronLeft, ChevronRight, Eraser, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
-import { MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, clDays, monthLabel, offByItself, shiftMonth, type AttendanceMark } from "../../shared/attendance";
+import { CH_HOLD_MAX, MARK_NAME, MARK_SHORT, OFF_EVERY, WEEKDAY_LETTER, chFits, clDays, monthLabel, offByItself, shiftMonth, type AttendanceMark, type ChOpen } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendance, useAttendanceActions, useMe, useOfficeProfile, type AttendanceCell } from "../api";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
-import { Button, Card, ErrorNote, PageHeader, SkeletonList, cx } from "../components/ui";
+import { Button, Card, ErrorNote, Modal, PageHeader, SkeletonList, cx, inputClass } from "../components/ui";
 
 type Person = AttendanceMonth["employees"][number];
 type Markable = Exclude<AttendanceMark, "ch">;
@@ -138,6 +141,54 @@ export function AttendancePage() {
 type Cells = NonNullable<ReturnType<typeof useCells>>;
 type SelectProps = { data: AttendanceMonth; cells: Cells; selected: Set<string>; setSelected: (s: Set<string>) => void };
 
+// CH and weekly-off figures by person and cell.
+function useChLookups(data: AttendanceMonth) {
+  return useMemo(() => {
+    const open = new Map<string, ChOpen[]>();
+    for (const o of data.chOpen) if (o.expires >= data.today) open.set(o.employeeId, [...(open.get(o.employeeId) ?? []), o]);
+    return {
+      open,
+      forCell: new Map(data.chFor.map((x) => [key(x.employeeId, x.date), x.holiday])),
+      taken: new Set(data.chFor.map((x) => key(x.employeeId, x.holiday))),
+      weekly: new Map(data.weekly.map((w) => [w.employeeId, w])),
+      long: new Set(data.weekly.flatMap((w) => w.long.map((d) => key(w.employeeId, d)))),
+      limit: new Map(data.chLimits.map((x) => [x.employeeId, x.limit])),
+    };
+  }, [data]);
+}
+type Lookups = ReturnType<typeof useChLookups>;
+
+// CL and CH this year, the CH still to take (+n, red when one must be taken within a week) and, for weekly-off
+// staff, the offs due.
+function TotalsCell({ id, cl, ch, data, lookups }: { id: string; cl: number; ch: number; data: AttendanceMonth; lookups: Lookups }) {
+  const open = lookups.open.get(id) ?? [];
+  const soon = open.some((o) => o.expires <= addDays(data.today, 7));
+  const w = lookups.weekly.get(id);
+  const limit = lookups.limit.get(id);
+  const title = [
+    `This year: CL ${cl} of ${data.settings.clPerYear}; CH ${ch}${limit == null ? "" : ` of ${limit}`}`,
+    open.length ? `CH to take: ${open.length} (${open.map((o) => `${o.name} ${dayLabel(o.holiday)}, by ${dayLabel(o.expires)}`).join("; ")})` : "",
+    w ? `Weekly off: ${w.offsDue} due, ${w.towards} of ${OFF_EVERY} days towards the next, ${w.run} days in a row so far` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return (
+    <td className="sticky left-48 z-10 w-16 min-w-16 border border-slate-300 bg-white px-1 text-center leading-tight tabular-nums" title={title}>
+      <span className={cx("block", cl > data.settings.clPerYear ? "font-semibold text-urgent-ink" : "text-slate-700")}>CL {String(cl).padStart(2, "0")}</span>
+      <span className={cx("block", limit != null && ch > limit ? "font-semibold text-urgent-ink" : "text-slate-700")}>
+        CH {String(ch).padStart(2, "0")}
+        {open.length > 0 && <span className={cx("ml-0.5 text-caption2 font-semibold", soon ? "text-urgent-ink" : "text-info-ink")}>+{open.length}</span>}
+      </span>
+      {w && <span className={cx("block text-caption2", w.offsDue < 0 ? "font-semibold text-urgent-ink" : w.offsDue > 0 ? "font-medium text-low-ink" : "text-slate-500")}>Off {w.offsDue}</span>}
+    </td>
+  );
+}
+const addDays = (day: string, n: number) => {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
 // The page of the register (768px and wider).
 function Register({ data, cells, selected, setSelected }: SelectProps) {
   const office = useOfficeProfile().data?.profile.officeName;
@@ -145,6 +196,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
   const drag = useRef<{ add: boolean } | null>(null);
   const settings = data.settings;
   const totals = new Map(data.totals.map((t) => [t.employeeId, t]));
+  const ch = useChLookups(data);
   useEffect(() => {
     const end = () => (drag.current = null);
     window.addEventListener("pointerup", end);
@@ -260,18 +312,29 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                 }
                 const k = key(e.id, d.date);
                 const on = selected.has(k);
+                // Holiday duty: present on a holiday of the register (not a Sunday), which earns a CH.
+                const duty = info.mark === "present" && !!d.holiday;
+                const dutyOpen = duty && ch.open.get(e.id)?.find((o) => o.holiday === d.date);
+                const title = info.mark === "ch" && ch.forCell.get(k)
+                  ? `CH for the holiday worked on ${dayLabel(ch.forCell.get(k)!)}`
+                  : duty
+                    ? `Holiday duty (${d.holiday!.name}): ${dutyOpen ? `CH to take by ${dayLabel(dutyOpen.expires)}` : ch.taken.has(k) ? "CH taken" : "CH no longer open"}`
+                    : info.mark
+                      ? MARK_NAME[info.mark]
+                      : d.holiday?.name;
                 tds.push(
-                  <td key={d.date} className={cx("border border-slate-300 p-0", info.holiday && "bg-slate-100")}>
+                  <td key={d.date} className={cx("border border-slate-300 p-0", info.holiday && "bg-slate-100", ch.long.has(k) && "outline outline-1 -outline-offset-1 outline-urgent")}>
                     <button
                       type="button"
                       onPointerDown={(ev) => cellDown(ev, r, c)}
                       onPointerEnter={() => cellEnter(r, c)}
                       aria-pressed={on}
                       aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : "not marked"}`}
-                      title={info.mark ? MARK_NAME[info.mark] : d.holiday?.name}
-                      className={cx("no-tap flex h-8 w-7 items-center justify-center text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
+                      title={ch.long.has(k) ? `${title ?? ""} · more than 12 days in a row without an off` : title}
+                      className={cx("no-tap relative flex h-8 w-7 items-center justify-center text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
                     >
                       {info.mark && <span className={MARK_TONE[info.mark]}>{MARK_SHORT[info.mark]}</span>}
+                      {duty && <span className={cx("absolute top-0.5 right-0.5 size-1.5 rounded-full", dutyOpen ? "bg-info" : "bg-slate-300")} aria-hidden />}
                     </button>
                   </td>,
                 );
@@ -286,13 +349,11 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                         <span className="block truncate text-caption2 text-slate-500">
                           {[e.designation, !e.permanent && "Temporary", e.offDay === "weekly" && OFF_DAY_LABELS.weekly].filter(Boolean).join(" · ")}
                         </span>
+                        {(ch.weekly.get(e.id)?.long.length ?? 0) > 0 && <span className="block text-caption2 font-medium text-urgent-ink">Over 12 days in a row without an off</span>}
                       </span>
                     </button>
                   </th>
-                  <td className="sticky left-48 z-10 w-16 min-w-16 border border-slate-300 bg-white px-1 text-center leading-tight tabular-nums" title={`This year: CL ${t.cl} of ${settings.clPerYear}, CH ${t.ch}`}>
-                    <span className={cx("block", t.cl > settings.clPerYear ? "font-semibold text-urgent-ink" : "text-slate-700")}>CL {String(t.cl).padStart(2, "0")}</span>
-                    <span className="block text-slate-700">CH {String(t.ch).padStart(2, "0")}</span>
-                  </td>
+                  <TotalsCell id={e.id} cl={t.cl} ch={t.ch} data={data} lookups={ch} />
                   {tds}
                 </tr>
               );
@@ -301,7 +362,8 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
         </table>
       </div>
       <p className="border-t border-line px-4 py-2 text-footnote text-slate-500">
-        ✓ Present · O Weekly off · CL Casual leave · ½CL Half day · A Absent · grey: holiday or Sunday off · EL, HPL…: leave from the Leave page · a red dot under a day: someone not marked yet. CL and CH are this year's.
+        ✓ Present · O Weekly off · CL Casual leave · ½CL Half day · CH Compensation leave · A Absent · grey: holiday or Sunday off · a blue dot: holiday worked, CH open (grey once taken) · EL, HPL…: leave from the
+        Leave page · a red dot under a day: someone not marked yet · red outline: more than 12 days in a row without an off. CL and CH are this year's; +n: CH still to take.
       </p>
     </Card>
   );
@@ -392,6 +454,8 @@ function Tick({ on }: { on: boolean }) {
 function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; cells: Cells; selected: Set<string>; onDone: () => void }) {
   const { mark, clear } = useAttendanceActions();
   const [replace, setReplace] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const lookups = useChLookups(data);
   const picked = [...selected].map(unkey);
   const byId = new Map(data.employees.map((e) => [e.id, e]));
   const existing = picked.filter((c) => cells.marks.has(key(c.employeeId, c.date)));
@@ -404,6 +468,35 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
       return { id, after: (totals.get(id) ?? 0) + add };
     })
     .filter((x) => x.after > data.settings.clPerYear);
+  const people = [...new Set(picked.map((c) => c.employeeId))];
+  // Offs being marked past the offs earned (weekly-off staff).
+  const offsShort = people
+    .filter((id) => byId.get(id)?.offDay === "weekly")
+    .map((id) => ({ id, due: lookups.weekly.get(id)?.offsDue ?? 0, n: picked.filter((c) => c.employeeId === id && cells.marks.get(key(id, c.date)) !== "off" && !cells.holiday(byId.get(id)!, c.date)).length }))
+    .filter((x) => x.n > x.due);
+  // CL / CH with the holidays around them past 15 days in a row (KSR Appendix VII), if the selection were CL or CH.
+  const longAway = people
+    .map((id) => {
+      const e = byId.get(id)!;
+      const extra = new Set(picked.filter((c) => c.employeeId === id).map((c) => c.date));
+      let best = 0;
+      let len = 0;
+      let touches = false;
+      for (const d of data.days) {
+        const m = cells.marks.get(key(id, d.date));
+        const away = extra.has(d.date) || m === "cl" || m === "ch" || (cells.holiday(e, d.date) && m !== "present");
+        if (away) {
+          len++;
+          touches ||= extra.has(d.date);
+          if (touches) best = Math.max(best, len);
+        } else {
+          len = 0;
+          touches = false;
+        }
+      }
+      return { id, days: best };
+    })
+    .filter((x) => x.days > 15);
   const run = (m: Markable) =>
     mark.mutate(
       { cells: picked, mark: m, replace },
@@ -436,6 +529,9 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
         <Button size="sm" onClick={() => run("cl_half")} disabled={busy}>
           ½CL
         </Button>
+        <Button size="sm" onClick={() => setPicking(true)} disabled={busy}>
+          CH
+        </Button>
         <Button size="sm" onClick={() => run("absent")} disabled={busy}>
           Absent
         </Button>
@@ -459,7 +555,127 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
           As CL: {over.map((x) => `${byId.get(x.id)?.name} ${x.after} of ${data.settings.clPerYear}`).join(", ")} this year (casual leave, KSR Appendix VII). It can still be marked.
         </p>
       )}
+      {offsShort.length > 0 && (
+        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+          As offs: {offsShort.map((x) => `${byId.get(x.id)?.name} has ${x.due} due, ${x.n} marked`).join(", ")} (an off is earned by 6 days of work).
+        </p>
+      )}
+      {longAway.length > 0 && (
+        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+          As CL or CH, with the holidays around it: {longAway.map((x) => `${byId.get(x.id)?.name} ${x.days} days in a row`).join(", ")}; at most 15 (KSR Appendix VII).
+        </p>
+      )}
       <ErrorNote error={mark.error ?? clear.error} />
+      {picking && <ChPicker data={data} cells={cells} lookups={lookups} picked={picked} replace={replace} onClose={() => setPicking(false)} onDone={onDone} />}
     </div>
+  );
+}
+
+// Mark CH (phase 2): for each person, each chosen day with the holiday worked it is for, from their holidays whose
+// CH is still open on that day (the oldest first; one holiday a CH). Days with none are left out.
+function ChPicker({ data, cells, lookups, picked, replace, onClose, onDone }: { data: AttendanceMonth; cells: Cells; lookups: Lookups; picked: AttendanceCell[]; replace: boolean; onClose: () => void; onDone: () => void }) {
+  const { markCh } = useAttendanceActions();
+  const byId = new Map(data.employees.map((e) => [e.id, e]));
+  const rows = useMemo(() => {
+    const out: { employeeId: string; dates: string[] }[] = [];
+    for (const c of [...picked].sort((a, b) => a.date.localeCompare(b.date))) {
+      const e = byId.get(c.employeeId);
+      if (!e || cells.holiday(e, c.date) || cells.marks.get(key(c.employeeId, c.date)) === "ch") continue;
+      const row = out.find((r) => r.employeeId === c.employeeId);
+      row ? row.dates.push(c.date) : out.push({ employeeId: c.employeeId, dates: [c.date] });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picked]);
+  // Every open holiday of theirs, the expired ones too (for the "past 3 months" note).
+  const openOf = (id: string) => data.chOpen.filter((o) => o.employeeId === id);
+  // The oldest holiday that fits each day, each used once.
+  const [choice, setChoice] = useState<Record<string, string>>(() => {
+    const c: Record<string, string> = {};
+    for (const r of rows) {
+      const used = new Set<string>();
+      for (const d of r.dates) {
+        const o = openOf(r.employeeId).find((x) => chFits(x, d) && !used.has(x.holiday));
+        if (o) {
+          c[key(r.employeeId, d)] = o.holiday;
+          used.add(o.holiday);
+        }
+      }
+    }
+    return c;
+  });
+  const items = Object.entries(choice)
+    .filter(([, h]) => h)
+    .map(([k, holiday]) => ({ ...unkey(k), holiday }));
+  const submit = () =>
+    markCh.mutate(
+      { items, replace },
+      {
+        onSuccess: (r) => {
+          const left = Object.entries(r.skipped);
+          showUndo({ message: `CH: ${r.marked} marked${left.length ? `; left out: ${left.map(([why, n]) => `${why} ${n}`).join(", ")}` : ""}` });
+          onClose();
+          onDone();
+        },
+      },
+    );
+  return (
+    <Modal open onClose={onClose} title="Compensation leave">
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">Each CH is for a holiday the person worked, taken within 3 months of it (G.O.(Ms) 43/2021/H&FWD). Choose the holiday for each day.</p>
+        {rows.length === 0 && <p className="text-sm text-slate-500">Nothing to mark: the days chosen are holidays or CH already.</p>}
+        {rows.map((r) => {
+          const e = byId.get(r.employeeId)!;
+          const open = openOf(r.employeeId);
+          const total = data.totals.find((t) => t.employeeId === r.employeeId)?.ch ?? 0;
+          const limit = lookups.limit.get(r.employeeId);
+          const adding = r.dates.filter((d) => choice[key(r.employeeId, d)]).length;
+          const held = open.filter((o) => o.expires >= data.today).length;
+          return (
+            <div key={r.employeeId} className="rounded-lg border border-line p-3">
+              <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{e.name}</p>
+              {open.length === 0 ? (
+                <p className="mt-1 text-footnote text-slate-500">No holiday worked to take CH for.</p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {r.dates.map((d) => {
+                    const k = key(r.employeeId, d);
+                    const fits = open.filter((o) => chFits(o, d) && (choice[k] === o.holiday || !Object.entries(choice).some(([kk, h]) => kk !== k && kk.startsWith(`${r.employeeId}|`) && h === o.holiday)));
+                    return (
+                      <li key={d} className="grid gap-1 min-[420px]:grid-cols-[7rem_1fr] min-[420px]:items-center">
+                        <span className="text-sm text-slate-700">{dayLabel(d)}</span>
+                        {fits.length === 0 ? (
+                          <span className="text-footnote text-slate-500">No holiday worked before it in the last 3 months</span>
+                        ) : (
+                          <select className={inputClass} value={choice[k] ?? ""} onChange={(ev) => setChoice((c) => ({ ...c, [k]: ev.target.value }))} aria-label={`Holiday for the CH on ${dayLabel(d)}`}>
+                            <option value="">Not CH</option>
+                            {fits.map((o) => (
+                              <option key={o.holiday} value={o.holiday}>
+                                {o.name}, {dayLabel(o.holiday)} (take by {dayLabel(o.expires)})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {limit != null && total + adding > limit && <p className="mt-1 text-footnote text-urgent-ink">CH this year would be {total + adding}; the limit for this post is {limit}.</p>}
+              {held > CH_HOLD_MAX && <p className="mt-1 text-footnote text-urgent-ink">{held} CH are waiting to be taken; at most {CH_HOLD_MAX} may be held.</p>}
+            </div>
+          );
+        })}
+        <ErrorNote error={markCh.error} />
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={submit} disabled={items.length === 0 || markCh.isPending}>
+            <Check size={15} /> Mark {items.length} CH
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
