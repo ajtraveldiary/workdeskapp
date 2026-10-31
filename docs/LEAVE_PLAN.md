@@ -177,9 +177,10 @@ Gazetted officers (the user's list):
 1. Leave application received
 2. Apply leave
 3. Update leave CTC
-4. Joining report
-5. Joining CTC
-6. AG payslip
+4. Received relieving / joining CTC form (added 2026-10-31)
+5. Update joining report in SPARK (was "Joining report" until 2026-10-31)
+6. Joining CTC
+7. AG payslip
 
 Non-gazetted officers (the user's list):
 

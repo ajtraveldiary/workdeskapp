@@ -269,13 +269,16 @@ export const leaveShort = (t: { name: string; short: string }) => t.short || t.n
 // --- Marking a leave (phase 2) ---
 
 // A leave's paperwork, as its task's steps (the user's lists, 2026-10-30). Fixed ids, so a step keeps its place.
+// Gazetted (user request 2026-10-31): "Received relieving / joining CTC form" before the joining report, which is
+// now "Update joining report in SPARK". Tasks made earlier keep the steps they were made with.
 export type LeaveStep = { id: string; text: string };
 export const LEAVE_STEPS: { gazetted: LeaveStep[]; nonGazetted: LeaveStep[] } = {
   gazetted: [
     { id: "application", text: "Leave application received" },
     { id: "apply", text: "Apply leave" },
     { id: "leave-ctc", text: "Update leave CTC" },
-    { id: "joining-report", text: "Joining report" },
+    { id: "ctc-form", text: "Received relieving / joining CTC form" },
+    { id: "joining-report", text: "Update joining report in SPARK" },
     { id: "joining-ctc", text: "Joining CTC" },
     { id: "ag-payslip", text: "AG payslip" },
   ],

@@ -359,7 +359,7 @@ describe("MCP server", () => {
     expect(marked.done).toBe("Half pay leave marked for Anitha K: 10 days, 2026-11-02 to 2026-11-11");
     const acc = data(await call(at, "get_leave_account", { employee: "Anitha K" }));
     expect(acc.balances).toEqual(expect.arrayContaining([{ leave: "HPL", days: 30 }]));
-    expect(acc.leaves[0]).toMatchObject({ leave: "HPL", from: "2026-11-02", to: "2026-11-11", days: 10, dueBack: "2026-11-12", steps: "1 of 6 done" });
+    expect(acc.leaves[0]).toMatchObject({ leave: "HPL", from: "2026-11-02", to: "2026-11-11", days: 10, dueBack: "2026-11-12", steps: "1 of 7 done" });
   });
 
   it("staff actions need their own switch, then join, increment, relieve and edit employees as the app does", async () => {

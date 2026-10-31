@@ -110,8 +110,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   (commuted leave takes double HPL; LND may go below zero), warns when there isn't enough or a KSR limit is crossed
   (180 days of EL at a time, EL + commuted over 240 in one run, LND without a medical certificate, LND while other
   leave is at credit…), notes whether it is on a medical certificate, and makes a task with the
-  paperwork steps, different for gazetted officers (application, apply leave, leave CTC, joining report, joining CTC,
-  AG payslip) and others (application, check leave account, office proceedings, SPARK, attendance, SB update, joining
+  paperwork steps, different for gazetted officers (application, apply leave, leave CTC, relieving / joining CTC
+  form received, joining report in SPARK, joining CTC, AG payslip) and others (application, check leave account, office proceedings, SPARK, attendance, SB update, joining
   report), due the day they are back. Record the rejoining date (an early return gives the days back), change or
   cancel a leave. The **Leave** page lists every leave, newest first, with where it stands (on leave, due back,
   upcoming, rejoined, cancelled), filtered by employee, type or state; choosing an employee shows their leave

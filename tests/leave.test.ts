@@ -362,7 +362,7 @@ describe("leave", () => {
     const id = await add({ name: "Dr. Rema", gazetted: true });
     await call("POST", `/leave/accounts/${id}/lines`, { typeId: hpl.id, kind: "opening", onDate: "2026-01-01", days: 20 });
     const c1 = await call("POST", "/leave/leaves", { employeeId: id, typeId: commuted.id, fromDate: "2026-02-01", toDate: "2026-02-05", days: 5 });
-    expect((await taskOf(c1.json.taskId)).checklist.map((i) => i.text)).toEqual(["Leave application received", "Apply leave", "Update leave CTC", "Joining report", "Joining CTC", "AG payslip"]);
+    expect((await taskOf(c1.json.taskId)).checklist.map((i) => i.text)).toEqual(["Leave application received", "Apply leave", "Update leave CTC", "Received relieving / joining CTC form", "Update joining report in SPARK", "Joining CTC", "AG payslip"]);
     expect(await balance(id, hpl.id)).toBe(10);
     await call("POST", "/leave/leaves", { employeeId: id, typeId: lnd.id, fromDate: "2026-03-01", toDate: "2026-03-15", days: 15 });
     expect(await balance(id, hpl.id)).toBe(-5);
