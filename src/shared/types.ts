@@ -500,3 +500,20 @@ export type QueueRunReport = {
   fetched: number;
   remaining: number;
 };
+
+// Attendance register (user request 2026-10-31): one month as the register shows it.
+export type AttendanceMonth = {
+  month: string;
+  today: string;
+  settings: import("./attendance").AttendanceSettings;
+  days: { date: string; weekday: number; holiday: import("./attendance").HolidayInfo | null }[];
+  // Everyone in the office some day of the month, permanent first, in designation order then name. from / until:
+  // joined this office / left the office (the days outside are "not in the office").
+  employees: { id: string; name: string; designation: string | null; permanent: boolean; offDay: import("./staff").OffDay; from: string | null; until: string | null }[];
+  marks: { employeeId: string; date: string; mark: import("./attendance").AttendanceMark }[];
+  // Leave from the Leave page in this month, read-only in the register (its short name, EL, HPL…).
+  leaves: { employeeId: string; from: string; to: string; short: string; name: string }[];
+  // Casual leave and compensation leave taken in the month's calendar year.
+  totals: { employeeId: string; cl: number; ch: number }[];
+};
+export type Holiday = { id: string; date: string; name: string };

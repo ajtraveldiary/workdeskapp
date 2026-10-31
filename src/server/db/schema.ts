@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, timestamp, integer, boolean, date, jsonb, numeric, uniqueIndex, index, primaryKey, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { REPEATS } from "../../shared/reminderSchedule";
 import { OFF_DAYS, RELATED_KINDS } from "../../shared/staff";
+import { ATTENDANCE_MARKS } from "../../shared/attendance";
 import { EVENT_KINDS, type EventChange } from "../../shared/eventSchedule";
 import { MOVE_KINDS } from "../../shared/moves";
 import { JOB_KINDS, JOB_STATUSES } from "../../shared/jobs";
@@ -813,3 +814,41 @@ export const callLogs = pgTable(
   },
   (t) => [index("call_logs_started").on(t.startedAt), index("call_logs_user_started").on(t.userId, t.startedAt)],
 );
+
+// Attendance register (user request 2026-10-31, docs/ATTENDANCE_PLAN.md). The office's holidays (Settings ›
+// Attendance; second Saturdays are worked out, not stored), one mark per employee and day, and the register's
+// settings (second Saturday switch, casual leave a year) as one jsonb row like the office details.
+export const holidays = pgTable(
+  "holidays",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    date: date("date").notNull(),
+    name: text("name").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("holidays_user_date").on(t.userId, t.date)],
+);
+export const attendanceMarks = pgTable(
+  "attendance_marks",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    mark: text("mark", { enum: ATTENDANCE_MARKS }).notNull(),
+    // A CH's holiday worked (phase 2).
+    chHoliday: date("ch_holiday"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("attendance_marks_employee_date").on(t.employeeId, t.date), index("attendance_marks_user_date").on(t.userId, t.date)],
+);
+export const attendanceSettings = pgTable("attendance_settings", {
+  id: id(),
+  userId: uuid("user_id").notNull().unique().references(() => users.id),
+  data: jsonb("data").$type<import("../../shared/attendance").AttendanceSettings>().notNull(),
+  updatedAt: updatedAt(),
+});

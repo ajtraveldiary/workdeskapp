@@ -10,6 +10,7 @@ import {
   CalendarCheck,
   Presentation,
   TreePalm,
+  ClipboardCheck,
   NotebookPen,
   LayoutDashboard,
   Inbox,
@@ -62,6 +63,7 @@ import { SettingsPage } from "./pages/Settings";
 import { LoginPage } from "./pages/Login";
 import { RegistersPage } from "./pages/Registers";
 import { LeavePage } from "./pages/Leave";
+import { AttendancePage } from "./pages/Attendance";
 
 export function App() {
   const me = useMe();
@@ -98,6 +100,8 @@ export function App() {
         <Route path="/staff" element={<StaffRedirect />} />
         {/* Leave (user request 2026-10-31): moved from the employee's page to its own page. */}
         <Route path="/leave" element={<Page><LeavePage /></Page>} />
+        {/* Attendance register (user request 2026-10-31): the whole width, like a register page. */}
+        <Route path="/attendance" element={<Page full><AttendancePage /></Page>} />
         <Route path="/files" element={<Page><FilesPage /></Page>} />
         {/* Registers (user request 2026-10-16): two halves side by side on wide screens. */}
         <Route path="/registers" element={<Page wide><RegistersPage /></Page>} />
@@ -138,6 +142,8 @@ const NAV: NavItem[] = [
   { to: "/employees", label: "Employees", icon: UsersRound, group: "office" },
   // Leave (user request 2026-10-31), after Employees: rail on wider screens, profile menu on phones.
   { to: "/leave", label: "Leave", icon: TreePalm, group: "office" },
+  // Attendance register (user request 2026-10-31), after Leave.
+  { to: "/attendance", label: "Attendance", icon: ClipboardCheck, group: "office" },
   // File register (user request 2026-10-07), next to Staff: rail on wider screens, profile menu on phones.
   { to: "/files", label: "File register", icon: FolderOpen, group: "office" },
   // Registers (user request 2026-10-16), after Files: rail on wider screens, profile menu on phones.
@@ -193,7 +199,7 @@ function Shell({ children }: { children: ReactNode }) {
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
           corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
       <nav className="tabbar fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
-        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/leave" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/registers" && n.to !== "/logins" && n.to !== "/events").map((n) => (
+        {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/leave" && n.to !== "/attendance" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/registers" && n.to !== "/logins" && n.to !== "/events").map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -712,6 +718,7 @@ function UserMenu() {
           { to: "/events", label: "Events", icon: Presentation },
           { to: "/employees", label: "Employees", icon: UsersRound },
           { to: "/leave", label: "Leave", icon: TreePalm },
+          { to: "/attendance", label: "Attendance", icon: ClipboardCheck },
           { to: "/files", label: "File register", icon: FolderOpen },
           { to: "/registers", label: "Registers", icon: NotebookPen },
           { to: "/logins", label: "Logins", icon: KeyRound },
@@ -753,6 +760,9 @@ function UserMenu() {
           </Link>
           <Link to="/leave" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <TreePalm size={16} /> Leave
+          </Link>
+          <Link to="/attendance" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
+            <ClipboardCheck size={16} /> Attendance
           </Link>
           <Link to="/files" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <FolderOpen size={16} /> File register

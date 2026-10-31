@@ -6,6 +6,8 @@ import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, Emai
   AssistantInfo, AssistantUnseen, CallLog, QueueInfo, QueueRunReport, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput, LeaveInput, LeaveLineInput, LeavePatch, LeaveSurrenderInput, LeaveTypeInput } from "../shared/schemas";
 import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, LeaveType } from "../shared/types";
+import type { AttendanceMonth, Holiday } from "../shared/types";
+import type { AttendanceMark, AttendanceSettings } from "../shared/attendance";
 
 export class ApiError extends Error {
   constructor(
@@ -324,6 +326,26 @@ export function useLeaveActions() {
     // Phase 4: Undo of the dates an EOL moved, and surrender of earned leave.
     undoPostpone: m(({ id, ...body }: LeavePostponed & { id: string }) => api(`/leave/leaves/${id}/postpone/undo`, { method: "POST", body })),
     surrender: m(({ employeeId, input }: { employeeId: string; input: LeaveSurrenderInput }) => api<{ taskId: string }>(`/leave/accounts/${employeeId}/surrender`, { method: "POST", body: input })),
+  };
+}
+// Attendance register (user request 2026-10-31, docs/ATTENDANCE_PLAN.md): a month as the register shows it, the
+// year's holidays and the settings (Settings › Attendance). Under "attendance"; changes also refresh History.
+export const useAttendance = (month: string) => useQuery({ queryKey: ["attendance", "month", month], queryFn: () => api<AttendanceMonth>(`/attendance?month=${month}`) });
+export const useHolidays = (year: string) => useQuery({ queryKey: ["attendance", "holidays", year], queryFn: () => api<{ holidays: Holiday[] }>(`/attendance/holidays?year=${year}`) });
+export const useAttendanceSettings = () => useQuery({ queryKey: ["attendance", "settings"], queryFn: () => api<{ settings: AttendanceSettings }>("/attendance/settings") });
+export type AttendanceCell = { employeeId: string; date: string };
+export function useAttendanceActions() {
+  const qc = useQueryClient();
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["attendance", "history"].includes(q.queryKey[0] as string) });
+  const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
+  return {
+    mark: m((body: { cells: AttendanceCell[]; mark: Exclude<AttendanceMark, "ch">; replace?: boolean }) =>
+      api<{ marked: number; skipped: Record<string, number> }>("/attendance/mark", { method: "POST", body }),
+    ),
+    clear: m((cells: AttendanceCell[]) => api<{ cleared: number }>("/attendance/clear", { method: "POST", body: { cells } })),
+    saveHoliday: m((body: { date: string; name: string }) => api("/attendance/holidays", { method: "POST", body })),
+    removeHoliday: m((date: string) => api(`/attendance/holidays/${date}`, { method: "DELETE" })),
+    saveSettings: m((body: AttendanceSettings) => api("/attendance/settings", { method: "PUT", body })),
   };
 }
 // Joining and relieving (user request 2026-10-15). Under "staff", so employee and task changes refresh it.

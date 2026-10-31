@@ -372,6 +372,13 @@
       "when": 1793430294099,
       "tag": "0052_employee_off_day",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793433242017,
+      "tag": "0053_attendance",
+      "breakpoints": true
     }
   ]
 }

@@ -121,6 +121,11 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   cancel a leave. The **Leave** page lists every leave, newest first, with where it stands (on leave, due back,
   upcoming, rejoined, cancelled), filtered by employee, type or state; choosing an employee shows their leave
   account there. An employee's page has one line with their balances that opens it.
+- **Attendance register:** a page that looks like the paper register: a row per person with this year's CL and CH,
+  a column per day of the month. Tap a day's number to select everyone and mark them present in one go, or pick
+  cells (a person's month, a range) and mark Off, CL, half-day CL or Absent. Holidays (set in Settings ›
+  Attendance, with second Saturdays) and Sundays are shaded, and leave marked on the Leave page fills its days by
+  itself. Phones show one day at a time.
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).

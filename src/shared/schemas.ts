@@ -5,6 +5,7 @@ import { REPEATS } from "./reminderSchedule";
 import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, OFF_DAYS, RELATED_KINDS } from "./staff";
 import { MOVE_KINDS, STEP_STATES } from "./moves";
 import { HAND_KINDS } from "./leave";
+import { ATTENDANCE_MARKS } from "./attendance";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 // The user's own Gmail labels only (system labels like INBOX are never accepted).
@@ -457,3 +458,17 @@ export const officeProfileInput = z.object({
 export type OfficeProfile = z.output<typeof officeProfileInput>;
 export type OfficeProfileInput = z.input<typeof officeProfileInput>;
 
+// Attendance register (user request 2026-10-31, docs/ATTENDANCE_PLAN.md). Cells are an employee and a day; a mark
+// goes on every cell given (replace: also over a different mark already there; otherwise only empty cells change).
+const attendanceCells = z.array(z.object({ employeeId: z.uuid(), date: day })).min(1).max(3000, "Too many cells at once");
+export const attendanceMarkInput = z.object({
+  cells: attendanceCells,
+  mark: z.enum(ATTENDANCE_MARKS).exclude(["ch"]),
+  replace: z.boolean().default(false),
+});
+export const attendanceClearInput = z.object({ cells: attendanceCells });
+export const holidayInput = z.object({ date: day, name: z.string().trim().max(100).default("") });
+export const attendanceSettingsInput = z.object({
+  secondSaturday: z.boolean().default(true),
+  clPerYear: z.number().int().min(0).max(60).default(20),
+});
