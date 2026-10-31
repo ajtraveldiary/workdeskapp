@@ -3,7 +3,7 @@
 // credit to every permanent employee, and which designations are gazetted posts. The Kerala Service Rules types are
 // built in (KSR_LEAVE_TYPES): their figures can be edited and reset, and a type not used is switched off.
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { CalendarOff, Check, Pencil, Plus, Trash2, BadgeCheck, CalendarPlus, RotateCcw } from "lucide-react";
+import { TreePalm, Check, Pencil, Plus, Trash2, BadgeCheck, CalendarPlus, RotateCcw } from "lucide-react";
 import type { LeaveType } from "../../shared/types";
 import type { LeaveTypeInput } from "../../shared/schemas";
 import { daysWord, formatDays, ksrType, leaveShort } from "../../shared/leave";
@@ -58,7 +58,7 @@ function LeaveTypes() {
   return (
     <Card className="p-5">
       <h2 className="flex items-center gap-2 font-semibold text-slate-900">
-        <CalendarOff size={18} className="text-brand-700" /> Leave types
+        <TreePalm size={18} className="text-brand-700" /> Leave types
       </h2>
       <p className="mt-1 text-sm text-slate-600">
         The leaves kept in each permanent employee's leave account (on their page). The Kerala Service Rules leaves are built in with their rules; every figure can be edited, and a leave the office doesn't use can be switched off. Casual leave, compensation leave and other short office leaves aren't kept here.

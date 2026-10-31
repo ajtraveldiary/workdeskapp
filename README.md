@@ -29,6 +29,10 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 
 ## Features
 
+- **Side menu (computers):** labelled buttons in two groups, My work and Office, with Settings always at the
+  bottom; shrink it to icons only with the button beside Settings (remembered on that device). It fits any window
+  height, scrolling the list when the window is short.
+
 ### Home: the day at a glance
 - **Counters:** emails waiting for a decision, pending jobs, work due today, upcoming reminders.
 - **Due Today:** today's events and tasks with overdue ones first, plus tabs for overdue, upcoming and reminder

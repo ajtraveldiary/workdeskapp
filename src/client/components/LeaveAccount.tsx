@@ -7,7 +7,7 @@
 // only LeaveSummary, one line that opens it.
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { CalendarOff, CalendarPlus, Check, ChevronRight, Hourglass, Plus } from "lucide-react";
+import { TreePalm, CalendarPlus, Check, ChevronRight, Hourglass, Plus } from "lucide-react";
 import type { ChecklistItem, Employee, EmployeeLeave, LeaveLine, LeaveType, Task } from "../../shared/types";
 import { HAND_KINDS, LEDGER_LABEL, SURRENDER_STEPS, daysWord, financialYearStart, formatDays, leaveEnd, leaveShort, rejoinDay, type HandKind } from "../../shared/leave";
 import { useEmployeeLeaves, useLeaveAccount, useLeaveActions, useLeaveTypes } from "../api";
@@ -35,7 +35,7 @@ export function LeaveCard({ employee, today, hideLeaves }: { employee: Employee;
     <Card className="overflow-hidden">
       <div className="flex items-center border-b border-line pr-2">
         <h2 className="flex flex-1 items-center gap-2 px-4 py-2.5 text-footnote font-semibold text-slate-600 sm:px-5">
-          <CalendarOff size={15} className="text-brand-700" />
+          <TreePalm size={15} className="text-brand-700" />
           Leave account
         </h2>
         {(types?.length ?? 0) > 0 && (
@@ -126,7 +126,7 @@ export function LeaveSummary({ employee }: { employee: Employee }) {
   return (
     <Card className="overflow-hidden">
       <Link to={`/leave?employee=${employee.id}`} className="group/title flex items-center gap-2 px-4 py-2.5 hover:bg-slate-50 active:bg-slate-100 sm:px-5">
-        <CalendarOff size={15} className="shrink-0 text-brand-700" />
+        <TreePalm size={15} className="shrink-0 text-brand-700" />
         <span className="shrink-0 text-footnote font-semibold text-slate-600 group-hover/title:text-brand-700">Leave</span>
         <span className="min-w-0 flex-1 truncate text-footnote text-slate-600">
           {!types || !account ? "…" : [balances.join(" · ") || "No balances yet", status].filter(Boolean).join(" · ")}

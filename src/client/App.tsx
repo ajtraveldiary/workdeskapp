@@ -1,29 +1,32 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import {
-  CalendarClock,
   Bell,
+  BellRing,
   CalendarDays,
   Check,
   TriangleAlert,
   WifiOff,
   CalendarCheck,
-  CalendarOff,
-  CalendarRange,
+  Presentation,
+  TreePalm,
+  NotebookPen,
+  LayoutDashboard,
+  Inbox,
+  SquareCheckBig,
+  PanelLeftClose,
+  PanelLeftOpen,
   ChevronDown,
   UsersRound,
   FolderOpen,
   KeyRound,
   X,
-  House,
-  ListChecks,
   LogOut,
   Mail,
   RefreshCw,
   Search,
   Settings as SettingsIcon,
   type LucideIcon,
-  BookOpen,
 } from "lucide-react";
 import { useIsFetching, useIsMutating } from "@tanstack/react-query";
 import { ApiError, logout, useMe, useSummary, useSync, useAssistantUnseen } from "./api";
@@ -112,7 +115,8 @@ function Page({ children, wide, full }: { children: ReactNode; wide?: boolean; f
   return <div className={cx("w-full px-3 py-4 sm:px-4 sm:py-6 md:px-6 lg:px-8", full ? "max-w-none" : wide ? "max-w-7xl" : "max-w-5xl")}>{children}</div>;
 }
 
-type NavItem = { to: string; label: string; icon: LucideIcon };
+// group: where it sits in the computer sidebar (user request 2026-10-31): My work or Office.
+type NavItem = { to: string; label: string; icon: LucideIcon; group?: "work" | "office" };
 
 // Old /staff links (Home's increment rows before the rename) keep their ?employee=… part.
 function StaffRedirect() {
@@ -120,24 +124,26 @@ function StaffRedirect() {
   return <Navigate to={`/employees${search}`} replace />;
 }
 
+// Clearer icons (user request 2026-10-31: four of them were calendars), the same in the sidebar, the phone tab bar,
+// the profile panel and the account menu.
 const NAV: NavItem[] = [
-  { to: "/", label: "Home", icon: House },
-  { to: "/inbox", label: "Emails", icon: Mail },
-  { to: "/tasks", label: "Tasks", icon: ListChecks },
-  { to: "/reminders", label: "Reminders", icon: CalendarClock },
-  { to: "/calendar", label: "Calendar", icon: CalendarDays },
+  { to: "/", label: "Home", icon: LayoutDashboard, group: "work" },
+  { to: "/inbox", label: "Emails", icon: Inbox, group: "work" },
+  { to: "/tasks", label: "Tasks", icon: SquareCheckBig, group: "work" },
+  { to: "/reminders", label: "Reminders", icon: BellRing, group: "work" },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays, group: "work" },
   // Events: meetings, trainings, programmes (user request 2026-10-11): rail on wider screens, profile menu on phones.
-  { to: "/events", label: "Events", icon: CalendarRange },
+  { to: "/events", label: "Events", icon: Presentation, group: "work" },
   // Employees page (formerly Staff, user request 2026-10-07): in the side rail on wider screens, in the profile menu on phones.
-  { to: "/employees", label: "Employees", icon: UsersRound },
+  { to: "/employees", label: "Employees", icon: UsersRound, group: "office" },
   // Leave (user request 2026-10-31), after Employees: rail on wider screens, profile menu on phones.
-  { to: "/leave", label: "Leave", icon: CalendarOff },
+  { to: "/leave", label: "Leave", icon: TreePalm, group: "office" },
   // File register (user request 2026-10-07), next to Staff: rail on wider screens, profile menu on phones.
-  { to: "/files", label: "Files", icon: FolderOpen },
+  { to: "/files", label: "File register", icon: FolderOpen, group: "office" },
   // Registers (user request 2026-10-16), after Files: rail on wider screens, profile menu on phones.
-  { to: "/registers", label: "Registers", icon: BookOpen },
+  { to: "/registers", label: "Registers", icon: NotebookPen, group: "office" },
   // Saved website logins (user request 2026-10-11), after Files: rail on wider screens, profile menu on phones.
-  { to: "/logins", label: "Logins", icon: KeyRound },
+  { to: "/logins", label: "Website logins", icon: KeyRound, group: "office" },
 ];
 
 function Shell({ children }: { children: ReactNode }) {
@@ -171,22 +177,7 @@ function Shell({ children }: { children: ReactNode }) {
       <EventDialogHost />
       <EventDetailsHost />
       <IconBadge />
-      {/* Labelled icon rail */}
-      <aside className="sticky top-0 hidden h-dvh w-[104px] shrink-0 flex-col border-r border-line bg-white md:flex">
-        <Link to="/" className="flex h-20 items-center justify-center border-b border-line" title="WorkDesk">
-          <span className="flex size-11 items-center justify-center rounded-xl bg-brand-600 text-white">
-            <CalendarCheck size={22} />
-          </span>
-        </Link>
-        <nav className="flex flex-1 flex-col py-3">
-          {NAV.map((n) => (
-            <RailLink key={n.to} item={n} count={badge[n.to]} />
-          ))}
-        </nav>
-        <div className="border-t border-line py-3">
-          <RailLink item={{ to: "/settings", label: "Settings", icon: SettingsIcon }} />
-        </div>
-      </aside>
+      <Sidebar badge={badge} />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <TopBar />
@@ -305,23 +296,124 @@ function PullToRefresh({ scroller }: { scroller: RefObject<HTMLElement | null> }
   );
 }
 
-function RailLink({ item, count }: { item: NavItem; count?: number }) {
+// The computer sidebar (user request 2026-10-31, replacing the icon rail: "icons not aligned, lines broken; buttons
+// with clearer labels and better icons, resized to fit"; user's answers: labelled buttons with an option to shrink
+// to icons only, the WorkDesk name at its top, only the logo when shrunk). Labelled: 176px of full-width buttons,
+// icon and label on one line, in two groups (My work, Office), Settings and the shrink button pinned at the bottom.
+// Shrunk: 72px of icons with their names as tooltips and screen-reader labels. Its top box has the top bar's exact
+// height, so their bottom lines meet; the list scrolls inside a short window, never the top box or Settings.
+const SIDEBAR_KEY = "workdesk-sidebar";
+function useSidebarShrunk() {
+  // Saved per device; until chosen, screens under 1280px wide (tablets, small laptops) start shrunk so the pages
+  // keep their width.
+  const [shrunk, setShrunk] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_KEY);
+      if (saved) return saved === "icons";
+    } catch {
+      // storage refused (private window): fall back to the screen size
+    }
+    return window.innerWidth < 1280;
+  });
+  const toggle = () =>
+    setShrunk((was) => {
+      try {
+        localStorage.setItem(SIDEBAR_KEY, was ? "labels" : "icons");
+      } catch {
+        // not saved; still changes for now
+      }
+      return !was;
+    });
+  return [shrunk, toggle] as const;
+}
+
+const SIDE_GROUPS = [
+  { key: "work", label: "My work" },
+  { key: "office", label: "Office" },
+] as const;
+
+function Sidebar({ badge }: { badge: Record<string, number | undefined> }) {
+  const [shrunk, toggle] = useSidebarShrunk();
+  return (
+    <aside className={cx("sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-white transition-[width] duration-200 md:flex", shrunk ? "w-[72px]" : "w-44")}>
+      {/* The same safe-area padding, height and line as the top bar, so the two lines meet. */}
+      <div className="shrink-0 border-b border-line pt-[env(safe-area-inset-top)]">
+        <Link to="/" title="WorkDesk" aria-label={shrunk ? "WorkDesk, Home" : undefined} className={cx("flex h-20 items-center gap-2.5", shrunk ? "justify-center" : "px-4")}>
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white">
+            <CalendarCheck size={22} />
+          </span>
+          {!shrunk && (
+            <span className="min-w-0 leading-tight">
+              <span className="block text-headline font-semibold text-ink">WorkDesk</span>
+              <TitleStatus below />
+            </span>
+          )}
+        </Link>
+      </div>
+      <nav aria-label="Main" className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {SIDE_GROUPS.map((g, i) => (
+          <div key={g.key}>
+            {shrunk ? (
+              i > 0 && <div className="mx-2 my-2 h-px bg-line" aria-hidden />
+            ) : (
+              <p className="px-3 pt-3 pb-1 text-caption2 font-semibold tracking-wide text-slate-400 uppercase">{g.label}</p>
+            )}
+            <ul className={cx("space-y-1", shrunk && i === 0 && "pt-2")}>
+              {NAV.filter((n) => n.group === g.key).map((n) => (
+                <li key={n.to}>
+                  <SideLink item={n} count={badge[n.to]} shrunk={shrunk} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </nav>
+      <div className={cx("flex shrink-0 gap-1 border-t border-line p-2", shrunk && "flex-col")}>
+        <div className="min-w-0 flex-1">
+          <SideLink item={{ to: "/settings", label: "Settings", icon: SettingsIcon }} shrunk={shrunk} />
+        </div>
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={shrunk ? "Show the menu's labels" : "Shrink the menu to icons"}
+          title={shrunk ? "Show labels" : "Shrink to icons"}
+          className={cx("flex h-10 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-50 hover:text-ink active:scale-90", shrunk ? "w-full" : "w-10")}
+        >
+          {shrunk ? <PanelLeftOpen size={20} strokeWidth={1.75} /> : <PanelLeftClose size={20} strokeWidth={1.75} />}
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function SideLink({ item, count, shrunk }: { item: NavItem; count?: number; shrunk: boolean }) {
   return (
     <NavLink
       to={item.to}
       end={item.to === "/"}
+      title={shrunk ? item.label : undefined}
+      aria-label={shrunk ? `${item.label}${count ? `, ${count}` : ""}` : undefined}
       className={({ isActive }) =>
         cx(
-          "group relative flex flex-col items-center gap-1 border-l-[3px] py-3.5 text-footnote transition active:bg-slate-100",
-          isActive ? "border-brand-600 bg-tint font-medium text-brand-700" : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-ink",
+          "group relative flex h-10 items-center rounded-lg text-sm transition active:scale-[0.97]",
+          shrunk ? "justify-center" : "gap-3 px-3",
+          isActive ? "bg-tint font-medium text-brand-700" : "text-slate-600 hover:bg-slate-50 hover:text-ink",
         )
       }
     >
-      <span className="relative transition-transform group-hover:scale-110 group-active:scale-95">
-        <item.icon size={24} strokeWidth={1.6} />
-        {!!count && <CountDot n={count} className="-top-1.5 -right-3" />}
-      </span>
-      {item.label}
+      {({ isActive }) => (
+        <>
+          {isActive && <span className="absolute inset-y-2 -left-2 w-[3px] rounded-r-full bg-brand-600" aria-hidden />}
+          <span className="relative shrink-0">
+            <item.icon size={20} strokeWidth={isActive ? 2 : 1.75} />
+            {shrunk && !!count && <CountDot n={count} className="-top-2 -right-3" />}
+          </span>
+          {!shrunk && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+          {!shrunk && !!count && (
+            <span className="shrink-0 rounded-full bg-brand-600 px-1.5 text-caption2 leading-[18px] font-medium text-white tabular-nums">{count > 99 ? "99+" : count}</span>
+          )}
+        </>
+      )}
     </NavLink>
   );
 }
@@ -359,7 +451,8 @@ function TopBar() {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
       <div className="flex h-14 items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-4 md:h-20 md:gap-6 md:px-6 lg:px-8">
-        <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2.5">
+        {/* Phones only: computers have the name at the top of the sidebar (user request 2026-10-31). */}
+        <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2.5 md:hidden">
           <span className="flex size-8 items-center justify-center rounded-lg bg-brand-600 text-white md:hidden">
             <CalendarCheck size={18} />
           </span>
@@ -400,7 +493,8 @@ function TopBar() {
 // Beside the title (user request 2026-10-07): the version for the first 5 seconds after the app opens, then
 // the connection: a small yellow warning triangle when offline, a spinner while syncing, and a green tick with
 // the time of the last sync. Tapping it says the same in words (and the version), so nothing is hover-only.
-function TitleStatus() {
+// below: on its own line under the name (the computer sidebar, 2026-10-31).
+function TitleStatus({ below }: { below?: boolean }) {
   const [intro, setIntro] = useState(true);
   useEffect(() => {
     const t = setTimeout(() => setIntro(false), 5000);
@@ -439,7 +533,10 @@ function TitleStatus() {
         e.preventDefault(); // inside the title's link: explain instead of going Home
         showUndo({ message: offline ? (when ? `Offline · showing data saved ${when}` : "Offline · showing saved data") : `${text} · v${__APP_VERSION__}` });
       }}
-      className="relative z-[1] ml-1.5 inline-flex items-center gap-1 align-baseline text-caption2 font-normal text-slate-400 after:absolute after:top-1/2 after:left-1/2 after:h-11 after:w-[max(100%,44px)] after:-translate-1/2 after:content-[''] md:text-xs"
+      className={cx(
+        "relative z-[1] items-center gap-1 align-baseline text-caption2 font-normal text-slate-400 after:absolute after:top-1/2 after:left-1/2 after:h-11 after:w-[max(100%,44px)] after:-translate-1/2 after:content-[''] md:text-xs",
+        below ? "mt-0.5 flex w-fit" : "ml-1.5 inline-flex",
+      )}
     >
       <span key={state} className="inline-flex animate-[fade-in_300ms_ease-out] items-center gap-1">
         {state === "version" && <>v{__APP_VERSION__}</>}
@@ -612,11 +709,11 @@ function UserMenu() {
       </div>
       <nav className="flex-1 overflow-y-auto py-2">
         {[
-          { to: "/events", label: "Events", icon: CalendarRange },
+          { to: "/events", label: "Events", icon: Presentation },
           { to: "/employees", label: "Employees", icon: UsersRound },
-          { to: "/leave", label: "Leave", icon: CalendarOff },
+          { to: "/leave", label: "Leave", icon: TreePalm },
           { to: "/files", label: "File register", icon: FolderOpen },
-          { to: "/registers", label: "Registers", icon: BookOpen },
+          { to: "/registers", label: "Registers", icon: NotebookPen },
           { to: "/logins", label: "Logins", icon: KeyRound },
           { to: "/settings", label: "Settings", icon: SettingsIcon },
         ].map((l) => (
@@ -648,20 +745,20 @@ function UserMenu() {
           </div>
           <div className="my-1 h-px bg-line" />
           <Link to="/events" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
-            <CalendarRange size={16} /> Events
+            <Presentation size={16} /> Events
           </Link>
           {/* Employees (formerly Staff, user request 2026-10-07): next to Settings in the profile menu. */}
           <Link to="/employees" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <UsersRound size={16} /> Employees
           </Link>
           <Link to="/leave" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
-            <CalendarOff size={16} /> Leave
+            <TreePalm size={16} /> Leave
           </Link>
           <Link to="/files" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <FolderOpen size={16} /> File register
           </Link>
           <Link to="/registers" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
-            <BookOpen size={16} /> Registers
+            <NotebookPen size={16} /> Registers
           </Link>
           <Link to="/logins" onClick={() => setOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 pointer-coarse:py-2.5">
             <KeyRound size={16} /> Logins

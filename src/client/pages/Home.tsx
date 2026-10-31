@@ -13,7 +13,7 @@ import {
   ExternalLink,
   ListChecks,
   Landmark,
-  CalendarOff,
+  TreePalm,
   ListPlus,
   Mail,
   Pencil,
@@ -494,7 +494,7 @@ function LeaveGroup(props: GroupProps) {
   const surrenders = props.tasks.filter(isSurrender).length;
   const leaves = props.tasks.length - surrenders;
   return (
-    <FoldGroup {...props} icon={CalendarOff} what={`leave tasks: ${[leaves > 0 && `${leaves} leave`, surrenders > 0 && `${surrenders} surrender`].filter(Boolean).join(", ")}`}>
+    <FoldGroup {...props} icon={TreePalm} what={`leave tasks: ${[leaves > 0 && `${leaves} leave`, surrenders > 0 && `${surrenders} surrender`].filter(Boolean).join(", ")}`}>
       <span className="@[24rem]:hidden">
         {[leaves > 0 && `${leaves} ${leaves === 1 ? "leave" : "leaves"}`, surrenders > 0 && `${surrenders} ${surrenders === 1 ? "surrender" : "surrenders"}`].filter(Boolean).join(", ")}
       </span>
