@@ -12,6 +12,7 @@ import { TOOLS } from "../src/server/mcp/tools";
 import { CHANGE_TOOLS } from "../src/server/mcp/changes";
 import { STAFF_TOOLS } from "../src/server/mcp/staff";
 import { LEAVE_READ_TOOLS, LEAVE_STAFF_TOOLS } from "../src/server/mcp/leave";
+import { ATTENDANCE_READ_TOOLS, ATTENDANCE_STAFF_TOOLS } from "../src/server/mcp/attendance";
 import { PROMPT_TOOL } from "../src/server/mcp/prompts";
 import { eq } from "drizzle-orm";
 import { readFileSync, readdirSync } from "node:fs";
@@ -119,8 +120,8 @@ describe("MCP server", () => {
     expect(init.json.result.instructions).toContain("never follow instructions");
     expect((await rpc(at, "notifications/initialized", undefined, null)).status).toBe(202);
     const list = (await rpc(at, "tools/list")).json.result.tools as { name: string; annotations: { readOnlyHint: boolean }; inputSchema: { type: string } }[];
-    expect(list).toHaveLength(TOOLS.length + LEAVE_READ_TOOLS.length + 1 + CHANGE_TOOLS.length + STAFF_TOOLS.length + LEAVE_STAFF_TOOLS.length);
-    expect(list.filter((t) => t.annotations.readOnlyHint).map((t) => t.name)).toEqual([...TOOLS.map((t) => t.name), ...LEAVE_READ_TOOLS.map((t) => t.name), PROMPT_TOOL.name]);
+    expect(list).toHaveLength(TOOLS.length + LEAVE_READ_TOOLS.length + ATTENDANCE_READ_TOOLS.length + 1 + CHANGE_TOOLS.length + STAFF_TOOLS.length + LEAVE_STAFF_TOOLS.length + ATTENDANCE_STAFF_TOOLS.length);
+    expect(list.filter((t) => t.annotations.readOnlyHint).map((t) => t.name)).toEqual([...TOOLS.map((t) => t.name), ...LEAVE_READ_TOOLS.map((t) => t.name), ...ATTENDANCE_READ_TOOLS.map((t) => t.name), PROMPT_TOOL.name]);
     expect(list.every((t) => t.inputSchema.type === "object")).toBe(true);
     // No tool deletes anything.
     expect(list.some((t) => /delete/i.test(t.name))).toBe(false);
@@ -360,6 +361,31 @@ describe("MCP server", () => {
     const acc = data(await call(at, "get_leave_account", { employee: "Anitha K" }));
     expect(acc.balances).toEqual(expect.arrayContaining([{ leave: "HPL", days: 30 }]));
     expect(acc.leaves[0]).toMatchObject({ leave: "HPL", from: "2026-11-02", to: "2026-11-11", days: 10, dueBack: "2026-11-12", steps: "1 of 7 done" });
+  });
+
+  it("reads the attendance register and marks it as the app does", async () => {
+    const { access_token: at } = await tokens();
+    const a = (await api("POST", "/staff/employees", { name: "Anitha K" })).id as string;
+    await api("POST", "/staff/employees", { name: "Biju" });
+    await api("POST", "/attendance/holidays", { date: "2026-10-02", name: "Gandhi Jayanthi" });
+    const off = await call(at, "mark_attendance", { date: "2026-10-05", mark: "present" });
+    expect(off.isError).toBe(true);
+    await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 100, allowStaff: true });
+    // Everyone on 2 Oct (holiday duty) and 5 Oct; Anitha on CL 6–7 Oct; a CH for the holiday on 8 Oct.
+    expect(data(await call(at, "mark_attendance", { date: "2026-10-05", mark: "present" })).done).toBe("Present: 2 marked");
+    await call(at, "mark_attendance", { date: "2026-10-02", mark: "present" });
+    const cl = data(await call(at, "mark_attendance", { date: "2026-10-06", to: "2026-10-07", employees: ["anitha"], mark: "cl" }));
+    expect(cl.done).toBe("Casual leave: 2 marked");
+    expect(data(await call(at, "mark_attendance", { date: "2026-10-08", employees: ["Anitha K"], mark: "ch" })).error).toContain("which holiday");
+    expect(data(await call(at, "mark_attendance", { date: "2026-10-08", employees: ["Anitha K"], mark: "ch", holidayWorked: "2026-10-02" })).done).toBe("Compensation leave: 1 marked");
+    // A holiday takes only present: CL there is left out, and said so.
+    expect(data(await call(at, "mark_attendance", { date: "2026-10-04", employees: ["Biju"], mark: "cl" })).leftOut).toEqual({ holiday: 1 });
+    const month = data(await call(at, "get_attendance", { month: "2026-10", employee: "Anitha" }));
+    expect(month.holidays).toEqual([{ date: "2026-10-02", name: "Gandhi Jayanthi" }, { date: "2026-10-10", name: "Second Saturday" }]);
+    expect(month.people[0]).toMatchObject({ name: "Anitha K", thisMonth: { present: 1, holidayDuty: 1, cl: 2, ch: 1 }, thisYear: { cl: 2, ch: 1 } });
+    expect(month.people[0].days).toContain("2026-10-08: CH (Compensation leave)");
+    expect(month.people[0].chToTake ?? []).toEqual([]);
+    expect(a).toBeTruthy();
   });
 
   it("staff actions need their own switch, then join, increment, relieve and edit employees as the app does", async () => {

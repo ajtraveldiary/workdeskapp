@@ -9,11 +9,15 @@
 // the bar warns about offs not earned, CL / CH with holidays past 15 days (across the month's edges too), CH limits,
 // CH held past 10 and a run of days that marking would take past 12; CH that must be taken within a week are listed
 // above the register; the CL / CH cell opens the person's figures (DetailsDialog), and phones show them in each row.
+// Phase 3: the month's summary under the register (MonthSummary), Print (A4 landscape, the register and the summary
+// with signature lines; nothing of the app around it) and Download (the month as a CSV, like the page).
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
-import { CalendarClock, Check, ChevronLeft, ChevronRight, Eraser, X } from "lucide-react";
+import { CalendarClock, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
-import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, monthLabel, offByItself, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type WeeklyDay } from "../../shared/attendance";
+import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, monthCounts, monthLabel, offByItself, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type WeeklyDay } from "../../shared/attendance";
+import { toCsv } from "../../shared/transfer";
+import { saveFile } from "../saveFile";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendance, useAttendanceActions, useMe, useOfficeProfile, type AttendanceCell } from "../api";
@@ -94,6 +98,7 @@ export function AttendancePage() {
 
   return (
     <>
+      <div className="print:hidden">
       <PageHeader
         title="Attendance register"
         subtitle="Tap a day's number to select everyone that day, a name for their month, or cells one by one; then mark them from the bar below."
@@ -106,7 +111,8 @@ export function AttendancePage() {
           </>
         }
       />
-      <div className="mb-3 flex items-center gap-1">
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-1 print:hidden">
         <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
           <ChevronLeft size={18} />
         </button>
@@ -119,6 +125,19 @@ export function AttendancePage() {
             This month
           </Button>
         )}
+        {data && data.employees.length > 0 && (
+          <span className="ml-auto flex gap-1">
+            <Button size="sm" variant="ghost" onClick={() => downloadMonth(data)} aria-label="Download the month as a CSV file">
+              <Download size={15} /> Download
+            </Button>
+            {/* Printing is for the register's page (computers). */}
+            {wide && (
+              <Button size="sm" variant="ghost" onClick={() => window.print()} aria-label="Print the month">
+                <Printer size={15} /> Print
+              </Button>
+            )}
+          </span>
+        )}
       </div>
       <ErrorNote error={error} />
       {!data || !cells ? (
@@ -127,13 +146,17 @@ export function AttendancePage() {
         <Card className="p-6 text-center text-sm text-slate-500">No employees in the office in {monthLabel(month)}. Add them on the Employees page.</Card>
       ) : wide ? (
         <>
-          <ChDueSoon data={data} />
+          <div className="print:hidden">
+            <ChDueSoon data={data} />
+          </div>
           <Register data={data} cells={cells} selected={selected} setSelected={setSelected} />
+          <MonthSummary data={data} />
         </>
       ) : (
         <>
           <ChDueSoon data={data} />
           <DayView data={data} cells={cells} selected={selected} setSelected={setSelected} onMonth={setMonth} />
+          <MonthSummary data={data} />
         </>
       )}
       {data && cells && selected.size > 0 && (
@@ -291,6 +314,123 @@ const addDays = (day: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
+// The month's summary (phase 3), under the register and on phones: each person's days present, holiday duty, CL,
+// CH, offs, absent, leave and days not marked yet; printed with the register, with signature lines. Phones get short
+// headings (explained under the table) and names cut to two lines, so the columns fit.
+function MonthSummary({ data }: { data: AttendanceMonth }) {
+  const counts = monthCounts(data);
+  const byId = new Map(data.employees.map((e) => [e.id, e]));
+  const cols: [keyof Omit<(typeof counts)[number], "employeeId">, string, string][] = [
+    ["present", "Present", "P"],
+    ["holidayDuty", "Holiday duty", "HD"],
+    ["cl", "CL", "CL"],
+    ["ch", "CH", "CH"],
+    ["off", "Offs", "O"],
+    ["absent", "Absent", "A"],
+    ["leave", "Leave", "Lv"],
+    ["notMarked", "Not marked", "NM"],
+  ];
+  return (
+    <Card className="mt-4 overflow-hidden print:mt-2 print:rounded-none print:border-0 print:shadow-none">
+      <h2 className="border-b border-line px-4 py-2 font-serif text-subhead font-semibold text-ink">Summary for {monthLabel(data.month)}</h2>
+      <div className="scroll-thin overflow-x-auto print:overflow-visible">
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="font-serif">
+              <th className="border border-slate-300 px-2 py-1 text-left font-semibold text-slate-700">Name</th>
+              {cols.map(([, label, short]) => (
+                <th key={label} title={label} className="border border-slate-300 px-1 py-1 text-center font-semibold whitespace-nowrap text-slate-700 sm:px-1.5">
+                  <span className="sm:hidden print:hidden">{short}</span>
+                  <span className="hidden sm:inline print:inline">{label}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {counts.map((c) => (
+              <tr key={c.employeeId}>
+                <td className="min-w-28 border border-slate-300 px-2 py-1 text-ink [overflow-wrap:anywhere] sm:min-w-40">
+                  <span className="line-clamp-2 sm:line-clamp-none print:line-clamp-none">{byId.get(c.employeeId)?.name}</span>
+                </td>
+                {cols.map(([k]) => (
+                  <td key={k} className={cx("border border-slate-300 px-1 py-1 text-center tabular-nums sm:px-1.5", k === "notMarked" && c[k] > 0 ? "font-semibold text-urgent-ink" : c[k] ? "text-ink" : "text-slate-400")}>
+                    {c[k]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="px-3 py-1.5 text-caption2 text-slate-500 sm:hidden print:hidden">
+        {cols.map(([, label, short]) => (short === label ? null : `${short} ${label.toLowerCase()}`)).filter(Boolean).join(" · ")}
+      </p>
+      {/* Only on paper: the signatures the register is checked with. */}
+      <div className="hidden grid-cols-3 gap-8 px-4 pt-12 pb-2 font-serif text-sm text-ink print:grid">
+        <span className="border-t border-slate-400 pt-1 text-center">Prepared by</span>
+        <span className="border-t border-slate-400 pt-1 text-center">Verified by</span>
+        <span className="border-t border-slate-400 pt-1 text-center">Head of Office</span>
+      </div>
+    </Card>
+  );
+}
+
+// The month as a CSV (phase 3), like the page: Sl, name, designation, this year's CL and CH, a column per day
+// (✓ as P, O, CL, ½CL, CH, A, the leave's short name, H for a holiday or Sunday off not worked, – not in the office:
+// an en dash, since the CSV writer guards a cell starting with "-" as a formula),
+// then the month's summary.
+async function downloadMonth(data: AttendanceMonth) {
+  const marks = new Map(data.marks.map((m) => [key(m.employeeId, m.date), m.mark]));
+  const counts = new Map(monthCounts(data).map((c) => [c.employeeId, c]));
+  const totals = new Map(data.totals.map((t) => [t.employeeId, t]));
+  const letter: Record<AttendanceMark, string> = { present: "P", off: "O", cl: "CL", cl_half: "½CL", ch: "CH", absent: "A" };
+  const head = ["Sl", "Name", "Designation", "CL this year", "CH this year", ...data.days.map((d) => d.date.slice(8)), "Present", "Holiday duty", "CL", "CH", "Offs", "Absent", "Leave", "Not marked"];
+  const rows = data.employees.map((e, i) => {
+    const c = counts.get(e.id)!;
+    const t = totals.get(e.id) ?? { cl: 0, ch: 0 };
+    const cellsOf = data.days.map((d) => {
+      if ((e.from && d.date < e.from) || (e.until && d.date > e.until)) return "–";
+      const leave = data.leaves.find((l) => l.employeeId === e.id && l.from <= d.date && d.date <= l.to);
+      if (leave) return leave.short;
+      const m = marks.get(key(e.id, d.date));
+      if (m) return letter[m];
+      return offByItself(d.date, d.holiday, e.offDay) ? "H" : "";
+    });
+    return [String(i + 1), e.name, e.designation ?? "", String(t.cl), String(t.ch), ...cellsOf, String(c.present), String(c.holidayDuty), String(c.cl), String(c.ch), String(c.off), String(c.absent), String(c.leave), String(c.notMarked)];
+  });
+  // toCsv starts with the BOM Excel needs for Malayalam.
+  await saveFile(new Blob([toCsv([head, ...rows])], { type: "text/csv;charset=utf-8" }), `attendance-${data.month}.csv`);
+}
+
+// The employee's page (phase 3): one line with their month so far, opening the register.
+export function AttendanceLine({ employeeId, today }: { employeeId: string; today: string }) {
+  const { data } = useAttendance(today.slice(0, 7));
+  if (!data || !data.employees.some((e) => e.id === employeeId)) return null;
+  const c = monthCounts(data).find((x) => x.employeeId === employeeId)!;
+  const w = data.weekly.find((x) => x.employeeId === employeeId);
+  const text = [
+    `${c.present + c.holidayDuty} present`,
+    c.cl && `CL ${c.cl}`,
+    c.ch && `CH ${c.ch}`,
+    c.off && `${c.off} ${c.off === 1 ? "off" : "offs"}`,
+    c.absent && `${c.absent} absent`,
+    c.notMarked && `${c.notMarked} not marked`,
+    w && `${w.offsDue} off due`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return (
+    <Card className="overflow-hidden">
+      <Link to="/attendance" className="group/title flex items-center gap-2 px-4 py-2.5 hover:bg-slate-50 active:bg-slate-100 sm:px-5">
+        <ClipboardCheck size={15} className="shrink-0 text-brand-700" />
+        <span className="shrink-0 text-footnote font-semibold text-slate-600 group-hover/title:text-brand-700">Attendance in {monthLabel(data.month).split(" ")[0]}</span>
+        <span className="min-w-0 flex-1 truncate text-footnote text-slate-600">{text}</span>
+        <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden />
+      </Link>
+    </Card>
+  );
+}
+
 // The page of the register (768px and wider).
 function Register({ data, cells, selected, setSelected }: SelectProps) {
   const office = useOfficeProfile().data?.profile.officeName;
@@ -345,14 +485,14 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
   };
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="print-register overflow-hidden print:rounded-none print:border-0 print:shadow-none">
       {/* The register's heading. */}
       <div className="border-b-4 border-double border-slate-300 px-4 py-3 text-center">
         <p className="font-serif text-title3 font-bold tracking-[0.2em] text-ink uppercase">Attendance Register</p>
         {office && <p className="font-serif text-subhead text-slate-700 [overflow-wrap:anywhere]">{office}</p>}
         <p className="font-serif text-subhead text-slate-600">For the month of {monthLabel(data.month)}</p>
       </div>
-      <div className="scroll-thin overflow-x-auto select-none">
+      <div className="scroll-thin overflow-x-auto select-none print:overflow-visible">
         <table className="border-collapse text-xs">
           <thead>
             <tr className="font-serif">
@@ -640,7 +780,7 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
   return (
     // Phones: pinned just above the tab bar (the list gets room for it below); wider screens: stuck to the bottom
     // of the page area.
-    <div className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.5rem)] z-30 rounded-xl border border-line bg-white p-2.5 shadow-lg md:sticky md:inset-x-auto md:bottom-3 md:mt-3">
+    <div className="fixed inset-x-3 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom)+0.5rem)] z-30 rounded-xl border border-line bg-white p-2.5 shadow-lg md:sticky md:inset-x-auto md:bottom-3 md:mt-3 print:hidden">
       <div className="flex flex-wrap items-center gap-2">
         <span className="mr-1 text-sm font-medium text-ink">{selected.size} selected</span>
         <Button size="sm" variant="primary" onClick={() => run("present")} disabled={busy}>

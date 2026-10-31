@@ -146,6 +146,8 @@ export type Summary = {
   incrementsDue: IncrementDue[];
   // Today's events (user request 2026-10-11), cancelled ones included (shown struck through).
   eventsToday: EventToday[];
+  // People in the office not marked in the attendance register today (from 11 am; null when not reminded).
+  attendanceUnmarked: number | null;
   overdue: Task[];
   dueToday: Task[];
   dueTomorrow: Task[];

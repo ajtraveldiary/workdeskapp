@@ -66,7 +66,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 32: employees carry offDay (Sunday off / weekly off, 2026-10-31).
 // 33: attendance months carry chOpen, chFor, chLimits and weekly (attendance phase 2, 2026-10-31).
 // 34: attendance months carry edges and weekly runBefore; settings offEvery / maxRun (2026-10-31).
-export const CACHE_VERSION = "34";
+// 35: the summary carries attendanceUnmarked (attendance phase 3, 2026-10-31).
+export const CACHE_VERSION = "35";
 
 export async function clearSavedData() {
   queryClient.clear();

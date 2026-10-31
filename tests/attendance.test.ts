@@ -9,13 +9,16 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { DEFAULT_ATTENDANCE_SETTINGS, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
+import { DEFAULT_ATTENDANCE_SETTINGS, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
 import type { AttendanceMonth, AuditEvent, LeaveType } from "../src/shared/types";
+import { unmarkedToday } from "../src/server/routes/attendance";
+import { BACKUP_TABLES } from "../src/shared/transfer";
 
 const NAME = "2026-27 സാമ്പത്തിക വർഷത്തെ ജൂനിയർ ഹെൽത്ത് ഇൻസ്‌പെക്ടർ ശ്രീമതി അനിതാകുമാരി രാധാകൃഷ്ണൻ";
 
 describe("attendance register", () => {
   let app: ReturnType<typeof createApp>;
+  let db: DB;
   const call = async (method: string, path: string, body?: unknown) => {
     const res = await app.request(`/api${path}`, { method, headers: { "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined }, {});
     return { status: res.status, json: (await res.json().catch(() => null)) as any };
@@ -28,7 +31,8 @@ describe("attendance register", () => {
   beforeEach(async () => {
     const d = drizzle({ client: new PGlite(), schema });
     await migrate(d, { migrationsFolder: "drizzle" });
-    app = createApp({ getDb: () => d as unknown as DB, allowDemo: true });
+    db = d as unknown as DB;
+    app = createApp({ getDb: () => db, allowDemo: true });
   });
 
   it("works out the month's days, second Saturdays and which days are off by themselves", () => {
@@ -277,5 +281,60 @@ describe("attendance register", () => {
     const csv = await (await app.request("/api/transfer/attendance/csv", {}, {})).text();
     expect(csv).toContain("765432");
     expect(csv).toContain("2026-09-15 തിരുവോണം; 2026-09-26");
+  });
+
+  // --- Phase 3 ---
+
+  it("sums up a person's month: present, holiday duty, CL with halves, CH, offs, absent, leave, not marked", async () => {
+    const a = await add({ name: NAME, offDay: "weekly" });
+    await call("POST", "/attendance/holidays", { date: "2026-09-15", name: "Onam" });
+    await call("POST", "/attendance/mark", { cells: ["2026-09-01", "2026-09-02", "2026-09-15"].map((date) => ({ employeeId: a, date })), mark: "present" });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-09-03" }], mark: "cl" });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-09-04" }], mark: "cl_half" });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-09-05" }], mark: "off" });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-09-07" }], mark: "absent" });
+    await call("POST", "/attendance/ch", { items: [{ employeeId: a, date: "2026-09-08", holiday: "2026-09-15" }] });
+    await call("POST", "/attendance/ch", { items: [{ employeeId: a, date: "2026-09-16", holiday: "2026-09-15" }] });
+    const sep = await month("2026-09");
+    // 30 days: 8 marked (the second CH for the same holiday was left out), the second Saturday (12 Sep) not marked
+    // is a holiday; every other day not marked is counted (weekly-off staff work Sundays).
+    expect(monthCounts(sep)[0]).toEqual({ employeeId: a, present: 2, holidayDuty: 1, cl: 1.5, ch: 1, off: 1, absent: 1, leave: 0, notMarked: 30 - 8 - 1 });
+  });
+
+  it("Home's reminder: from 11 am, people in the office not marked today, only when the register is kept", async () => {
+    const a = await add({ name: NAME });
+    const b = await add({ name: "Biju" });
+    const today = (await call("GET", "/me")).json.today as string;
+    const at = (h: number) => new Date(`${today}T${String(h).padStart(2, "0")}:30:00+05:30`);
+    const userId = (await db.select().from(schema.users))[0]!.id;
+    // Not kept yet: no marks in the last 30 days.
+    expect(await unmarkedToday(db, userId, today, "Asia/Kolkata", at(12))).toBeNull();
+    const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86400_000).toISOString().slice(0, 10);
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: yesterday }], mark: "present", replace: true });
+    expect(await unmarkedToday(db, userId, today, "Asia/Kolkata", at(10))).toBeNull();
+    const before = await unmarkedToday(db, userId, today, "Asia/Kolkata", at(12));
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: b, date: today }], mark: "present" });
+    const after = await unmarkedToday(db, userId, today, "Asia/Kolkata", at(12));
+    // On a holiday or a Sunday nobody is due (0); otherwise marking Biju leaves one fewer.
+    expect(before === 0 ? after : before! - 1).toBe(after);
+    expect((await call("GET", "/summary")).json).toHaveProperty("attendanceUnmarked");
+  });
+
+  it("the backup brings holidays, marks and settings back into an empty WorkDesk", async () => {
+    const a = await add({ name: NAME });
+    await call("POST", "/attendance/holidays", { date: "2026-10-02", name: "ഗാന്ധി ജയന്തി" });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-10-05" }], mark: "cl" });
+    await call("PUT", "/attendance/settings", { clPerYear: 15 });
+    const backup = (await call("GET", "/transfer/backup")).json as { tables: Record<string, unknown[]> };
+    expect([backup.tables.holidays, backup.tables.attendanceMarks, backup.tables.attendanceSettings].map((t) => t?.length)).toEqual([1, 1, 1]);
+    const d = drizzle({ client: new PGlite(), schema });
+    await migrate(d, { migrationsFolder: "drizzle" });
+    db = d as unknown as DB;
+    app = createApp({ getDb: () => db, allowDemo: true });
+    for (const t of BACKUP_TABLES) await call("POST", "/transfer/backup", { table: t, rows: backup.tables[t] ?? [] });
+    const oct = await month("2026-10");
+    expect(oct.days.find((x) => x.date === "2026-10-02")!.holiday).toEqual({ name: "ഗാന്ധി ജയന്തി", kind: "public" });
+    expect(markOf(oct, a, "2026-10-05")).toBe("cl");
+    expect(oct.settings.clPerYear).toBe(15);
   });
 });

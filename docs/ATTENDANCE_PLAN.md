@@ -1,6 +1,6 @@
 # Attendance register — plan
 
-Status: **Phases 1 and 2 built** (2026-10-31; the user started Phase 1 with the recommended answers). Phase 1:
+Status: **Phases 1, 2 and 3 built** (2026-10-31; the user started Phase 1 with the recommended answers). Phase 1:
 holidays and second Saturdays in Settings › Attendance, the register page (its look, selecting a day's column, a
 person's month or cells, Present / Off / CL / ½CL / Absent / Clear, the year's CL and CH totals, the CL warning),
 leave from the Leave page in its days, the phones' day view. Phase 2: CH tied to a holiday worked (the pop-up, 3
@@ -8,8 +8,10 @@ months, once each, the holiday's mark kept while its CH stands), CH limits by po
 counting (offs due, days towards the next, more than 12 days in a row outlined), the 15-day CL / CH warning, and
 starting figures; then (checked against this plan the same day) the 12-day warning before marking, CH due within a
 week listed, the run shown, every figure reachable by tap and on phones, the weekly-off figures as settings,
-starting figures from a CSV, and the 15-day check across the month's edges. Phase 3 (print, summary, backup, Home
-reminder) is next. Written 2026-10-31.
+starting figures from a CSV, and the 15-day check across the month's edges. Phase 3: the month's summary
+under the register, Print (A4 landscape, with signature lines), the month's CSV, the register in the backup, "Attendance
+not marked today" on Home's Today tab from 11 am, a line on the employee's page, and the assistant tools
+`get_attendance` / `mark_attendance`. Written 2026-10-31.
 
 The office keeps a daily attendance register for **every employee** (permanent and temporary), on a page that looks
 like the paper register: one row per person, one column per day of the month. A whole day is marked for everyone
@@ -266,4 +268,4 @@ Still to confirm (recommended answers):
    weekly-off counting (offs due, runs of duty, the 12-day warning), the 15-day CL + CH warning, starting figures.
    About 1 session.
 3. **Extras:** print, the monthly summary, backup and the month's CSV, Home reminder, employee page line, assistants.
-   About half a session.
+   About half a session. **Built** 2026-10-31.

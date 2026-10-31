@@ -143,3 +143,36 @@ export function weeklyOff(days: WeeklyDay[], start?: { offsDue: number; towards:
 // CL, CH, a weekly off, and a holiday or Sunday-off staff's Sunday not worked.
 export const CL_RUN_MAX = 15;
 export const awayDay = (mark: AttendanceMark | null | undefined, offItself: boolean) => mark === "cl" || mark === "ch" || mark === "off" || (offItself && !mark);
+
+// --- Phase 3: the month's summary (the register's foot, its CSV and the assistants) ---
+
+// Each person's month: days present (holiday duty apart), CL (half days ½), CH, offs, absent, days of leave from the
+// Leave page, and working days up to today not marked yet.
+export type MonthCounts = { employeeId: string; present: number; holidayDuty: number; cl: number; ch: number; off: number; absent: number; leave: number; notMarked: number };
+export function monthCounts(m: {
+  today: string;
+  days: { date: string; holiday: HolidayInfo | null }[];
+  employees: { id: string; offDay: "sunday" | "weekly"; from: string | null; until: string | null }[];
+  marks: { employeeId: string; date: string; mark: AttendanceMark }[];
+  leaves: { employeeId: string; from: string; to: string }[];
+}): MonthCounts[] {
+  const marks = new Map(m.marks.map((x) => [`${x.employeeId}|${x.date}`, x.mark]));
+  return m.employees.map((e) => {
+    const c: MonthCounts = { employeeId: e.id, present: 0, holidayDuty: 0, cl: 0, ch: 0, off: 0, absent: 0, leave: 0, notMarked: 0 };
+    for (const d of m.days) {
+      if ((e.from && d.date < e.from) || (e.until && d.date > e.until)) continue;
+      if (m.leaves.some((l) => l.employeeId === e.id && l.from <= d.date && d.date <= l.to)) {
+        c.leave++;
+        continue;
+      }
+      const mark = marks.get(`${e.id}|${d.date}`);
+      if (mark === "present") d.holiday ? c.holidayDuty++ : c.present++;
+      else if (mark === "cl" || mark === "cl_half") c.cl += clDays(mark);
+      else if (mark === "ch") c.ch++;
+      else if (mark === "off") c.off++;
+      else if (mark === "absent") c.absent++;
+      else if (!offByItself(d.date, d.holiday, e.offDay) && d.date <= m.today) c.notMarked++;
+    }
+    return c;
+  });
+}

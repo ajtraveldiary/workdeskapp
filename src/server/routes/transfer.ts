@@ -30,7 +30,9 @@ import {
   leaveTypes,
   employeeLeaves,
   leaveLedger,
-  attendanceSettings } from "../db/schema";
+  attendanceSettings,
+  attendanceMarks,
+  holidays } from "../db/schema";
 import { DEFAULT_ATTENDANCE_SETTINGS, type AttendanceSettings, type StartFigures } from "../../shared/attendance";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
@@ -1030,6 +1032,10 @@ const BACKUP: Record<BackupTable, TableInfo> = {
   leaveTypes: { table: leaveTypes as never },
   employeeLeaves: { table: employeeLeaves as never, refs: { employeeId: { table: employees, required: true }, typeId: { table: leaveTypes, required: true }, taskId: { table: tasks }, extensionOfId: { table: employeeLeaves } } },
   leaveLedger: { table: leaveLedger as never, refs: { employeeId: { table: employees, required: true }, typeId: { table: leaveTypes, required: true }, leaveId: { table: employeeLeaves } } },
+  // Attendance register (phase 3): a restore keeps settings already saved (one row per account).
+  holidays: { table: holidays as never },
+  attendanceMarks: { table: attendanceMarks as never, refs: { employeeId: { table: employees, required: true } } },
+  attendanceSettings: { table: attendanceSettings as never },
 };
 type AnyTable = PgTable & { id: PgColumn; userId: PgColumn };
 

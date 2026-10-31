@@ -329,14 +329,15 @@ export function useLeaveActions() {
   };
 }
 // Attendance register (user request 2026-10-31, docs/ATTENDANCE_PLAN.md): a month as the register shows it, the
-// year's holidays and the settings (Settings › Attendance). Under "attendance"; changes also refresh History.
+// year's holidays and the settings (Settings › Attendance). Under "attendance"; changes also refresh History and the summary.
 export const useAttendance = (month: string) => useQuery({ queryKey: ["attendance", "month", month], queryFn: () => api<AttendanceMonth>(`/attendance?month=${month}`) });
 export const useHolidays = (year: string) => useQuery({ queryKey: ["attendance", "holidays", year], queryFn: () => api<{ holidays: Holiday[] }>(`/attendance/holidays?year=${year}`) });
 export const useAttendanceSettings = () => useQuery({ queryKey: ["attendance", "settings"], queryFn: () => api<{ settings: AttendanceSettings }>("/attendance/settings") });
 export type AttendanceCell = { employeeId: string; date: string };
 export function useAttendanceActions() {
   const qc = useQueryClient();
-  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["attendance", "history"].includes(q.queryKey[0] as string) });
+  // The summary too: Home's "Attendance not marked today" line (phase 3).
+  const refresh = () => qc.invalidateQueries({ predicate: (q) => ["attendance", "history", "summary"].includes(q.queryKey[0] as string) });
   const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
   return {
     mark: m((body: { cells: AttendanceCell[]; mark: Exclude<AttendanceMark, "ch">; replace?: boolean }) =>

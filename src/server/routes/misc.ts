@@ -17,6 +17,7 @@ import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
 import { openTaskOrder, selectTasks, toTask, viewFilter } from "./tasks";
 import { eventsToday } from "../lib/officeEvents";
+import { unmarkedToday } from "./attendance";
 
 export const miscRoutes = new Hono<AppEnv>()
   .get("/me", async (c) => {
@@ -127,6 +128,8 @@ export const miscRoutes = new Hono<AppEnv>()
     ).filter((e) => incrementOnHome(e.due, today)) as Summary["incrementsDue"];
     // Today's events (user request 2026-10-11) for the Due Today card.
     const todayEvents = await eventsToday(db, userId, today);
+    // Attendance not marked yet today (attendance register phase 3), for a line on Due Today.
+    const attendanceUnmarked = await unmarkedToday(db, userId, today, timezone(c.env));
     const summary: Summary = {
       today,
       counts: {
@@ -152,6 +155,7 @@ export const miscRoutes = new Hono<AppEnv>()
       },
       incrementsDue,
       eventsToday: todayEvents,
+      attendanceUnmarked,
       overdue: overdue.map(toTask),
       dueToday: dueToday.map(toTask),
       dueTomorrow: dueTomorrow.map(toTask),

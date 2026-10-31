@@ -25,6 +25,7 @@ import { TaskRow } from "../components/TaskRow";
 import { Badge, Button, Card, ErrorNote, Segmented, SkeletonList, cx } from "../components/ui";
 import { EmployeeDialog, GazettedTag, TemporaryTag, YouTag } from "./Staff";
 import { LeaveSummary } from "../components/LeaveAccount";
+import { AttendanceLine } from "./Attendance";
 import { MoveDialog } from "../components/StaffMoves";
 import type { MoveKind } from "../../shared/moves";
 
@@ -170,6 +171,8 @@ function Profile({ e, staff }: { e: Employee; staff: StaffList }) {
           {/* Leave account (user request 2026-10-30): permanent staff only. */}
           {/* Leave is on its own page (user request 2026-10-31): one line here opens it. */}
           {e.permanent && <LeaveSummary employee={e} />}
+          {/* This month in the attendance register (phase 3), everyone. */}
+          <AttendanceLine employeeId={e.id} today={today} />
           <AllDetails e={e} staff={staff} today={today} />
         </div>
         <div className="space-y-4">

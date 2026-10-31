@@ -17,10 +17,11 @@ import { TOOLS, toolList, type Content, type Tool, type ToolCtx, type Touched } 
 import { CHANGE_TOOLS } from "./changes";
 import { STAFF_TOOLS } from "./staff";
 import { LEAVE_READ_TOOLS, LEAVE_STAFF_TOOLS } from "./leave";
+import { ATTENDANCE_READ_TOOLS, ATTENDANCE_STAFF_TOOLS } from "./attendance";
 import { PROMPT_TOOL, getPrompt, promptList } from "./prompts";
 
 // Leave (user request 2026-10-30): its read tool with the others, mark_leave with the staff actions.
-export const ALL_TOOLS: Tool[] = [...TOOLS, ...LEAVE_READ_TOOLS, PROMPT_TOOL, ...CHANGE_TOOLS, ...STAFF_TOOLS, ...LEAVE_STAFF_TOOLS];
+export const ALL_TOOLS: Tool[] = [...TOOLS, ...LEAVE_READ_TOOLS, ...ATTENDANCE_READ_TOOLS, PROMPT_TOOL, ...CHANGE_TOOLS, ...STAFF_TOOLS, ...LEAVE_STAFF_TOOLS, ...ATTENDANCE_STAFF_TOOLS];
 
 const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 

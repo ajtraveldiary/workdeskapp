@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import {
+  ChevronRight,
+  ClipboardCheck,
   CalendarClock,
   CalendarRange,
   FileClock,
@@ -302,6 +304,8 @@ function CommandCenter({
   const increments = tab === "today" && !tag ? (summary.incrementsDue ?? []) : [];
   // Today's events (user request 2026-10-11), first in the Today tab (left out while a tag filter is on).
   const todayEvents = tab === "today" && !tag ? (summary.eventsToday ?? []) : [];
+  // Attendance not marked yet today (attendance register phase 3), from 11 am, at the top of the Today tab.
+  const unmarked = tab === "today" && !tag ? (summary.attendanceUnmarked ?? 0) : 0;
 
   return (
     <Panel hiddenOnPhone={hiddenOnPhone}>
@@ -339,12 +343,13 @@ function CommandCenter({
           </Empty>
         ) : tag && tasks.length === 0 ? (
           <Empty icon={CircleCheck} title="No tasks with this tag here" />
-        ) : tasks.length === 0 && increments.length === 0 && todayEvents.length === 0 ? (
+        ) : tasks.length === 0 && increments.length === 0 && todayEvents.length === 0 && !unmarked ? (
           <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today or overdue" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
             {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
           </Empty>
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
+            {unmarked > 0 && <AttendanceTodayRow count={unmarked} />}
             {todayEvents.map((e) => (
               <EventTodayRow key={`${e.id}:${e.original}`} item={e} />
             ))}
@@ -620,6 +625,20 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
 // An employee's increment due (Staff, user request 2026-10-07): tick (computers) or swipe right (phones) marks
 // it done, which moves their next increment date a year on, with Undo; tapping opens the employee's card.
 // Today's event (user request 2026-10-11): its time, title and place; opens its details (Done, Move, Cancel…).
+// Attendance not marked yet today (attendance register phase 3): one line opening the register.
+function AttendanceTodayRow({ count }: { count: number }) {
+  return (
+    <li className="row-click -mx-3 flex items-center gap-2.5 px-3 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:-mx-5 sm:px-5 sm:py-2">
+      <span className="w-[3px] shrink-0 self-stretch rounded-full bg-brand-600" aria-hidden />
+      <Link to="/attendance" className="row-link min-w-0 flex-1 text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm">
+        <ClipboardCheck size={14} className="mr-1 inline -translate-y-px text-brand-700" aria-hidden />
+        Attendance not marked today: {count} {count === 1 ? "person" : "people"}
+      </Link>
+      <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden />
+    </li>
+  );
+}
+
 function EventTodayRow({ item }: { item: EventToday }) {
   const cancelled = item.status === "cancelled";
   return (

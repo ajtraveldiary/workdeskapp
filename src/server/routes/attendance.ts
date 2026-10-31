@@ -6,7 +6,7 @@
 // the starting figures kept in the settings.
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, min, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray, isNotNull, isNull, lt, lte, min, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { attendanceMarks, attendanceSettings, designations, employeeLeaves, employees, events, holidays, leaveTypes } from "../db/schema";
@@ -191,6 +191,32 @@ async function takenFor(db: DB, userId: string, ids: string[], from: string) {
     .from(attendanceMarks)
     .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), eq(attendanceMarks.mark, "ch"), isNotNull(attendanceMarks.chHoliday), gte(attendanceMarks.chHoliday, from)));
   return new Set(rows.map((r) => `${r.employeeId}|${r.holiday}`));
+}
+
+// Home's reminder (phase 3): from 11 in the morning, how many people in the office today have no mark on a working
+// day of theirs (not a holiday, not on leave). Null while it isn't 11 yet or the register isn't kept (no marks in
+// the last 30 days), so offices that don't use it aren't reminded.
+export async function unmarkedToday(db: DB, userId: string, today: string, tz: string, now = new Date()) {
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: tz }).format(now));
+  if (hour < 11) return null;
+  const [used] = await db
+    .select({ n: count() })
+    .from(attendanceMarks)
+    .where(and(eq(attendanceMarks.userId, userId), gte(attendanceMarks.date, shiftDate(today, -30)), lt(attendanceMarks.date, today)));
+  if (!used || Number(used.n) === 0) return null;
+  const [settings, hols, people, marks, leaves] = await Promise.all([
+    loadSettings(db, userId),
+    holidayMap(db, userId, today, today),
+    db
+      .select({ id: employees.id, offDay: employees.offDay })
+      .from(employees)
+      .where(and(eq(employees.userId, userId), or(isNull(employees.joinedOfficeOn), lte(employees.joinedOfficeOn, today)), or(isNull(employees.leftOn), gte(employees.leftOn, today)))),
+    db.select({ employeeId: attendanceMarks.employeeId }).from(attendanceMarks).where(and(eq(attendanceMarks.userId, userId), eq(attendanceMarks.date, today))),
+    leavesIn(db, userId, today, today),
+  ]);
+  const holiday = holidayOn(today, hols, settings);
+  const marked = new Set(marks.map((m) => m.employeeId));
+  return people.filter((p) => !marked.has(p.id) && !leaves.some((l) => l.employeeId === p.id) && !offByItself(today, holiday, p.offDay)).length;
 }
 
 // "31 Oct 2026", or "1 Oct 2026 to 5 Oct 2026" for several days.

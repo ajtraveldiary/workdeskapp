@@ -198,7 +198,7 @@ function Shell({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom navigation (History lives in Settings on phones, user request 2026-10-06): standard app tab bar (user request 2026-10-06), clear of the iPhone's rounded
           corners and home bar via the safe-area insets (needs viewport-fit=cover in index.html). */}
-      <nav className="tabbar fixed inset-x-0 bottom-0 z-20 grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
+      <nav className="tabbar fixed inset-x-0 bottom-0 z-20 print:hidden grid h-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] grid-cols-5 border-t border-line bg-white/95 pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] backdrop-blur md:hidden">
         {NAV.filter((n) => n.to !== "/history" && n.to !== "/employees" && n.to !== "/leave" && n.to !== "/attendance" && n.to !== "/import-export" && n.to !== "/files" && n.to !== "/registers" && n.to !== "/logins" && n.to !== "/events").map((n) => (
           <NavLink
             key={n.to}
@@ -341,7 +341,7 @@ const SIDE_GROUPS = [
 function Sidebar({ badge }: { badge: Record<string, number | undefined> }) {
   const [shrunk, toggle] = useSidebarShrunk();
   return (
-    <aside className={cx("sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-white transition-[width] duration-200 md:flex", shrunk ? "w-[72px]" : "w-44")}>
+    <aside className={cx("sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-white transition-[width] duration-200 md:flex print:hidden", shrunk ? "w-[72px]" : "w-44")}>
       {/* The same safe-area padding, height and line as the top bar, so the two lines meet. */}
       <div className="shrink-0 border-b border-line pt-[env(safe-area-inset-top)]">
         <Link to="/" title="WorkDesk" aria-label={shrunk ? "WorkDesk, Home" : undefined} className={cx("flex h-20 items-center gap-2.5", shrunk ? "justify-center" : "px-4")}>
@@ -455,7 +455,7 @@ function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-line bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur print:hidden">
       <div className="flex h-14 items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-4 md:h-20 md:gap-6 md:px-6 lg:px-8">
         {/* Phones only: computers have the name at the top of the sidebar (user request 2026-10-31). */}
         <Link to="/" className="flex min-w-0 shrink-0 items-center gap-2.5 md:hidden">

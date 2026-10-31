@@ -686,3 +686,29 @@ html.dark [data-tag-color="teal"] { --tag-bg: #163b39; --tag-ink: #9fe0d8; }
 html.dark [data-tag-color="blue"] { --tag-bg: #1b2d4d; --tag-ink: #adc8f5; }
 html.dark [data-tag-color="purple"] { --tag-bg: #2f2347; --tag-ink: #cfb6f5; }
 html.dark [data-tag-color="pink"] { --tag-bg: #462036; --tag-ink: #f3b2d4; }
+
+/* Printing the attendance register (attendance phase 3): A4 landscape, only the page (the sidebar, top bar, tab bar
+   and action bar are print:hidden), the shell's fixed heights and scrolling undone, the register shrunk to fit. */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+  html,
+  body,
+  .app-shell,
+  .app-main {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .page-in {
+    animation: none !important;
+  }
+  .print-register {
+    zoom: 0.82;
+  }
+  .print-register .sticky {
+    position: static !important;
+  }
+}

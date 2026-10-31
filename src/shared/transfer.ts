@@ -272,6 +272,9 @@ export const BACKUP_TABLES = [
   "leaveTypes",
   "employeeLeaves",
   "leaveLedger",
+  "holidays",
+  "attendanceMarks",
+  "attendanceSettings",
 ] as const;
 export type BackupTable = (typeof BACKUP_TABLES)[number];
 export const BACKUP_TABLE_NAMES: Record<BackupTable, string> = {
@@ -296,5 +299,8 @@ export const BACKUP_TABLE_NAMES: Record<BackupTable, string> = {
   leaveTypes: "Leave types",
   employeeLeaves: "Leaves",
   leaveLedger: "Leave accounts",
+  holidays: "Holidays",
+  attendanceMarks: "Attendance register",
+  attendanceSettings: "Attendance settings",
 };
 export type Backup = { app: "WorkDesk"; version: 1; exportedAt: string; tables: Partial<Record<BackupTable, Record<string, unknown>[]>> };
