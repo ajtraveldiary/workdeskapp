@@ -296,7 +296,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `SystemTaskChooser.tsx` | The choice a system task asks for when ticked or swiped anywhere: Renew / Contract ended for "Contract ends", Probation declared / Change due date for "Probation declaration"; lives once in the shell. |
 | `InlineTaskEdit.tsx` | Change a task's date/time or priority straight from its chip. |
 | `PriorityGroups.tsx` | Sorts task lists Urgent → High → Medium → Low, earliest first. |
-| `Checklist.tsx` | Task steps: editor in the form, ticks in details (a step can show Waiting), "2/5" chip on rows. |
+| `Checklist.tsx` | Task steps: editor in the form, ticks in details (a step can show Waiting), "2/5" chip on rows.; `RowSteps`: a "2/7" button on Due Today rows that unfolds the steps to tick them in the row. |
 | `Waiting.tsx` | Waiting for a reply: badge, Wait dialog. |
 | `ReminderDialog.tsx` | Add / edit reminder form. |
 | `ReminderDetails.tsx` | Reminder details card with document preview and Edit / Pause / Delete / Mark done. |

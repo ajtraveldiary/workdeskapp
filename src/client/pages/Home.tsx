@@ -54,7 +54,7 @@ import { EmailBulkBar } from "../components/EmailBulkBar";
 import { SelectAvatar } from "../components/Avatar";
 import { emailLine } from "../components/ThreadRow";
 import { byPriority } from "../components/PriorityGroups";
-import { ChecklistChip } from "../components/Checklist";
+import { ChecklistChip, RowSteps } from "../components/Checklist";
 import { RelatedTag } from "../components/Related";
 import { deleteTasksWithUndo, useHiddenTasks } from "../taskDelete";
 import { WaitingBadge, canWait, isWaiting, openWait } from "../components/Waiting";
@@ -609,6 +609,8 @@ function CommandRow({ task, today, onEdit, onOpen }: { task: Task; today: string
         </button>
         {/* Tags (user request 2026-10-11): a second line only when the task has some. */}
         <TagChips ids={task.tagIds} className="mt-1" />
+        {/* Its steps, unfolded and ticked in the row (user request 2026-10-31). */}
+        <RowSteps task={task} />
       </div>
       {when && <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{when}</span>}
     </SwipeRow>

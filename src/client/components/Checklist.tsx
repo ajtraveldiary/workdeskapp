@@ -1,8 +1,9 @@
 // Checklists inside a task (user request 2026-10-07, v2 idea 4): steps such as "Prepare draft → Get signature →
 // Issue order → Update service book", ticked one by one. The form edits them (ChecklistEditor), the task
-// details card ticks them straight away (ChecklistTicks), and task rows show the progress (ChecklistChip).
-import { ListChecks, Plus, X } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+// details card ticks them straight away (ChecklistTicks), and task rows show the progress (ChecklistChip). Due Today
+// rows unfold their steps to tick them in the row (RowSteps, user request 2026-10-31).
+import { ChevronDown, ListChecks, Plus, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChecklistItem, Task } from "../../shared/types";
 import { useUpdateTask } from "../api";
 import { CheckCircle, ErrorNote, cx, TONE } from "./ui";
@@ -176,6 +177,57 @@ export function ChecklistTicks({ task }: { task: Task }) {
 
 // On task rows: "2/5" with a checklist icon, green once every step is done. With onClick it is a button that
 // opens the task details card, where the steps are ticked (tapping an email task's row opens its email).
+// Due Today rows (user request 2026-10-31, "in Due Today the user can't mark sub tasks"): a "2/7" button under the
+// title unfolds the task's steps right in the row, each ticked straight away (saved at once, as in Task details).
+// The fold is per row and not saved.
+export function RowSteps({ task }: { task: Task }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<ChecklistItem[]>(task.checklist ?? []);
+  // Follows the saved copy when it changes (another screen, the server's step times).
+  useEffect(() => setItems(task.checklist ?? []), [task.checklist]);
+  const update = useUpdateTask();
+  if (!items.length) return null;
+  const { done, total } = checklistProgress(items);
+  const toggle = (id: string) => {
+    const before = items;
+    const next = items.map((i) => (i.id === id ? { ...i, done: !i.done, ...(i.waiting ? { waiting: false } : {}) } : i));
+    setItems(next);
+    update.mutate({ id: task.id, input: { checklist: next } }, { onError: () => setItems(before) });
+  };
+  return (
+    <div className="relative z-10 mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={`Steps: ${progressText(items)}. ${open ? "Hide" : "Show"} steps`}
+        className={cx(
+          "inline-flex items-center gap-1 rounded-md border border-line bg-white px-1.5 py-px text-footnote tabular-nums enabled:hover:bg-slate-50 active:scale-[0.97] aria-expanded:border-brand-200 aria-expanded:bg-tint sm:text-xs",
+          done === total ? "font-medium text-low-ink" : "text-slate-500",
+        )}
+      >
+        <ListChecks size={12} className="shrink-0" />
+        {done}/{total}
+        <ChevronDown size={12} className={cx("shrink-0 transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      {open && (
+        <ul className="mt-1.5 space-y-0.5">
+          {items.map((i) => (
+            <li key={i.id} className="flex items-start gap-2 py-1">
+              <CheckCircle checked={i.done} onToggle={() => toggle(i.id)} label={i.done ? `Mark not done: ${i.text}` : `Mark done: ${i.text}`} />
+              <span className={cx("min-w-0 flex-1 pt-px text-footnote leading-snug [overflow-wrap:anywhere] sm:text-xs", i.done ? "text-slate-400" : "text-ink")}>
+                {i.text}
+                {i.waiting && !i.done && <span className={cx("ml-1.5 inline-flex rounded-full px-1.5 py-px align-[1px] text-caption2 font-medium", TONE.medium.soft)}>Waiting</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <ErrorNote error={update.error} />
+    </div>
+  );
+}
+
 export function ChecklistChip({ items, onClick }: { items: ChecklistItem[] | undefined; onClick?: () => void }) {
   if (!items?.length) return null;
   const { done, total } = checklistProgress(items);
