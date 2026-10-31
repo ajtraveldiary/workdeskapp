@@ -1,0 +1,1 @@
+ALTER TABLE "employees" ADD COLUMN "off_day" text DEFAULT 'sunday' NOT NULL;

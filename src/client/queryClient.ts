@@ -63,7 +63,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 29: leave types carry creditsFrom (automatic yearly credits, 2026-10-30).
 // 30: leave types carry delaysIncrement (EOL moves increment / probation, 2026-10-30).
 // 31: KSR leave types (ksrKey, rule, active, limits), leaves onMedical, account used.nonMedical, lines terminal.
-export const CACHE_VERSION = "31";
+// 32: employees carry offDay (Sunday off / weekly off, 2026-10-31).
+export const CACHE_VERSION = "32";
 
 export async function clearSavedData() {
   queryClient.clear();

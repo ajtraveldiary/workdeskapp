@@ -2,7 +2,7 @@ import { z } from "zod";
 import { LABEL_COLORS } from "./labelColors";
 import { MAX_TAGS_PER_ITEM, MAX_TAG_NAME, TAG_COLORS } from "./tags";
 import { REPEATS } from "./reminderSchedule";
-import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, RELATED_KINDS } from "./staff";
+import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, OFF_DAYS, RELATED_KINDS } from "./staff";
 import { MOVE_KINDS, STEP_STATES } from "./moves";
 import { HAND_KINDS } from "./leave";
 
@@ -293,6 +293,9 @@ export const employeeInput = z.object({
   // designation's gazetted tick); a declared date always means yes.
   probationDeclared: z.boolean().optional(),
   gazetted: z.boolean().optional(),
+  // Sunday off / weekly off (user request 2026-10-31). Optional like the switches: left out keeps the saved value
+  // (a new employee: Sunday off).
+  offDay: z.enum(OFF_DAYS).optional(),
   address: z.string().trim().max(500).default(""),
   notes: z.string().max(5_000).default(""),
 });

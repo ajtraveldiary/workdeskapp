@@ -10,6 +10,12 @@ export const EMPLOYEE_CATEGORIES = ["General", "OBC", "OEC", "SC", "ST", "EWS", 
 export const ENGAGEMENTS = ["contract", "daily_wage", "temporary"] as const;
 export type Engagement = (typeof ENGAGEMENTS)[number];
 export const ENGAGEMENT_LABELS: Record<Engagement, string> = { contract: "Contract", daily_wage: "Daily wage", temporary: "Temporary" };
+
+// Day off (user request 2026-10-31): every employee, permanent or temporary, has Sunday off (the default) or a
+// weekly off.
+export const OFF_DAYS = ["sunday", "weekly"] as const;
+export type OffDay = (typeof OFF_DAYS)[number];
+export const OFF_DAY_LABELS: Record<OffDay, string> = { sunday: "Sunday off", weekly: "Weekly off" };
 export const COMMON_EMPLOYEE_TYPES = ["HMC", "NHM", "Block Panchayath Project", "Gramapanchayath Project"];
 
 // A contract's last day from its first day and length in days (both days count: 179 days from 1 Oct end on

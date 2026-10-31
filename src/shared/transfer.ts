@@ -55,6 +55,8 @@ export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
     // Yes / No (user request 2026-10-30): probation declared even when its date isn't known, and gazetted officer.
     { key: "probationDeclared", header: "Probation declared", sample: ["Yes", ""] },
     { key: "gazetted", header: "Gazetted", sample: ["No", ""] },
+    // Sunday off / Weekly off (user request 2026-10-31); empty keeps it (a new employee: Sunday off).
+    { key: "offDay", header: "Day off", sample: ["Sunday off", "Weekly off"] },
     // Basic pay got its own column (user request 2026-10-08); files with the old "Pay scale / basic pay" header still import.
     { key: "payScale", header: "Pay scale", aliases: ["Pay scale / basic pay"], sample: ["35600-75400", ""] },
     { key: "basicPay", header: "Basic pay", sample: ["41300", ""] },

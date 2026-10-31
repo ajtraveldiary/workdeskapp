@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { pgTable, uuid, text, timestamp, integer, boolean, date, jsonb, numeric, uniqueIndex, index, primaryKey, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { REPEATS } from "../../shared/reminderSchedule";
-import { RELATED_KINDS } from "../../shared/staff";
+import { OFF_DAYS, RELATED_KINDS } from "../../shared/staff";
 import { EVENT_KINDS, type EventChange } from "../../shared/eventSchedule";
 import { MOVE_KINDS } from "../../shared/moves";
 import { JOB_KINDS, JOB_STATUSES } from "../../shared/jobs";
@@ -415,6 +415,8 @@ export const employees = pgTable("employees", {
   // (old staff whose date was never entered), so this decides. No Probation declaration task while it is yes;
   // earned leave is credited from duty only when yes (docs/LEAVE_PLAN.md). Set whenever probationDeclaredOn is.
   probationDeclared: boolean("probation_declared").notNull().default(false),
+  // Sunday off or weekly off (user request 2026-10-31; OFF_DAYS in src/shared/staff.ts), every employee.
+  offDay: text("off_day", { enum: OFF_DAYS }).notNull().default("sunday"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

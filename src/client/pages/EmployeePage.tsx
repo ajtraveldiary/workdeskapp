@@ -7,7 +7,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { BadgeCheck, CalendarClock, ChevronLeft, FileClock, Hourglass, KeyRound, ListChecks, Mail, MessageCircle, Pencil, Phone, Plus, Trash2, TrendingUp, UserMinus, UserPlus, Wallet, CalendarRange } from "lucide-react";
 import type { AuditEvent, Employee, StaffList, Task } from "../../shared/types";
-import { ENGAGEMENT_LABELS, incrementDue, probationDue, type Engagement } from "../../shared/staff";
+import { ENGAGEMENT_LABELS, OFF_DAY_LABELS, incrementDue, probationDue, type Engagement } from "../../shared/staff";
 import { useEmployeeProfile, useLogins, useMe, useOfficeEvents, useStaff, useStaffActions, useMoves } from "../api";
 import { eventOccurrences, eventTypeLabel, shiftDay } from "../../shared/eventSchedule";
 import { openEventDetails } from "../components/EventDetails";
@@ -329,6 +329,7 @@ function AllDetails({ e, staff, today }: { e: Employee; staff: StaffList; today:
             ["Next increment", e.nextIncrementOn && fullDate(e.nextIncrementOn)],
             ["Probation declared", e.probationDeclaredOn ? fullDate(e.probationDeclaredOn) : e.probationDeclared ? "Yes (date not entered)" : "No"],
             ["Gazetted officer", e.gazetted ? "Yes" : "No"],
+            ["Day off", OFF_DAY_LABELS[e.offDay ?? "sunday"]],
             ["Retirement", e.retiresOn && fullDate(e.retiresOn)],
           ],
         ],
@@ -351,6 +352,7 @@ function AllDetails({ e, staff, today }: { e: Employee; staff: StaffList; today:
             ["Contract period", e.contractDays && plural(e.contractDays, "day")],
             ["Contract end date", e.engagedTill && fullDate(e.engagedTill)],
             ["Pay per day", e.payPerDay != null && rupees(e.payPerDay)],
+            ["Day off", OFF_DAY_LABELS[e.offDay ?? "sunday"]],
           ],
         ],
         ["Personal", [["Phone", e.phone], ["Email", email], ["Date of birth", dob], ["Category", e.category]]],

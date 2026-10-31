@@ -96,7 +96,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 
 ### Employees
 - **Staff records:** permanent and temporary employees with ID number, contact details, date of birth, joining
-  date, increment date, retirement date, pay and contract details, grouped by designation (drag to arrange).
+  date, increment date, retirement date, pay and contract details, and day off (Sunday off, the default, or a
+  weekly off), grouped by designation (drag to arrange).
 - **An employee's own page:** every detail, their open and completed tasks, reminders, saved logins, the events
   they attend and history.
 - **Increments:** due increments appear on Home; marking one done asks for the new pay and moves the date a year on.

@@ -39,7 +39,7 @@ import { ensureProbationTasks } from "../lib/probation";
 import { employeeInput, eventInput, eventPatch, officeFileInput, reminderLinks, reportInput, reportPatch, taskInput, taskPatch } from "../../shared/schemas";
 import { eventOccurrences, shiftDay } from "../../shared/eventSchedule";
 import { ensureEventTasks, loadEvents, ruleOf } from "../lib/officeEvents";
-import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, ENGAGEMENT_LABELS, contractEnd, type Engagement } from "../../shared/staff";
+import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, ENGAGEMENT_LABELS, OFF_DAY_LABELS, contractEnd, type Engagement } from "../../shared/staff";
 import { REPEATS, REPEAT_LABEL } from "../../shared/reminderSchedule";
 import {
   BACKUP_TABLES,
@@ -145,6 +145,7 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
         engagement: ENGAGEMENT_LABELS[e.engagement as Engagement] ?? "",
         probationDeclared: e.permanent ? (e.probationDeclared ? "Yes" : "No") : "",
         gazetted: e.permanent ? (e.gazetted ? "Yes" : "No") : "",
+        offDay: OFF_DAY_LABELS[e.offDay],
       }),
     );
   }
@@ -362,6 +363,12 @@ async function planEmployees(db: DB, userId: string, rows: Row[], result: Import
       const yes = parseYesNo(c.get(key)!);
       if (yes == null) errors.push(`${header}: "${c.get(key)}" should be Yes or No`);
       else v[key] = yes;
+    }
+    // Day off (user request 2026-10-31): "Sunday off" / "Sunday", "Weekly off" / "Weekly"; empty keeps it.
+    if (c.get("offDay")) {
+      const k = normHeader(c.get("offDay")!).replace(/off$/, "");
+      if (k === "sunday" || k === "weekly") v.offDay = k;
+      else errors.push(`Day off: "${c.get("offDay")}" should be Sunday off or Weekly off`);
     }
     if (c.has("category")) {
       const cat = EMPLOYEE_CATEGORIES.find((x) => lower(x) === lower(c.get("category")!));

@@ -46,11 +46,11 @@ export function employeeValues(input: ReturnType<typeof employeeInput.parse>) {
     : { ...input, pen: "", joinedOfficeOn: null, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null, payScale: "", basicPay: null, address: "", notes: "", probationDeclared: false, gazetted: false };
 }
 
-// The Probation declared and Gazetted switches when the form (or an assistant's whole-form update) left them out:
-// the saved values, or for a new employee no and the designation's gazetted tick.
+// The Probation declared and Gazetted switches and the day off when the form (or an assistant's whole-form update)
+// left them out: the saved values, or for a new employee no, the designation's gazetted tick and Sunday off.
 async function withSwitches(db: DB, userId: string, input: ReturnType<typeof employeeInput.parse>, saved?: typeof employees.$inferSelect) {
   const gazetted = input.gazetted ?? saved?.gazetted ?? (input.designationId ? (await loadDesignation(db, userId, input.designationId)).gazetted : false);
-  return { ...input, gazetted, probationDeclared: input.probationDeclared ?? saved?.probationDeclared ?? false };
+  return { ...input, gazetted, probationDeclared: input.probationDeclared ?? saved?.probationDeclared ?? false, offDay: input.offDay ?? saved?.offDay ?? "sunday" };
 }
 
 function toEmployee(e: typeof employees.$inferSelect): Employee {

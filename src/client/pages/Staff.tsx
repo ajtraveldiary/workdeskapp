@@ -24,7 +24,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import type { Employee, StaffList, Task } from "../../shared/types";
-import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, type Engagement, ENGAGEMENT_LABELS, contractEnd, incrementDue, incrementOverdue } from "../../shared/staff";
+import { EMPLOYEE_CATEGORIES, ENGAGEMENTS, type Engagement, ENGAGEMENT_LABELS, OFF_DAYS, OFF_DAY_LABELS, contractEnd, incrementDue, incrementOverdue } from "../../shared/staff";
 import type { EmployeeInput } from "../../shared/schemas";
 import { useEmployeeWork, useMe, useRetiring, useStaff, useStaffActions } from "../api";
 import { openIncrement } from "../components/IncrementDialog";
@@ -614,6 +614,7 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
         ["Pay scale", e.payScale],
         ["Probation declared", e.probationDeclaredOn ? fullDate(e.probationDeclaredOn) : e.probationDeclared && "Yes (date not entered)"],
         ["Gazetted officer", e.gazetted && "Yes"],
+        ["Day off", OFF_DAY_LABELS[e.offDay ?? "sunday"]],
         ["Home address", e.address && <span className="whitespace-pre-wrap">{e.address}</span>],
         ["Notes", e.notes && <span className="whitespace-pre-wrap">{e.notes}</span>],
       ]
@@ -629,6 +630,7 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
         ["Contract period", e.contractDays && plural(e.contractDays, "day")],
         ["Pay per day", e.payPerDay != null && rupees(e.payPerDay)],
         ["Contract end date", e.engagedTill && <span className={cx(ended && "font-medium text-urgent-ink")}>{fullDate(e.engagedTill)}{ended && " (ended)"}</span>],
+        ["Day off", OFF_DAY_LABELS[e.offDay ?? "sunday"]],
       ];
   const del = () => {
     if (!confirm(`Delete ${e.name}? Use "Left the office" instead to keep them on old tasks.`)) return;
@@ -759,6 +761,7 @@ const EMPTY: EmployeeInput = {
   probationDeclaredOn: null,
   probationDeclared: false,
   gazetted: false,
+  offDay: "sunday",
   address: "",
   notes: "",
 };
@@ -865,6 +868,8 @@ function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee
         </select>
       </Field>
       {staff.designations.length === 0 && <p className="-mt-2 text-footnote text-slate-500">Add designations in Settings › Employees.</p>}
+      {/* Every employee, permanent or temporary (user request 2026-10-31); Sunday off unless chosen. */}
+      <Choice label="Day off" value={v.offDay ?? "sunday"} options={OFF_DAYS.map((d) => [d, OFF_DAY_LABELS[d]] as const)} onChange={(d) => set("offDay", d)} />
 
       {v.permanent ? (
         <>
@@ -971,6 +976,29 @@ function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee
         </Button>
       </div>
     </form>
+  );
+}
+
+// One of a few choices, as its own buttons (type="button"), so choosing never submits the form.
+function Choice<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: readonly (readonly [T, string])[]; onChange: (v: T) => void }) {
+  return (
+    <div>
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-1.5">
+        {options.map(([o, text]) => (
+          <button
+            key={o}
+            type="button"
+            role="radio"
+            aria-checked={value === o}
+            onClick={() => onChange(o)}
+            className="inline-flex h-10 min-w-14 items-center justify-center rounded-lg border border-line px-3 text-sm text-slate-600 enabled:hover:bg-slate-50 active:scale-[0.97] aria-checked:border-brand-200 aria-checked:bg-tint aria-checked:font-medium aria-checked:text-brand-800 pointer-coarse:h-9"
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

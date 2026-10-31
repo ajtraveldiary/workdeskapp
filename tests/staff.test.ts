@@ -26,6 +26,36 @@ describe("staff", () => {
     app = createApp({ getDb: () => d as unknown as DB, allowDemo: true });
   });
 
+  it("every employee has Sunday off or a weekly off: Sunday off unless chosen, kept when a form leaves it out, in the CSV", async () => {
+    const name = "2026-27 സാമ്പത്തിക വർഷത്തെ ശ്രീമതി അനിതാകുമാരി രാധാകൃഷ്ണൻ";
+    const a = (await call("POST", "/staff/employees", { name })).json.id as string;
+    const t = (await call("POST", "/staff/employees", { name: "Daily wage", permanent: false, offDay: "weekly" })).json.id as string;
+    const off = async (id: string) => (await staff()).employees.find((e) => e.id === id)!.offDay;
+    expect([await off(a), await off(t)]).toEqual(["sunday", "weekly"]);
+    await call("PUT", `/staff/employees/${a}`, { name, offDay: "weekly" });
+    // A form without the field (an older app, an assistant's whole-form update) keeps it.
+    await call("PUT", `/staff/employees/${a}`, { name, phone: "9400000000" });
+    expect(await off(a)).toBe("weekly");
+    expect((await call("POST", "/staff/employees", { name: "Bad", offDay: "monday" })).status).toBe(400);
+    const imp = await call("POST", "/transfer/employees/import", {
+      headers: ["Name", "Day off"],
+      rows: [
+        [name, "Sunday off"],
+        ["Ravi", "weekly"],
+        ["Mini", ""],
+        ["Wrong", "Monday"],
+      ],
+      firstLine: 2,
+      dryRun: false,
+    });
+    expect(imp.json).toMatchObject({ added: 2, updated: 1 });
+    const list = (await staff()).employees;
+    expect([list.find((e) => e.id === a)!.offDay, list.find((e) => e.name === "Ravi")!.offDay, list.find((e) => e.name === "Mini")!.offDay]).toEqual(["sunday", "weekly", "sunday"]);
+    const csv = await (await app.request("/api/transfer/employees/csv", {}, {})).text();
+    expect(csv.split(/\r?\n/)[0]).toContain("Day off");
+    expect(csv).toContain("Weekly off");
+  });
+
   it("adds the common designations once, in order", async () => {
     expect((await call("POST", "/staff/designations/common")).json).toEqual({ added: COMMON_DESIGNATIONS.length });
     expect((await call("POST", "/staff/designations/common")).json).toEqual({ added: 0 });

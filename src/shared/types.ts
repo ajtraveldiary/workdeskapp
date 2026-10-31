@@ -1,7 +1,7 @@
 import type { LedgerKind } from "./leave";
 // Shapes exchanged between the API and the dashboard.
 import type { Repeat } from "./reminderSchedule";
-import type { RelatedKind } from "./staff";
+import type { OffDay, RelatedKind } from "./staff";
 
 export type EmailState = "needs_decision" | "task" | "snoozed" | "dismissed" | "elsewhere" | "event";
 export type Priority = "low" | "normal" | "high" | "urgent";
@@ -245,6 +245,8 @@ export type Employee = {
   // Probation declared yes / no and gazetted officer (user request 2026-10-30; permanent staff).
   probationDeclared: boolean;
   gazetted: boolean;
+  // Sunday off or weekly off (user request 2026-10-31), every employee.
+  offDay: OffDay;
   address: string;
   notes: string;
   // Left the office on (null = still here). Hidden from the pickers, kept for old tasks.
