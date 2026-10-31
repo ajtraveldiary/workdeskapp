@@ -12,8 +12,9 @@
 // Phase 3: the month's summary under the register (MonthSummary), Print (A4 landscape, the register and the summary
 // with signature lines; nothing of the app around it) and Download (the month as a CSV, like the page).
 // No page title or help line (user request 2026-10-31, "no need of text and blank space"): one toolbar row with the
-// month, Summary, Download, Print, refresh and Holidays; the summary shows only after Summary is tapped (and is
-// printed only while shown).
+// month, Summary, Download, Print, refresh and Holidays. Summary opens the month's summary in a pop-up (user request
+// 2026-10-31); printing always adds it under the register with the signature lines. The register's columns share the
+// page's width (a fixed table layout; day columns grow and shrink) and it scrolls sideways only below about 740px.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
@@ -44,6 +45,11 @@ const MARK_TONE: Record<AttendanceMark, string> = {
   absent: "font-bold text-urgent-ink",
 };
 const WIDE = "(min-width: 768px)";
+// The register's set columns (the day columns share what is left): Sl · Name and CL / CH, wider on bigger screens;
+// TOTALS_LEFT keeps the CL / CH column beside the name while the table scrolls sideways.
+const NAME_COL = "w-36 xl:w-44 2xl:w-52";
+const TOTALS_COL = "w-16";
+const TOTALS_LEFT = "left-36 xl:left-44 2xl:left-52";
 function useWide() {
   return useSyncExternalStore(
     (cb) => {
@@ -98,17 +104,8 @@ export function AttendancePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // A new month starts with nothing selected.
   useEffect(() => setSelected(new Set()), [month]);
-  // The month's summary, only after Summary is tapped; brought into view when opened.
+  // The month's summary, in a pop-up opened by Summary.
   const [summary, setSummary] = useState(false);
-  const summaryRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (summary) summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [summary]);
-  const summaryCard = summary && data && (
-    <div ref={summaryRef}>
-      <MonthSummary data={data} />
-    </div>
-  );
 
   return (
     <>
@@ -129,14 +126,7 @@ export function AttendancePage() {
         <span className="ml-auto flex flex-wrap items-center gap-1">
           {data && data.employees.length > 0 && (
             <>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-pressed={summary}
-                onClick={() => setSummary((v) => !v)}
-                className="aria-pressed:bg-brand-50 aria-pressed:text-brand-700"
-                title={summary ? "Hide the month's summary" : "Show the month's summary"}
-              >
+              <Button size="sm" variant="ghost" aria-haspopup="dialog" onClick={() => setSummary(true)} title="Show the month's summary">
                 <Sigma size={15} /> Summary
               </Button>
               <Button size="sm" variant="ghost" onClick={() => downloadMonth(data)} aria-label="Download the month as a CSV file">
@@ -167,14 +157,21 @@ export function AttendancePage() {
             <ChDueSoon data={data} />
           </div>
           <Register data={data} cells={cells} selected={selected} setSelected={setSelected} />
-          {summaryCard}
+          {/* Only on paper: the summary and the signature lines under the register. */}
+          <div className="hidden print:block">
+            <MonthSummary data={data} />
+          </div>
         </>
       ) : (
         <>
           <ChDueSoon data={data} />
           <DayView data={data} cells={cells} selected={selected} setSelected={setSelected} onMonth={setMonth} />
-          {summaryCard}
         </>
+      )}
+      {data && (
+        <Modal open={summary} onClose={() => setSummary(false)} title={`Summary for ${monthLabel(data.month)}`} wide closeOnBackdrop>
+          <MonthSummary data={data} bare />
+        </Modal>
       )}
       {data && cells && selected.size > 0 && (
         <>
@@ -216,7 +213,7 @@ function TotalsCell({ id, cl, ch, data, lookups, onOpen }: { id: string; cl: num
   const w = lookups.weekly.get(id);
   const limit = lookups.limit.get(id);
   return (
-    <td className="sticky left-48 z-10 w-16 min-w-16 border border-slate-300 bg-white p-0 text-center leading-tight tabular-nums">
+    <td className={cx("sticky z-10 border border-slate-300 bg-white p-0 text-center leading-tight tabular-nums", TOTALS_LEFT)}>
       <button type="button" onClick={onOpen} aria-label="Show their CL, CH and weekly-off figures" title="Show the figures" className="no-tap flex w-full flex-col items-center px-1 py-1 hover:bg-slate-50 active:bg-slate-100">
         <span className={cx("block", cl > data.settings.clPerYear ? "font-semibold text-urgent-ink" : "text-slate-700")}>CL {String(cl).padStart(2, "0")}</span>
         <span className={cx("block", limit != null && ch > limit ? "font-semibold text-urgent-ink" : "text-slate-700")}>
@@ -331,10 +328,11 @@ const addDays = (day: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-// The month's summary (phase 3), under the register and on phones: each person's days present, holiday duty, CL,
-// CH, offs, absent, leave and days not marked yet; printed with the register, with signature lines. Phones get short
-// headings (explained under the table) and names cut to two lines, so the columns fit.
-function MonthSummary({ data }: { data: AttendanceMonth }) {
+// The month's summary (phase 3): each person's days present, holiday duty, CL, CH, offs, absent, leave and days not
+// marked yet. In the Summary pop-up (`bare`: no card or heading of its own, never wider than the pop-up) and, on
+// paper only, under the register with signature lines. Narrow screens get short headings (explained under the table)
+// and names cut to two lines, so the columns fit.
+function MonthSummary({ data, bare }: { data: AttendanceMonth; bare?: boolean }) {
   const counts = monthCounts(data);
   const byId = new Map(data.employees.map((e) => [e.id, e]));
   const cols: [keyof Omit<(typeof counts)[number], "employeeId">, string, string][] = [
@@ -347,18 +345,17 @@ function MonthSummary({ data }: { data: AttendanceMonth }) {
     ["leave", "Leave", "Lv"],
     ["notMarked", "Not marked", "NM"],
   ];
-  return (
-    <Card className="mt-4 overflow-hidden print:mt-2 print:rounded-none print:border-0 print:shadow-none">
-      <h2 className="border-b border-line px-4 py-2 font-serif text-subhead font-semibold text-ink">Summary for {monthLabel(data.month)}</h2>
-      <div className="scroll-thin overflow-x-auto print:overflow-visible">
+  const table = (
+    <>
+      <div className={cx(!bare && "scroll-thin overflow-x-auto print:overflow-visible")}>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr className="font-serif">
               <th className="border border-slate-300 px-2 py-1 text-left font-semibold text-slate-700">Name</th>
               {cols.map(([, label, short]) => (
-                <th key={label} title={label} className="border border-slate-300 px-1 py-1 text-center font-semibold whitespace-nowrap text-slate-700 sm:px-1.5">
-                  <span className="sm:hidden print:hidden">{short}</span>
-                  <span className="hidden sm:inline print:inline">{label}</span>
+                <th key={label} title={label} className="border border-slate-300 px-1 py-1 text-center font-semibold whitespace-nowrap text-slate-700 md:px-1.5">
+                  <span className="md:hidden print:hidden">{short}</span>
+                  <span className="hidden md:inline print:inline">{label}</span>
                 </th>
               ))}
             </tr>
@@ -366,8 +363,8 @@ function MonthSummary({ data }: { data: AttendanceMonth }) {
           <tbody>
             {counts.map((c) => (
               <tr key={c.employeeId}>
-                <td className="min-w-28 border border-slate-300 px-2 py-1 text-ink [overflow-wrap:anywhere] sm:min-w-40">
-                  <span className="line-clamp-2 sm:line-clamp-none print:line-clamp-none">{byId.get(c.employeeId)?.name}</span>
+                <td className="min-w-28 border border-slate-300 px-2 py-1 text-ink [overflow-wrap:anywhere] md:min-w-40">
+                  <span className="line-clamp-2 md:line-clamp-none print:line-clamp-none">{byId.get(c.employeeId)?.name}</span>
                 </td>
                 {cols.map(([k]) => (
                   <td key={k} className={cx("border border-slate-300 px-1 py-1 text-center tabular-nums sm:px-1.5", k === "notMarked" && c[k] > 0 ? "font-semibold text-urgent-ink" : c[k] ? "text-ink" : "text-slate-400")}>
@@ -379,9 +376,16 @@ function MonthSummary({ data }: { data: AttendanceMonth }) {
           </tbody>
         </table>
       </div>
-      <p className="px-3 py-1.5 text-caption2 text-slate-500 sm:hidden print:hidden">
+      <p className={cx("py-1.5 text-caption2 text-slate-500 md:hidden print:hidden", !bare && "px-3")}>
         {cols.map(([, label, short]) => (short === label ? null : `${short} ${label.toLowerCase()}`)).filter(Boolean).join(" · ")}
       </p>
+    </>
+  );
+  if (bare) return table;
+  return (
+    <Card className="mt-4 overflow-hidden print:mt-2 print:rounded-none print:border-0 print:shadow-none">
+      <h2 className="border-b border-line px-4 py-2 font-serif text-subhead font-semibold text-ink">Summary for {monthLabel(data.month)}</h2>
+      {table}
       {/* Only on paper: the signatures the register is checked with. */}
       <div className="hidden grid-cols-3 gap-8 px-4 pt-12 pb-2 font-serif text-sm text-ink print:grid">
         <span className="border-t border-slate-400 pt-1 text-center">Prepared by</span>
@@ -448,7 +452,10 @@ export function AttendanceLine({ employeeId, today }: { employeeId: string; toda
   );
 }
 
-// The page of the register (768px and wider).
+// The page of the register (768px and wider). A fixed table layout: the name and CL / CH columns have set widths
+// that grow with the screen and the day columns share the rest, so the month fits the page; below about 820px of
+// room (46rem) it scrolls sideways with the name and CL / CH columns kept in place. Marks are a size smaller while the
+// day columns are narrow (under 1280px), so ½CL fits.
 function Register({ data, cells, selected, setSelected }: SelectProps) {
   const office = useOfficeProfile().data?.profile.officeName;
   const anchor = useRef<{ row: number; col: number } | null>(null);
@@ -510,11 +517,18 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
         <p className="font-serif text-subhead text-slate-600">For the month of {monthLabel(data.month)}</p>
       </div>
       <div className="scroll-thin overflow-x-auto select-none print:overflow-visible">
-        <table className="border-collapse text-xs">
+        <table className="w-full min-w-[46rem] table-fixed border-collapse text-xs print:min-w-0">
+          <colgroup>
+            <col className={NAME_COL} />
+            <col className={TOTALS_COL} />
+            {data.days.map((d) => (
+              <col key={d.date} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="font-serif">
-              <th className="sticky left-0 z-20 w-48 min-w-48 border border-slate-300 bg-white px-2 py-1.5 text-left font-semibold text-slate-700">Sl · Name</th>
-              <th className="sticky left-48 z-20 w-16 min-w-16 border border-slate-300 bg-white px-1 py-1.5 text-center font-semibold text-slate-700">CL / CH</th>
+              <th className="sticky left-0 z-20 border border-slate-300 bg-white px-2 py-1.5 text-left font-semibold text-slate-700">Sl · Name</th>
+              <th className={cx("sticky z-20 border border-slate-300 bg-white px-1 py-1.5 text-center font-semibold text-slate-700", TOTALS_LEFT)}>CL / CH</th>
               {data.days.map((d) => {
                 const pending = d.date <= data.today && data.employees.some((e) => cells.unmarked(e, d.date));
                 const keys = data.employees.filter((e) => cells.selectable(e, d.date)).map((e) => key(e.id, d.date));
@@ -528,11 +542,11 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                       aria-label={`${dayLabel(d.date)}${d.holiday ? `, ${d.holiday.name}` : ""}: select everyone`}
                       title={d.holiday ? d.holiday.name : `Select everyone on ${dayLabel(d.date)}`}
                       className={cx(
-                        "no-tap flex h-11 w-7 flex-col items-center justify-center leading-tight hover:bg-slate-50 aria-pressed:bg-brand-100",
+                        "no-tap flex h-11 w-full flex-col items-center justify-center leading-tight hover:bg-slate-50 aria-pressed:bg-brand-100",
                         d.date === data.today && "ring-2 ring-brand-500 ring-inset",
                       )}
                     >
-                      <span className="font-semibold text-ink tabular-nums">{d.date.slice(8)}</span>
+                      <span className="text-caption2 font-semibold text-ink tabular-nums xl:text-xs">{d.date.slice(8)}</span>
                       <span className={cx("text-caption2", d.weekday === 0 || d.holiday ? "text-urgent-ink" : "text-slate-500")}>{d.holiday ? "H" : WEEKDAY_LETTER[d.weekday]}</span>
                       {pending && <span className="size-1 rounded-full bg-urgent" aria-hidden />}
                     </button>
@@ -591,7 +605,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                       aria-pressed={on}
                       aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : "not marked"}`}
                       title={ch.long.has(k) ? `${title ?? ""} · more than 12 days in a row without an off` : title}
-                      className={cx("no-tap relative flex h-8 w-7 items-center justify-center text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
+                      className={cx("no-tap relative flex h-8 w-full items-center justify-center overflow-hidden text-caption2 xl:text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
                     >
                       {info.mark && <span className={MARK_TONE[info.mark]}>{MARK_SHORT[info.mark]}</span>}
                       {duty && <span className={cx("absolute top-0.5 right-0.5 size-1.5 rounded-full", dutyOpen ? "bg-info" : "bg-slate-300")} aria-hidden />}
@@ -601,7 +615,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
               }
               return (
                 <tr key={e.id}>
-                  <th scope="row" className="sticky left-0 z-10 w-48 min-w-48 border border-slate-300 bg-white p-0 text-left font-normal">
+                  <th scope="row" className="sticky left-0 z-10 border border-slate-300 bg-white p-0 text-left font-normal">
                     <button type="button" onClick={() => row(e)} title={`Select ${e.name}'s month`} className="no-tap flex w-full items-start gap-1.5 px-2 py-1 text-left hover:bg-slate-50">
                       <span className="w-5 shrink-0 pt-px text-slate-400 tabular-nums">{r + 1}</span>
                       <span className="min-w-0 flex-1">
