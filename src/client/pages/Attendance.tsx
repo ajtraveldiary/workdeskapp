@@ -11,9 +11,12 @@
 // above the register; the CL / CH cell opens the person's figures (DetailsDialog), and phones show them in each row.
 // Phase 3: the month's summary under the register (MonthSummary), Print (A4 landscape, the register and the summary
 // with signature lines; nothing of the app around it) and Download (the month as a CSV, like the page).
+// No page title or help line (user request 2026-10-31, "no need of text and blank space"): one toolbar row with the
+// month, Summary, Download, Print, refresh and Holidays; the summary shows only after Summary is tapped (and is
+// printed only while shown).
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
-import { CalendarClock, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, X } from "lucide-react";
+import { CalendarClock, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
 import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, monthCounts, monthLabel, offByItself, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
@@ -23,7 +26,7 @@ import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendance, useAttendanceActions, useMe, useOfficeProfile, type AttendanceCell } from "../api";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
-import { Button, Card, ErrorNote, Modal, PageHeader, SkeletonList, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Modal, SkeletonList, cx, inputClass } from "../components/ui";
 
 type Person = AttendanceMonth["employees"][number];
 type Markable = Exclude<AttendanceMark, "ch">;
@@ -95,28 +98,26 @@ export function AttendancePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // A new month starts with nothing selected.
   useEffect(() => setSelected(new Set()), [month]);
+  // The month's summary, only after Summary is tapped; brought into view when opened.
+  const [summary, setSummary] = useState(false);
+  const summaryRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (summary) summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [summary]);
+  const summaryCard = summary && data && (
+    <div ref={summaryRef}>
+      <MonthSummary data={data} />
+    </div>
+  );
 
   return (
     <>
-      <div className="print:hidden">
-      <PageHeader
-        title="Attendance register"
-        subtitle="Tap a day's number to select everyone that day, a name for their month, or cells one by one; then mark them from the bar below."
-        actions={
-          <>
-            <RefreshButton keys={[["attendance"]]} label="Refresh the register" />
-            <Link to="/settings#attendance" className="hidden h-9 items-center rounded-lg px-3 text-sm font-medium text-brand-700 hover:bg-slate-50 sm:inline-flex">
-              Holidays
-            </Link>
-          </>
-        }
-      />
-      </div>
-      <div className="mb-3 flex flex-wrap items-center gap-1 print:hidden">
+      <h1 className="sr-only">Attendance register</h1>
+      <div className="-mt-2 mb-2 flex flex-wrap items-center gap-1 print:hidden sm:-mt-3">
         <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
           <ChevronLeft size={18} />
         </button>
-        <span className="min-w-36 text-center font-medium text-ink">{monthLabel(month)}</span>
+        <span className="text-center font-medium whitespace-nowrap text-ink sm:min-w-36">{monthLabel(month)}</span>
         <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
           <ChevronRight size={18} />
         </button>
@@ -125,19 +126,35 @@ export function AttendancePage() {
             This month
           </Button>
         )}
-        {data && data.employees.length > 0 && (
-          <span className="ml-auto flex gap-1">
-            <Button size="sm" variant="ghost" onClick={() => downloadMonth(data)} aria-label="Download the month as a CSV file">
-              <Download size={15} /> Download
-            </Button>
-            {/* Printing is for the register's page (computers). */}
-            {wide && (
-              <Button size="sm" variant="ghost" onClick={() => window.print()} aria-label="Print the month">
-                <Printer size={15} /> Print
+        <span className="ml-auto flex flex-wrap items-center gap-1">
+          {data && data.employees.length > 0 && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-pressed={summary}
+                onClick={() => setSummary((v) => !v)}
+                className="aria-pressed:bg-brand-50 aria-pressed:text-brand-700"
+                title={summary ? "Hide the month's summary" : "Show the month's summary"}
+              >
+                <Sigma size={15} /> Summary
               </Button>
-            )}
-          </span>
-        )}
+              <Button size="sm" variant="ghost" onClick={() => downloadMonth(data)} aria-label="Download the month as a CSV file">
+                <Download size={15} /> <span className="hidden sm:inline">Download</span>
+              </Button>
+              {/* Printing is for the register's page (computers). */}
+              {wide && (
+                <Button size="sm" variant="ghost" onClick={() => window.print()} aria-label="Print the month">
+                  <Printer size={15} /> Print
+                </Button>
+              )}
+            </>
+          )}
+          <RefreshButton keys={[["attendance"]]} label="Refresh the register" />
+          <Link to="/settings#attendance" className="hidden h-8 items-center rounded-lg px-3 text-footnote font-medium text-brand-700 hover:bg-slate-50 sm:inline-flex">
+            Holidays
+          </Link>
+        </span>
       </div>
       <ErrorNote error={error} />
       {!data || !cells ? (
@@ -150,13 +167,13 @@ export function AttendancePage() {
             <ChDueSoon data={data} />
           </div>
           <Register data={data} cells={cells} selected={selected} setSelected={setSelected} />
-          <MonthSummary data={data} />
+          {summaryCard}
         </>
       ) : (
         <>
           <ChDueSoon data={data} />
           <DayView data={data} cells={cells} selected={selected} setSelected={setSelected} onMonth={setMonth} />
-          <MonthSummary data={data} />
+          {summaryCard}
         </>
       )}
       {data && cells && selected.size > 0 && (
