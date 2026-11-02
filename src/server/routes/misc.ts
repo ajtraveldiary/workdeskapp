@@ -17,7 +17,7 @@ import type { Summary } from "../../shared/types";
 import { selectThreads, withTaskInfo } from "./threads";
 import { openTaskOrder, selectTasks, toTask, viewFilter } from "./tasks";
 import { eventsToday } from "../lib/officeEvents";
-import { offsReminder, unmarkedToday } from "./attendance";
+import { awayDays, offsReminder, unmarkedToday } from "./attendance";
 
 export const miscRoutes = new Hono<AppEnv>()
   .get("/me", async (c) => {
@@ -132,6 +132,8 @@ export const miscRoutes = new Hono<AppEnv>()
     const attendanceUnmarked = await unmarkedToday(db, userId, today, timezone(c.env));
     // Weekly-off staff who need an off (docs/ATTENDANCE_UX_PLAN.md 4.8), for a line on Due Today.
     const attendanceOffs = await offsReminder(db, userId, today);
+    // Who is away today and tomorrow (attendance assist plan phase 2).
+    const attendanceAway = (await awayDays(db, userId, today)).days;
     const summary: Summary = {
       today,
       counts: {
@@ -159,6 +161,7 @@ export const miscRoutes = new Hono<AppEnv>()
       eventsToday: todayEvents,
       attendanceUnmarked,
       attendanceOffs,
+      attendanceAway,
       overdue: overdue.map(toTask),
       dueToday: dueToday.map(toTask),
       dueTomorrow: dueTomorrow.map(toTask),

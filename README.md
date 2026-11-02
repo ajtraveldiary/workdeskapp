@@ -154,6 +154,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   before you tap what it would cause (an off taken early, CL past 20, past 12 days in a row, no holiday worked for a
   CH). In **Today**, each person's circle is the tick: tap to mark present, tap again to clear, with "12 of 16 done"
   at the top and "Tick the other n present" for the rest.
+- **Who is away today and tomorrow:** the Today tab starts with everyone off, on CL, ½CL, CH, absent or on leave
+  today and tomorrow (planned offs too), each name opening their days, and the CH that must be taken within a week;
+  Home's Today tab and the morning notification carry the same "Away today" line.
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).

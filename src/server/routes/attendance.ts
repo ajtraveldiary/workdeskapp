@@ -9,7 +9,8 @@
 // the morning notification (offsReminder). Phase 2: days not marked count as duty (settings.assumeDuty, from each
 // person's starting point), and Start the register (POST /attendance/start: everyone's starting point at once, from
 // the last off). Assist plan (docs/ATTENDANCE_ASSIST_PLAN.md): GET /attendance/person/:id, one person's three weeks
-// for Person days. Phase 3: offs planned ahead (planned_offs, /attendance/plans), each turned into an off mark on its day
+// for Person days; phase 2: who is away today and tomorrow (awayDays: GET /attendance/away, Home's line and the morning
+// notification). Phase 3: offs planned ahead (planned_offs, /attendance/plans), each turned into an off mark on its day
 // (settlePlannedOffs: from maintain, and before the register, the Offs board and Home's line are read).
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -45,7 +46,7 @@ import {
 } from "../../shared/attendance";
 import { leaveEnd, leaveShort, shiftDate } from "../../shared/leave";
 import { dayLabel } from "../../shared/reminderSchedule";
-import type { AttendanceMonth, Holiday, OffsBoard, OffsBoardDay, PersonDays, Summary } from "../../shared/types";
+import type { AttendanceMonth, AwayDays, AwayPerson, Holiday, OffsBoard, OffsBoardDay, PersonDays, Summary } from "../../shared/types";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 
@@ -353,6 +354,59 @@ export async function offsBoard(db: DB, userId: string, today: string): Promise<
       chOpen: ch.open.filter((o) => o.employeeId === e.id && o.expires >= today).map((o) => ({ holiday: o.holiday, name: o.name, expires: o.expires })),
     };
   });
+  return out;
+}
+
+// Who is away on the next `n` days from today (docs/ATTENDANCE_ASSIST_PLAN.md 3.3): everyone in the office that day
+// with an off, CL, ½CL, CH or absence marked, leave from the Leave page, or an off planned; in designation order then
+// name. With `chLapsing`, also the CH that must be taken within a week.
+export async function awayDays(db: DB, userId: string, today: string, n = 2, chLapsing = false): Promise<AwayDays> {
+  const last = shiftDate(today, n - 1);
+  const rows = await db
+    .select({ e: employees, order: designations.sortOrder })
+    .from(employees)
+    .leftJoin(designations, eq(designations.id, employees.designationId))
+    .where(and(eq(employees.userId, userId), or(isNull(employees.joinedOfficeOn), lte(employees.joinedOfficeOn, last)), or(isNull(employees.leftOn), gte(employees.leftOn, today))));
+  rows.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.e.name.localeCompare(b.e.name));
+  const ids = rows.map((r) => r.e.id);
+  const out: AwayDays = { today, days: [], chLapsing: [] };
+  if (!ids.length) {
+    out.days = Array.from({ length: n }, (_, i) => ({ date: shiftDate(today, i), people: [] }));
+    return out;
+  }
+  const [marks, leaves, plans, settings] = await Promise.all([
+    db
+      .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark })
+      .from(attendanceMarks)
+      .where(and(eq(attendanceMarks.userId, userId), gte(attendanceMarks.date, today), lte(attendanceMarks.date, last), inArray(attendanceMarks.mark, ["off", "cl", "cl_half", "ch", "absent"]))),
+    leavesIn(db, userId, today, last, ids),
+    db
+      .select({ employeeId: plannedOffs.employeeId, date: plannedOffs.date })
+      .from(plannedOffs)
+      .where(and(eq(plannedOffs.userId, userId), gte(plannedOffs.date, today), lte(plannedOffs.date, last))),
+    chLapsing ? loadSettings(db, userId) : Promise.resolve(null),
+  ]);
+  const WHAT = { off: "Off", cl: "CL", cl_half: "½ CL", ch: "CH", absent: "Absent" } as const;
+  for (let i = 0; i < n; i++) {
+    const date = shiftDate(today, i);
+    const people: AwayPerson[] = [];
+    for (const { e } of rows) {
+      if ((e.joinedOfficeOn && date < e.joinedOfficeOn) || (e.leftOn && date > e.leftOn)) continue;
+      const leave = leaves.find((l) => l.employeeId === e.id && l.from <= date && date <= l.to);
+      const m = marks.find((x) => x.employeeId === e.id && x.date === date);
+      if (leave) people.push({ employeeId: e.id, name: e.name, what: `${leave.short} till ${dayLabel(leave.to).replace(/ \d{4}$/, "")}`, kind: "leave" });
+      else if (m) people.push({ employeeId: e.id, name: e.name, what: WHAT[m.mark as keyof typeof WHAT], kind: m.mark as AwayPerson["kind"] });
+      else if (plans.some((p) => p.employeeId === e.id && p.date === date)) people.push({ employeeId: e.id, name: e.name, what: "Off (planned)", kind: "planned" });
+    }
+    out.days.push({ date, people });
+  }
+  if (settings) {
+    const { open } = await openCh(db, userId, settings, ids, addMonths(today, -4), today);
+    const name = new Map(rows.map((r) => [r.e.id, r.e.name]));
+    out.chLapsing = open
+      .filter((o) => o.expires >= today && o.expires <= shiftDate(today, 7))
+      .map((o) => ({ employeeId: o.employeeId, name: name.get(o.employeeId) ?? "", holiday: o.holiday, holidayName: o.name, expires: o.expires }));
+  }
   return out;
 }
 
@@ -734,6 +788,14 @@ export const attendanceRoutes = new Hono<AppEnv>()
     return c.json({ saved: n });
   })
 
+  // Away today and tomorrow, and CH lapsing within a week (docs/ATTENDANCE_ASSIST_PLAN.md 3.3).
+  .get("/away", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const today = todayIn(timezone(c.env));
+    await settlePlannedOffs(db, userId, today);
+    return c.json(await awayDays(db, userId, today, 2, true));
+  })
   // Person days (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): ?from= (moved to its Monday; this week's to start), 21 days.
   .get("/person/:id", async (c) => {
     const db = c.get("db");

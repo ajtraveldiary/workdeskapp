@@ -10,7 +10,7 @@ import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
 import { DEFAULT_ATTENDANCE_SETTINGS, dutyForOff, fromLastOff, mondayOf, needsOff, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
-import type { AttendanceMonth, AuditEvent, LeaveType, OffsBoard, PersonDays } from "../src/shared/types";
+import type { AttendanceMonth, AuditEvent, AwayDays, LeaveType, OffsBoard, PersonDays } from "../src/shared/types";
 import type { AttendanceSettings } from "../src/shared/attendance";
 import { dayLabel } from "../src/shared/reminderSchedule";
 import { offsReminder, settlePlannedOffs, unmarkedToday } from "../src/server/routes/attendance";
@@ -553,5 +553,25 @@ describe("attendance register", () => {
     expect((await call("GET", "/attendance/person/00000000-0000-4000-8000-000000000000")).status).toBe(404);
     expect(mondayOf("2026-11-08")).toBe("2026-11-02");
     expect(mondayOf("2026-11-02")).toBe("2026-11-02");
+  });
+
+  it("away today and tomorrow: offs, CL, CH, absences, leave and planned offs, in Home's summary too", async () => {
+    const w = await add({ name: NAME, offDay: "weekly" });
+    const s = await add({ name: "Biju" });
+    const x = await add({ name: "Nobody away" });
+    const today = (await call("GET", "/me")).json.today as string;
+    const shift = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: w, date: today }], mark: "off" });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: s, date: today }], mark: "cl_half" });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: s, date: shift(1) }], mark: "cl" });
+    await call("POST", "/attendance/plans", { employeeId: w, date: shift(1) });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: x, date: today }], mark: "present" });
+    const away = (await call("GET", "/attendance/away")).json as AwayDays;
+    expect(away.days.map((d) => d.date)).toEqual([today, shift(1)]);
+    const said = (i: number) => away.days[i]!.people.map((p) => `${p.name}: ${p.what}`).sort();
+    expect(said(0)).toEqual([`${NAME}: Off`, "Biju: ½ CL"].sort());
+    expect(said(1)).toEqual([`${NAME}: Off (planned)`, "Biju: CL"].sort());
+    expect(away.chLapsing).toEqual([]);
+    expect(((await call("GET", "/summary")).json.attendanceAway as AwayDays["days"]).map((d) => d.people.length)).toEqual([2, 2]);
   });
 });

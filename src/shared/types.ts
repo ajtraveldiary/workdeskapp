@@ -151,6 +151,8 @@ export type Summary = {
   // Weekly-off staff who need an off now (owed one, or past the most days in a row), most urgent first, for a line
   // on Due Today (docs/ATTENDANCE_UX_PLAN.md 4.8).
   attendanceOffs: { employeeId: string; name: string; tone: import("./attendance").OffTone; text: string }[];
+  // Who is away today and tomorrow (attendance assist plan phase 2), for a line on Due Today.
+  attendanceAway: AwayDays["days"];
   overdue: Task[];
   dueToday: Task[];
   dueTomorrow: Task[];
@@ -559,6 +561,10 @@ export type OffsBoardPerson = {
   chLimit: number | null;
   chOpen: { holiday: string; name: string; expires: string }[];
 };
+// Away today and tomorrow (docs/ATTENDANCE_ASSIST_PLAN.md 3.3, phase 2): per day, everyone in the office with an
+// off, CL, ½CL, CH or absence marked, or leave from the Leave page, or an off planned; and CH about to lapse.
+export type AwayPerson = { employeeId: string; name: string; what: string; kind: "off" | "cl" | "cl_half" | "ch" | "absent" | "leave" | "planned" };
+export type AwayDays = { today: string; days: { date: string; people: AwayPerson[] }[]; chLapsing: { employeeId: string; name: string; holiday: string; holidayName: string; expires: string }[] };
 // Person days (user request 2026-11-02, docs/ATTENDANCE_ASSIST_PLAN.md 3.1): one person's three weeks from a Monday,
 // with what the register keeper needs to mark them and to warn before saving: each day's mark (a CH with its
 // holiday), leave, holiday, planned off; the weekly-off figures when the window starts (`before`) and today; CL / CH

@@ -6,7 +6,7 @@ import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, Emai
   AssistantInfo, AssistantUnseen, CallLog, QueueInfo, QueueRunReport, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput, LeaveInput, LeaveLineInput, LeavePatch, LeaveSurrenderInput, LeaveTypeInput } from "../shared/schemas";
 import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, LeaveType } from "../shared/types";
-import type { AttendanceMonth, Holiday, OffsBoard, PersonDays } from "../shared/types";
+import type { AttendanceMonth, AwayDays, Holiday, OffsBoard, PersonDays } from "../shared/types";
 import type { AttendanceMark, AttendanceSettings } from "../shared/attendance";
 
 export class ApiError extends Error {
@@ -364,6 +364,8 @@ export function useAttendanceActions() {
 // "attendance", so every mark refreshes it.
 export const usePersonDays = (id: string | null, from: string) =>
   useQuery({ queryKey: ["attendance", "person", id, from], queryFn: () => api<PersonDays>(`/attendance/person/${id}?from=${from}`), enabled: !!id });
+// Away today and tomorrow (docs/ATTENDANCE_ASSIST_PLAN.md 3.3): fresh each time the page opens.
+export const useAway = () => useQuery({ queryKey: ["attendance", "away"], queryFn: () => api<AwayDays>("/attendance/away"), refetchOnMount: "always" });
 // Start the register (docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point at once.
 export function useStartRegister() {
   const qc = useQueryClient();

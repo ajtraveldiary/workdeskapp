@@ -2,7 +2,8 @@
 
 Status: **phase 1 built** (2026-11-02, the user said "Yes, start Phase 1"; settled: three weeks in Person days, the
 + button on the Attendance page only; Today's "Select everyone" became "Tick the other n present" since the circle now
-ticks). Phases 2 (away today / tomorrow) and 3 (absence statement) not built. Follows `docs/ATTENDANCE_PLAN.md` (the register) and
+ticks). Phase 2 built the same day ("NEXT"): away today / tomorrow in Today, on Home and in the morning notification,
+with CH lapsing within a week. Phase 3 (absence statement) not built. Follows `docs/ATTENDANCE_PLAN.md` (the register) and
 `docs/ATTENDANCE_UX_PLAN.md` (Offs board, Today tab, Start the register, planned offs: all built). Items that change
 committed behaviour are marked **(changes committed: …)** and need the user's yes, as CLAUDE.md requires.
 

@@ -10,7 +10,7 @@ import { eventsToday } from "./officeEvents";
 import { incrementOnHome } from "../../shared/staff";
 import { timezone, type Env } from "../env";
 import { viewFilter } from "../routes/tasks";
-import { offsReminder } from "../routes/attendance";
+import { awayDays, offsReminder } from "../routes/attendance";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { todayIn } from "./dates";
 import { makeVapidKeys, sendPush, type PushMessage, type VapidKeys } from "./webpush";
@@ -158,10 +158,19 @@ export async function planNotifications(db: DB, env: Env, userId: string, now = 
     // Weekly-off staff who need an off (docs/ATTENDANCE_UX_PLAN.md 4.8): one line first, "Off due: Mary, Rajesh".
     const offs = await offsReminder(db, userId, today);
     const offLines = offs.length ? [`• Off due: ${offs.map((o) => o.name).join(", ")}`] : [];
+    // Who is away today (attendance assist plan phase 2): "Away today: Mary (Off), Anitha (CL)".
+    const away = (await awayDays(db, userId, today, 1)).days[0]!.people;
+    if (away.length) offLines.unshift(`• Away today: ${away.map((p) => `${p.name} (${p.what})`).join(", ")}`);
     const list = [...offLines, ...eventLines, ...overdue.map((t) => `• ${t.title} (overdue)`), ...dueToday.map((t) => `• ${t.title}${t.dueTime ? ` · ${ampm(t.dueTime)}` : ""}`)];
     messages.push(
       badge === 0 && offLines.length && !eventLines.length
-        ? { title: `Off due: ${offs.length} ${offs.length === 1 ? "person" : "people"}`, body: list.slice(0, 4).join("\n"), url: "/attendance", tag: "summary", badge }
+        ? {
+            title: offs.length ? `Off due: ${offs.length} ${offs.length === 1 ? "person" : "people"}` : `Away today: ${away.length} ${away.length === 1 ? "person" : "people"}`,
+            body: list.slice(0, 4).join("\n"),
+            url: "/attendance",
+            tag: "summary",
+            badge,
+          }
         : badge === 0 && eventLines.length
         ? { title: `Today: ${eventLines.length} event${eventLines.length === 1 ? "" : "s"}`, body: list.slice(0, 4).join("\n") + (list.length > 4 ? `\n+ ${list.length - 4} more` : ""), url: "/", tag: "summary", badge }
         : badge === 0

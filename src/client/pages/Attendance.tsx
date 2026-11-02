@@ -27,7 +27,8 @@
 // Phase 3: offs planned ahead (Offs board › Plan an off) show as a dotted O in the register and "O planned" in Today
 // until their day, when they become offs. Assist plan (docs/ATTENDANCE_ASSIST_PLAN.md phase 1): Today's circles tick
 // Present directly and names open Person days (components/PersonDays.tsx); Mark for someone (the + button on phones)
-// opens it after asking who.
+// opens it after asking who. Phase 2: the Today tab starts with who is away today and tomorrow (AwayCard, which also
+// lists the CH to take within a week, in place of ChDueSoon there).
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, CalendarPlus, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
@@ -40,6 +41,7 @@ import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendance, useAttendanceActions, useMe, useOffsBoard, useOfficeProfile, type AttendanceCell } from "../api";
 import { OffsBoard } from "../components/OffsBoard";
 import { openPersonDays } from "../components/PersonDays";
+import { AwayCard } from "../components/AwayCard";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
 import { Button, Card, ErrorNote, Fab, Modal, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
@@ -236,7 +238,7 @@ export function AttendancePage() {
         </>
       ) : (
         <>
-          <ChDueSoon data={data} />
+          <AwayCard />
           <TodayView data={data} cells={cells} onMonth={setMonth} />
         </>
       )}
