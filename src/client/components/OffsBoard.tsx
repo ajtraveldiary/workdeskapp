@@ -6,10 +6,13 @@
 // holidays worked with CH to take, Off today, Correct the count (days in a row and offs owed with − / +, a note; saved
 // as a correction dated today, with Undo) and the corrections made, each with Take back. Phase 2: people with no
 // starting point yet show "No starting point" (and are left out of the counts) with a banner to Start the register;
-// days not marked count as duty (a faint ✓ in the strip) while that setting is on.
+// days not marked count as duty (a faint ✓ in the strip) while that setting is on. Phase 3: Plan an off (PlanOff: the
+// day it falls due suggested, the days around it as chips with how many of the same post are already off; any day by
+// the date box; a note), planned offs on the card ("planned Thu 5 Nov") and in the sheet with Move and Cancel; on the
+// day a plan becomes an off by itself.
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { CalendarClock, Check, Minus, Play, Plus, SlidersHorizontal, TableProperties } from "lucide-react";
+import { CalendarCheck, CalendarClock, CalendarPlus, Check, Minus, Play, Plus, SlidersHorizontal, TableProperties } from "lucide-react";
 import { openStartRegister } from "./StartRegister";
 import type { OffsBoard as Board, OffsBoardDay, OffsBoardPerson } from "../../shared/types";
 import { MARK_NAME, dutyForOff, offStatus, type OffTone } from "../../shared/attendance";
@@ -127,7 +130,10 @@ function OffCard({ p, board, tone, text, early, onOpen }: { p: OffsBoardPerson; 
       </div>
       <Strip days={p.days} today={board.today} assume={board.assumeDuty && p.started} />
       <div className="flex items-center gap-2">
-        <p className="min-w-0 flex-1 truncate text-footnote text-slate-500">{p.lastOff ? `Last off ${shortDay(p.lastOff)}` : "No off marked yet"}</p>
+        <p className="min-w-0 flex-1 truncate text-footnote text-slate-500">
+          {p.lastOff ? `Last off ${shortDay(p.lastOff)}` : "No off marked yet"}
+          {p.planned[0] && <span className="font-medium text-brand-700"> · planned {shortDay(p.planned[0].date)}</span>}
+        </p>
         <OffToday p={p} board={board} />
       </div>
     </li>
@@ -237,6 +243,7 @@ function OffToday({ p, board, wide }: { p: OffsBoardPerson; board: Board; wide?:
 
 function PersonSheet({ p, board, onRegister }: { p: OffsBoardPerson; board: Board; onRegister: () => void }) {
   const [fixing, setFixing] = useState(false);
+  const [planning, setPlanning] = useState(false);
   const { uncorrect } = useAttendanceActions();
   const st = offStatus(p, board);
   const row = (label: string, value: ReactNode) => (
@@ -283,11 +290,17 @@ function PersonSheet({ p, board, onRegister }: { p: OffsBoardPerson; board: Boar
             </ul>,
           )}
       </dl>
+      {p.planned.length > 0 && <PlannedList p={p} board={board} />}
       {fixing ? (
         <CorrectCount p={p} board={board} onDone={() => setFixing(false)} />
+      ) : planning ? (
+        <PlanOff p={p} board={board} onDone={() => setPlanning(false)} />
       ) : (
         <div className="flex flex-wrap gap-2">
           <OffToday p={p} board={board} wide />
+          <Button size="sm" variant="primary" onClick={() => setPlanning(true)} className="flex-1">
+            <CalendarPlus size={15} /> Plan an off
+          </Button>
           <Button size="sm" onClick={() => setFixing(true)} className="flex-1">
             <SlidersHorizontal size={15} /> Correct the count
           </Button>
@@ -398,6 +411,148 @@ function Stepper({ label, value, min, max, onChange, words }: { label: string; v
       <button type="button" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label={`${label}: one more`} className="flex size-8 items-center justify-center rounded-lg border border-line bg-white text-ink enabled:hover:bg-slate-50 active:scale-90 disabled:opacity-50 pointer-coarse:size-9">
         <Plus size={15} />
       </button>
+    </div>
+  );
+}
+
+const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
+// Others of the same post off on a day: their planned offs, and today's off marks.
+function othersOff(board: Board, p: OffsBoardPerson, date: string) {
+  if (!p.designation) return 0;
+  return board.people.filter((o) => o.id !== p.id && o.designation === p.designation && (o.planned.some((x) => x.date === date) || o.days.some((d) => d.date === date && d.mark === "off"))).length;
+}
+
+// Plan an off (phase 3): the day it falls due is suggested (tomorrow when one is owed already, else after the days of
+// duty still needed) with the days around it as chips, each saying how many of the same post are already off; any
+// later day by the date box; an optional note. Saved at once with Undo; a holiday or leave is refused with the reason.
+function PlanOff({ p, board, onDone }: { p: OffsBoardPerson; board: Board; onDone: () => void }) {
+  const { plan, cancelPlan } = useAttendanceActions();
+  const st = offStatus(p, board);
+  const first = addDays(board.today, 1);
+  const due = st.owed >= 1 ? first : addDays(board.today, Math.max(1, st.need));
+  const start = [addDays(due, -2), first].sort()[1]!;
+  const chips = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const [date, setDate] = useState(due);
+  const [note, setNote] = useState("");
+  const taken = new Set(p.planned.map((x) => x.date));
+  const clash = othersOff(board, p, date);
+  return (
+    <form
+      className="space-y-3 rounded-xl border border-line bg-slate-50 p-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        plan.mutate(
+          { employeeId: p.id, date, note },
+          {
+            onSuccess: (r) => {
+              showUndo({ message: `Off planned for ${p.name} on ${shortDay(date)}`, onUndo: () => cancelPlan.mutate(r.id) });
+              onDone();
+            },
+          },
+        );
+      }}
+    >
+      <p className="text-sm text-ink">
+        {st.owed >= 1 ? "An off is owed now: the first day free is suggested." : `The next off falls due on ${shortDay(due)} (after ${plural(st.need, "more day")} of duty).`}
+      </p>
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Day of the off">
+        {chips.map((d) => {
+          const n = othersOff(board, p, d);
+          return (
+            <button
+              key={d}
+              type="button"
+              role="radio"
+              aria-checked={date === d}
+              disabled={taken.has(d)}
+              onClick={() => setDate(d)}
+              className={cx(
+                "flex min-w-14 flex-col items-center rounded-lg border px-2 py-1 text-footnote leading-tight active:scale-[0.97] disabled:opacity-50",
+                date === d ? "border-brand-500 bg-tint font-medium text-brand-800" : "border-line bg-white text-ink enabled:hover:bg-slate-50",
+              )}
+            >
+              <span>{shortDay(d).split(" ")[0]}</span>
+              <span className="font-semibold">{Number(d.slice(8))}</span>
+              <span className={cx("text-caption2", d === due ? "text-high-ink" : n ? "text-urgent-ink" : "text-slate-400")}>{taken.has(d) ? "planned" : d === due ? "due" : n ? `${n} off` : " "}</span>
+            </button>
+          );
+        })}
+      </div>
+      <label className="block text-footnote text-slate-600">
+        Or another day
+        <input type="date" className={cx(inputClass, "mt-1")} min={first} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
+      </label>
+      {clash > 0 && (
+        <p className="text-footnote text-urgent-ink">
+          {plural(clash, `other ${p.designation} is`, `other ${p.designation}s are`)} already off on {shortDay(date)}.
+        </p>
+      )}
+      <label className="block text-footnote text-slate-600">
+        Note (optional)
+        <input className={cx(inputClass, "mt-1")} value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} placeholder="e.g. asked for this day" />
+      </label>
+      <ErrorNote error={plan.error} />
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" size="sm" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button type="submit" size="sm" variant="primary" disabled={!date || date < first || taken.has(date) || plan.isPending}>
+          <CalendarCheck size={15} /> Plan the off
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// A person's planned offs (phase 3): each with Move (a date box) and Cancel (with Undo).
+function PlannedList({ p, board }: { p: OffsBoardPerson; board: Board }) {
+  const { movePlan, cancelPlan, plan } = useAttendanceActions();
+  const [moving, setMoving] = useState<string | null>(null);
+  const first = addDays(board.today, 1);
+  return (
+    <div>
+      <h3 className="mb-1 text-footnote font-semibold text-slate-600">Planned offs</h3>
+      <ul className="divide-y divide-line rounded-lg border border-line">
+        {p.planned.map((x) => (
+          <li key={x.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
+            <span className="min-w-0 flex-1 text-sm text-ink [overflow-wrap:anywhere]">
+              <span className="mr-1.5 inline-flex size-5 items-center justify-center rounded border border-dashed border-brand-500 text-caption2 font-semibold text-brand-700">O</span>
+              {shortDay(x.date)}
+              {x.note && <span className="text-footnote text-slate-500"> · {x.note}</span>}
+              {othersOff(board, p, x.date) > 0 && <span className="block text-footnote text-urgent-ink">{othersOff(board, p, x.date)} of the same post off that day too</span>}
+            </span>
+            {moving === x.id ? (
+              <input
+                type="date"
+                autoFocus
+                className={cx(inputClass, "w-auto")}
+                min={first}
+                defaultValue={x.date}
+                aria-label="Move the off to"
+                onChange={(e) => {
+                  const d = e.target.value;
+                  if (!d || d === x.date) return;
+                  movePlan.mutate({ id: x.id, date: d }, { onSuccess: () => (setMoving(null), showUndo({ message: `Off moved to ${shortDay(d)}`, onUndo: () => movePlan.mutate({ id: x.id, date: x.date }) })) });
+                }}
+              />
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => setMoving(x.id)}>
+                Move
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={cancelPlan.isPending}
+              onClick={() => cancelPlan.mutate(x.id, { onSuccess: () => showUndo({ message: `Planned off on ${shortDay(x.date)} cancelled`, onUndo: () => plan.mutate({ employeeId: p.id, date: x.date, note: x.note }) }) })}
+            >
+              Cancel
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <ErrorNote error={movePlan.error ?? cancelPlan.error} />
+      <p className="mt-1 text-caption text-slate-500">On its day a planned off becomes an off by itself.</p>
     </div>
   );
 }

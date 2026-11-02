@@ -8,6 +8,7 @@ import { ensureProbationTasks } from "./probation";
 import { ensureEventTasks } from "./officeEvents";
 import { ensureLeaveCredits } from "./leave";
 import { cleanAssistantData } from "../mcp/oauth";
+import { settlePlannedOffs } from "../routes/attendance";
 
 // Housekeeping that read endpoints used to run on every request (waking snoozed emails, creating report
 // periods). It now runs at most once per INTERVAL per user from page loads, which saves database round trips.
@@ -33,6 +34,8 @@ export async function maintain(db: DB, userId: string, today: string, force = fa
   await ensureEventTasks(db, today, userId);
   // Yearly leave credits on service anniversaries, for leave types switched to automatic (user request 2026-10-30).
   await ensureLeaveCredits(db, today, userId);
+  // Offs planned for today or before become off marks (attendance phase 3, 2026-11-02).
+  await settlePlannedOffs(db, userId, today);
   // Expired assistant sign-ins and assistant log rows older than a year (MCP, 2026-10-18).
   await cleanAssistantData(db);
 }

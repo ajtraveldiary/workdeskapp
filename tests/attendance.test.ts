@@ -13,7 +13,7 @@ import { DEFAULT_ATTENDANCE_SETTINGS, dutyForOff, fromLastOff, needsOff, offLine
 import type { AttendanceMonth, AuditEvent, LeaveType, OffsBoard } from "../src/shared/types";
 import type { AttendanceSettings } from "../src/shared/attendance";
 import { dayLabel } from "../src/shared/reminderSchedule";
-import { offsReminder, unmarkedToday } from "../src/server/routes/attendance";
+import { offsReminder, settlePlannedOffs, unmarkedToday } from "../src/server/routes/attendance";
 import { BACKUP_TABLES } from "../src/shared/transfer";
 
 const NAME = "2026-27 സാമ്പത്തിക വർഷത്തെ ജൂനിയർ ഹെൽത്ത് ഇൻസ്‌പെക്ടർ ശ്രീമതി അനിതാകുമാരി രാധാകൃഷ്ണൻ";
@@ -263,7 +263,7 @@ describe("attendance register", () => {
     await call("POST", "/attendance/mark", { cells: [6, 7, 8, 9, 10, 11, 12, 13].map(day), mark: "present" });
     sep = await month("2026-09");
     expect(sep.weekly[0]).toMatchObject({ offsDue: 1, towards: 0, run: 8 });
-    expect(offLine(sep.weekly[0]!, 6)).toBe("1 off due");
+    expect(offLine(sep.weekly[0]!, 6)).toBe("1 off owed");
     // The check the register's bar runs: days asked for as offs, earned while one is due, else early with the days
     // still to go; an early one counts as an off.
     const r = offsEarned(
@@ -482,5 +482,44 @@ describe("attendance register", () => {
     expect(await person(fresh)).toMatchObject({ started: true, run: 7, offsDue: 2, towards: 1 });
     expect((await call("POST", "/attendance/start", { asOn: shift(-5), people: [{ employeeId: fresh, lastOff: shift(-1) }] })).status).toBe(400);
     expect(fromLastOff("2026-10-01", "2026-10-14", 0, 6)).toEqual({ run: 13, towards: 1, offsDue: 2 });
+  });
+
+  it("plans an off ahead: refused on a holiday, today or for Sunday-off staff; moved, cancelled, and on its day it becomes an off", async () => {
+    const w = await add({ name: NAME, offDay: "weekly" });
+    const s = await add({ name: "Sunday off" });
+    const today = (await call("GET", "/me")).json.today as string;
+    const shift = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
+    const board = async () => (await call("GET", "/attendance/offs")).json as OffsBoard;
+    const person = async () => (await board()).people.find((p) => p.id === w)!;
+    await call("POST", "/attendance/holidays", { date: shift(3), name: "Test holiday" });
+    const plan = await call("POST", "/attendance/plans", { employeeId: w, date: shift(2), note: "അവധി ചോദിച്ചു" });
+    expect(plan.status).toBe(200);
+    expect((await person()).planned).toEqual([{ id: plan.json.id, date: shift(2), note: "അവധി ചോദിച്ചു" }]);
+    expect((await history())[0]).toBe(`Attendance: off planned for ${NAME} on ${dayLabel(shift(2))}. അവധി ചോദിച്ചു`);
+    // Not on a holiday, not today (mark the off instead), not for Sunday-off staff.
+    const bad = await call("POST", "/attendance/plans", { employeeId: w, date: shift(3) });
+    expect([bad.status, bad.json.error]).toEqual([400, `${dayLabel(shift(3))} is a holiday (Test holiday)`]);
+    expect((await call("POST", "/attendance/plans", { employeeId: w, date: today })).status).toBe(400);
+    expect((await call("POST", "/attendance/plans", { employeeId: s, date: shift(2) })).status).toBe(400);
+    // Moved, shown in the month, cancelled.
+    expect((await call("PUT", `/attendance/plans/${plan.json.id}`, { date: shift(4) })).status).toBe(200);
+    expect((await person()).planned.map((p) => p.date)).toEqual([shift(4)]);
+    expect((await month(shift(4).slice(0, 7))).planned).toEqual([{ id: plan.json.id, employeeId: w, date: shift(4), note: "അവധി ചോദിച്ചു" }]);
+    expect((await call("PUT", `/attendance/plans/${plan.json.id}`, { date: shift(3) })).status).toBe(400);
+    expect((await call("DELETE", `/attendance/plans/${plan.json.id}`)).json).toMatchObject({ ok: true, date: shift(4) });
+    expect((await person()).planned).toEqual([]);
+    // On its day a plan becomes an off; one on a day already marked is dropped.
+    const userId = (await db.select().from(schema.users))[0]!.id;
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: w, date: shift(-1) }], mark: "present" });
+    await db.insert(schema.plannedOffs).values([
+      { userId, employeeId: w, date: today },
+      { userId, employeeId: w, date: shift(-1) },
+    ]);
+    const p = await person();
+    expect(p.planned).toEqual([]);
+    expect(p.days.find((d) => d.date === today)!.mark).toBe("off");
+    expect(p.days.find((d) => d.date === shift(-1))!.mark).toBe("present");
+    expect((await history())[0]).toBe(`Attendance: planned off marked: ${NAME} (${dayLabel(today)}); 1 not marked (that day already marked, leave or a holiday)`);
+    expect(await settlePlannedOffs(db, userId, today)).toBe(0);
   });
 });

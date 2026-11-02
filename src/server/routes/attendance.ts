@@ -8,14 +8,15 @@
 // (attendance_corrections, Correct the count), the Offs board (offsBoard) and the people who need an off for Home and
 // the morning notification (offsReminder). Phase 2: days not marked count as duty (settings.assumeDuty, from each
 // person's starting point), and Start the register (POST /attendance/start: everyone's starting point at once, from
-// the last off).
+// the last off). Phase 3: offs planned ahead (planned_offs, /attendance/plans), each turned into an off mark on its day
+// (settlePlannedOffs: from maintain, and before the register, the Offs board and Home's line are read).
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, max, min, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { attendanceCorrections, attendanceMarks, attendanceSettings, designations, employeeLeaves, employees, events, holidays, leaveTypes } from "../db/schema";
-import { attendanceChInput, attendanceClearInput, attendanceCorrectionInput, attendanceMarkInput, attendanceSettingsInput, attendanceStartInput, holidayInput } from "../../shared/schemas";
+import { attendanceCorrections, attendanceMarks, attendanceSettings, plannedOffs, designations, employeeLeaves, employees, events, holidays, leaveTypes } from "../db/schema";
+import { attendanceChInput, attendanceClearInput, attendanceCorrectionInput, attendanceMarkInput, attendanceSettingsInput, attendanceStartInput, holidayInput, plannedOffInput, plannedOffMove } from "../../shared/schemas";
 import {
   DEFAULT_ATTENDANCE_SETTINGS,
   MARK_NAME,
@@ -277,12 +278,13 @@ const countText = (w: { offsDue: number; run: number }) =>
 // The Offs board (docs/ATTENDANCE_UX_PLAN.md 4.6): weekly-off staff in the office today, their figures as on today,
 // the last 14 days, their last off, the latest corrections, and CL / CH this year.
 export async function offsBoard(db: DB, userId: string, today: string): Promise<OffsBoard> {
+  await settlePlannedOffs(db, userId, today);
   const [settings, { weekly, sundayOff }] = await Promise.all([loadSettings(db, userId), weeklyPeopleToday(db, userId, today)]);
   const out: OffsBoard = { today, offEvery: settings.offEvery, maxRun: settings.maxRun, clPerYear: settings.clPerYear, assumeDuty: settings.assumeDuty, people: [], sundayOff };
   if (!weekly.length) return out;
   const ids = weekly.map((p) => p.e.id);
   const from = shiftDate(today, -13);
-  const [figures, marks, leaves, hols, lastOffs, fixes, totals, ch] = await Promise.all([
+  const [figures, marks, leaves, hols, lastOffs, fixes, totals, ch, plans] = await Promise.all([
     weeklyFigures(
       db,
       userId,
@@ -310,6 +312,11 @@ export async function offsBoard(db: DB, userId: string, today: string): Promise<
       .orderBy(desc(attendanceCorrections.date)),
     yearTotals(db, userId, settings, ids, today.slice(0, 4)),
     openCh(db, userId, settings, ids, addMonths(today, -4), today),
+    db
+      .select()
+      .from(plannedOffs)
+      .where(and(eq(plannedOffs.userId, userId), inArray(plannedOffs.employeeId, ids)))
+      .orderBy(asc(plannedOffs.date)),
   ]);
   const markOf = new Map(marks.map((m) => [`${m.employeeId}|${m.date}`, m.mark]));
   const dates = Array.from({ length: 14 }, (_, i) => shiftDate(from, i));
@@ -331,6 +338,7 @@ export async function offsBoard(db: DB, userId: string, today: string): Promise<
       towards: w.towards,
       run: w.run,
       started: w.countFrom !== null,
+      planned: plans.filter((x) => x.employeeId === e.id).map((x) => ({ id: x.id, date: x.date, note: x.note })),
       lastOff: lastOffs.find((l) => l.employeeId === e.id)?.last ?? settings.start[e.id]?.lastOff ?? null,
       days,
       corrections: fixes
@@ -349,6 +357,7 @@ export async function offsBoard(db: DB, userId: string, today: string): Promise<
 // Weekly-off staff who need an off now (owed one, or past the most days in a row), most urgent first: Home's line
 // and the morning notification (docs/ATTENDANCE_UX_PLAN.md 4.8).
 export async function offsReminder(db: DB, userId: string, today: string): Promise<Summary["attendanceOffs"]> {
+  await settlePlannedOffs(db, userId, today);
   const { weekly } = await weeklyPeopleToday(db, userId, today);
   if (!weekly.length) return [];
   const settings = await loadSettings(db, userId);
@@ -369,6 +378,61 @@ export async function offsReminder(db: DB, userId: string, today: string): Promi
     .filter((x) => x.w.countFrom !== null && needsOff(x.st))
     .sort((a, b) => b.st.rank - a.st.rank || b.w.run - a.w.run || a.e.name.localeCompare(b.e.name))
     .map(({ e, st }) => ({ employeeId: e.id, name: e.name, tone: st.tone, text: st.text }));
+}
+
+// Planned offs whose day has come become off marks (phase 3), unless the day already has a mark, is leave or a
+// holiday, or they are no longer in the office or on weekly off; either way the plan goes. One History entry.
+export async function settlePlannedOffs(db: DB, userId: string, today: string) {
+  const due = await db.select().from(plannedOffs).where(and(eq(plannedOffs.userId, userId), lte(plannedOffs.date, today)));
+  if (!due.length) return 0;
+  const ids = [...new Set(due.map((p) => p.employeeId))];
+  const dates = due.map((p) => p.date).sort();
+  const [first, last] = [dates[0]!, dates[dates.length - 1]!];
+  const [people, settings, hols, leaves, marks] = await Promise.all([
+    db.select().from(employees).where(and(eq(employees.userId, userId), inArray(employees.id, ids))),
+    loadSettings(db, userId),
+    holidayMap(db, userId, first, last),
+    leavesIn(db, userId, first, last, ids),
+    db
+      .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date })
+      .from(attendanceMarks)
+      .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), gte(attendanceMarks.date, first), lte(attendanceMarks.date, last))),
+  ]);
+  const marked = new Set(marks.map((m) => `${m.employeeId}|${m.date}`));
+  const byId = new Map(people.map((e) => [e.id, e]));
+  const rows = due.filter((p) => {
+    const e = byId.get(p.employeeId);
+    return (
+      e &&
+      e.offDay === "weekly" &&
+      !(e.joinedOfficeOn && p.date < e.joinedOfficeOn) &&
+      !(e.leftOn && p.date > e.leftOn) &&
+      !marked.has(`${p.employeeId}|${p.date}`) &&
+      !holidayOn(p.date, hols, settings) &&
+      !leaves.some((l) => l.employeeId === p.employeeId && l.from <= p.date && p.date <= l.to)
+    );
+  });
+  if (rows.length)
+    await db
+      .insert(attendanceMarks)
+      .values(rows.map((p) => ({ userId, employeeId: p.employeeId, date: p.date, mark: "off" as const })))
+      .onConflictDoNothing();
+  await db.delete(plannedOffs).where(inArray(plannedOffs.id, due.map((p) => p.id)));
+  const dropped = due.length - rows.length;
+  const list = rows.map((p) => `${byId.get(p.employeeId)!.name} (${dayLabel(p.date)})`).join(", ");
+  await log(db, userId, "attendance.planned_taken", `Attendance: planned ${rows.length === 1 ? "off" : "offs"} marked: ${list || "none"}${dropped ? `; ${dropped} not marked (that day already marked, leave or a holiday)` : ""}`);
+  return rows.length;
+}
+// Why a weekly-off person can't have an off planned on that day, or null.
+async function planProblem(db: DB, userId: string, e: typeof employees.$inferSelect, date: string, today: string) {
+  if (e.offDay !== "weekly") return `${e.name} has Sundays off; offs are planned for weekly-off staff`;
+  if (date <= today) return "Plan an off for a day after today (for today, mark the off)";
+  if ((e.joinedOfficeOn && date < e.joinedOfficeOn) || (e.leftOn && date > e.leftOn)) return `${e.name} isn't in the office on ${dayLabel(date)}`;
+  const [settings, hols, leaves] = await Promise.all([loadSettings(db, userId), holidayMap(db, userId, date, date), leavesIn(db, userId, date, date, [e.id])]);
+  const h = holidayOn(date, hols, settings);
+  if (h) return `${dayLabel(date)} is a holiday (${h.name})`;
+  if (leaves.length) return `${e.name} is on leave on ${dayLabel(date)}`;
+  return null;
 }
 
 // Holidays worked (employee|date) whose CH is taken: their Present mark stays while the CH does.
@@ -421,6 +485,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const today = todayIn(timezone(c.env));
     const month = /^\d{4}-\d{2}$/.test(c.req.query("month") ?? "") ? c.req.query("month")! : today.slice(0, 7);
+    await settlePlannedOffs(db, userId, today);
     const dates = monthDays(month);
     const first = dates[0]!;
     const last = dates[dates.length - 1]!;
@@ -447,7 +512,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
           yearTotals(db, userId, settings, ids, year),
         ])
       : [[], [], new Map<string, { cl: number; ch: number }>()];
-    const [ch, weekly, edges] = await Promise.all([
+    const [ch, weekly, edges, planned] = await Promise.all([
       openCh(db, userId, settings, ids, addMonths(first, -4), last),
       weeklyFigures(
         db,
@@ -466,6 +531,10 @@ export const attendanceRoutes = new Hono<AppEnv>()
         first,
         last,
       ),
+      db
+        .select({ id: plannedOffs.id, employeeId: plannedOffs.employeeId, date: plannedOffs.date, note: plannedOffs.note })
+        .from(plannedOffs)
+        .where(and(eq(plannedOffs.userId, userId), gte(plannedOffs.date, first), lte(plannedOffs.date, last))),
     ]);
     const out: AttendanceMonth = {
       month,
@@ -482,6 +551,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
       weekly: weekly.map(({ corrections: _, ...w }) => w),
       edges,
       corrections: weekly.flatMap((w) => w.corrections),
+      planned: planned.filter((p) => ids.includes(p.employeeId)),
     };
     return c.json(out);
   })
@@ -660,6 +730,55 @@ export const attendanceRoutes = new Hono<AppEnv>()
     await db.insert(attendanceSettings).values({ userId, data }).onConflictDoUpdate({ target: attendanceSettings.userId, set: { data, updatedAt: new Date() } });
     await log(db, userId, "attendance.started", `Attendance register started as on ${dayLabel(v.asOn)} for ${n === 1 ? people[0]!.name : `${n} people`}`);
     return c.json({ saved: n });
+  })
+
+  // --- Planned offs (phase 3, docs/ATTENDANCE_UX_PLAN.md 4.7) ---
+  // Plan an off on a day after today for a weekly-off person (not a holiday or leave). Planning the same day again
+  // changes its note.
+  .post("/plans", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const v = plannedOffInput.parse(await c.req.json());
+    const today = todayIn(timezone(c.env));
+    const [e] = await db.select().from(employees).where(and(eq(employees.userId, userId), eq(employees.id, v.employeeId)));
+    if (!e) throw new HTTPException(404, { message: "Employee not found" });
+    const problem = await planProblem(db, userId, e, v.date, today);
+    if (problem) throw new HTTPException(400, { message: problem });
+    const [row] = await db
+      .insert(plannedOffs)
+      .values({ userId, employeeId: e.id, date: v.date, note: v.note })
+      .onConflictDoUpdate({ target: [plannedOffs.employeeId, plannedOffs.date], set: { note: v.note } })
+      .returning({ id: plannedOffs.id });
+    await log(db, userId, "attendance.planned", `Attendance: off planned for ${e.name} on ${dayLabel(v.date)}${v.note ? `. ${v.note}` : ""}`);
+    return c.json({ id: row!.id });
+  })
+  // Move a planned off to another day.
+  .put("/plans/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const v = plannedOffMove.parse(await c.req.json());
+    const today = todayIn(timezone(c.env));
+    const [p] = await db.select().from(plannedOffs).where(and(eq(plannedOffs.userId, userId), eq(plannedOffs.id, c.req.param("id"))));
+    if (!p) throw new HTTPException(404, { message: "Planned off not found" });
+    const [e] = await db.select().from(employees).where(eq(employees.id, p.employeeId));
+    const problem = await planProblem(db, userId, e!, v.date, today);
+    if (problem) throw new HTTPException(400, { message: problem });
+    if (v.date !== p.date) {
+      const [clash] = await db.select({ id: plannedOffs.id }).from(plannedOffs).where(and(eq(plannedOffs.employeeId, p.employeeId), eq(plannedOffs.date, v.date)));
+      if (clash) throw new HTTPException(409, { message: `${e!.name} already has an off planned on ${dayLabel(v.date)}` });
+      await db.update(plannedOffs).set({ date: v.date }).where(eq(plannedOffs.id, p.id));
+      await log(db, userId, "attendance.plan_moved", `Attendance: planned off of ${e!.name} moved from ${dayLabel(p.date)} to ${dayLabel(v.date)}`);
+    }
+    return c.json({ ok: true });
+  })
+  .delete("/plans/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const [gone] = await db.delete(plannedOffs).where(and(eq(plannedOffs.userId, userId), eq(plannedOffs.id, c.req.param("id")))).returning();
+    if (!gone) throw new HTTPException(404, { message: "Planned off not found" });
+    const [e] = await db.select({ name: employees.name }).from(employees).where(eq(employees.id, gone.employeeId));
+    await log(db, userId, "attendance.plan_cancelled", `Attendance: planned off of ${e?.name ?? "an employee"} on ${dayLabel(gone.date)} cancelled`);
+    return c.json({ ok: true, employeeId: gone.employeeId, date: gone.date, note: gone.note });
   })
 
   // --- Offs board and corrections (docs/ATTENDANCE_UX_PLAN.md phase 1) ---

@@ -316,7 +316,10 @@ describe("staff", () => {
     await call("POST", "/tasks", { title: "JPHN duty roster", relatedKind: "designation", relatedId: jphn });
     await call("POST", "/tasks", { title: "Not theirs", relatedKind: "employee", relatedId: other });
     await call("POST", `/tasks/${mine}/complete`);
-    await call("POST", "/reports", { name: "Monthly JPHN report", startDate: "2026-11-01", relatedKind: "designation", relatedId: jphn });
+    // Starting well ahead of today, so its first date hasn't made a task yet (a fixed 2026-11-01 did once that day came).
+    const today = (await call("GET", "/me")).json.today as string;
+    const later = new Date(Date.parse(`${today}T00:00:00Z`) + 90 * 86400_000).toISOString().slice(0, 10);
+    await call("POST", "/reports", { name: "Monthly JPHN report", startDate: later, relatedKind: "designation", relatedId: jphn });
     await call("POST", `/staff/employees/${id}/left`, { left: true });
 
     const p = (await call("GET", `/staff/employees/${id}/profile`)).json;

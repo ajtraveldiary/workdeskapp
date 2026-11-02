@@ -24,6 +24,8 @@
 // tap a person for Duty / Off / CL / ½CL / CH… / Absent / Clear (saved at once, Undo puts back what was there), or
 // tick people and use the bar. While days not marked count as duty (Settings › Attendance), a past working day left
 // empty shows a faint ✓ (cells' `assumed`), counts as present in the summary and the CSV, and gets no red dot.
+// Phase 3: offs planned ahead (Offs board › Plan an off) show as a dotted O in the register and "O planned" in Today
+// until their day, when they become offs.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
@@ -267,6 +269,8 @@ function useChLookups(data: AttendanceMonth) {
       long: new Set(data.weekly.flatMap((w) => w.long.map((d) => key(w.employeeId, d)))),
       limit: new Map(data.chLimits.map((x) => [x.employeeId, x.limit])),
       edges: new Map(data.edges.map((x) => [x.employeeId, x])),
+      // Offs planned ahead (phase 3), by cell.
+      planned: new Map(data.planned.map((x) => [key(x.employeeId, x.date), x])),
     };
   }, [data]);
 }
@@ -308,8 +312,8 @@ function figuresLine(id: string, data: AttendanceMonth, lookups: Lookups) {
   return [
     `CL ${t.cl} of ${data.settings.clPerYear}`,
     `CH ${t.ch}${limit == null ? "" : ` of ${limit}`}${open.length ? `, ${open.length} to take` : ""}`,
+    w && `Day ${w.run}`,
     w && offLine(w, data.settings.offEvery),
-    w && `${w.run} ${w.run === 1 ? "day" : "days"} in a row`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -352,10 +356,10 @@ function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data
           </div>
           {w && (
             <>
-              {row("Offs due", String(w.offsDue), w.offsDue < 0)}
-              {row("Days towards the next off", `${w.towards} of ${data.settings.offEvery}`)}
+              {row(w.offsDue < 0 ? "Offs taken early" : "Offs owed", String(Math.abs(w.offsDue)), w.offsDue < 0)}
+              {row("Days carried towards the next off", `${w.towards} of ${data.settings.offEvery}`)}
               {w.offsDue < 1 && row("Days of duty still needed for an off", String(dutyForOff(w.offsDue, w.towards, data.settings.offEvery)))}
-              {row("Days in a row so far", `${w.run} (at most ${data.settings.maxRun})`, w.run > data.settings.maxRun)}
+              {row("Day N (days of duty in a row)", `Day ${w.run} (at most ${data.settings.maxRun})`, w.run > data.settings.maxRun)}
             </>
           )}
         </div>
@@ -677,7 +681,9 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                     ? `Holiday duty (${d.holiday!.name}): ${dutyOpen ? `CH to take by ${dayLabel(dutyOpen.expires)}` : ch.taken.has(k) ? "CH taken" : "CH no longer open"}`
                     : info.mark
                       ? MARK_NAME[info.mark]
-                      : d.holiday?.name;
+                      : ch.planned.has(k)
+                        ? "Off planned"
+                        : d.holiday?.name;
                 tds.push(
                   <td key={d.date} className={cx("border border-slate-300 p-0", info.holiday && "bg-slate-100", ch.long.has(k) && "outline outline-1 -outline-offset-1 outline-urgent")}>
                     <button
@@ -691,6 +697,11 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                     >
                       {info.mark && <span className={MARK_TONE[info.mark]}>{MARK_SHORT[info.mark]}</span>}
                       {info.assumed && <span className="text-slate-300 print:text-slate-400">✓</span>}
+                      {!info.mark && ch.planned.has(k) && (
+                        <span className="rounded border border-dashed border-brand-500 px-0.5 leading-none font-medium text-brand-700" title={`Off planned${ch.planned.get(k)!.note ? `: ${ch.planned.get(k)!.note}` : ""}`}>
+                          O
+                        </span>
+                      )}
                       {duty && <span className={cx("absolute top-0.5 right-0.5 size-1.5 rounded-full", dutyOpen ? "bg-info" : "bg-slate-300")} aria-hidden />}
                     </button>
                   </td>,
@@ -708,7 +719,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                         </span>
                         {ch.weekly.get(e.id) && (
                           <span className={cx("block text-caption2", (ch.weekly.get(e.id)!.long.length ?? 0) > 0 ? "font-medium text-urgent-ink" : "text-slate-500")}>
-                            {offLine(ch.weekly.get(e.id)!, data.settings.offEvery)} · {ch.weekly.get(e.id)!.run} in a row
+                            Day {ch.weekly.get(e.id)!.run} · {offLine(ch.weekly.get(e.id)!, data.settings.offEvery)}
                             {ch.weekly.get(e.id)!.long.length > 0 && ` · over ${data.settings.maxRun} this month`}
                           </span>
                         )}
@@ -725,7 +736,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
       </div>
       <p className="border-t border-line px-4 py-2 text-footnote text-slate-500">
         ✓ Present · O Weekly off · CL Casual leave · ½CL Half day · CH Compensation leave · A Absent · grey: holiday or Sunday off · a blue dot: holiday worked, CH open (grey once taken) · EL, HPL…: leave from the
-        Leave page · {data.settings.assumeDuty ? "a faint ✓: not marked, counted as duty" : "a red dot under a day: someone not marked yet"} · red outline: more than 12 days in a row without an off. CL and CH are this year's; +n: CH still to take.
+        Leave page · a dotted O: off planned · {data.settings.assumeDuty ? "a faint ✓: not marked, counted as duty" : "a red dot under a day: someone not marked yet"} · red outline: more than 12 days in a row without an off. CL and CH are this year's; +n: CH still to take.
       </p>
       <DetailsDialog id={details} data={data} lookups={ch} onClose={() => setDetails(null)} />
     </Card>
@@ -831,6 +842,8 @@ function TodayView({ data, cells, selected, setSelected, onMonth }: SelectProps 
                     <span className={MARK_TONE[info.mark]}>{MARK_SHORT[info.mark]}</span>
                   ) : info.holiday ? (
                     <span className="text-footnote text-slate-400">Holiday</span>
+                  ) : lookups.planned.has(k) ? (
+                    <span className="rounded border border-dashed border-brand-500 px-1 text-footnote font-medium text-brand-700">O planned</span>
                   ) : empty && dutyShown ? (
                     <span className="text-footnote text-low-ink/60">✓ Duty</span>
                   ) : day.date <= data.today ? (

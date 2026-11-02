@@ -1,9 +1,10 @@
 # Attendance, made easy — plan
 
-Status: **Phases 1 and 2 built** (2026-11-02, the user started them with the recommended answers: early offs allowed
+Status: **Phases 1, 2 and 3 built** (2026-11-02, the user started them with the recommended answers: early offs allowed
 with a warning, the second off after 12 days is a second off owed, red from 2 owed, the page opens on Offs; days not
 marked count as duty, from each person's starting point only, so nobody new shows weeks of duty; Start the register
-asks for the last off; phones have Offs and Today, computers also the Register). Phase 3 (planned offs) not built. Written 2026-11-02 (user request: "attendance is only half baked, user experience is
+asks for the last off; phones have Offs and Today, computers also the Register; planned offs are a table of their own,
+turned into off marks on their day, and must be after today: today's off is marked directly). Written 2026-11-02 (user request: "attendance is only half baked, user experience is
 horrible; make a plan for better UI and experience"). It builds on the register from `docs/ATTENDANCE_PLAN.md`
 (phases 1–3 built). Several items below **change committed behaviour**; they are marked **(changes committed: …)**
 and wait for the user's yes, as CLAUDE.md requires.

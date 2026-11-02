@@ -1,9 +1,10 @@
 // The attendance register for assistants (user request 2026-10-31, docs/ATTENDANCE_PLAN.md phase 3): read a month
 // (everyone's summary, or one person's days), and mark attendance as the register does (a staff action: needs Allow
 // changes and Allow staff actions, logged like every change). Both go through the app's own routes as the user.
+// Since 2026-11-02 (docs/ATTENDANCE_UX_PLAN.md phase 3) also plan_off: plan (or cancel) a weekly off ahead.
 import { z } from "zod";
 import { MARK_NAME, MARK_SHORT, dutyForOff, monthCounts, offByItself, offStatus, type AttendanceMark } from "../../shared/attendance";
-import type { AttendanceMonth, StaffList } from "../../shared/types";
+import type { AttendanceMonth, OffsBoard, StaffList } from "../../shared/types";
 import { clean, type Tool } from "./tools";
 import { Unclear, findEmployee, safely } from "./staff";
 
@@ -51,7 +52,7 @@ export const ATTENDANCE_READ_TOOLS: Tool[] = [
               thisMonth: { present: c.present, holidayDuty: c.holidayDuty, cl: c.cl, ch: c.ch, offs: c.off, absent: c.absent, leaveDays: c.leave, notMarked: c.notMarked },
               thisYear: { cl: totals.get(e.id)?.cl ?? 0, ch: totals.get(e.id)?.ch ?? 0, clPerYear: m.settings.clPerYear, chLimit: m.chLimits.find((x) => x.employeeId === e.id)?.limit ?? "no limit" },
               chToTake: m.chOpen.filter((o) => o.employeeId === e.id && o.expires >= m.today).map((o) => ({ holiday: o.holiday, name: o.name, takeBy: o.expires })),
-              weeklyOff: w ? { offsDue: w.offsDue, daysTowardsNext: `${w.towards} of ${m.settings.offEvery}`, daysOfDutyStillNeededForAnOff: dutyForOff(w.offsDue, w.towards, m.settings.offEvery), daysInARow: w.run, status: offStatus(w, m.settings).text, offsTakenEarly: w.offsDue < 0 ? -w.offsDue : undefined, overTheMostOn: w.long.length ? w.long : undefined } : undefined,
+              weeklyOff: w ? { offsDue: w.offsDue, daysTowardsNext: `${w.towards} of ${m.settings.offEvery}`, daysOfDutyStillNeededForAnOff: dutyForOff(w.offsDue, w.towards, m.settings.offEvery), daysInARow: w.run, status: offStatus(w, m.settings).text, plannedOffs: m.planned.filter((p) => p.employeeId === e.id).map((p) => p.date), offsTakenEarly: w.offsDue < 0 ? -w.offsDue : undefined, overTheMostOn: w.long.length ? w.long : undefined } : undefined,
               days: one
                 ? m.days.map((d) => {
                     const leave = m.leaves.find((l) => l.employeeId === e.id && l.from <= d.date && d.date <= l.to);
@@ -109,6 +110,35 @@ export const ATTENDANCE_STAFF_TOOLS: Tool[] = [
         data: clean({ done: `${MARK_NAME[mark]}: ${r.marked} marked`, leftOut: Object.keys(r.skipped).length ? r.skipped : undefined }),
         touched: r.marked ? [{ kind: "attendance", id: from, title: `Attendance ${from}${to !== from ? ` to ${to}` : ""}: ${names.length > 3 ? `${names.length} people` : names.join(", ")}` }] : [],
       };
+    }),
+  },
+  {
+    name: "plan_off",
+    title: "Plan an off",
+    write: true,
+    staff: true,
+    description:
+      "Plan a weekly off ahead for a weekly-off employee on a day after today (not a holiday or a day of leave); on its day it becomes an off in the register by itself. With cancel: true, cancel the off planned on that day instead. get_attendance gives each person's status (when the next off falls due) and the offs already planned." +
+      ASK,
+    input: z.object({
+      employee: z.string().describe("Name, PEN or id"),
+      date: day.describe("The day of the off (after today)"),
+      note: z.string().max(200).optional().describe("Why, e.g. asked for this day"),
+      cancel: z.boolean().optional().describe("Cancel the off planned on that day"),
+    }),
+    run: safely(async (ctx, a) => {
+      const staff = await ctx.api<StaffList>("/staff");
+      const e = findEmployee(staff, String(a.employee), false);
+      const date = String(a.date);
+      if (a.cancel) {
+        const board = await ctx.api<OffsBoard>("/attendance/offs");
+        const plan = board.people.find((p) => p.id === e.id)?.planned.find((p) => p.date === date);
+        if (!plan) throw new Unclear(`No off is planned for ${e.name} on ${date}.`);
+        await ctx.send("DELETE", `/attendance/plans/${plan.id}`);
+        return { data: { done: `Planned off of ${e.name} on ${date} cancelled` }, touched: [{ kind: "attendance", id: date, title: `Planned off cancelled: ${e.name}, ${date}` }] };
+      }
+      await ctx.send("POST", "/attendance/plans", { employeeId: e.id, date, note: a.note ? String(a.note) : "" });
+      return { data: { done: `Off planned for ${e.name} on ${date}` }, touched: [{ kind: "attendance", id: date, title: `Off planned: ${e.name}, ${date}` }] };
     }),
   },
 ];

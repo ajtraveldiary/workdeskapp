@@ -354,6 +354,10 @@ export function useAttendanceActions() {
     // Correct the count (docs/ATTENDANCE_UX_PLAN.md 4.4) and its Undo.
     correct: m((body: { employeeId: string; offsDue: number; towards: number; run: number; note: string }) => api<{ id: string }>("/attendance/corrections", { method: "POST", body })),
     uncorrect: m((id: string) => api(`/attendance/corrections/${id}`, { method: "DELETE" })),
+    // Planned offs (phase 3): plan, move, cancel.
+    plan: m((body: { employeeId: string; date: string; note?: string }) => api<{ id: string }>("/attendance/plans", { method: "POST", body })),
+    movePlan: m(({ id, date }: { id: string; date: string }) => api(`/attendance/plans/${id}`, { method: "PUT", body: { date } })),
+    cancelPlan: m((id: string) => api<{ employeeId: string; date: string; note: string }>(`/attendance/plans/${id}`, { method: "DELETE" })),
   };
 }
 // Start the register (docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point at once.

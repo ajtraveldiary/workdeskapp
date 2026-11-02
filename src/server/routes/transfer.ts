@@ -33,6 +33,7 @@ import {
   attendanceSettings,
   attendanceMarks,
   attendanceCorrections,
+  plannedOffs,
   holidays } from "../db/schema";
 import { DEFAULT_ATTENDANCE_SETTINGS, fromLastOff, type AttendanceSettings, type StartFigures } from "../../shared/attendance";
 import { timezone } from "../env";
@@ -1050,6 +1051,7 @@ const BACKUP: Record<BackupTable, TableInfo> = {
   attendanceSettings: { table: attendanceSettings as never },
   // Corrections of a weekly-off person's count (2026-11-02).
   attendanceCorrections: { table: attendanceCorrections as never, refs: { employeeId: { table: employees, required: true } } },
+  plannedOffs: { table: plannedOffs as never, refs: { employeeId: { table: employees, required: true } } },
 };
 type AnyTable = PgTable & { id: PgColumn; userId: PgColumn };
 

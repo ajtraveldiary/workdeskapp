@@ -514,6 +514,10 @@ export const attendanceCorrectionInput = z.object({
   run: z.number().int().min(0).max(90),
   note: z.string().trim().max(300).default(""),
 });
+// Plan an off (2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.7): a weekly-off person's off on a day after today, with an
+// optional note; moving one sends only the new day.
+export const plannedOffInput = z.object({ employeeId: z.uuid(), date: day, note: z.string().trim().max(200).default("") });
+export const plannedOffMove = z.object({ date: day });
 // Mark CH (phase 2): each cell with the holiday worked it is taken for.
 export const attendanceChInput = z.object({
   items: z.array(z.object({ employeeId: z.uuid(), date: day, holiday: day })).min(1).max(500),

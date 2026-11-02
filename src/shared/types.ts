@@ -533,6 +533,8 @@ export type AttendanceMonth = {
   edges: { employeeId: string; before: number; after: number }[];
   // Corrections of the count within the month (Correct the count, 2026-11-02): the figures as on the end of that day.
   corrections: { employeeId: string; date: string; offsDue: number; towards: number; run: number }[];
+  // Offs planned ahead in the month (phase 3), shown dotted until their day.
+  planned: { id: string; employeeId: string; date: string; note: string }[];
 };
 // The Offs board (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.6): every weekly-off person in the office
 // today with their figures as on today, the last 14 days, their last off, the latest corrections, and CL / CH this
@@ -548,6 +550,8 @@ export type OffsBoardPerson = {
   // A starting point (starting figures, a mark or a correction); without one the figures mean nothing yet.
   started: boolean;
   lastOff: string | null;
+  // Offs planned ahead (after today), soonest first (phase 3).
+  planned: { id: string; date: string; note: string }[];
   days: OffsBoardDay[];
   corrections: { id: string; date: string; offsDue: number; towards: number; run: number; note: string }[];
   cl: number;

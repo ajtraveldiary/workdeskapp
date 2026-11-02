@@ -285,7 +285,7 @@ function StartingFigures() {
                 {nameOf(id)}
                 <span className="block text-footnote text-slate-500">
                   As on {dayLabel(x.asOn)}: CL {x.clTaken}, CH to take {x.chOpen.length}
-                  {staff.employees.find((e) => e.id === id)?.offDay === "weekly" ? `, offs due ${x.offsDue}, ${x.towards} days towards the next` : ""}
+                  {staff.employees.find((e) => e.id === id)?.offDay === "weekly" ? `, ${x.lastOff ? `last off ${dayLabel(x.lastOff)}, ` : ""}offs owed ${x.offsDue}, ${x.towards} days carried` : ""}
                 </span>
               </button>
               <button type="button" onClick={() => remove(id)} aria-label={`Remove ${nameOf(id)}'s starting figures`} className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-urgent-ink active:scale-90">
@@ -317,10 +317,10 @@ function StartingFigures() {
               </Field>
               {weekly && (
                 <>
-                  <Field label="Offs due">
+                  <Field label="Offs owed">
                     <input type="number" inputMode="numeric" min={-30} max={60} step={1} className={inputClass} value={f.offsDue} onChange={(e) => setF({ ...f, offsDue: num(e.target.value) })} />
                   </Field>
-                  <Field label={`Days towards the next off (0–${s.offEvery - 1})`}>
+                  <Field label={`Days carried towards the next off (0–${s.offEvery - 1})`}>
                     <input type="number" inputMode="numeric" min={0} max={s.offEvery - 1} step={1} className={inputClass} value={f.towards} onChange={(e) => setF({ ...f, towards: num(e.target.value) })} />
                   </Field>
                 </>

@@ -145,7 +145,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   (saved at once, with Undo), or tick several and use the bar. **Start the register** puts everyone's starting point
   in at once: the day of each weekly-off person's last off (or the days since it) and offs owed from before, and the
   app works out their Day N; the starting-figures spreadsheet takes a "Last off on" column too. The register is the
-  third tab on computers.
+  third tab on computers. **Plan an off** ahead from a person's card: the day it falls due is suggested, the days
+  around it say how many of the same post are already off, and on its day the planned off becomes an off by itself
+  (a dotted O in the register until then; move or cancel it any time). Assistants can plan offs too.
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).

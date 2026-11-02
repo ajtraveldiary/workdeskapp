@@ -866,6 +866,23 @@ export const attendanceCorrections = pgTable(
   },
   (t) => [uniqueIndex("attendance_corrections_employee_date").on(t.employeeId, t.date), index("attendance_corrections_user").on(t.userId)],
 );
+// Offs planned ahead for weekly-off staff (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.7, phase 3): a day
+// after today; on the day it becomes an off mark by itself (settlePlannedOffs) and the plan is removed. Not counted
+// until then. One per person and day.
+export const plannedOffs = pgTable(
+  "planned_offs",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    note: text("note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("planned_offs_employee_date").on(t.employeeId, t.date), index("planned_offs_user_date").on(t.userId, t.date)],
+);
 export const attendanceSettings = pgTable("attendance_settings", {
   id: id(),
   userId: uuid("user_id").notNull().unique().references(() => users.id),

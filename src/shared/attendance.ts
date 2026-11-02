@@ -184,10 +184,10 @@ export function offsEarned(days: OffCheckDay[], start?: { offsDue: number; towar
 }
 // Days of duty (present, CL, CH…) still to count before an off can be taken: none while one is due.
 export const dutyForOff = (offsDue: number, towards: number, every: number) => (offsDue >= 1 ? 0 : (1 - offsDue) * every - towards);
-// "1 off due", or "4 more days for an off".
+// "1 off owed", or "4 more days for an off" (the office's words since 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.9).
 export function offLine(w: { offsDue: number; towards: number }, every: number) {
   const need = dutyForOff(w.offsDue, w.towards, every);
-  return need === 0 ? `${w.offsDue} ${w.offsDue === 1 ? "off" : "offs"} due` : `${need} more ${need === 1 ? "day" : "days"} for an off`;
+  return need === 0 ? `${w.offsDue} ${w.offsDue === 1 ? "off" : "offs"} owed` : `${need} more ${need === 1 ? "day" : "days"} for an off`;
 }
 
 // Where a weekly-off person stands (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.1), for the Offs board,
