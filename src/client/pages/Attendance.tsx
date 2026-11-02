@@ -25,10 +25,12 @@
 // tick people and use the bar. While days not marked count as duty (Settings › Attendance), a past working day left
 // empty shows a faint ✓ (cells' `assumed`), counts as present in the summary and the CSV, and gets no red dot.
 // Phase 3: offs planned ahead (Offs board › Plan an off) show as a dotted O in the register and "O planned" in Today
-// until their day, when they become offs.
+// until their day, when they become offs. Assist plan (docs/ATTENDANCE_ASSIST_PLAN.md phase 1): Today's circles tick
+// Present directly and names open Person days (components/PersonDays.tsx); Mark for someone (the + button on phones)
+// opens it after asking who.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
-import { CalendarClock, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
+import { CalendarClock, CalendarPlus, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
 import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
@@ -37,9 +39,10 @@ import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendance, useAttendanceActions, useMe, useOffsBoard, useOfficeProfile, type AttendanceCell } from "../api";
 import { OffsBoard } from "../components/OffsBoard";
+import { openPersonDays } from "../components/PersonDays";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
-import { Button, Card, ErrorNote, Modal, PopPanel, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Fab, Modal, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
 
 type Person = AttendanceMonth["employees"][number];
 type Markable = Exclude<AttendanceMark, "ch">;
@@ -137,18 +140,28 @@ export function AttendancePage() {
     }
   };
   const due = board ? board.people.filter((p) => p.started && needsOff(offStatus(p, board))).length : 0;
+  // Mark for someone (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): Person days after asking who; a button beside the tabs on
+  // wider screens, the round + button on phones.
   const tabs = (
-    <div className="-mt-2 mb-3 print:hidden sm:-mt-3">
-      <Segmented
-        oneRow
-        value={view}
-        onChange={choose}
-        options={[
-          { value: "offs", label: "Offs", count: due || undefined, tone: due ? "urgent" : undefined },
-          { value: "today", label: "Today" },
-          ...(wide ? [{ value: "register" as const, label: "Register" }] : []),
-        ]}
-      />
+    <div className="-mt-2 mb-3 flex items-center gap-2 print:hidden sm:-mt-3">
+      <div className="min-w-0 flex-1">
+        <Segmented
+          oneRow
+          value={view}
+          onChange={choose}
+          options={[
+            { value: "offs", label: "Offs", count: due || undefined, tone: due ? "urgent" : undefined },
+            { value: "today", label: "Today" },
+            ...(wide ? [{ value: "register" as const, label: "Register" }] : []),
+          ]}
+        />
+      </div>
+      {wide && (
+        <Button size="sm" variant="primary" onClick={() => openPersonDays()}>
+          <CalendarPlus size={15} /> Mark for someone
+        </Button>
+      )}
+      <Fab label="Mark for someone" onClick={() => openPersonDays()} />
     </div>
   );
   if (view === "offs")
@@ -224,7 +237,7 @@ export function AttendancePage() {
       ) : (
         <>
           <ChDueSoon data={data} />
-          <TodayView data={data} cells={cells} selected={selected} setSelected={setSelected} onMonth={setMonth} />
+          <TodayView data={data} cells={cells} onMonth={setMonth} />
         </>
       )}
       {data && (
@@ -744,40 +757,56 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
 }
 
 // Today (phase 2, user request 2026-11-02; every screen size, in place of the phones' day view): one day at a time
-// (today to start; ‹ › and Today), everyone in the office with their state. Tap a person for a small menu (an action
-// sheet on phones) of the marks that fit the day: Duty, Off (weekly-off staff), CL, Half day CL, CH… (when a holiday
-// worked is open for it; the CH pop-up), Absent and Clear; saved at once, with Undo putting back what was there. The
-// tick at the start of a row selects people for the bar at the bottom instead (Select everyone too). While days not
+// (today to start; ‹ › and Today), everyone in the office with their state. Since the assist plan
+// (docs/ATTENDANCE_ASSIST_PLAN.md 3.2, the user ticks everyone daily): each row's circle is the tick — tap marks
+// Present at once, tap again clears it; a row with another mark shows that mark instead, and leave or a holiday needs
+// no tick. Tapping a name opens Person days (openPersonDays) for an off, CL, CH and the rest, on any day. A progress
+// line counts who is done, and "Tick the other n present" marks the rest in one go (Undo clears them). While days not
 // marked count as duty, a day left empty shows "Duty" faintly.
-function TodayView({ data, cells, selected, setSelected, onMonth }: SelectProps & { onMonth: (m: string) => void }) {
+function TodayView({ data, cells, onMonth }: { data: AttendanceMonth; cells: Cells; onMonth: (m: string) => void }) {
   const inMonth = data.today.startsWith(data.month);
   const [date, setDate] = useState(inMonth ? data.today : data.days[0]!.date);
   useEffect(() => setDate(inMonth ? data.today : data.days[0]!.date), [data.month, data.today, inMonth]);
   const i = Math.max(0, data.days.findIndex((d) => d.date === date));
   const day = data.days[i]!;
-  const [menu, setMenu] = useState<string | null>(null);
-  const [chCell, setChCell] = useState<AttendanceCell | null>(null);
+  const { mark, clear } = useAttendanceActions();
   const go = (n: number) => {
     const j = i + n;
     if (j < 0) onMonth(shiftMonth(data.month, -1));
     else if (j >= data.days.length) onMonth(shiftMonth(data.month, 1));
     else setDate(data.days[j]!.date);
-    setSelected(new Set());
-    setMenu(null);
   };
-  const toToday = () => {
-    if (inMonth) setDate(data.today);
-    else onMonth(data.today.slice(0, 7));
-    setSelected(new Set());
-  };
+  const toToday = () => (inMonth ? setDate(data.today) : onMonth(data.today.slice(0, 7)));
   const people = data.employees.filter((e) => !cells.info(e, day.date).out);
   const lookups = useChLookups(data);
-  const keys = people.filter((e) => cells.selectable(e, day.date)).map((e) => key(e.id, day.date));
-  const all = keys.length > 0 && keys.every((k) => selected.has(k));
-  const toggle = (k: string) => {
-    const next = new Set(selected);
-    next.has(k) ? next.delete(k) : next.add(k);
-    setSelected(next);
+  const infoOf = (e: Person) => cells.info(e, day.date) as Exclude<CellInfo, { out: true }>;
+  const cell = (e: Person) => ({ employeeId: e.id, date: day.date });
+  const future = day.date > data.today;
+  // Who needs ticking: working days (not a holiday or a Sunday-off Sunday) without leave.
+  const working = people.filter((e) => !infoOf(e).holiday && !infoOf(e).leave);
+  const left = working.filter((e) => !infoOf(e).mark);
+  const count = (m: AttendanceMark | AttendanceMark[]) => working.filter((e) => [m].flat().includes(infoOf(e).mark!)).length;
+  const onLeave = people.filter((e) => infoOf(e).leave).length;
+  const progress = [
+    !future && `${working.length - left.length} of ${working.length} done`,
+    count("present") && `${count("present")} present`,
+    count("off") && `${count("off")} off`,
+    count(["cl", "cl_half"]) && `${count(["cl", "cl_half"])} CL`,
+    count("ch") && `${count("ch")} CH`,
+    count("absent") && `${count("absent")} absent`,
+    onLeave && `${onLeave} on leave`,
+  ].filter(Boolean);
+  // The row being saved, so its circle waits.
+  const saving = (e: Person) =>
+    (mark.isPending && mark.variables?.cells.length === 1 && mark.variables.cells[0]!.employeeId === e.id) || (clear.isPending && clear.variables?.length === 1 && clear.variables[0]!.employeeId === e.id);
+  const tick = (e: Person) => {
+    const info = infoOf(e);
+    if (info.mark === "present") clear.mutate([cell(e)]);
+    else if (!info.mark) mark.mutate({ cells: [cell(e)], mark: "present" });
+  };
+  const tickRest = () => {
+    const cellsLeft = left.map(cell);
+    mark.mutate({ cells: cellsLeft, mark: "present" }, { onSuccess: (r) => showUndo({ message: `Present: ${r.marked} ticked`, onUndo: r.marked ? () => clear.mutate(cellsLeft) : undefined }) });
   };
   const dutyShown = data.settings.assumeDuty && day.date <= data.today;
   return (
@@ -802,33 +831,42 @@ function TodayView({ data, cells, selected, setSelected, onMonth }: SelectProps 
           <ChevronRight size={18} />
         </button>
       </div>
-      {data.settings.assumeDuty && <p className="border-b border-line px-3 py-1.5 text-footnote text-slate-500">Days not marked count as duty: tap a person only for an off, leave or absence.</p>}
-      <button type="button" onClick={() => setSelected(all ? new Set() : new Set(keys))} aria-pressed={all} className="flex w-full items-center gap-3 border-b border-line px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-slate-50">
-        <Tick on={all} />
-        {all ? "Unselect everyone" : "Select everyone"}
-      </button>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-2">
+        <p className={cx("min-w-0 flex-1 text-footnote [overflow-wrap:anywhere]", !future && working.length > 0 && left.length === 0 ? "font-medium text-low-ink" : "text-slate-600")}>
+          {!future && working.length > 0 && left.length === 0 && <Check size={14} className="mr-1 inline -translate-y-px" aria-hidden />}
+          {progress.join(" · ") || (future ? "Nothing marked for this day yet" : "Nobody to tick on this day")}
+        </p>
+        {!future && left.length > 0 && !data.settings.assumeDuty && (
+          <Button size="sm" variant="ghost" onClick={tickRest} disabled={mark.isPending}>
+            Tick the other {left.length} present
+          </Button>
+        )}
+      </div>
       <ul className="divide-y divide-line">
         {people.map((e) => {
-          const info = cells.info(e, day.date) as Exclude<CellInfo, { out: true }>;
-          const k = key(e.id, day.date);
-          const empty = !info.mark && !info.leave && !info.holiday;
+          const info = infoOf(e);
+          const other = info.mark && info.mark !== "present";
           return (
             <li key={e.id} className={cx("relative flex items-stretch", info.holiday && "bg-slate-50")}>
-              {info.leave ? (
+              {info.leave || (info.holiday && !info.mark) ? (
                 <span className="w-12 shrink-0" />
+              ) : other ? (
+                <button type="button" onClick={() => openPersonDays(e.id)} aria-label={`${e.name}: ${MARK_NAME[info.mark!]}. Change`} className="flex w-12 shrink-0 items-center justify-center">
+                  <span className={cx("rounded-md bg-slate-100 px-1.5 py-0.5 text-footnote", MARK_TONE[info.mark!])}>{MARK_SHORT[info.mark!]}</span>
+                </button>
               ) : (
-                <button type="button" onClick={() => toggle(k)} aria-pressed={selected.has(k)} aria-label={`Select ${e.name}`} className="flex w-12 shrink-0 items-center justify-center">
-                  <Tick on={selected.has(k)} />
+                <button
+                  type="button"
+                  onClick={() => tick(e)}
+                  disabled={future || saving(e)}
+                  aria-pressed={info.mark === "present"}
+                  aria-label={`${e.name}: ${info.mark === "present" ? "present, tap to clear" : "tick present"}`}
+                  className="flex w-12 shrink-0 items-center justify-center disabled:opacity-40"
+                >
+                  {saving(e) ? <span className="size-6 animate-pulse rounded-full bg-brand-100" /> : <Tick on={info.mark === "present"} />}
                 </button>
               )}
-              <button
-                type="button"
-                disabled={!!info.leave}
-                onClick={() => setMenu(menu === e.id ? null : e.id)}
-                aria-haspopup="menu"
-                aria-expanded={menu === e.id}
-                className="flex min-w-0 flex-1 items-center gap-3 py-2 pr-3 text-left enabled:hover:bg-slate-50/80"
-              >
+              <button type="button" onClick={() => openPersonDays(e.id)} className="flex min-w-0 flex-1 items-center gap-3 py-2 pr-3 text-left hover:bg-slate-50/80" aria-label={`${e.name}: mark days`}>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm text-ink [overflow-wrap:anywhere]">{e.name}</span>
                   <span className="block truncate text-footnote text-slate-500">{[e.designation, e.offDay === "weekly" && OFF_DAY_LABELS.weekly].filter(Boolean).join(" · ")}</span>
@@ -839,107 +877,21 @@ function TodayView({ data, cells, selected, setSelected, onMonth }: SelectProps 
                   {info.leave ? (
                     <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-footnote font-semibold text-brand-700">{info.leave.short}</span>
                   ) : info.mark ? (
-                    <span className={MARK_TONE[info.mark]}>{MARK_SHORT[info.mark]}</span>
+                    <span className={cx("text-footnote", MARK_TONE[info.mark])}>{MARK_NAME[info.mark]}</span>
                   ) : info.holiday ? (
                     <span className="text-footnote text-slate-400">Holiday</span>
-                  ) : lookups.planned.has(k) ? (
+                  ) : lookups.planned.has(key(e.id, day.date)) ? (
                     <span className="rounded border border-dashed border-brand-500 px-1 text-footnote font-medium text-brand-700">O planned</span>
-                  ) : empty && dutyShown ? (
+                  ) : dutyShown ? (
                     <span className="text-footnote text-low-ink/60">✓ Duty</span>
-                  ) : day.date <= data.today ? (
-                    <span className="text-footnote text-slate-400">Not marked</span>
                   ) : null}
                 </span>
               </button>
-              {menu === e.id && <QuickMark e={e} date={day.date} data={data} cells={cells} lookups={lookups} onClose={() => setMenu(null)} onCh={(c) => setChCell(c)} />}
             </li>
           );
         })}
       </ul>
-      {chCell && <ChPicker data={data} cells={cells} lookups={lookups} picked={[chCell]} replace onClose={() => setChCell(null)} onDone={() => setChCell(null)} />}
     </Card>
-  );
-}
-
-// The marks that fit one person's day, saved at once with Undo (Today). A holiday takes only Duty (holiday duty, which
-// earns a CH); Off is for weekly-off staff; CH… opens the CH pop-up when a holiday worked is open for the day.
-function QuickMark({ e, date, data, cells, lookups, onClose, onCh }: { e: Person; date: string; data: AttendanceMonth; cells: Cells; lookups: Lookups; onClose: () => void; onCh: (c: AttendanceCell) => void }) {
-  const { mark, clear, markCh } = useAttendanceActions();
-  const box = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const away = (ev: MouseEvent) => !box.current?.contains(ev.target as Node) && !(ev.target as HTMLElement).closest?.("[aria-haspopup=menu]") && onClose();
-    const esc = (ev: KeyboardEvent) => ev.key === "Escape" && onClose();
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [onClose]);
-  const info = cells.info(e, date) as Exclude<CellInfo, { out: true }>;
-  const cell = { employeeId: e.id, date };
-  const k = key(e.id, date);
-  const prev = info.mark;
-  const prevHoliday = prev === "ch" ? lookups.forCell.get(k) : undefined;
-  // Undo puts back what was there: the old mark (a CH with its holiday), or nothing.
-  const restore = () => {
-    if (prev === "ch" && prevHoliday) markCh.mutate({ items: [{ ...cell, holiday: prevHoliday }], replace: true });
-    else if (prev && prev !== "ch") mark.mutate({ cells: [cell], mark: prev, replace: true });
-    else clear.mutate([cell]);
-  };
-  const w = lookups.weekly.get(e.id);
-  const apply = (m: Markable) => {
-    onClose();
-    // An off before one is owed is still marked (2026-11-02); say so for today's.
-    const early = m === "off" && date === data.today && w && dutyForOff(w.offsDue, w.towards, data.settings.offEvery) > 0;
-    mark.mutate(
-      { cells: [cell], mark: m, replace: true },
-      {
-        onSuccess: (r) =>
-          showUndo({
-            message: r.marked ? `${MARK_NAME[m]}${early ? " (taken early)" : ""}: ${e.name}` : `Not marked: ${Object.keys(r.skipped).join(", ")}`,
-            onUndo: r.marked ? restore : undefined,
-          }),
-      },
-    );
-  };
-  const items: { label: string; run: () => void; hidden?: boolean; tone?: string }[] = info.holiday
-    ? [{ label: "Holiday duty (earns a CH)", run: () => apply("present"), hidden: prev === "present" }]
-    : [
-        { label: "Duty", run: () => apply("present"), hidden: prev === "present" },
-        { label: "Weekly off", run: () => apply("off"), hidden: e.offDay !== "weekly" || prev === "off" },
-        { label: "Casual leave", run: () => apply("cl"), hidden: prev === "cl" },
-        { label: "Half day casual leave", run: () => apply("cl_half"), hidden: prev === "cl_half" },
-        {
-          label: "Compensation leave (CH)…",
-          run: () => {
-            onClose();
-            onCh(cell);
-          },
-          hidden: prev === "ch" || !(lookups.open.get(e.id) ?? []).some((o) => chFits(o, date)),
-        },
-        { label: "Absent", run: () => apply("absent"), hidden: prev === "absent", tone: "text-urgent-ink" },
-      ];
-  if (prev)
-    items.push({
-      label: "Clear the mark",
-      run: () => {
-        onClose();
-        clear.mutate([cell], { onSuccess: (r) => showUndo({ message: r.cleared ? `Mark cleared: ${e.name}` : "Kept: its CH is taken", onUndo: r.cleared ? restore : undefined }) });
-      },
-    });
-  return (
-    <div ref={box}>
-      <PopPanel onClose={onClose} title={`${e.name}, ${dayLabel(date)}`} className="absolute top-full right-2 z-30 -mt-1 w-60 rounded-xl border border-line bg-white p-1 shadow-lg">
-        {items
-          .filter((it) => !it.hidden)
-          .map((it) => (
-            <button key={it.label} type="button" onClick={it.run} className={cx("block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 pointer-coarse:py-2.5", it.tone ?? "text-ink")}>
-              {it.label}
-            </button>
-          ))}
-      </PopPanel>
-    </div>
   );
 }
 

@@ -486,7 +486,7 @@ export const attendanceSettingsInput = z.object({
   start: z.record(z.uuid(), startFigures).default({}),
   offEvery: z.number().int().min(2).max(13).default(6),
   maxRun: z.number().int().min(3).max(31).default(12),
-  assumeDuty: z.boolean().default(true),
+  assumeDuty: z.boolean().default(false),
 });
 // Start the register (2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point as on a day. Weekly-off
 // staff: the last off (or the days since it) and offs owed from before; everyone: CL taken this year.

@@ -393,6 +393,13 @@
       "when": 1793616666792,
       "tag": "0055_planned_offs",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1793640092618,
+      "tag": "0056_attendance_tick_daily",
+      "breakpoints": true
     }
   ]
 }

@@ -11,9 +11,10 @@
 // the date box; a note), planned offs on the card ("planned Thu 5 Nov") and in the sheet with Move and Cancel; on the
 // day a plan becomes an off by itself.
 import { useMemo, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+
 import { CalendarCheck, CalendarClock, CalendarPlus, Check, Minus, Play, Plus, SlidersHorizontal, TableProperties } from "lucide-react";
 import { openStartRegister } from "./StartRegister";
+import { openPersonDays } from "./PersonDays";
 import type { OffsBoard as Board, OffsBoardDay, OffsBoardPerson } from "../../shared/types";
 import { MARK_NAME, dutyForOff, offStatus, type OffTone } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
@@ -304,9 +305,9 @@ function PersonSheet({ p, board, onRegister }: { p: OffsBoardPerson; board: Boar
           <Button size="sm" onClick={() => setFixing(true)} className="flex-1">
             <SlidersHorizontal size={15} /> Correct the count
           </Button>
-          <Link to={`/markattendance?employee=${p.id}`} className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-line px-3 text-footnote font-medium whitespace-nowrap text-ink hover:bg-slate-50 active:scale-[0.97] pointer-coarse:h-9">
-            <CalendarClock size={15} /> CL / CH / days
-          </Link>
+          <Button size="sm" onClick={() => openPersonDays(p.id)} className="flex-1">
+            <CalendarClock size={15} /> Mark days
+          </Button>
           <Button size="sm" variant="ghost" onClick={onRegister} className="flex-1">
             <TableProperties size={15} /> Register
           </Button>

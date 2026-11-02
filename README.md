@@ -148,6 +148,12 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   third tab on computers. **Plan an off** ahead from a person's card: the day it falls due is suggested, the days
   around it say how many of the same post are already off, and on its day the planned off becomes an off by itself
   (a dotted O in the register until then; move or cancel it any time). Assistants can plan offs too.
+- **Mark days for someone:** when someone says "I'm off tomorrow and on CL the day after", open them (tap their name
+  in Today, or the + / Mark for someone button and pick them) and see their next three weeks: tap tomorrow, tap Off;
+  tap the day after, tap CL. Saved at once, with Undo; future days are drawn lighter until they come. Each button says
+  before you tap what it would cause (an off taken early, CL past 20, past 12 days in a row, no holiday worked for a
+  CH). In **Today**, each person's circle is the tick: tap to mark present, tap again to clear, with "12 of 16 done"
+  at the top and "Tick the other n present" for the rest.
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).

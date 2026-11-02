@@ -71,7 +71,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 37: the summary carries attendanceOffs and attendance months carry corrections (easier attendance, 2026-11-02).
 // 38: attendance settings carry assumeDuty, months' weekly figures countFrom, the Offs board started / assumeDuty (2026-11-02).
 // 39: the Offs board and attendance months carry planned offs (attendance phase 3, 2026-11-02).
-export const CACHE_VERSION = "39";
+// 40: attendance settings assumeDuty off by default; Person days (2026-11-02).
+export const CACHE_VERSION = "40";
 
 export async function clearSavedData() {
   queryClient.clear();

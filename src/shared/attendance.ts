@@ -30,11 +30,18 @@ export type AttendanceSettings = {
   // Weekly off (the user's rules): counted days that earn an off (6), and the most days in a row without one (12).
   offEvery: number;
   maxRun: number;
-  // Count days not marked as duty (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.2, on to start): a past
-  // working day with no mark is duty, so only the exceptions (offs, CL, CH, absences) need marking.
+  // Count days not marked as duty (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.2): a past working day with
+  // no mark is duty, so only the exceptions (offs, CL, CH, absences) need marking. Off to start since the same day
+  // (the user ticks everyone daily, docs/ATTENDANCE_ASSIST_PLAN.md; migration 0056 turned saved settings off).
   assumeDuty: boolean;
 };
-export const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = { secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12, assumeDuty: true };
+export const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = { secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12, assumeDuty: false };
+// Monday of a day's week (the person's days start on one).
+export function mondayOf(day: string) {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
 // A past working day with no mark, taken as duty while assumeDuty is on (today only once it is over).
 export const assumedDuty = (settings: { assumeDuty?: boolean }, date: string, today: string) => settings.assumeDuty !== false && date < today;
 

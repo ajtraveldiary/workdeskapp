@@ -42,6 +42,7 @@ import { RemoveChooserHost } from "./components/RemoveChooser";
 import { SystemTaskChooserHost } from "./components/SystemTaskChooser";
 import { IncrementDialogHost } from "./components/IncrementDialog";
 import { StartRegisterHost } from "./components/StartRegister";
+import { PersonDaysHost } from "./components/PersonDays";
 import { SidePanel } from "./components/SidePanel";
 import { PageErrorBoundary } from "./components/ErrorBoundary";
 import { usePhone } from "./components/sheet";
@@ -186,6 +187,7 @@ function Shell({ children }: { children: ReactNode }) {
       <SystemTaskChooserHost />
       <IncrementDialogHost />
       <StartRegisterHost />
+      <PersonDaysHost />
       <EventDialogHost />
       <EventDetailsHost />
       <IconBadge />

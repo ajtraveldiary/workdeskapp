@@ -559,5 +559,25 @@ export type OffsBoardPerson = {
   chLimit: number | null;
   chOpen: { holiday: string; name: string; expires: string }[];
 };
+// Person days (user request 2026-11-02, docs/ATTENDANCE_ASSIST_PLAN.md 3.1): one person's three weeks from a Monday,
+// with what the register keeper needs to mark them and to warn before saving: each day's mark (a CH with its
+// holiday), leave, holiday, planned off; the weekly-off figures when the window starts (`before`) and today; CL / CH
+// this year, the holidays worked with CH open, and the days of absence in a row just before and after the window.
+export type PersonDay = { date: string; weekday: number; holiday: string | null; mark: import("./attendance").AttendanceMark | null; chHoliday: string | null; leave: string | null; out: boolean; planned: boolean };
+export type PersonDays = {
+  today: string;
+  from: string;
+  to: string;
+  settings: { offEvery: number; maxRun: number; clPerYear: number; assumeDuty: boolean };
+  employee: { id: string; name: string; designation: string | null; offDay: import("./staff").OffDay; permanent: boolean };
+  days: PersonDay[];
+  weekly: { countFrom: string | null; offsDue: number; towards: number; run: number; dueBefore: number; towardsBefore: number; runBefore: number } | null;
+  lastOff: string | null;
+  cl: number;
+  ch: number;
+  chLimit: number | null;
+  chOpen: import("./attendance").ChOpen[];
+  edges: { before: number; after: number };
+};
 export type OffsBoard = { today: string; offEvery: number; maxRun: number; clPerYear: number; assumeDuty: boolean; people: OffsBoardPerson[]; sundayOff: number };
 export type Holiday = { id: string; date: string; name: string };
