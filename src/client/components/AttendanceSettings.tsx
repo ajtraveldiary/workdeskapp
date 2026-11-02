@@ -3,7 +3,8 @@
 // holidays (a switch) and the days of casual leave a year. The register shades these days for everyone. Phase 2: the
 // CH limit a year of each post (G.O.(Ms) 43/2021/H&FWD) and each employee's starting figures.
 import { useEffect, useState, type FormEvent } from "react";
-import { CalendarDays, Check, ChevronLeft, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Play, Plus, Trash2, X } from "lucide-react";
+import { openStartRegister } from "./StartRegister";
 import { CH_LIMIT_CHOICES, DEFAULT_ATTENDANCE_SETTINGS, WEEKDAY_LETTER, guessChLimit, isSecondSaturday, monthDays, monthLabel, shiftMonth, weekdayOf, type StartFigures } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { useAttendanceActions, useAttendanceSettings, useHolidays, useMe, useStaff } from "../api";
@@ -156,6 +157,14 @@ function RegisterSettings() {
         <input type="checkbox" className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={s.secondSaturday} onChange={(e) => saveSettings.mutate({ ...s, secondSaturday: e.target.checked })} />
         <span className="text-sm text-ink">Second Saturdays are holidays</span>
       </label>
+      {/* Days not marked count as duty (2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.2): only the exceptions are marked. */}
+      <label className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg px-1.5 py-2 hover:bg-slate-50">
+        <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={s.assumeDuty} onChange={(e) => saveSettings.mutate({ ...s, assumeDuty: e.target.checked })} />
+        <span className="text-sm text-ink">
+          Count days not marked as duty
+          <span className="block text-footnote text-slate-500">Mark only offs, CL, CH, absences and the like; a past working day left empty is a day of duty (a faint ✓ in the register). Off: every day has to be ticked.</span>
+        </span>
+      </label>
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-slate-700">Casual leave a year (days)</span>
@@ -260,8 +269,14 @@ function StartingFigures() {
   const num = (v: string) => (v.trim() === "" ? 0 : Number(v));
   return (
     <Card className="p-5">
-      <h2 className="font-semibold text-slate-900">Starting figures</h2>
-      <p className="mt-1 text-sm text-slate-600">For a register started part way through the year: what each person had already, as on a date. The register counts on from the day after.</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="min-w-0 flex-1 font-semibold text-slate-900">Starting figures</h2>
+        {/* Everyone at once, from each person's last off (2026-11-02). */}
+        <Button size="sm" variant="primary" onClick={() => openStartRegister()}>
+          <Play size={15} /> Start the register
+        </Button>
+      </div>
+      <p className="mt-1 text-sm text-slate-600">For a register started part way through the year: what each person had already, as on a date. The register counts on from the day after. Start the register sets everyone at once; below, one person at a time.</p>
       {Object.keys(s.start).length > 0 && (
         <ul className="mt-3 divide-y divide-line rounded-lg border border-line">
           {Object.entries(s.start).map(([id, x]) => (

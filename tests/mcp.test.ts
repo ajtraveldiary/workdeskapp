@@ -371,6 +371,8 @@ describe("MCP server", () => {
     const off = await call(at, "mark_attendance", { date: "2026-10-05", mark: "present" });
     expect(off.isError).toBe(true);
     await api("PUT", "/assistant/settings", { allowChanges: true, perHour: 100, allowStaff: true });
+    // Every day ticked (days not marked count as nothing), so the month counts only what is marked.
+    await api("PUT", "/attendance/settings", { assumeDuty: false });
     // Everyone on 2 Oct (holiday duty) and 5 Oct; Anitha on CL 6–7 Oct; a CH for the holiday on 8 Oct.
     expect(data(await call(at, "mark_attendance", { date: "2026-10-05", mark: "present" })).done).toBe("Present: 2 marked");
     await call(at, "mark_attendance", { date: "2026-10-02", mark: "present" });

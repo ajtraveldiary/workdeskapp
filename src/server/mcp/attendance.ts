@@ -56,7 +56,7 @@ export const ATTENDANCE_READ_TOOLS: Tool[] = [
                 ? m.days.map((d) => {
                     const leave = m.leaves.find((l) => l.employeeId === e.id && l.from <= d.date && d.date <= l.to);
                     const k = mark.get(d.date);
-                    return `${d.date}: ${leave ? leave.short : k ? `${MARK_SHORT[k]} (${MARK_NAME[k]})` : offByItself(d.date, d.holiday, e.offDay) ? (d.holiday?.name ?? "Sunday") : d.date <= m.today ? "not marked" : "-"}`;
+                    return `${d.date}: ${leave ? leave.short : k ? `${MARK_SHORT[k]} (${MARK_NAME[k]})` : offByItself(d.date, d.holiday, e.offDay) ? (d.holiday?.name ?? "Sunday") : m.settings.assumeDuty && d.date < m.today ? "duty (not marked, counted as duty)" : d.date <= m.today ? "not marked" : "-"}`;
                   })
                 : undefined,
             };

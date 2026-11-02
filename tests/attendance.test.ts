@@ -9,8 +9,10 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { DEFAULT_ATTENDANCE_SETTINGS, dutyForOff, needsOff, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
+import { DEFAULT_ATTENDANCE_SETTINGS, dutyForOff, fromLastOff, needsOff, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
 import type { AttendanceMonth, AuditEvent, LeaveType, OffsBoard } from "../src/shared/types";
+import type { AttendanceSettings } from "../src/shared/attendance";
+import { dayLabel } from "../src/shared/reminderSchedule";
 import { offsReminder, unmarkedToday } from "../src/server/routes/attendance";
 import { BACKUP_TABLES } from "../src/shared/transfer";
 
@@ -141,7 +143,7 @@ describe("attendance register", () => {
     expect((await call("GET", "/attendance/holidays?year=2026")).json.holidays).toMatchObject([{ date: "2026-12-25", name: "ക്രിസ്മസ്" }]);
     expect((await call("DELETE", "/attendance/holidays/2026-12-25")).status).toBe(200);
     expect((await call("DELETE", "/attendance/holidays/2026-12-25")).status).toBe(404);
-    expect((await call("GET", "/attendance/settings")).json.settings).toEqual({ secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12 });
+    expect((await call("GET", "/attendance/settings")).json.settings).toEqual({ secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12, assumeDuty: true });
     await call("PUT", "/attendance/settings", { secondSaturday: false, clPerYear: 20 });
     expect((await month("2026-10")).days.find((d) => d.date === "2026-10-10")!.holiday).toBeNull();
     const h = await history();
@@ -219,7 +221,7 @@ describe("attendance register", () => {
   it("weekly-off staff: 6 counted days earn an off, offs taken come off, more than 12 in a row is flagged", async () => {
     const w = await add({ name: "Weekly", offDay: "weekly" });
     const s = await add({ name: "Sunday off" });
-    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 0, towards: 0 } } });
+    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 0, towards: 0 } }, assumeDuty: false });
     const sep = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => ({ employeeId: w, date: `2026-09-${String(from + i).padStart(2, "0")}` }));
     // 1–7 Sep counted (6 Sep is a Sunday, worked), an off on 8 Sep, then 13 days in a row (12 Sep, the second
     // Saturday, worked) with one of them CL.
@@ -234,11 +236,11 @@ describe("attendance register", () => {
     await call("POST", "/attendance/mark", { cells: sep(25, 26), mark: "present" });
     const m = await month("2026-09");
     // Counted: 7 + 13 + 2 = 22 → 3 offs earned, 1 taken; 4 towards the next. The run is 2 since the leave.
-    expect(m.weekly).toEqual([{ employeeId: w, offsDue: 2, towards: 4, run: 2, long: ["2026-09-21"], runBefore: 0, dueBefore: 0, towardsBefore: 0 }]);
+    expect(m.weekly).toEqual([{ employeeId: w, countFrom: "2026-09-01", offsDue: 2, towards: 4, run: 2, long: ["2026-09-21"], runBefore: 0, dueBefore: 0, towardsBefore: 0 }]);
     // October starts with the run of 26 Sep carried in (27–30 Sep not marked keep it).
     expect((await month("2026-10")).weekly[0]).toMatchObject({ runBefore: 2 });
     // 7 days earn an off instead of 6.
-    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 0, towards: 0 } }, offEvery: 7 });
+    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 0, towards: 0 } }, offEvery: 7, assumeDuty: false });
     expect((await month("2026-09")).weekly[0]).toMatchObject({ offsDue: 2, towards: 1 });
     // Sunday-off staff have no weekly figures.
     expect(m.weekly.some((x) => x.employeeId === s)).toBe(false);
@@ -246,7 +248,7 @@ describe("attendance register", () => {
 
   it("an off before it is earned is still marked, counted as taken early and paid back by the next one", async () => {
     const w = await add({ name: "Weekly", offDay: "weekly" });
-    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 0, towards: 0 } } });
+    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 0, towards: 0 } }, assumeDuty: false });
     const day = (d: number) => ({ employeeId: w, date: `2026-09-${String(d).padStart(2, "0")}` });
     // 1–3 Sep present and 4 Sep CL: 4 counted; an off on 5 Sep comes 2 days early but is marked (since 2026-11-02).
     await call("POST", "/attendance/mark", { cells: [1, 2, 3].map(day), mark: "present" });
@@ -386,7 +388,7 @@ describe("attendance register", () => {
   it("sums up a person's month: present, holiday duty, CL with halves, CH, offs, absent, leave, not marked", async () => {
     const a = await add({ name: NAME, offDay: "weekly" });
     // An off due from before the register, so the off on 5 Sep is earned.
-    await call("PUT", "/attendance/settings", { start: { [a]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 1, towards: 0 } } });
+    await call("PUT", "/attendance/settings", { start: { [a]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 1, towards: 0 } }, assumeDuty: false });
     await call("POST", "/attendance/holidays", { date: "2026-09-15", name: "Onam" });
     await call("POST", "/attendance/mark", { cells: ["2026-09-01", "2026-09-02", "2026-09-15"].map((date) => ({ employeeId: a, date })), mark: "present" });
     await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-09-03" }], mark: "cl" });
@@ -407,6 +409,7 @@ describe("attendance register", () => {
     const today = (await call("GET", "/me")).json.today as string;
     const at = (h: number) => new Date(`${today}T${String(h).padStart(2, "0")}:30:00+05:30`);
     const userId = (await db.select().from(schema.users))[0]!.id;
+    await call("PUT", "/attendance/settings", { assumeDuty: false });
     // Not kept yet: no marks in the last 30 days.
     expect(await unmarkedToday(db, userId, today, "Asia/Kolkata", at(12))).toBeNull();
     const yesterday = new Date(Date.parse(`${today}T00:00:00Z`) - 86400_000).toISOString().slice(0, 10);
@@ -418,6 +421,9 @@ describe("attendance register", () => {
     // On a holiday or a Sunday nobody is due (0); otherwise marking Biju leaves one fewer.
     expect(before === 0 ? after : before! - 1).toBe(after);
     expect((await call("GET", "/summary")).json).toHaveProperty("attendanceUnmarked");
+    // While days not marked count as duty there is nothing to remind about.
+    await call("PUT", "/attendance/settings", { assumeDuty: true });
+    expect(await unmarkedToday(db, userId, today, "Asia/Kolkata", at(12))).toBeNull();
   });
 
   it("the backup brings holidays, marks and settings back into an empty WorkDesk", async () => {
@@ -439,5 +445,42 @@ describe("attendance register", () => {
     expect(markOf(oct, a, "2026-10-05")).toBe("cl");
     expect(oct.settings.clPerYear).toBe(15);
     expect(((await call("GET", "/attendance/offs")).json as OffsBoard).people[0]).toMatchObject({ run: 8, offsDue: 1, towards: 2 });
+  });
+
+  it("days not marked count as duty from a starting point; Start the register works out Day N from the last off", async () => {
+    const w = await add({ name: NAME, offDay: "weekly" });
+    const fresh = await add({ name: "Fresh", offDay: "weekly" });
+    const s = await add({ name: "Sunday off" });
+    const today = (await call("GET", "/me")).json.today as string;
+    const shift = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
+    const board = async () => (await call("GET", "/attendance/offs")).json as OffsBoard;
+    const person = async (id: string) => (await board()).people.find((p) => p.id === id)!;
+    // Nobody has a starting point: nothing is assumed and nobody is reminded.
+    expect(await person(w)).toMatchObject({ started: false, run: 0, offsDue: 0 });
+    expect((await call("GET", "/summary")).json.attendanceOffs).toEqual([]);
+    // The last off 16 days before the start (as on 3 days ago): 13 days since it, so Day 13 with the off and a
+    // compensatory off owed and 1 day towards the next; the 2 days since then count as duty, today not yet.
+    expect((await call("POST", "/attendance/start", { asOn: shift(-3), people: [{ employeeId: w, lastOff: shift(-16), clTaken: 1 }, { employeeId: s, clTaken: 2.5 }] })).json).toEqual({ saved: 2 });
+    expect(await person(w)).toMatchObject({ started: true, run: 15, offsDue: 2, towards: 3, lastOff: shift(-16) });
+    expect(await person(fresh)).toMatchObject({ started: false });
+    expect((await call("GET", "/summary")).json.attendanceOffs.map((o: { employeeId: string }) => o.employeeId)).toEqual([w]);
+    expect((await history())[0]).toBe(`Attendance register started as on ${dayLabel(shift(-3))} for 2 people`);
+    const saved = (await call("GET", "/attendance/settings")).json.settings as AttendanceSettings;
+    expect(saved.start[w]).toMatchObject({ asOn: shift(-3), run: 13, offsDue: 2, towards: 1, lastOff: shift(-16), clTaken: 1 });
+    expect(saved.start[s]).toMatchObject({ run: 0, offsDue: 0, clTaken: 2.5, lastOff: null });
+    // An off two days ago: one owed paid, and yesterday (not marked) is Day 1.
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: w, date: shift(-2) }], mark: "off" });
+    expect(await person(w)).toMatchObject({ run: 1, offsDue: 1, towards: 2 });
+    // The month counts a past working day not marked as present and none as not marked.
+    const m = await month(shift(-1).slice(0, 7));
+    expect(monthCounts(m).find((c) => c.employeeId === s)!.notMarked).toBe(0);
+    // With every day to be ticked, yesterday counts nothing.
+    await call("PUT", "/attendance/settings", { ...saved, assumeDuty: false });
+    expect(await person(w)).toMatchObject({ run: 0, offsDue: 1, towards: 1 });
+    // Days since the last off instead of its date; a last off after the start is refused.
+    expect((await call("POST", "/attendance/start", { asOn: shift(-1), people: [{ employeeId: fresh, days: 7, extraOffs: 1 }] })).json.saved).toBe(1);
+    expect(await person(fresh)).toMatchObject({ started: true, run: 7, offsDue: 2, towards: 1 });
+    expect((await call("POST", "/attendance/start", { asOn: shift(-5), people: [{ employeeId: fresh, lastOff: shift(-1) }] })).status).toBe(400);
+    expect(fromLastOff("2026-10-01", "2026-10-14", 0, 6)).toEqual({ run: 13, towards: 1, offsDue: 2 });
   });
 });

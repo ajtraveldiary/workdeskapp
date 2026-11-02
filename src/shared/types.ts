@@ -526,7 +526,8 @@ export type AttendanceMonth = {
   chOpen: import("./attendance").ChOpen[];
   chFor: { employeeId: string; date: string; holiday: string }[];
   chLimits: { employeeId: string; limit: number | null }[];
-  weekly: { employeeId: string; offsDue: number; towards: number; run: number; long: string[]; runBefore: number; dueBefore: number; towardsBefore: number }[];
+  // countFrom: where their counting starts (null: no starting point yet, so days not marked aren't taken as duty).
+  weekly: { employeeId: string; countFrom: string | null; offsDue: number; towards: number; run: number; long: string[]; runBefore: number; dueBefore: number; towardsBefore: number }[];
   // Days of absence in a row (CL, CH, offs, holidays not worked) just before the month and just after it, so a
   // 15-day run that crosses the month's edge is seen.
   edges: { employeeId: string; before: number; after: number }[];
@@ -544,6 +545,8 @@ export type OffsBoardPerson = {
   offsDue: number;
   towards: number;
   run: number;
+  // A starting point (starting figures, a mark or a correction); without one the figures mean nothing yet.
+  started: boolean;
   lastOff: string | null;
   days: OffsBoardDay[];
   corrections: { id: string; date: string; offsDue: number; towards: number; run: number; note: string }[];
@@ -552,5 +555,5 @@ export type OffsBoardPerson = {
   chLimit: number | null;
   chOpen: { holiday: string; name: string; expires: string }[];
 };
-export type OffsBoard = { today: string; offEvery: number; maxRun: number; clPerYear: number; people: OffsBoardPerson[]; sundayOff: number };
+export type OffsBoard = { today: string; offEvery: number; maxRun: number; clPerYear: number; assumeDuty: boolean; people: OffsBoardPerson[]; sundayOff: number };
 export type Holiday = { id: string; date: string; name: string };

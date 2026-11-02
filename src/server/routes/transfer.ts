@@ -34,7 +34,7 @@ import {
   attendanceMarks,
   attendanceCorrections,
   holidays } from "../db/schema";
-import { DEFAULT_ATTENDANCE_SETTINGS, type AttendanceSettings, type StartFigures } from "../../shared/attendance";
+import { DEFAULT_ATTENDANCE_SETTINGS, fromLastOff, type AttendanceSettings, type StartFigures } from "../../shared/attendance";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { ensureReportPeriods } from "../lib/reports";
@@ -133,7 +133,9 @@ async function exportRows(db: DB, userId: string, kind: CsvKind, tz: string): Pr
       .filter((e) => start[e.id])
       .map((e) => {
         const f = start[e.id]!;
-        return out({ pen: e.pen, name: e.name, asOn: f.asOn, clTaken: formatDays(f.clTaken), chOpen: f.chOpen.map((c) => `${c.date}${c.name ? ` ${c.name}` : ""}`).join("; "), offsDue: String(f.offsDue), towards: String(f.towards) });
+        // With a last off, Offs due holds only the offs owed from before it (as the import reads it back).
+        const offsDue = f.lastOff ? f.offsDue - Math.floor((f.run ?? 0) / (row?.data.offEvery ?? 6)) : f.offsDue;
+        return out({ pen: e.pen, name: e.name, asOn: f.asOn, clTaken: formatDays(f.clTaken), chOpen: f.chOpen.map((c) => `${c.date}${c.name ? ` ${c.name}` : ""}`).join("; "), lastOff: f.lastOff ?? "", offsDue: String(offsDue), towards: f.lastOff ? "" : String(f.towards) });
       });
   }
   if (kind === "leave") {
@@ -979,7 +981,16 @@ async function planAttendance(db: DB, userId: string, rows: Row[], result: Impor
       problem(result, row, `Holidays worked: "${bad}" should start with a date, e.g. "2026-09-15 Onam"`);
       continue;
     }
-    next[e.id] = { asOn, clTaken: cl ?? 0, chOpen: chOpen.slice(0, 30), offsDue: offs ?? 0, towards: towards ?? 0 };
+    // Last off on (2026-11-02): every day after it to As on counts as duty; Offs due then adds the offs owed from before.
+    const lastRaw = (c.get("lastOff") ?? "").trim();
+    const lastOff = lastRaw ? parseDay(lastRaw) : null;
+    if (lastRaw && (!lastOff || lastOff > asOn)) {
+      problem(result, row, `Last off on: "${lastRaw}" should be a date on or before As on`);
+      continue;
+    }
+    next[e.id] = lastOff
+      ? { asOn, clTaken: cl ?? 0, chOpen: chOpen.slice(0, 30), ...fromLastOff(lastOff, asOn, offs ?? 0, settings.offEvery), lastOff }
+      : { asOn, clTaken: cl ?? 0, chOpen: chOpen.slice(0, 30), offsDue: offs ?? 0, towards: towards ?? 0 };
     if (settings.start[e.id]) result.updated++;
     else result.added++;
   }

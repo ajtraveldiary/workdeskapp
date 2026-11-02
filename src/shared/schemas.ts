@@ -475,6 +475,8 @@ const startFigures = z.object({
   chOpen: z.array(z.object({ date: day, name: z.string().trim().max(100).default("") })).max(30).default([]),
   offsDue: z.number().int().min(-30).max(60).default(0),
   towards: z.number().int().min(0).max(12).default(0),
+  run: z.number().int().min(0).max(366).optional(),
+  lastOff: day.nullable().optional(),
 });
 export const attendanceSettingsInput = z.object({
   secondSaturday: z.boolean().default(true),
@@ -484,6 +486,24 @@ export const attendanceSettingsInput = z.object({
   start: z.record(z.uuid(), startFigures).default({}),
   offEvery: z.number().int().min(2).max(13).default(6),
   maxRun: z.number().int().min(3).max(31).default(12),
+  assumeDuty: z.boolean().default(true),
+});
+// Start the register (2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point as on a day. Weekly-off
+// staff: the last off (or the days since it) and offs owed from before; everyone: CL taken this year.
+export const attendanceStartInput = z.object({
+  asOn: day,
+  people: z
+    .array(
+      z.object({
+        employeeId: z.uuid(),
+        lastOff: day.nullable().default(null),
+        days: z.number().int().min(0).max(366).nullable().default(null),
+        extraOffs: z.number().int().min(-10).max(20).default(0),
+        clTaken: z.number().min(0).max(60).multipleOf(0.5, "Use whole or half days").default(0),
+      }),
+    )
+    .min(1)
+    .max(500),
 });
 // Correct the count (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.4): a weekly-off person's figures as on
 // today: offs owed (negative: taken early), days counted towards the next off, days of duty in a row; a note.

@@ -6,14 +6,16 @@
 // the starting figures kept in the settings. Easier attendance (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md
 // phase 1): an off is marked even before it is earned (the app only warns), corrections of a weekly-off person's count
 // (attendance_corrections, Correct the count), the Offs board (offsBoard) and the people who need an off for Home and
-// the morning notification (offsReminder).
+// the morning notification (offsReminder). Phase 2: days not marked count as duty (settings.assumeDuty, from each
+// person's starting point), and Start the register (POST /attendance/start: everyone's starting point at once, from
+// the last off).
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, max, min, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { attendanceCorrections, attendanceMarks, attendanceSettings, designations, employeeLeaves, employees, events, holidays, leaveTypes } from "../db/schema";
-import { attendanceChInput, attendanceClearInput, attendanceCorrectionInput, attendanceMarkInput, attendanceSettingsInput, holidayInput } from "../../shared/schemas";
+import { attendanceChInput, attendanceClearInput, attendanceCorrectionInput, attendanceMarkInput, attendanceSettingsInput, attendanceStartInput, holidayInput } from "../../shared/schemas";
 import {
   DEFAULT_ATTENDANCE_SETTINGS,
   MARK_NAME,
@@ -28,6 +30,8 @@ import {
   weekdayOf,
   weeklyOff,
   awayDay,
+  assumedDuty,
+  fromLastOff,
   needsOff,
   offStatus,
   CL_RUN_MAX,
@@ -121,12 +125,16 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
       .orderBy(asc(attendanceCorrections.date)),
   ]);
   const fixOf = new Map(fixes.map((f) => [`${f.employeeId}|${f.date}`, { offsDue: f.offsDue, towards: f.towards, run: f.run } satisfies WeeklySet]));
+  // Where each person's counting starts, and whether they have a starting point at all (starting figures, a mark or a
+  // correction): days not marked are taken as duty only from one, so nobody new shows weeks of duty.
+  const origin = new Map<string, boolean>();
   const starts = new Map(
     people.map((p) => {
       const s = settings.start[p.id];
       const fm = firstMarks.find((f) => f.employeeId === p.id)?.first ?? null;
       const ff = fixes.find((f) => f.employeeId === p.id)?.date ?? null;
       const begin = [fm, ff].filter((x): x is string => !!x).sort()[0];
+      origin.set(p.id, !!(s || begin));
       let from = s ? shiftDate(s.asOn, 1) : (begin ?? first);
       if (p.from && from < p.from) from = p.from;
       return [p.id, from];
@@ -146,6 +154,7 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
       : [[], [], new Map<string, string>()];
   const markOf = new Map(marks.map((m) => [`${m.employeeId}|${m.date}`, m.mark]));
   return people.map((p) => {
+    const assume = origin.get(p.id)!;
     const days: WeeklyDay[] = [];
     for (let d = starts.get(p.id)!; d <= end && (!p.until || d <= p.until); d = shiftDate(d, 1)) {
       const m = markOf.get(`${p.id}|${d}`);
@@ -159,16 +168,26 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
               ? "count"
               : holidayOn(d, hols, settings)
                 ? "count"
-                : "skip";
+                : assume && assumedDuty(settings, d, today)
+                  ? "count"
+                  : "skip";
       const set = fixOf.get(`${p.id}|${d}`);
       days.push(set ? { date: d, state, set } : { date: d, state });
     }
-    const w = weeklyOff(days, settings.start[p.id], settings);
+    const start = settings.start[p.id];
+    const w = weeklyOff(days, start, settings, start?.run ?? 0);
     // The run, offs due and days towards the next when the month starts, so the register can work out the month's
     // runs and which offs are earned (and the bar its warnings).
-    const before = weeklyOff(days.filter((d) => d.date < first), settings.start[p.id], settings);
+    const before = weeklyOff(
+      days.filter((d) => d.date < first),
+      start,
+      settings,
+      start?.run ?? 0,
+    );
     return {
       employeeId: p.id,
+      // From here the register's checks count the days (null: no starting point yet).
+      countFrom: assume ? starts.get(p.id)! : null,
       offsDue: w.offsDue,
       towards: w.towards,
       run: w.run,
@@ -259,7 +278,7 @@ const countText = (w: { offsDue: number; run: number }) =>
 // the last 14 days, their last off, the latest corrections, and CL / CH this year.
 export async function offsBoard(db: DB, userId: string, today: string): Promise<OffsBoard> {
   const [settings, { weekly, sundayOff }] = await Promise.all([loadSettings(db, userId), weeklyPeopleToday(db, userId, today)]);
-  const out: OffsBoard = { today, offEvery: settings.offEvery, maxRun: settings.maxRun, clPerYear: settings.clPerYear, people: [], sundayOff };
+  const out: OffsBoard = { today, offEvery: settings.offEvery, maxRun: settings.maxRun, clPerYear: settings.clPerYear, assumeDuty: settings.assumeDuty, people: [], sundayOff };
   if (!weekly.length) return out;
   const ids = weekly.map((p) => p.e.id);
   const from = shiftDate(today, -13);
@@ -311,7 +330,8 @@ export async function offsBoard(db: DB, userId: string, today: string): Promise<
       offsDue: w.offsDue,
       towards: w.towards,
       run: w.run,
-      lastOff: lastOffs.find((l) => l.employeeId === e.id)?.last ?? null,
+      started: w.countFrom !== null,
+      lastOff: lastOffs.find((l) => l.employeeId === e.id)?.last ?? settings.start[e.id]?.lastOff ?? null,
       days,
       corrections: fixes
         .filter((f) => f.employeeId === e.id)
@@ -346,7 +366,7 @@ export async function offsReminder(db: DB, userId: string, today: string): Promi
       const w = figures.find((f) => f.employeeId === e.id)!;
       return { e, w, st: offStatus(w, settings) };
     })
-    .filter((x) => needsOff(x.st))
+    .filter((x) => x.w.countFrom !== null && needsOff(x.st))
     .sort((a, b) => b.st.rank - a.st.rank || b.w.run - a.w.run || a.e.name.localeCompare(b.e.name))
     .map(({ e, st }) => ({ employeeId: e.id, name: e.name, tone: st.tone, text: st.text }));
 }
@@ -381,6 +401,8 @@ export async function unmarkedToday(db: DB, userId: string, today: string, tz: s
     db.select({ employeeId: attendanceMarks.employeeId }).from(attendanceMarks).where(and(eq(attendanceMarks.userId, userId), eq(attendanceMarks.date, today))),
     leavesIn(db, userId, today, today),
   ]);
+  // Days not marked count as duty (2026-11-02): nothing to remind about.
+  if (settings.assumeDuty) return null;
   const holiday = holidayOn(today, hols, settings);
   const marked = new Set(marks.map((m) => m.employeeId));
   return people.filter((p) => !marked.has(p.id) && !leaves.some((l) => l.employeeId === p.id) && !offByItself(today, holiday, p.offDay)).length;
@@ -607,6 +629,39 @@ export const attendanceRoutes = new Hono<AppEnv>()
     return c.json({ marked: rows.length, skipped });
   })
 
+  // Start the register (phase 2, docs/ATTENDANCE_UX_PLAN.md 4.5): each person's starting figures as on a day, replacing
+  // theirs (holidays worked with CH to take are kept). Weekly-off staff from their last off (or the days since it):
+  // every day after it counts as duty (fromLastOff), plus offs owed from before. One History entry.
+  .post("/start", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const v = attendanceStartInput.parse(await c.req.json());
+    const [settings, people] = await Promise.all([
+      loadSettings(db, userId),
+      db.select().from(employees).where(and(eq(employees.userId, userId), inArray(employees.id, v.people.map((p) => p.employeeId)))),
+    ]);
+    const byId = new Map(people.map((e) => [e.id, e]));
+    const start = { ...settings.start };
+    let n = 0;
+    for (const p of v.people) {
+      const e = byId.get(p.employeeId);
+      if (!e) throw new HTTPException(404, { message: "Employee not found" });
+      if (p.lastOff && p.lastOff > v.asOn) throw new HTTPException(400, { message: `${e.name}: the last off is after ${dayLabel(v.asOn)}` });
+      const weekly = e.offDay === "weekly";
+      const f = weekly
+        ? p.lastOff
+          ? fromLastOff(p.lastOff, v.asOn, p.extraOffs, settings.offEvery)
+          : { run: p.days ?? 0, towards: (p.days ?? 0) % settings.offEvery, offsDue: p.extraOffs + Math.floor((p.days ?? 0) / settings.offEvery) }
+        : { run: 0, towards: 0, offsDue: 0 };
+      start[e.id] = { asOn: v.asOn, clTaken: p.clTaken, chOpen: settings.start[e.id]?.chOpen ?? [], ...f, lastOff: weekly ? p.lastOff : null };
+      n++;
+    }
+    const data = { ...settings, start };
+    await db.insert(attendanceSettings).values({ userId, data }).onConflictDoUpdate({ target: attendanceSettings.userId, set: { data, updatedAt: new Date() } });
+    await log(db, userId, "attendance.started", `Attendance register started as on ${dayLabel(v.asOn)} for ${n === 1 ? people[0]!.name : `${n} people`}`);
+    return c.json({ saved: n });
+  })
+
   // --- Offs board and corrections (docs/ATTENDANCE_UX_PLAN.md phase 1) ---
   .get("/offs", async (c) => c.json(await offsBoard(c.get("db"), c.get("userId"), todayIn(timezone(c.env)))))
   // Correct the count: a weekly-off person's figures as on today (one a day; a second one today replaces it).
@@ -682,6 +737,6 @@ export const attendanceRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const data = attendanceSettingsInput.parse(await c.req.json());
     await db.insert(attendanceSettings).values({ userId, data }).onConflictDoUpdate({ target: attendanceSettings.userId, set: { data, updatedAt: new Date() } });
-    await log(db, userId, "settings.attendance", `Attendance settings saved: second Saturdays ${data.secondSaturday ? "are" : "aren't"} holidays, ${data.clPerYear} days of casual leave a year`);
+    await log(db, userId, "settings.attendance", `Attendance settings saved: second Saturdays ${data.secondSaturday ? "are" : "aren't"} holidays, ${data.clPerYear} days of casual leave a year, days not marked ${data.assumeDuty ? "count as duty" : "count as nothing"}`);
     return c.json({ ok: true });
   });

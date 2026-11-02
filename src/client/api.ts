@@ -356,6 +356,15 @@ export function useAttendanceActions() {
     uncorrect: m((id: string) => api(`/attendance/corrections/${id}`, { method: "DELETE" })),
   };
 }
+// Start the register (docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point at once.
+export function useStartRegister() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { asOn: string; people: { employeeId: string; lastOff: string | null; days: number | null; extraOffs: number; clTaken: number }[] }) =>
+      api<{ saved: number }>("/attendance/start", { method: "POST", body }),
+    onSettled: () => qc.invalidateQueries({ predicate: (q) => ["attendance", "history", "summary"].includes(q.queryKey[0] as string) }),
+  });
+}
 // The Offs board (docs/ATTENDANCE_UX_PLAN.md 4.6): weekly-off staff's figures as on today. Fresh each time the page
 // opens, not the phone's saved copy, since the reminders are what it is for.
 export const useOffsBoard = () => useQuery({ queryKey: ["attendance", "offs"], queryFn: () => api<OffsBoard>("/attendance/offs"), refetchOnMount: "always" });

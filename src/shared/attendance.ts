@@ -30,8 +30,13 @@ export type AttendanceSettings = {
   // Weekly off (the user's rules): counted days that earn an off (6), and the most days in a row without one (12).
   offEvery: number;
   maxRun: number;
+  // Count days not marked as duty (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.2, on to start): a past
+  // working day with no mark is duty, so only the exceptions (offs, CL, CH, absences) need marking.
+  assumeDuty: boolean;
 };
-export const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = { secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12 };
+export const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = { secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12, assumeDuty: true };
+// A past working day with no mark, taken as duty while assumeDuty is on (today only once it is over).
+export const assumedDuty = (settings: { assumeDuty?: boolean }, date: string, today: string) => settings.assumeDuty !== false && date < today;
 
 const utc = (day: string) => new Date(`${day}T00:00:00Z`);
 // 0 = Sunday … 6 = Saturday.
@@ -109,7 +114,16 @@ export const chFits = (o: { holiday: string; expires: string }, date: string) =>
 // Figures from before the register was kept (user's answer 2026-10-31: per employee): as on a date, the CL taken in
 // that year, holidays worked whose CH is still to take, and for weekly-off staff the offs due and the days counted
 // towards the next one.
-export type StartFigures = { asOn: string; clTaken: number; chOpen: { date: string; name: string }[]; offsDue: number; towards: number };
+// Start the register (2026-11-02): `run` the days of duty in a row as on that date, and `lastOff` the day of the last
+// off they were worked out from (kept to show and to export).
+export type StartFigures = { asOn: string; clTaken: number; chOpen: { date: string; name: string }[]; offsDue: number; towards: number; run?: number; lastOff?: string | null };
+// Figures from the last off (Start the register, docs/ATTENDANCE_UX_PLAN.md 4.5): every day after it up to asOn counts
+// as duty, so 13 days since the last off is Day 13 with 2 offs owed and 1 day towards the next; `extra` offs owed
+// from before are added.
+export function fromLastOff(lastOff: string, asOn: string, extra: number, every: number) {
+  const days = Math.max(0, Math.round((Date.parse(`${asOn}T00:00:00Z`) - Date.parse(`${lastOff}T00:00:00Z`)) / 86400_000));
+  return { run: days, towards: days % every, offsDue: extra + Math.floor(days / every) };
+}
 
 // Weekly off (the user's rules, 2026-10-31): 6 counted days earn an off, carried over; more than 12 counted days in a
 // row without an off is warned about (both figures can be changed in Settings › Attendance). Counted: days present (holiday duty too), CL, half-day CL, CH, and holidays not
@@ -209,12 +223,16 @@ export const awayDay = (mark: AttendanceMark | null | undefined, offItself: bool
 export type MonthCounts = { employeeId: string; present: number; holidayDuty: number; cl: number; ch: number; off: number; absent: number; leave: number; notMarked: number };
 export function monthCounts(m: {
   today: string;
+  settings?: { assumeDuty?: boolean };
   days: { date: string; holiday: HolidayInfo | null }[];
   employees: { id: string; offDay: "sunday" | "weekly"; from: string | null; until: string | null }[];
   marks: { employeeId: string; date: string; mark: AttendanceMark }[];
   leaves: { employeeId: string; from: string; to: string }[];
 }): MonthCounts[] {
   const marks = new Map(m.marks.map((x) => [`${x.employeeId}|${x.date}`, x.mark]));
+  // Days not marked count as duty (2026-11-02): a past working day not marked is present, and none is "not marked"
+  // (today is neither until it is over). Without settings (older callers) nothing is assumed.
+  const assume = !!m.settings && m.settings.assumeDuty !== false;
   return m.employees.map((e) => {
     const c: MonthCounts = { employeeId: e.id, present: 0, holidayDuty: 0, cl: 0, ch: 0, off: 0, absent: 0, leave: 0, notMarked: 0 };
     for (const d of m.days) {
@@ -229,7 +247,10 @@ export function monthCounts(m: {
       else if (mark === "ch") c.ch++;
       else if (mark === "off") c.off++;
       else if (mark === "absent") c.absent++;
-      else if (!offByItself(d.date, d.holiday, e.offDay) && d.date <= m.today) c.notMarked++;
+      else if (offByItself(d.date, d.holiday, e.offDay)) continue;
+      else if (assume) {
+        if (d.date < m.today) c.present++;
+      } else if (d.date <= m.today) c.notMarked++;
     }
     return c;
   });

@@ -4,10 +4,13 @@
 // (offStatus: off after n more days / off due / overdue / off + compensatory off owed), the last 14 days as a strip, the
 // last off, and Off today. Tapping a card opens the person sheet: the figures in plain words, CL / CH this year, the
 // holidays worked with CH to take, Off today, Correct the count (days in a row and offs owed with − / +, a note; saved
-// as a correction dated today, with Undo) and the corrections made, each with Take back.
+// as a correction dated today, with Undo) and the corrections made, each with Take back. Phase 2: people with no
+// starting point yet show "No starting point" (and are left out of the counts) with a banner to Start the register;
+// days not marked count as duty (a faint ✓ in the strip) while that setting is on.
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
-import { CalendarClock, Check, Minus, Plus, SlidersHorizontal, TableProperties } from "lucide-react";
+import { CalendarClock, Check, Minus, Play, Plus, SlidersHorizontal, TableProperties } from "lucide-react";
+import { openStartRegister } from "./StartRegister";
 import type { OffsBoard as Board, OffsBoardDay, OffsBoardPerson } from "../../shared/types";
 import { MARK_NAME, dutyForOff, offStatus, type OffTone } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
@@ -28,11 +31,14 @@ export function OffsBoard({ onRegister }: { onRegister: () => void }) {
     if (!data) return [];
     return data.people
       .map((p) => ({ p, st: offStatus(p, data) }))
-      .sort((a, b) => b.st.rank - a.st.rank || b.p.run - a.p.run || a.p.name.localeCompare(b.p.name));
+      // Those with a starting point by urgency, then those without one.
+      .sort((a, b) => Number(b.p.started) - Number(a.p.started) || b.st.rank - a.st.rank || b.p.run - a.p.run || a.p.name.localeCompare(b.p.name));
   }, [data]);
   const open = people.find((x) => x.p.id === openId);
-  const due = people.filter((x) => x.st.owed >= 1 || x.st.tone === "red").length;
-  const long = people.filter((x) => x.p.run > (data?.maxRun ?? 12)).length;
+  const counted = people.filter((x) => x.p.started);
+  const due = counted.filter((x) => x.st.owed >= 1 || x.st.tone === "red").length;
+  const long = counted.filter((x) => x.p.run > (data?.maxRun ?? 12)).length;
+  const unstarted = people.length - counted.length;
 
   return (
     <>
@@ -51,9 +57,24 @@ export function OffsBoard({ onRegister }: { onRegister: () => void }) {
             </>
           )}
         </p>
+        {people.length > 0 && (
+          <Button size="sm" variant="ghost" onClick={() => openStartRegister()} aria-label="Starting points: start the register">
+            <Play size={15} /> <span className="hidden sm:inline">Starting points</span>
+          </Button>
+        )}
         <RefreshButton keys={[["attendance"]]} label="Refresh the offs" />
       </div>
       <ErrorNote error={error} />
+      {unstarted > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand-200 bg-tint px-3 py-2.5">
+          <p className="min-w-0 flex-1 basis-56 text-sm text-ink">
+            {plural(unstarted, "person on weekly off has", "people on weekly off have")} no starting point yet. Give the day of each one's last off and the count is right from today.
+          </p>
+          <Button size="sm" variant="primary" onClick={() => openStartRegister()}>
+            <Play size={15} /> Start the register
+          </Button>
+        </div>
+      )}
       {!data ? (
         <SkeletonList rows={4} />
       ) : people.length === 0 ? (
@@ -98,13 +119,13 @@ function OffCard({ p, board, tone, text, early, onOpen }: { p: OffsBoardPerson; 
           </button>
           {p.designation && <p className="truncate text-footnote text-slate-500">{p.designation}</p>}
         </div>
-        <DayNumber run={p.run} tone={tone} />
+        {p.started && <DayNumber run={p.run} tone={tone} />}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <StatusPill tone={tone} text={text} />
-        {early > 0 && <span className="text-footnote text-slate-500">{plural(early, "off")} taken early</span>}
+        {p.started ? <StatusPill tone={tone} text={text} /> : <StatusPill tone="grey" text="No starting point" />}
+        {p.started && early > 0 && <span className="text-footnote text-slate-500">{plural(early, "off")} taken early</span>}
       </div>
-      <Strip days={p.days} today={board.today} />
+      <Strip days={p.days} today={board.today} assume={board.assumeDuty && p.started} />
       <div className="flex items-center gap-2">
         <p className="min-w-0 flex-1 truncate text-footnote text-slate-500">{p.lastOff ? `Last off ${shortDay(p.lastOff)}` : "No off marked yet"}</p>
         <OffToday p={p} board={board} />
@@ -124,12 +145,12 @@ function DayNumber({ run, tone }: { run: number; tone: OffTone }) {
 
 // The last 14 days, oldest first, today outlined: ✓ duty (a dot when on a holiday), O off, CL / ½ / CH, A absent, the
 // leave's short name, H a holiday not worked, an empty box for a day not marked, nothing outside the office.
-function Strip({ days, today }: { days: OffsBoardDay[]; today: string }) {
+function Strip({ days, today, assume }: { days: OffsBoardDay[]; today: string; assume: boolean }) {
   return (
     <div>
       <ol className="grid grid-cols-[repeat(14,minmax(0,1fr))] gap-0.5" aria-label="The last 14 days">
         {days.map((d) => {
-          const look = dayLook(d);
+          const look = dayLook(d, assume && d.date < today);
           return (
             <li
               key={d.date}
@@ -150,7 +171,8 @@ function Strip({ days, today }: { days: OffsBoardDay[]; today: string }) {
     </div>
   );
 }
-function dayLook(d: OffsBoardDay): { text: string; cls: string; words: string } {
+// assumed: a past day not marked counts as duty (Count days not marked as duty).
+function dayLook(d: OffsBoardDay, assumed: boolean): { text: string; cls: string; words: string } {
   if (d.out) return { text: "", cls: "bg-slate-50", words: "not in the office" };
   // Short names that fit a square (EL); longer ones (HPL, Commuted) as L, named in the words.
   if (d.leave) return { text: d.leave.length <= 2 ? d.leave : "L", cls: "bg-snooze-soft text-snooze-ink", words: `leave (${d.leave})` };
@@ -169,6 +191,7 @@ function dayLook(d: OffsBoardDay): { text: string; cls: string; words: string } 
       return { text: "A", cls: "bg-urgent-soft text-urgent-ink", words: "absent" };
   }
   if (d.holiday) return { text: "H", cls: "bg-slate-100 text-slate-500", words: d.holiday };
+  if (assumed) return { text: "✓", cls: "bg-low-soft/50 text-low-ink/50", words: "duty (not marked)" };
   return { text: "", cls: "border border-dashed border-slate-300", words: "not marked" };
 }
 
@@ -231,7 +254,15 @@ function PersonSheet({ p, board, onRegister }: { p: OffsBoardPerson; board: Boar
         </div>
         <DayNumber run={p.run} tone={st.tone} />
       </div>
-      <Strip days={p.days} today={board.today} />
+      <Strip days={p.days} today={board.today} assume={board.assumeDuty && p.started} />
+      {!p.started && (
+        <p className="rounded-lg bg-tint px-3 py-2 text-sm text-ink">
+          No starting point yet: the count below is only from what is marked.{" "}
+          <button type="button" onClick={() => openStartRegister()} className="font-medium text-brand-700 hover:underline">
+            Start the register
+          </button>
+        </p>
+      )}
       <dl className="divide-y divide-line">
         {row("Days in a row", `${plural(p.run, "day")} of duty since the last off or leave`)}
         {row("Next off", st.owed >= 1 ? `${plural(st.owed, "off")} owed now${st.owed >= 2 ? " (the off and a compensatory off)" : ""}` : `After ${plural(st.need, "more day")} of duty`)}

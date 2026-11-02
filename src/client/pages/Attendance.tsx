@@ -19,7 +19,11 @@
 // Easier attendance (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md phase 1): the page has two tabs, Offs (the
 // reminder board for weekly-off staff, components/OffsBoard.tsx; first) and Register (all of the above); an off can be
 // marked before it is earned (the bar warns it is taken early instead of greying Off out); corrections of the count
-// (Correct the count) are part of the month's figures (monthStates).
+// (Correct the count) are part of the month's figures (monthStates). Phase 2: a third tab, Today (TodayView, every
+// screen size; it replaced the phones' day view and phones have no Register tab): one day, everyone with their state;
+// tap a person for Duty / Off / CL / ½CL / CH… / Absent / Clear (saved at once, Undo puts back what was there), or
+// tick people and use the bar. While days not marked count as duty (Settings › Attendance), a past working day left
+// empty shows a faint ✓ (cells' `assumed`), counts as present in the summary and the CSV, and gets no red dot.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
@@ -33,7 +37,7 @@ import { useAttendance, useAttendanceActions, useMe, useOffsBoard, useOfficeProf
 import { OffsBoard } from "../components/OffsBoard";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
-import { Button, Card, ErrorNote, Modal, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Modal, PopPanel, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
 
 type Person = AttendanceMonth["employees"][number];
 type Markable = Exclude<AttendanceMark, "ch">;
@@ -70,7 +74,8 @@ function useWide() {
 
 // What one cell holds: not in the office, leave from the Leave page, or a mark (or nothing), on a working day or a
 // day off by itself (holiday, Sunday for Sunday-off staff).
-type CellInfo = { out: true } | { out: false; leave: { short: string; name: string; from: string; to: string } | null; mark: AttendanceMark | null; holiday: boolean };
+// assumed: a past working day not marked, counted as duty (Count days not marked as duty, 2026-11-02).
+type CellInfo = { out: true } | { out: false; leave: { short: string; name: string; from: string; to: string } | null; mark: AttendanceMark | null; holiday: boolean; assumed: boolean };
 function useCells(data: AttendanceMonth | undefined) {
   return useMemo(() => {
     if (!data) return null;
@@ -79,7 +84,9 @@ function useCells(data: AttendanceMonth | undefined) {
     const info = (e: Person, date: string): CellInfo => {
       if ((e.from && date < e.from) || (e.until && date > e.until)) return { out: true };
       const leave = data.leaves.find((l) => l.employeeId === e.id && l.from <= date && date <= l.to) ?? null;
-      return { out: false, leave, mark: marks.get(key(e.id, date)) ?? null, holiday: offByItself(date, holidayOf.get(date) ?? null, e.offDay) };
+      const mark = marks.get(key(e.id, date)) ?? null;
+      const holiday = offByItself(date, holidayOf.get(date) ?? null, e.offDay);
+      return { out: false, leave, mark, holiday, assumed: !leave && !mark && !holiday && data.settings.assumeDuty && date < data.today };
     };
     const selectable = (e: Person, date: string) => {
       const c = info(e, date);
@@ -90,10 +97,10 @@ function useCells(data: AttendanceMonth | undefined) {
       const c = info(e, date);
       return !c.out && c.holiday;
     };
-    // A working day nobody has marked yet.
+    // A working day nobody has marked yet (none while days not marked count as duty).
     const unmarked = (e: Person, date: string) => {
       const c = info(e, date);
-      return !c.out && !c.leave && !c.holiday && !c.mark;
+      return !data.settings.assumeDuty && !c.out && !c.leave && !c.holiday && !c.mark;
     };
     return { info, selectable, holiday, unmarked, marks };
   }, [data]);
@@ -112,20 +119,22 @@ export function AttendancePage() {
   useEffect(() => setSelected(new Set()), [month]);
   // The month's summary, in a pop-up opened by Summary.
   const [summary, setSummary] = useState(false);
-  // Offs (the reminder board, first) or the register (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.6),
-  // remembered on the device; until chosen, the register when nobody is on weekly off.
+  // Offs (the reminder board, first), Today or the register (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.6),
+  // remembered on the device; until chosen, Today when nobody is on weekly off. Phones have no Register tab.
   const board = useOffsBoard().data;
   const [chosen, setChosen] = useState<View | null>(readView);
-  const view: View = chosen ?? (board && board.people.length === 0 ? "register" : "offs");
+  const picked: View = chosen ?? (board && board.people.length === 0 ? "today" : "offs");
+  const view: View = picked === "register" && !wide ? "today" : picked;
   const choose = (v: View) => {
     setChosen(v);
+    setSelected(new Set());
     try {
       localStorage.setItem(VIEW_KEY, v);
     } catch {
       // Private mode: the choice lasts until the page closes.
     }
   };
-  const due = board ? board.people.filter((p) => needsOff(offStatus(p, board))).length : 0;
+  const due = board ? board.people.filter((p) => p.started && needsOff(offStatus(p, board))).length : 0;
   const tabs = (
     <div className="-mt-2 mb-3 print:hidden sm:-mt-3">
       <Segmented
@@ -134,7 +143,8 @@ export function AttendancePage() {
         onChange={choose}
         options={[
           { value: "offs", label: "Offs", count: due || undefined, tone: due ? "urgent" : undefined },
-          { value: "register", label: "Register" },
+          { value: "today", label: "Today" },
+          ...(wide ? [{ value: "register" as const, label: "Register" }] : []),
         ]}
       />
     </div>
@@ -144,26 +154,31 @@ export function AttendancePage() {
       <>
         <h1 className="sr-only">Attendance: weekly offs</h1>
         {tabs}
-        <OffsBoard onRegister={() => choose("register")} />
+        <OffsBoard onRegister={() => choose(wide ? "register" : "today")} />
       </>
     );
 
+  const register = view === "register";
   return (
     <>
-      <h1 className="sr-only">Attendance register</h1>
+      <h1 className="sr-only">{register ? "Attendance register" : "Attendance today"}</h1>
       {tabs}
       <div className="mb-2 flex flex-wrap items-center gap-1 print:hidden">
-        <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
-          <ChevronLeft size={18} />
-        </button>
-        <span className="text-center font-medium whitespace-nowrap text-ink sm:min-w-36">{monthLabel(month)}</span>
-        <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
-          <ChevronRight size={18} />
-        </button>
-        {month !== today.slice(0, 7) && (
-          <Button size="sm" variant="ghost" onClick={() => setMonth(today.slice(0, 7))}>
-            This month
-          </Button>
+        {register && (
+          <>
+            <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
+              <ChevronLeft size={18} />
+            </button>
+            <span className="text-center font-medium whitespace-nowrap text-ink sm:min-w-36">{monthLabel(month)}</span>
+            <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
+              <ChevronRight size={18} />
+            </button>
+            {month !== today.slice(0, 7) && (
+              <Button size="sm" variant="ghost" onClick={() => setMonth(today.slice(0, 7))}>
+                This month
+              </Button>
+            )}
+          </>
         )}
         <span className="ml-auto flex flex-wrap items-center gap-1">
           {data && data.employees.length > 0 && (
@@ -175,7 +190,7 @@ export function AttendancePage() {
                 <Download size={15} /> <span className="hidden sm:inline">Download</span>
               </Button>
               {/* Printing is for the register's page (computers). */}
-              {wide && (
+              {register && (
                 <Button size="sm" variant="ghost" onClick={() => window.print()} aria-label="Print the month">
                   <Printer size={15} /> Print
                 </Button>
@@ -193,7 +208,7 @@ export function AttendancePage() {
         <SkeletonList rows={6} />
       ) : data.employees.length === 0 ? (
         <Card className="p-6 text-center text-sm text-slate-500">No employees in the office in {monthLabel(month)}. Add them on the Employees page.</Card>
-      ) : wide ? (
+      ) : register ? (
         <>
           <div className="print:hidden">
             <ChDueSoon data={data} />
@@ -207,7 +222,7 @@ export function AttendancePage() {
       ) : (
         <>
           <ChDueSoon data={data} />
-          <DayView data={data} cells={cells} selected={selected} setSelected={setSelected} onMonth={setMonth} />
+          <TodayView data={data} cells={cells} selected={selected} setSelected={setSelected} onMonth={setMonth} />
         </>
       )}
       {data && (
@@ -225,12 +240,12 @@ export function AttendancePage() {
   );
 }
 
-type View = "offs" | "register";
+type View = "offs" | "today" | "register";
 const VIEW_KEY = "workdesk-attendance-view";
 function readView(): View | null {
   try {
     const v = localStorage.getItem(VIEW_KEY);
-    return v === "offs" || v === "register" ? v : null;
+    return v === "offs" || v === "today" || v === "register" ? v : null;
   } catch {
     return null;
   }
@@ -351,7 +366,10 @@ function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data
 
 // A weekly-off person's days of the month as the counting sees them (weeklyOff), with some cells taken as marked.
 function monthStates(data: AttendanceMonth, cells: Cells, e: Person, as?: { dates: Set<string>; mark: AttendanceMark }): WeeklyDay[] {
+  const from = data.weekly.find((w) => w.employeeId === e.id)?.countFrom ?? null;
   return data.days.map((d) => {
+    // Before their counting starts nothing counts (the month's starting figures cover it).
+    if (from && d.date < from) return { date: d.date, state: "skip" as const };
     const info = cells.info(e, d.date);
     // A correction of the count sets the figures as on the end of its day.
     const fix = data.corrections.find((c) => c.employeeId === e.id && c.date === d.date);
@@ -359,7 +377,8 @@ function monthStates(data: AttendanceMonth, cells: Cells, e: Person, as?: { date
     if (info.out) return { date: d.date, state: "skip" as const, ...set };
     if (info.leave) return { date: d.date, state: "reset" as const, ...set };
     const m = as?.dates.has(d.date) ? as.mark : info.mark;
-    const state: WeeklyDay["state"] = m === "off" ? "off" : m === "absent" ? "reset" : m ? "count" : d.holiday ? "count" : "skip";
+    // A day not marked counts as duty only from a starting point, as the server counts it.
+    const state: WeeklyDay["state"] = m === "off" ? "off" : m === "absent" ? "reset" : m ? "count" : d.holiday ? "count" : from && !info.holiday && data.settings.assumeDuty && d.date < data.today ? "count" : "skip";
     return { date: d.date, state, ...set };
   });
 }
@@ -476,7 +495,9 @@ async function downloadMonth(data: AttendanceMonth) {
       if (leave) return leave.short;
       const m = marks.get(key(e.id, d.date));
       if (m) return letter[m];
-      return offByItself(d.date, d.holiday, e.offDay) ? "H" : "";
+      if (offByItself(d.date, d.holiday, e.offDay)) return "H";
+      // Not marked but counted as duty (2026-11-02).
+      return data.settings.assumeDuty && d.date < data.today ? "P" : "";
     });
     return [String(i + 1), e.name, e.designation ?? "", String(t.cl), String(t.ch), ...cellsOf, String(c.present), String(c.holidayDuty), String(c.cl), String(c.ch), String(c.off), String(c.absent), String(c.leave), String(c.notMarked)];
   });
@@ -664,11 +685,12 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                       onPointerDown={(ev) => cellDown(ev, r, c)}
                       onPointerEnter={() => cellEnter(r, c)}
                       aria-pressed={on}
-                      aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : "not marked"}`}
+                      aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : info.assumed ? "duty, not marked" : "not marked"}`}
                       title={ch.long.has(k) ? `${title ?? ""} · more than 12 days in a row without an off` : title}
                       className={cx("no-tap relative flex h-8 w-full items-center justify-center overflow-hidden text-caption2 xl:text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
                     >
                       {info.mark && <span className={MARK_TONE[info.mark]}>{MARK_SHORT[info.mark]}</span>}
+                      {info.assumed && <span className="text-slate-300 print:text-slate-400">✓</span>}
                       {duty && <span className={cx("absolute top-0.5 right-0.5 size-1.5 rounded-full", dutyOpen ? "bg-info" : "bg-slate-300")} aria-hidden />}
                     </button>
                   </td>,
@@ -703,25 +725,38 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
       </div>
       <p className="border-t border-line px-4 py-2 text-footnote text-slate-500">
         ✓ Present · O Weekly off · CL Casual leave · ½CL Half day · CH Compensation leave · A Absent · grey: holiday or Sunday off · a blue dot: holiday worked, CH open (grey once taken) · EL, HPL…: leave from the
-        Leave page · a red dot under a day: someone not marked yet · red outline: more than 12 days in a row without an off. CL and CH are this year's; +n: CH still to take.
+        Leave page · {data.settings.assumeDuty ? "a faint ✓: not marked, counted as duty" : "a red dot under a day: someone not marked yet"} · red outline: more than 12 days in a row without an off. CL and CH are this year's; +n: CH still to take.
       </p>
       <DetailsDialog id={details} data={data} lookups={ch} onClose={() => setDetails(null)} />
     </Card>
   );
 }
 
-// Phones: one day at a time, everyone listed with their mark.
-function DayView({ data, cells, selected, setSelected, onMonth }: SelectProps & { onMonth: (m: string) => void }) {
+// Today (phase 2, user request 2026-11-02; every screen size, in place of the phones' day view): one day at a time
+// (today to start; ‹ › and Today), everyone in the office with their state. Tap a person for a small menu (an action
+// sheet on phones) of the marks that fit the day: Duty, Off (weekly-off staff), CL, Half day CL, CH… (when a holiday
+// worked is open for it; the CH pop-up), Absent and Clear; saved at once, with Undo putting back what was there. The
+// tick at the start of a row selects people for the bar at the bottom instead (Select everyone too). While days not
+// marked count as duty, a day left empty shows "Duty" faintly.
+function TodayView({ data, cells, selected, setSelected, onMonth }: SelectProps & { onMonth: (m: string) => void }) {
   const inMonth = data.today.startsWith(data.month);
   const [date, setDate] = useState(inMonth ? data.today : data.days[0]!.date);
   useEffect(() => setDate(inMonth ? data.today : data.days[0]!.date), [data.month, data.today, inMonth]);
   const i = Math.max(0, data.days.findIndex((d) => d.date === date));
   const day = data.days[i]!;
+  const [menu, setMenu] = useState<string | null>(null);
+  const [chCell, setChCell] = useState<AttendanceCell | null>(null);
   const go = (n: number) => {
     const j = i + n;
     if (j < 0) onMonth(shiftMonth(data.month, -1));
     else if (j >= data.days.length) onMonth(shiftMonth(data.month, 1));
     else setDate(data.days[j]!.date);
+    setSelected(new Set());
+    setMenu(null);
+  };
+  const toToday = () => {
+    if (inMonth) setDate(data.today);
+    else onMonth(data.today.slice(0, 7));
     setSelected(new Set());
   };
   const people = data.employees.filter((e) => !cells.info(e, day.date).out);
@@ -733,21 +768,31 @@ function DayView({ data, cells, selected, setSelected, onMonth }: SelectProps & 
     next.has(k) ? next.delete(k) : next.add(k);
     setSelected(next);
   };
+  const dutyShown = data.settings.assumeDuty && day.date <= data.today;
   return (
-    <Card className="fab-page overflow-hidden">
+    <Card className="fab-page overflow-visible">
       <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
-        <button type="button" onClick={() => go(-1)} aria-label="Previous day" className="rounded-lg p-2 text-slate-500 active:scale-90">
+        <button type="button" onClick={() => go(-1)} aria-label="Previous day" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
           <ChevronLeft size={18} />
         </button>
         <span className="min-w-0 flex-1 text-center">
-          <span className="block font-medium text-ink">{new Date(`${day.date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</span>
+          <span className="block font-medium text-ink">
+            {day.date === data.today ? "Today, " : ""}
+            {new Date(`${day.date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}
+          </span>
           {day.holiday && <span className="block text-footnote text-urgent-ink">{day.holiday.name}</span>}
         </span>
-        <button type="button" onClick={() => go(1)} aria-label="Next day" className="rounded-lg p-2 text-slate-500 active:scale-90">
+        {day.date !== data.today && (
+          <Button size="sm" variant="ghost" onClick={toToday}>
+            Today
+          </Button>
+        )}
+        <button type="button" onClick={() => go(1)} aria-label="Next day" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
           <ChevronRight size={18} />
         </button>
       </div>
-      <button type="button" onClick={() => setSelected(all ? new Set() : new Set(keys))} aria-pressed={all} className="flex w-full items-center gap-3 border-b border-line px-3 py-2 text-left text-sm font-medium text-brand-700">
+      {data.settings.assumeDuty && <p className="border-b border-line px-3 py-1.5 text-footnote text-slate-500">Days not marked count as duty: tap a person only for an off, leave or absence.</p>}
+      <button type="button" onClick={() => setSelected(all ? new Set() : new Set(keys))} aria-pressed={all} className="flex w-full items-center gap-3 border-b border-line px-3 py-2 text-left text-sm font-medium text-brand-700 hover:bg-slate-50">
         <Tick on={all} />
         {all ? "Unselect everyone" : "Select everyone"}
       </button>
@@ -755,14 +800,28 @@ function DayView({ data, cells, selected, setSelected, onMonth }: SelectProps & 
         {people.map((e) => {
           const info = cells.info(e, day.date) as Exclude<CellInfo, { out: true }>;
           const k = key(e.id, day.date);
+          const empty = !info.mark && !info.leave && !info.holiday;
           return (
-            <li key={e.id}>
-              <button type="button" disabled={!!info.leave} onClick={() => toggle(k)} aria-pressed={selected.has(k)} className={cx("flex w-full items-center gap-3 px-3 py-2 text-left", info.holiday && "bg-slate-50")}>
-                {info.leave ? <span className="size-6 shrink-0" /> : <Tick on={selected.has(k)} />}
+            <li key={e.id} className={cx("relative flex items-stretch", info.holiday && "bg-slate-50")}>
+              {info.leave ? (
+                <span className="w-12 shrink-0" />
+              ) : (
+                <button type="button" onClick={() => toggle(k)} aria-pressed={selected.has(k)} aria-label={`Select ${e.name}`} className="flex w-12 shrink-0 items-center justify-center">
+                  <Tick on={selected.has(k)} />
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={!!info.leave}
+                onClick={() => setMenu(menu === e.id ? null : e.id)}
+                aria-haspopup="menu"
+                aria-expanded={menu === e.id}
+                className="flex min-w-0 flex-1 items-center gap-3 py-2 pr-3 text-left enabled:hover:bg-slate-50/80"
+              >
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm text-ink [overflow-wrap:anywhere]">{e.name}</span>
                   <span className="block truncate text-footnote text-slate-500">{[e.designation, e.offDay === "weekly" && OFF_DAY_LABELS.weekly].filter(Boolean).join(" · ")}</span>
-                  {/* Their figures, since phones have no CL / CH column (attendance phase 2). */}
+                  {/* Their figures, since this view has no CL / CH column (attendance phase 2). */}
                   <span className={cx("block text-caption [overflow-wrap:anywhere]", (lookups.weekly.get(e.id)?.long.length ?? 0) > 0 ? "text-urgent-ink" : "text-slate-500")}>{figuresLine(e.id, data, lookups)}</span>
                 </span>
                 <span className="shrink-0 text-sm">
@@ -772,16 +831,102 @@ function DayView({ data, cells, selected, setSelected, onMonth }: SelectProps & 
                     <span className={MARK_TONE[info.mark]}>{MARK_SHORT[info.mark]}</span>
                   ) : info.holiday ? (
                     <span className="text-footnote text-slate-400">Holiday</span>
-                  ) : (
+                  ) : empty && dutyShown ? (
+                    <span className="text-footnote text-low-ink/60">✓ Duty</span>
+                  ) : day.date <= data.today ? (
                     <span className="text-footnote text-slate-400">Not marked</span>
-                  )}
+                  ) : null}
                 </span>
               </button>
+              {menu === e.id && <QuickMark e={e} date={day.date} data={data} cells={cells} lookups={lookups} onClose={() => setMenu(null)} onCh={(c) => setChCell(c)} />}
             </li>
           );
         })}
       </ul>
+      {chCell && <ChPicker data={data} cells={cells} lookups={lookups} picked={[chCell]} replace onClose={() => setChCell(null)} onDone={() => setChCell(null)} />}
     </Card>
+  );
+}
+
+// The marks that fit one person's day, saved at once with Undo (Today). A holiday takes only Duty (holiday duty, which
+// earns a CH); Off is for weekly-off staff; CH… opens the CH pop-up when a holiday worked is open for the day.
+function QuickMark({ e, date, data, cells, lookups, onClose, onCh }: { e: Person; date: string; data: AttendanceMonth; cells: Cells; lookups: Lookups; onClose: () => void; onCh: (c: AttendanceCell) => void }) {
+  const { mark, clear, markCh } = useAttendanceActions();
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const away = (ev: MouseEvent) => !box.current?.contains(ev.target as Node) && !(ev.target as HTMLElement).closest?.("[aria-haspopup=menu]") && onClose();
+    const esc = (ev: KeyboardEvent) => ev.key === "Escape" && onClose();
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [onClose]);
+  const info = cells.info(e, date) as Exclude<CellInfo, { out: true }>;
+  const cell = { employeeId: e.id, date };
+  const k = key(e.id, date);
+  const prev = info.mark;
+  const prevHoliday = prev === "ch" ? lookups.forCell.get(k) : undefined;
+  // Undo puts back what was there: the old mark (a CH with its holiday), or nothing.
+  const restore = () => {
+    if (prev === "ch" && prevHoliday) markCh.mutate({ items: [{ ...cell, holiday: prevHoliday }], replace: true });
+    else if (prev && prev !== "ch") mark.mutate({ cells: [cell], mark: prev, replace: true });
+    else clear.mutate([cell]);
+  };
+  const w = lookups.weekly.get(e.id);
+  const apply = (m: Markable) => {
+    onClose();
+    // An off before one is owed is still marked (2026-11-02); say so for today's.
+    const early = m === "off" && date === data.today && w && dutyForOff(w.offsDue, w.towards, data.settings.offEvery) > 0;
+    mark.mutate(
+      { cells: [cell], mark: m, replace: true },
+      {
+        onSuccess: (r) =>
+          showUndo({
+            message: r.marked ? `${MARK_NAME[m]}${early ? " (taken early)" : ""}: ${e.name}` : `Not marked: ${Object.keys(r.skipped).join(", ")}`,
+            onUndo: r.marked ? restore : undefined,
+          }),
+      },
+    );
+  };
+  const items: { label: string; run: () => void; hidden?: boolean; tone?: string }[] = info.holiday
+    ? [{ label: "Holiday duty (earns a CH)", run: () => apply("present"), hidden: prev === "present" }]
+    : [
+        { label: "Duty", run: () => apply("present"), hidden: prev === "present" },
+        { label: "Weekly off", run: () => apply("off"), hidden: e.offDay !== "weekly" || prev === "off" },
+        { label: "Casual leave", run: () => apply("cl"), hidden: prev === "cl" },
+        { label: "Half day casual leave", run: () => apply("cl_half"), hidden: prev === "cl_half" },
+        {
+          label: "Compensation leave (CH)…",
+          run: () => {
+            onClose();
+            onCh(cell);
+          },
+          hidden: prev === "ch" || !(lookups.open.get(e.id) ?? []).some((o) => chFits(o, date)),
+        },
+        { label: "Absent", run: () => apply("absent"), hidden: prev === "absent", tone: "text-urgent-ink" },
+      ];
+  if (prev)
+    items.push({
+      label: "Clear the mark",
+      run: () => {
+        onClose();
+        clear.mutate([cell], { onSuccess: (r) => showUndo({ message: r.cleared ? `Mark cleared: ${e.name}` : "Kept: its CH is taken", onUndo: r.cleared ? restore : undefined }) });
+      },
+    });
+  return (
+    <div ref={box}>
+      <PopPanel onClose={onClose} title={`${e.name}, ${dayLabel(date)}`} className="absolute top-full right-2 z-30 -mt-1 w-60 rounded-xl border border-line bg-white p-1 shadow-lg">
+        {items
+          .filter((it) => !it.hidden)
+          .map((it) => (
+            <button key={it.label} type="button" onClick={it.run} className={cx("block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 pointer-coarse:py-2.5", it.tone ?? "text-ink")}>
+              {it.label}
+            </button>
+          ))}
+      </PopPanel>
+    </div>
   );
 }
 

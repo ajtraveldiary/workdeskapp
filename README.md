@@ -139,7 +139,13 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   compensatory off owed after 12 days), the last 14 days at a glance, the last off and an Off today button. Tap a
   card for their figures in plain words, CL and CH this year, and **Correct the count** (days in a row and offs
   owed with − / +, with a note and Undo) when the office knows better than the marks. Home's Today tab and the
-  morning notification say who needs an off. The register is the second tab.
+  morning notification say who needs an off. **Days not marked count as duty** (a switch in Settings ›
+  Attendance, on to start), so the office marks only offs, CL, CH and absences; the register shows those days with a
+  faint ✓. The **Today** tab lists everyone for one day: tap a person for Duty, Off, CL, half-day CL, CH or Absent
+  (saved at once, with Undo), or tick several and use the bar. **Start the register** puts everyone's starting point
+  in at once: the day of each weekly-off person's last off (or the days since it) and offs owed from before, and the
+  app works out their Day N; the starting-figures spreadsheet takes a "Last off on" column too. The register is the
+  third tab on computers.
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).

@@ -69,7 +69,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 35: the summary carries attendanceUnmarked (attendance phase 3, 2026-10-31).
 // 36: attendance months' weekly figures carry dueBefore / towardsBefore (offs only once earned, 2026-10-31).
 // 37: the summary carries attendanceOffs and attendance months carry corrections (easier attendance, 2026-11-02).
-export const CACHE_VERSION = "37";
+// 38: attendance settings carry assumeDuty, months' weekly figures countFrom, the Offs board started / assumeDuty (2026-11-02).
+export const CACHE_VERSION = "38";
 
 export async function clearSavedData() {
   queryClient.clear();

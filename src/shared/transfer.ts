@@ -142,8 +142,9 @@ export const CSV_COLUMNS: Record<CsvKind, CsvColumn[]> = {
     { key: "asOn", header: "As on", required: true, sample: ["2026-09-30", "2026-09-30"] },
     { key: "clTaken", header: "CL taken", sample: ["4.5", "2"] },
     { key: "chOpen", header: "Holidays worked, CH to take", sample: ["2026-09-15 Onam", ""] },
-    { key: "offsDue", header: "Offs due", sample: ["", "1"] },
-    { key: "towards", header: "Days towards the next off", sample: ["", "3"] },
+    { key: "lastOff", header: "Last off on", sample: ["", "2026-09-27"] },
+    { key: "offsDue", header: "Offs due", sample: ["", "0"] },
+    { key: "towards", header: "Days towards the next off", sample: ["", ""] },
   ],
 };
 

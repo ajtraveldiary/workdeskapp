@@ -41,6 +41,7 @@ import { WaitDialogHost } from "./components/Waiting";
 import { RemoveChooserHost } from "./components/RemoveChooser";
 import { SystemTaskChooserHost } from "./components/SystemTaskChooser";
 import { IncrementDialogHost } from "./components/IncrementDialog";
+import { StartRegisterHost } from "./components/StartRegister";
 import { SidePanel } from "./components/SidePanel";
 import { PageErrorBoundary } from "./components/ErrorBoundary";
 import { usePhone } from "./components/sheet";
@@ -184,6 +185,7 @@ function Shell({ children }: { children: ReactNode }) {
       <RemoveChooserHost />
       <SystemTaskChooserHost />
       <IncrementDialogHost />
+      <StartRegisterHost />
       <EventDialogHost />
       <EventDetailsHost />
       <IconBadge />
