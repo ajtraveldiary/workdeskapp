@@ -4,7 +4,7 @@
 // scrolls by itself. It marks through the register's own routes, so every rule holds there: holidays and leave are
 // left out, an off only once earned, a CH only for a holiday worked within 3 months, and each mark is in History.
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, ClipboardCheck } from "lucide-react";
 import { MARK_NAME, chFits, offByItself, offLine } from "../../shared/attendance";
@@ -30,7 +30,9 @@ function daysFrom(from: string, to: string) {
 export function MarkAttendancePage() {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
   const staff = useStaff().data;
-  const [employeeId, setEmployeeId] = useState("");
+  // ?employee= (from the Offs board's person sheet) picks them to start.
+  const [params] = useSearchParams();
+  const [employeeId, setEmployeeId] = useState(params.get("employee") ?? "");
   const [kind, setKind] = useState<Kind>("cl");
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState("");

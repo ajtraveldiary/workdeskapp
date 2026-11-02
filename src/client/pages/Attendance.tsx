@@ -16,19 +16,24 @@
 // month, Summary, Download, Print, refresh and Holidays. Summary opens the month's summary in a pop-up (user request
 // 2026-10-31); printing always adds it under the register with the signature lines. The register's columns share the
 // page's width (a fixed table layout; day columns grow and shrink) and it scrolls sideways only below about 740px.
+// Easier attendance (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md phase 1): the page has two tabs, Offs (the
+// reminder board for weekly-off staff, components/OffsBoard.tsx; first) and Register (all of the above); an off can be
+// marked before it is earned (the bar warns it is taken early instead of greying Off out); corrections of the count
+// (Correct the count) are part of the month's figures (monthStates).
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
-import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, dutyForOff, monthCounts, monthLabel, offByItself, offLine, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
 import { saveFile } from "../saveFile";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
-import { useAttendance, useAttendanceActions, useMe, useOfficeProfile, type AttendanceCell } from "../api";
+import { useAttendance, useAttendanceActions, useMe, useOffsBoard, useOfficeProfile, type AttendanceCell } from "../api";
+import { OffsBoard } from "../components/OffsBoard";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
-import { Button, Card, ErrorNote, Modal, SkeletonList, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Modal, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
 
 type Person = AttendanceMonth["employees"][number];
 type Markable = Exclude<AttendanceMark, "ch">;
@@ -107,11 +112,47 @@ export function AttendancePage() {
   useEffect(() => setSelected(new Set()), [month]);
   // The month's summary, in a pop-up opened by Summary.
   const [summary, setSummary] = useState(false);
+  // Offs (the reminder board, first) or the register (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.6),
+  // remembered on the device; until chosen, the register when nobody is on weekly off.
+  const board = useOffsBoard().data;
+  const [chosen, setChosen] = useState<View | null>(readView);
+  const view: View = chosen ?? (board && board.people.length === 0 ? "register" : "offs");
+  const choose = (v: View) => {
+    setChosen(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // Private mode: the choice lasts until the page closes.
+    }
+  };
+  const due = board ? board.people.filter((p) => needsOff(offStatus(p, board))).length : 0;
+  const tabs = (
+    <div className="-mt-2 mb-3 print:hidden sm:-mt-3">
+      <Segmented
+        oneRow
+        value={view}
+        onChange={choose}
+        options={[
+          { value: "offs", label: "Offs", count: due || undefined, tone: due ? "urgent" : undefined },
+          { value: "register", label: "Register" },
+        ]}
+      />
+    </div>
+  );
+  if (view === "offs")
+    return (
+      <>
+        <h1 className="sr-only">Attendance: weekly offs</h1>
+        {tabs}
+        <OffsBoard onRegister={() => choose("register")} />
+      </>
+    );
 
   return (
     <>
       <h1 className="sr-only">Attendance register</h1>
-      <div className="-mt-2 mb-2 flex flex-wrap items-center gap-1 print:hidden sm:-mt-3">
+      {tabs}
+      <div className="mb-2 flex flex-wrap items-center gap-1 print:hidden">
         <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
           <ChevronLeft size={18} />
         </button>
@@ -182,6 +223,17 @@ export function AttendancePage() {
       )}
     </>
   );
+}
+
+type View = "offs" | "register";
+const VIEW_KEY = "workdesk-attendance-view";
+function readView(): View | null {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === "offs" || v === "register" ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 type Cells = NonNullable<ReturnType<typeof useCells>>;
@@ -301,11 +353,14 @@ function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data
 function monthStates(data: AttendanceMonth, cells: Cells, e: Person, as?: { dates: Set<string>; mark: AttendanceMark }): WeeklyDay[] {
   return data.days.map((d) => {
     const info = cells.info(e, d.date);
-    if (info.out) return { date: d.date, state: "skip" as const };
-    if (info.leave) return { date: d.date, state: "reset" as const };
+    // A correction of the count sets the figures as on the end of its day.
+    const fix = data.corrections.find((c) => c.employeeId === e.id && c.date === d.date);
+    const set = fix ? { set: { offsDue: fix.offsDue, towards: fix.towards, run: fix.run } } : {};
+    if (info.out) return { date: d.date, state: "skip" as const, ...set };
+    if (info.leave) return { date: d.date, state: "reset" as const, ...set };
     const m = as?.dates.has(d.date) ? as.mark : info.mark;
     const state: WeeklyDay["state"] = m === "off" ? "off" : m === "absent" ? "reset" : m ? "count" : d.holiday ? "count" : "skip";
-    return { date: d.date, state };
+    return { date: d.date, state, ...set };
   });
 }
 
@@ -758,9 +813,9 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
     })
     .filter((x) => x.after > data.settings.clPerYear);
   const people = [...new Set(picked.map((c) => c.employeeId))];
-  // Offs only once earned (user request 2026-10-31, "allow off only if 6 duty + CL + CH completed"): each weekly-off
-  // person's selected days that would take an off, checked from where the month starts (offsEarned, as the server
-  // does); Off is greyed out when none is earned, and the bar says how many more days of duty each needs.
+  // Offs taken early (since 2026-11-02 an off is marked even before it is earned, docs/ATTENDANCE_UX_PLAN.md 4.3): each
+  // weekly-off person's selected days that would take an off, checked from where the month starts (offsEarned); the
+  // bar says which come early and how many days of duty were still to go.
   const offCheck = people
     .filter((id) => byId.get(id)?.offDay === "weekly")
     .map((id) => {
@@ -775,7 +830,6 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
       const r = offsEarned(days, w ? { offsDue: w.dueBefore, towards: w.towardsBefore } : undefined, { offEvery: data.settings.offEvery });
       return { id, ok: r.ok.length, refused: [...r.refused] };
     });
-  const offsOk = offCheck.reduce((n, x) => n + x.ok, 0);
   const offsRefused = offCheck.filter((x) => x.refused.length > 0);
   // CL / CH with the holidays around them past 15 days in a row (KSR Appendix VII), if the selection were CL or CH.
   const longAway = people
@@ -838,7 +892,7 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
           <Check size={15} /> Present
         </Button>
         {weekly && (
-          <Button size="sm" onClick={() => run("off")} disabled={busy || offsOk === 0} title={offsOk === 0 ? "No off earned yet" : undefined}>
+          <Button size="sm" onClick={() => run("off")} disabled={busy}>
             Off
           </Button>
         )}
@@ -876,14 +930,14 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
       )}
       {offsRefused.length > 0 && (
         <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
-          Off not earned yet:{" "}
+          Off taken early:{" "}
           {offsRefused
             .map((x) => {
               const [date, need] = x.refused[0]!;
-              return `${byId.get(x.id)?.name} on ${dayLabel(date)} needs ${need} more ${need === 1 ? "day" : "days"} of duty${x.refused.length > 1 ? ` (${x.refused.length} days)` : ""}`;
+              return `${byId.get(x.id)?.name} on ${dayLabel(date)}, ${need} ${need === 1 ? "day" : "days"} of duty before it was due${x.refused.length > 1 ? ` (${x.refused.length} days early)` : ""}`;
             })
             .join(", ")}
-          . {data.settings.offEvery} days of duty, CL or CH earn an off{offsOk > 0 ? `; Off marks only the ${offsOk} earned` : ""}.
+          . It can still be marked: the next off earned pays it back ({data.settings.offEvery} days of duty, CL or CH earn an off).
         </p>
       )}
       {overRun.length > 0 && (

@@ -485,6 +485,15 @@ export const attendanceSettingsInput = z.object({
   offEvery: z.number().int().min(2).max(13).default(6),
   maxRun: z.number().int().min(3).max(31).default(12),
 });
+// Correct the count (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.4): a weekly-off person's figures as on
+// today: offs owed (negative: taken early), days counted towards the next off, days of duty in a row; a note.
+export const attendanceCorrectionInput = z.object({
+  employeeId: z.uuid(),
+  offsDue: z.number().int().min(-10).max(20),
+  towards: z.number().int().min(0).max(30),
+  run: z.number().int().min(0).max(90),
+  note: z.string().trim().max(300).default(""),
+});
 // Mark CH (phase 2): each cell with the holiday worked it is taken for.
 export const attendanceChInput = z.object({
   items: z.array(z.object({ employeeId: z.uuid(), date: day, holiday: day })).min(1).max(500),

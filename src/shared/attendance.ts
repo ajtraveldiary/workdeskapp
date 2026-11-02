@@ -117,7 +117,10 @@ export type StartFigures = { asOn: string; clTaken: number; chOpen: { date: stri
 // from the offs due and starts the run again; days not marked yet count nothing and keep the run.
 export const OFF_EVERY = 6;
 export const MAX_RUN = 12;
-export type WeeklyDay = { date: string; state: "count" | "off" | "reset" | "skip" };
+// A correction (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.4, "Correct the count"): as on the end of its
+// day the figures are set to these, whatever the marks before it say.
+export type WeeklySet = { offsDue: number; towards: number; run: number };
+export type WeeklyDay = { date: string; state: "count" | "off" | "reset" | "skip"; set?: WeeklySet };
 export function weeklyOff(days: WeeklyDay[], start?: { offsDue: number; towards: number }, figures?: { offEvery?: number; maxRun?: number }, startRun = 0) {
   const every = figures?.offEvery ?? OFF_EVERY;
   const max = figures?.maxRun ?? MAX_RUN;
@@ -135,14 +138,16 @@ export function weeklyOff(days: WeeklyDay[], start?: { offsDue: number; towards:
       due--;
       run = 0;
     } else if (d.state === "reset") run = 0;
+    if (d.set) ({ offsDue: due, towards: counted, run } = d.set);
   }
   return { offsDue: due, towards: counted % every, run, long };
 }
 
-// An off only once it is earned (user request 2026-10-31, "allow off only if 6 duty + CL + CH completed"): the days
-// as weeklyOff counts them, with the days asked for as offs (`asked`, and `was`: the day's state without the off). An
-// asked off is allowed while an off is due before it; otherwise it is refused, with the days still to count for one
-// (`need`), and the day keeps its own state.
+// Offs earned or taken early (user request 2026-10-31, "allow off only if 6 duty + CL + CH completed"; since
+// 2026-11-02 an early off is marked anyway and only warned about, docs/ATTENDANCE_UX_PLAN.md 4.3): the days as
+// weeklyOff counts them, with the days asked for as offs (`asked`, and `was`: the day's state without the off). An
+// asked off is earned while an off is due before it; otherwise it is early, with the days of duty that were still to
+// count for one (`refused`, kept as the name for the early ones). Either way it counts as an off.
 export type OffCheckDay = WeeklyDay & { asked?: boolean; was?: WeeklyDay["state"] };
 export function offsEarned(days: OffCheckDay[], start?: { offsDue: number; towards: number }, figures?: { offEvery?: number }) {
   const every = figures?.offEvery ?? OFF_EVERY;
@@ -151,18 +156,15 @@ export function offsEarned(days: OffCheckDay[], start?: { offsDue: number; towar
   const ok: string[] = [];
   const refused = new Map<string, number>();
   for (const d of days) {
-    let state = d.state;
     if (d.asked) {
       if (due >= 1) ok.push(d.date);
-      else {
-        refused.set(d.date, dutyForOff(due, counted % every, every));
-        state = d.was ?? "skip";
-      }
+      else refused.set(d.date, dutyForOff(due, counted % every, every));
     }
-    if (state === "count") {
+    if (d.state === "count") {
       counted++;
       if (counted % every === 0) due++;
-    } else if (state === "off") due--;
+    } else if (d.state === "off") due--;
+    if (d.set) ({ offsDue: due, towards: counted } = d.set);
   }
   return { ok, refused };
 }
@@ -173,6 +175,27 @@ export function offLine(w: { offsDue: number; towards: number }, every: number) 
   const need = dutyForOff(w.offsDue, w.towards, every);
   return need === 0 ? `${w.offsDue} ${w.offsDue === 1 ? "off" : "offs"} due` : `${need} more ${need === 1 ? "day" : "days"} for an off`;
 }
+
+// Where a weekly-off person stands (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.1), for the Offs board,
+// Home and the morning notification. `run` is the days of duty in a row (Day N). Red: more than the most days in a
+// row, or two offs owed (12 days without one: the off and the compensatory off); orange: an off owed and more duty
+// done since; amber: an off owed; blue: one more day of duty and an off is owed; grey: fine. `early`: offs taken
+// before they were earned, paid back by the next ones.
+export type OffTone = "red" | "orange" | "amber" | "blue" | "grey";
+export type OffStatus = { tone: OffTone; text: string; owed: number; early: number; need: number; rank: number };
+export function offStatus(w: { offsDue: number; towards: number; run: number }, figures: { offEvery: number; maxRun: number }): OffStatus {
+  const need = dutyForOff(w.offsDue, w.towards, figures.offEvery);
+  const owed = Math.max(0, w.offsDue);
+  const early = Math.max(0, -w.offsDue);
+  const s = (tone: OffTone, text: string): OffStatus => ({ tone, text, owed, early, need, rank: ["grey", "blue", "amber", "orange", "red"].indexOf(tone) });
+  if (w.run > figures.maxRun) return s("red", owed >= 2 ? `${w.run} days without an off · ${owed} offs owed` : `${w.run} days without an off`);
+  if (owed >= 2) return s("red", owed === 2 ? "Off + compensatory off owed" : `${owed} offs owed`);
+  if (owed === 1) return s(w.towards > 0 ? "orange" : "amber", w.towards > 0 ? "Off overdue" : "Off due");
+  if (need === 1) return s("blue", "Off after 1 more day");
+  return s("grey", `Off after ${need} more days`);
+}
+// An off is owed now, or the run is past the most: the people Home and the morning notification name.
+export const needsOff = (st: OffStatus) => st.owed >= 1 || st.tone === "red";
 
 // The days of a run of absence (KSR Appendix VII: CL or CH with the holidays around it, at most 15 days in a row):
 // CL, CH, a weekly off, and a holiday or Sunday-off staff's Sunday not worked.

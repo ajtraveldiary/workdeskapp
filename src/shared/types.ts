@@ -148,6 +148,9 @@ export type Summary = {
   eventsToday: EventToday[];
   // People in the office not marked in the attendance register today (from 11 am; null when not reminded).
   attendanceUnmarked: number | null;
+  // Weekly-off staff who need an off now (owed one, or past the most days in a row), most urgent first, for a line
+  // on Due Today (docs/ATTENDANCE_UX_PLAN.md 4.8).
+  attendanceOffs: { employeeId: string; name: string; tone: import("./attendance").OffTone; text: string }[];
   overdue: Task[];
   dueToday: Task[];
   dueTomorrow: Task[];
@@ -527,5 +530,27 @@ export type AttendanceMonth = {
   // Days of absence in a row (CL, CH, offs, holidays not worked) just before the month and just after it, so a
   // 15-day run that crosses the month's edge is seen.
   edges: { employeeId: string; before: number; after: number }[];
+  // Corrections of the count within the month (Correct the count, 2026-11-02): the figures as on the end of that day.
+  corrections: { employeeId: string; date: string; offsDue: number; towards: number; run: number }[];
 };
+// The Offs board (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.6): every weekly-off person in the office
+// today with their figures as on today, the last 14 days, their last off, the latest corrections, and CL / CH this
+// year in plain words for the person sheet.
+export type OffsBoardDay = { date: string; mark: import("./attendance").AttendanceMark | null; leave: string | null; holiday: string | null; out: boolean };
+export type OffsBoardPerson = {
+  id: string;
+  name: string;
+  designation: string | null;
+  offsDue: number;
+  towards: number;
+  run: number;
+  lastOff: string | null;
+  days: OffsBoardDay[];
+  corrections: { id: string; date: string; offsDue: number; towards: number; run: number; note: string }[];
+  cl: number;
+  ch: number;
+  chLimit: number | null;
+  chOpen: { holiday: string; name: string; expires: string }[];
+};
+export type OffsBoard = { today: string; offEvery: number; maxRun: number; clPerYear: number; people: OffsBoardPerson[]; sundayOff: number };
 export type Holiday = { id: string; date: string; name: string };

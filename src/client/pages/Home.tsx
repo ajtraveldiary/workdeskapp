@@ -30,7 +30,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { EventToday, IncrementDue, Task, TaskView, Thread } from "../../shared/types";
+import type { EventToday, IncrementDue, Summary, Task, TaskView, Thread } from "../../shared/types";
 import { incrementOverdue } from "../../shared/staff";
 import { gmailThreadUrl } from "../../shared/gmailUrl";
 import {
@@ -306,6 +306,8 @@ function CommandCenter({
   const todayEvents = tab === "today" && !tag ? (summary.eventsToday ?? []) : [];
   // Attendance not marked yet today (attendance register phase 3), from 11 am, at the top of the Today tab.
   const unmarked = tab === "today" && !tag ? (summary.attendanceUnmarked ?? 0) : 0;
+  // Weekly-off staff who need an off (docs/ATTENDANCE_UX_PLAN.md 4.8), one line at the top of the Today tab.
+  const offs = tab === "today" && !tag ? (summary.attendanceOffs ?? []) : [];
 
   return (
     <Panel hiddenOnPhone={hiddenOnPhone}>
@@ -343,12 +345,13 @@ function CommandCenter({
           </Empty>
         ) : tag && tasks.length === 0 ? (
           <Empty icon={CircleCheck} title="No tasks with this tag here" />
-        ) : tasks.length === 0 && increments.length === 0 && todayEvents.length === 0 && !unmarked ? (
+        ) : tasks.length === 0 && increments.length === 0 && todayEvents.length === 0 && !unmarked && !offs.length ? (
           <Empty icon={CircleCheck} title={tab === "today" ? "Nothing due today or overdue" : tab === "overdue" ? "Nothing overdue" : "Nothing scheduled"}>
             {tab === "today" ? "Give a task a due date and it shows up here on the day." : undefined}
           </Empty>
         ) : (
           <ul className="@container divide-y divide-line px-3 sm:px-5">
+            {offs.length > 0 && <OffsTodayRow offs={offs} />}
             {unmarked > 0 && <AttendanceTodayRow count={unmarked} />}
             {todayEvents.map((e) => (
               <EventTodayRow key={`${e.id}:${e.original}`} item={e} />
@@ -633,6 +636,21 @@ function AttendanceTodayRow({ count }: { count: number }) {
       <Link to="/attendance" className="row-link min-w-0 flex-1 text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm">
         <ClipboardCheck size={14} className="mr-1 inline -translate-y-px text-brand-700" aria-hidden />
         Attendance not marked today: {count} {count === 1 ? "person" : "people"}
+      </Link>
+      <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden />
+    </li>
+  );
+}
+
+// "Off due: Mary, Rajesh (13 days without an off)": weekly-off staff who need an off, to the Offs board.
+function OffsTodayRow({ offs }: { offs: Summary["attendanceOffs"] }) {
+  const red = offs.some((o) => o.tone === "red");
+  return (
+    <li className="row-click -mx-3 flex items-center gap-2.5 px-3 py-2.5 has-[:is(button,a):hover]:bg-slate-50/80 sm:-mx-5 sm:px-5 sm:py-2">
+      <span className={cx("w-[3px] shrink-0 self-stretch rounded-full", red ? "bg-urgent" : "bg-high")} aria-hidden />
+      <Link to="/attendance" className="row-link min-w-0 flex-1 text-subhead leading-snug font-medium text-ink [overflow-wrap:anywhere] hover:text-brand-700 hover:underline sm:text-sm">
+        <ClipboardCheck size={14} className={cx("mr-1 inline -translate-y-px", red ? "text-urgent-ink" : "text-high-ink")} aria-hidden />
+        Off due: {offs.map((o) => (o.tone === "red" ? `${o.name} (${o.text.toLowerCase()})` : o.name)).join(", ")}
       </Link>
       <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden />
     </li>

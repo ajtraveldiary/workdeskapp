@@ -379,6 +379,13 @@
       "when": 1793433242017,
       "tag": "0053_attendance",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1793614610519,
+      "tag": "0054_attendance_corrections",
+      "breakpoints": true
     }
   ]
 }

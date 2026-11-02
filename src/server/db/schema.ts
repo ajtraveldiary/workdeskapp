@@ -846,6 +846,26 @@ export const attendanceMarks = pgTable(
   },
   (t) => [uniqueIndex("attendance_marks_employee_date").on(t.employeeId, t.date), index("attendance_marks_user_date").on(t.userId, t.date)],
 );
+// Corrections of a weekly-off person's count (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.4): as on the
+// end of `date` their offs owed (negative: taken early), days counted towards the next off and days in a row are
+// these, whatever the marks before say. One a day per person; deleting one (Undo) brings back the count from marks.
+export const attendanceCorrections = pgTable(
+  "attendance_corrections",
+  {
+    id: id(),
+    userId: uuid("user_id").notNull().references(() => users.id),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    offsDue: integer("offs_due").notNull(),
+    towards: integer("towards").notNull(),
+    run: integer("run").notNull(),
+    note: text("note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("attendance_corrections_employee_date").on(t.employeeId, t.date), index("attendance_corrections_user").on(t.userId)],
+);
 export const attendanceSettings = pgTable("attendance_settings", {
   id: id(),
   userId: uuid("user_id").notNull().unique().references(() => users.id),

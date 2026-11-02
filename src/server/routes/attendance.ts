@@ -3,14 +3,17 @@
 // taken); marking many cells in one go (a day's column for everyone, or chosen cells) and clearing them, each one
 // History entry; the office's holidays and the register's settings (Settings › Attendance). Phase 2: compensation
 // leave (CH) for holidays worked, each CH tied to its holiday (openCh), the weekly-off figures (weeklyFigures) and
-// the starting figures kept in the settings.
+// the starting figures kept in the settings. Easier attendance (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md
+// phase 1): an off is marked even before it is earned (the app only warns), corrections of a weekly-off person's count
+// (attendance_corrections, Correct the count), the Offs board (offsBoard) and the people who need an off for Home and
+// the morning notification (offsReminder).
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, count, eq, gte, inArray, isNotNull, isNull, lt, lte, min, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, max, min, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
-import { attendanceMarks, attendanceSettings, designations, employeeLeaves, employees, events, holidays, leaveTypes } from "../db/schema";
-import { attendanceChInput, attendanceClearInput, attendanceMarkInput, attendanceSettingsInput, holidayInput } from "../../shared/schemas";
+import { attendanceCorrections, attendanceMarks, attendanceSettings, designations, employeeLeaves, employees, events, holidays, leaveTypes } from "../db/schema";
+import { attendanceChInput, attendanceClearInput, attendanceCorrectionInput, attendanceMarkInput, attendanceSettingsInput, holidayInput } from "../../shared/schemas";
 import {
   DEFAULT_ATTENDANCE_SETTINGS,
   MARK_NAME,
@@ -24,17 +27,18 @@ import {
   offByItself,
   weekdayOf,
   weeklyOff,
-  offsEarned,
   awayDay,
+  needsOff,
+  offStatus,
   CL_RUN_MAX,
   type AttendanceSettings,
   type ChOpen,
-  type OffCheckDay,
   type WeeklyDay,
+  type WeeklySet,
 } from "../../shared/attendance";
 import { leaveEnd, leaveShort, shiftDate } from "../../shared/leave";
 import { dayLabel } from "../../shared/reminderSchedule";
-import type { AttendanceMonth, Holiday } from "../../shared/types";
+import type { AttendanceMonth, Holiday, OffsBoard, OffsBoardDay, Summary } from "../../shared/types";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 
@@ -98,20 +102,32 @@ async function openCh(db: DB, userId: string, settings: AttendanceSettings, ids:
 }
 
 // Weekly-off staff's figures up to the month's end (or today): from the day after their starting figures, else from
-// their first mark, each day counted, an off, a fresh start or nothing (weeklyOff in shared/attendance.ts).
+// their first mark or first correction, each day counted, an off, a fresh start or nothing (weeklyOff in
+// shared/attendance.ts); a correction sets the figures as on the end of its day. `corrections`: those from `first` on.
 async function weeklyFigures(db: DB, userId: string, settings: AttendanceSettings, people: { id: string; from: string | null; until: string | null }[], first: string, last: string, today: string) {
   if (!people.length) return [];
   const end = last < today ? last : today;
   const ids = people.map((p) => p.id);
-  const firstMarks = await db
-    .select({ employeeId: attendanceMarks.employeeId, first: min(attendanceMarks.date) })
-    .from(attendanceMarks)
-    .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids)))
-    .groupBy(attendanceMarks.employeeId);
+  const [firstMarks, fixes] = await Promise.all([
+    db
+      .select({ employeeId: attendanceMarks.employeeId, first: min(attendanceMarks.date) })
+      .from(attendanceMarks)
+      .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids)))
+      .groupBy(attendanceMarks.employeeId),
+    db
+      .select()
+      .from(attendanceCorrections)
+      .where(and(eq(attendanceCorrections.userId, userId), inArray(attendanceCorrections.employeeId, ids), lte(attendanceCorrections.date, end)))
+      .orderBy(asc(attendanceCorrections.date)),
+  ]);
+  const fixOf = new Map(fixes.map((f) => [`${f.employeeId}|${f.date}`, { offsDue: f.offsDue, towards: f.towards, run: f.run } satisfies WeeklySet]));
   const starts = new Map(
     people.map((p) => {
       const s = settings.start[p.id];
-      let from = s ? shiftDate(s.asOn, 1) : (firstMarks.find((f) => f.employeeId === p.id)?.first ?? first);
+      const fm = firstMarks.find((f) => f.employeeId === p.id)?.first ?? null;
+      const ff = fixes.find((f) => f.employeeId === p.id)?.date ?? null;
+      const begin = [fm, ff].filter((x): x is string => !!x).sort()[0];
+      let from = s ? shiftDate(s.asOn, 1) : (begin ?? first);
       if (p.from && from < p.from) from = p.from;
       return [p.id, from];
     }),
@@ -144,76 +160,25 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
               : holidayOn(d, hols, settings)
                 ? "count"
                 : "skip";
-      days.push({ date: d, state });
+      const set = fixOf.get(`${p.id}|${d}`);
+      days.push(set ? { date: d, state, set } : { date: d, state });
     }
     const w = weeklyOff(days, settings.start[p.id], settings);
     // The run, offs due and days towards the next when the month starts, so the register can work out the month's
     // runs and which offs are earned (and the bar its warnings).
     const before = weeklyOff(days.filter((d) => d.date < first), settings.start[p.id], settings);
-    return { employeeId: p.id, offsDue: w.offsDue, towards: w.towards, run: w.run, long: w.long.filter((d) => d >= first), runBefore: before.run, dueBefore: before.offsDue, towardsBefore: before.towards };
+    return {
+      employeeId: p.id,
+      offsDue: w.offsDue,
+      towards: w.towards,
+      run: w.run,
+      long: w.long.filter((d) => d >= first),
+      runBefore: before.run,
+      dueBefore: before.offsDue,
+      towardsBefore: before.towards,
+      corrections: fixes.filter((f) => f.employeeId === p.id && f.date >= first).map((f) => ({ employeeId: f.employeeId, date: f.date, offsDue: f.offsDue, towards: f.towards, run: f.run })),
+    };
   });
-}
-
-// Which offs asked for are earned (user request 2026-10-31, "allow off only if 6 duty + CL + CH completed"): each
-// weekly-off person's days from where their counting starts (the day after their starting figures, else their first
-// mark) to the last day asked, as weeklyFigures sees them, with the days asked as offs (offsEarned). Answers the
-// "employeeId|date" keys allowed.
-async function earnedOffs(db: DB, userId: string, settings: AttendanceSettings, people: { id: string; from: string | null; until: string | null }[], asked: Map<string, Set<string>>) {
-  const ok = new Set<string>();
-  if (!people.length) return ok;
-  const ids = people.map((p) => p.id);
-  const all = [...asked.values()].flatMap((x) => [...x]).sort();
-  const end = all[all.length - 1]!;
-  const firstMarks = await db
-    .select({ employeeId: attendanceMarks.employeeId, first: min(attendanceMarks.date) })
-    .from(attendanceMarks)
-    .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids)))
-    .groupBy(attendanceMarks.employeeId);
-  const starts = new Map(
-    people.map((p) => {
-      const s = settings.start[p.id];
-      const mine = [...asked.get(p.id)!].sort()[0]!;
-      const fm = firstMarks.find((f) => f.employeeId === p.id)?.first;
-      let from = s ? shiftDate(s.asOn, 1) : fm && fm < mine ? fm : mine;
-      if (p.from && from < p.from) from = p.from;
-      return [p.id, from];
-    }),
-  );
-  const earliest = [...starts.values()].sort()[0]!;
-  const [marks, leaves, hols] =
-    earliest <= end
-      ? await Promise.all([
-          db
-            .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark })
-            .from(attendanceMarks)
-            .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), gte(attendanceMarks.date, earliest), lte(attendanceMarks.date, end))),
-          leavesIn(db, userId, earliest, end, ids),
-          holidayMap(db, userId, earliest, end),
-        ])
-      : [[], [], new Map<string, string>()];
-  const markOf = new Map(marks.map((m) => [`${m.employeeId}|${m.date}`, m.mark]));
-  for (const p of people) {
-    const mine = asked.get(p.id)!;
-    const last = [...mine].sort()[mine.size - 1]!;
-    const days: OffCheckDay[] = [];
-    for (let d = starts.get(p.id)!; d <= last && (!p.until || d <= p.until); d = shiftDate(d, 1)) {
-      const m = markOf.get(`${p.id}|${d}`);
-      const state: WeeklyDay["state"] = leaves.some((l) => l.employeeId === p.id && l.from <= d && d <= l.to)
-        ? "reset"
-        : m === "off"
-          ? "off"
-          : m === "absent"
-            ? "reset"
-            : m
-              ? "count"
-              : holidayOn(d, hols, settings)
-                ? "count"
-                : "skip";
-      days.push(mine.has(d) ? { date: d, state: "off", asked: true, was: state } : { date: d, state });
-    }
-    for (const d of offsEarned(days, settings.start[p.id], settings).ok) ok.add(`${p.id}|${d}`);
-  }
-  return ok;
 }
 
 // Days of absence in a row just before the month and just after it (CL, CH, offs, holidays not worked), up to 15
@@ -247,6 +212,143 @@ async function awayEdges(db: DB, userId: string, settings: AttendanceSettings, p
     while (a < CL_RUN_MAX && away(shiftDate(last, a + 1))) a++;
     return { employeeId: p.id, before: b, after: a };
   });
+}
+
+// CL (with the starting figures of the same year) and CH taken in a calendar year, by employee.
+async function yearTotals(db: DB, userId: string, settings: AttendanceSettings, ids: string[], year: string) {
+  const totals = new Map<string, { cl: number; ch: number }>();
+  if (!ids.length) return totals;
+  const rows = await db
+    .select({ employeeId: attendanceMarks.employeeId, mark: attendanceMarks.mark, n: sql<number>`count(*)::int` })
+    .from(attendanceMarks)
+    .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), gte(attendanceMarks.date, `${year}-01-01`), lte(attendanceMarks.date, `${year}-12-31`), inArray(attendanceMarks.mark, ["cl", "cl_half", "ch"])))
+    .groupBy(attendanceMarks.employeeId, attendanceMarks.mark);
+  for (const id of ids) {
+    const s = settings.start[id];
+    if (s && s.asOn.slice(0, 4) === year && s.clTaken) totals.set(id, { cl: s.clTaken, ch: 0 });
+  }
+  for (const r of rows) {
+    const t = totals.get(r.employeeId) ?? { cl: 0, ch: 0 };
+    if (r.mark === "ch") t.ch += Number(r.n);
+    else t.cl += clDays(r.mark) * Number(r.n);
+    totals.set(r.employeeId, t);
+  }
+  return totals;
+}
+// A person's CH a year: their post's limit in Settings › Attendance, else guessed from its name (null = no limit).
+const chLimitOf = (designationId: string | null, designation: string | null, settings: AttendanceSettings) =>
+  designationId && designationId in settings.chLimits ? settings.chLimits[designationId]! : guessChLimit(designation);
+
+// Weekly-off staff in the office today, in designation order then name, and how many Sunday-off people there are.
+async function weeklyPeopleToday(db: DB, userId: string, today: string) {
+  const rows = await db
+    .select({ e: employees, designation: designations.name, order: designations.sortOrder })
+    .from(employees)
+    .leftJoin(designations, eq(designations.id, employees.designationId))
+    .where(and(eq(employees.userId, userId), or(isNull(employees.joinedOfficeOn), lte(employees.joinedOfficeOn, today)), or(isNull(employees.leftOn), gte(employees.leftOn, today))));
+  rows.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.e.name.localeCompare(b.e.name));
+  const weekly = rows.filter((r) => r.e.offDay === "weekly");
+  return { weekly, sundayOff: rows.length - weekly.length };
+}
+
+// "Day 3, 1 off owed" / "Day 3, 1 off taken early" / "Day 3, no off owed".
+const countText = (w: { offsDue: number; run: number }) =>
+  `Day ${w.run}, ${w.offsDue > 0 ? `${w.offsDue} ${w.offsDue === 1 ? "off" : "offs"} owed` : w.offsDue < 0 ? `${-w.offsDue} ${w.offsDue === -1 ? "off" : "offs"} taken early` : "no off owed"}`;
+
+// The Offs board (docs/ATTENDANCE_UX_PLAN.md 4.6): weekly-off staff in the office today, their figures as on today,
+// the last 14 days, their last off, the latest corrections, and CL / CH this year.
+export async function offsBoard(db: DB, userId: string, today: string): Promise<OffsBoard> {
+  const [settings, { weekly, sundayOff }] = await Promise.all([loadSettings(db, userId), weeklyPeopleToday(db, userId, today)]);
+  const out: OffsBoard = { today, offEvery: settings.offEvery, maxRun: settings.maxRun, clPerYear: settings.clPerYear, people: [], sundayOff };
+  if (!weekly.length) return out;
+  const ids = weekly.map((p) => p.e.id);
+  const from = shiftDate(today, -13);
+  const [figures, marks, leaves, hols, lastOffs, fixes, totals, ch] = await Promise.all([
+    weeklyFigures(
+      db,
+      userId,
+      settings,
+      weekly.map((p) => ({ id: p.e.id, from: p.e.joinedOfficeOn, until: p.e.leftOn })),
+      from,
+      today,
+      today,
+    ),
+    db
+      .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark })
+      .from(attendanceMarks)
+      .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), gte(attendanceMarks.date, from), lte(attendanceMarks.date, today))),
+    leavesIn(db, userId, from, today, ids),
+    holidayMap(db, userId, from, today),
+    db
+      .select({ employeeId: attendanceMarks.employeeId, last: max(attendanceMarks.date) })
+      .from(attendanceMarks)
+      .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), eq(attendanceMarks.mark, "off"), lte(attendanceMarks.date, today)))
+      .groupBy(attendanceMarks.employeeId),
+    db
+      .select()
+      .from(attendanceCorrections)
+      .where(and(eq(attendanceCorrections.userId, userId), inArray(attendanceCorrections.employeeId, ids)))
+      .orderBy(desc(attendanceCorrections.date)),
+    yearTotals(db, userId, settings, ids, today.slice(0, 4)),
+    openCh(db, userId, settings, ids, addMonths(today, -4), today),
+  ]);
+  const markOf = new Map(marks.map((m) => [`${m.employeeId}|${m.date}`, m.mark]));
+  const dates = Array.from({ length: 14 }, (_, i) => shiftDate(from, i));
+  out.people = weekly.map(({ e, designation }) => {
+    const w = figures.find((f) => f.employeeId === e.id)!;
+    const days: OffsBoardDay[] = dates.map((d) => ({
+      date: d,
+      mark: markOf.get(`${e.id}|${d}`) ?? null,
+      leave: leaves.find((l) => l.employeeId === e.id && l.from <= d && d <= l.to)?.short ?? null,
+      holiday: holidayOn(d, hols, settings)?.name ?? null,
+      out: !!((e.joinedOfficeOn && d < e.joinedOfficeOn) || (e.leftOn && d > e.leftOn)),
+    }));
+    const t = totals.get(e.id) ?? { cl: 0, ch: 0 };
+    return {
+      id: e.id,
+      name: e.name,
+      designation,
+      offsDue: w.offsDue,
+      towards: w.towards,
+      run: w.run,
+      lastOff: lastOffs.find((l) => l.employeeId === e.id)?.last ?? null,
+      days,
+      corrections: fixes
+        .filter((f) => f.employeeId === e.id)
+        .slice(0, 5)
+        .map((f) => ({ id: f.id, date: f.date, offsDue: f.offsDue, towards: f.towards, run: f.run, note: f.note })),
+      cl: t.cl,
+      ch: t.ch,
+      chLimit: chLimitOf(e.designationId, designation, settings),
+      chOpen: ch.open.filter((o) => o.employeeId === e.id && o.expires >= today).map((o) => ({ holiday: o.holiday, name: o.name, expires: o.expires })),
+    };
+  });
+  return out;
+}
+
+// Weekly-off staff who need an off now (owed one, or past the most days in a row), most urgent first: Home's line
+// and the morning notification (docs/ATTENDANCE_UX_PLAN.md 4.8).
+export async function offsReminder(db: DB, userId: string, today: string): Promise<Summary["attendanceOffs"]> {
+  const { weekly } = await weeklyPeopleToday(db, userId, today);
+  if (!weekly.length) return [];
+  const settings = await loadSettings(db, userId);
+  const figures = await weeklyFigures(
+    db,
+    userId,
+    settings,
+    weekly.map((p) => ({ id: p.e.id, from: p.e.joinedOfficeOn, until: p.e.leftOn })),
+    today,
+    today,
+    today,
+  );
+  return weekly
+    .map(({ e }) => {
+      const w = figures.find((f) => f.employeeId === e.id)!;
+      return { e, w, st: offStatus(w, settings) };
+    })
+    .filter((x) => needsOff(x.st))
+    .sort((a, b) => b.st.rank - a.st.rank || b.w.run - a.w.run || a.e.name.localeCompare(b.e.name))
+    .map(({ e, st }) => ({ employeeId: e.id, name: e.name, tone: st.tone, text: st.text }));
 }
 
 // Holidays worked (employee|date) whose CH is taken: their Present mark stays while the CH does.
@@ -312,32 +414,17 @@ export const attendanceRoutes = new Hono<AppEnv>()
     ]);
     people.sort((a, b) => Number(b.e.permanent) - Number(a.e.permanent) || (a.order ?? 1e9) - (b.order ?? 1e9) || a.e.name.localeCompare(b.e.name));
     const ids = people.map((p) => p.e.id);
-    const [marks, leaves, yearMarks] = ids.length
+    const [marks, leaves, totals] = ids.length
       ? await Promise.all([
           db
             .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark })
             .from(attendanceMarks)
             .where(and(eq(attendanceMarks.userId, userId), gte(attendanceMarks.date, first), lte(attendanceMarks.date, last))),
           leavesIn(db, userId, first, last),
-          db
-            .select({ employeeId: attendanceMarks.employeeId, mark: attendanceMarks.mark, n: sql<number>`count(*)::int` })
-            .from(attendanceMarks)
-            .where(and(eq(attendanceMarks.userId, userId), gte(attendanceMarks.date, `${year}-01-01`), lte(attendanceMarks.date, `${year}-12-31`), inArray(attendanceMarks.mark, ["cl", "cl_half", "ch"])))
-            .groupBy(attendanceMarks.employeeId, attendanceMarks.mark),
+          // CL taken before the register comes from the starting figures of the same year.
+          yearTotals(db, userId, settings, ids, year),
         ])
-      : [[], [], []];
-    const totals = new Map<string, { cl: number; ch: number }>();
-    // CL taken before the register, from the starting figures of the same year.
-    for (const id of ids) {
-      const s = settings.start[id];
-      if (s && s.asOn.slice(0, 4) === year && s.clTaken) totals.set(id, { cl: s.clTaken, ch: 0 });
-    }
-    for (const r of yearMarks) {
-      const t = totals.get(r.employeeId) ?? { cl: 0, ch: 0 };
-      if (r.mark === "ch") t.ch += Number(r.n);
-      else t.cl += clDays(r.mark) * Number(r.n);
-      totals.set(r.employeeId, t);
-    }
+      : [[], [], new Map<string, { cl: number; ch: number }>()];
     const [ch, weekly, edges] = await Promise.all([
       openCh(db, userId, settings, ids, addMonths(first, -4), last),
       weeklyFigures(
@@ -369,18 +456,18 @@ export const attendanceRoutes = new Hono<AppEnv>()
       totals: ids.map((id) => ({ employeeId: id, ...(totals.get(id) ?? { cl: 0, ch: 0 }) })),
       chOpen: ch.open,
       chFor: ch.chFor,
-      chLimits: people.map(({ e, designation }) => ({
-        employeeId: e.id,
-        limit: e.designationId && e.designationId in settings.chLimits ? settings.chLimits[e.designationId]! : guessChLimit(designation),
-      })),
-      weekly,
+      chLimits: people.map(({ e, designation }) => ({ employeeId: e.id, limit: chLimitOf(e.designationId, designation, settings) })),
+      weekly: weekly.map(({ corrections: _, ...w }) => w),
       edges,
+      corrections: weekly.flatMap((w) => w.corrections),
     };
     return c.json(out);
   })
   // Marks every cell given. Left out (and counted by reason): someone not in the office that day, a day of leave
   // from the Leave page, a holiday (or a Sunday-off employee's Sunday) for any mark but Present (holiday duty), an off
-  // for Sunday-off staff, an off not earned yet (earnedOffs), and a cell with another mark already unless replace.
+  // for Sunday-off staff, and a cell with another mark already unless replace. An off not earned yet is marked too
+  // (since 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.3: offices give offs a day early; the app warns, and the count
+  // shows it as taken early).
   .post("/mark", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
@@ -404,7 +491,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
     const chTaken = await takenFor(db, userId, ids, from);
     const skipped: Record<string, number> = {};
     const skip = (why: string) => void (skipped[why] = (skipped[why] ?? 0) + 1);
-    let rows: (typeof attendanceMarks.$inferInsert)[] = [];
+    const rows: (typeof attendanceMarks.$inferInsert)[] = [];
     const seen = new Set<string>();
     for (const cell of v.cells) {
       const key = `${cell.employeeId}|${cell.date}`;
@@ -423,22 +510,6 @@ export const attendanceRoutes = new Hono<AppEnv>()
       else if (had.has(key) && !v.replace) skip("has another mark");
       else if (chTaken.has(key)) skip("its CH is taken");
       else rows.push({ userId, employeeId: e.id, date: cell.date, mark: v.mark, chHoliday: null });
-    }
-    // An off only once one is earned (6 counted days: duty, CL, CH…).
-    if (v.mark === "off" && rows.length) {
-      const asked = new Map<string, Set<string>>();
-      for (const r of rows) {
-        if (!asked.has(r.employeeId)) asked.set(r.employeeId, new Set());
-        asked.get(r.employeeId)!.add(r.date as string);
-      }
-      const ok = await earnedOffs(
-        db,
-        userId,
-        settings,
-        people.filter((e) => asked.has(e.id)).map((e) => ({ id: e.id, from: e.joinedOfficeOn, until: e.leftOn })),
-        asked,
-      );
-      rows = rows.filter((r) => ok.has(`${r.employeeId}|${r.date}`) || (skip("no off earned yet"), false));
     }
     if (rows.length) {
       await db
@@ -534,6 +605,42 @@ export const attendanceRoutes = new Hono<AppEnv>()
       );
     }
     return c.json({ marked: rows.length, skipped });
+  })
+
+  // --- Offs board and corrections (docs/ATTENDANCE_UX_PLAN.md phase 1) ---
+  .get("/offs", async (c) => c.json(await offsBoard(c.get("db"), c.get("userId"), todayIn(timezone(c.env)))))
+  // Correct the count: a weekly-off person's figures as on today (one a day; a second one today replaces it).
+  .post("/corrections", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const v = attendanceCorrectionInput.parse(await c.req.json());
+    const today = todayIn(timezone(c.env));
+    const [e] = await db.select().from(employees).where(and(eq(employees.userId, userId), eq(employees.id, v.employeeId)));
+    if (!e) throw new HTTPException(404, { message: "Employee not found" });
+    if (e.offDay !== "weekly") throw new HTTPException(400, { message: `${e.name} has Sundays off: there is no weekly-off count to correct` });
+    const settings = await loadSettings(db, userId);
+    if (v.towards >= settings.offEvery) throw new HTTPException(400, { message: `Days towards the next off must be less than ${settings.offEvery}` });
+    const [was] = await weeklyFigures(db, userId, settings, [{ id: e.id, from: e.joinedOfficeOn, until: e.leftOn }], today, today, today);
+    const [row] = await db
+      .insert(attendanceCorrections)
+      .values({ userId, employeeId: e.id, date: today, offsDue: v.offsDue, towards: v.towards, run: v.run, note: v.note })
+      .onConflictDoUpdate({ target: [attendanceCorrections.employeeId, attendanceCorrections.date], set: { offsDue: v.offsDue, towards: v.towards, run: v.run, note: v.note, createdAt: new Date() } })
+      .returning({ id: attendanceCorrections.id });
+    await log(db, userId, "attendance.corrected", `Attendance: count of ${e.name} corrected to ${countText(v)}${was ? ` (was ${countText(was)})` : ""}${v.note ? `. ${v.note}` : ""}`);
+    return c.json({ id: row!.id });
+  })
+  // Undo a correction: the count from the marks comes back.
+  .delete("/corrections/:id", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const [gone] = await db
+      .delete(attendanceCorrections)
+      .where(and(eq(attendanceCorrections.userId, userId), eq(attendanceCorrections.id, c.req.param("id"))))
+      .returning();
+    if (!gone) throw new HTTPException(404, { message: "Correction not found" });
+    const [e] = await db.select({ name: employees.name }).from(employees).where(eq(employees.id, gone.employeeId));
+    await log(db, userId, "attendance.correction_removed", `Attendance: correction of ${e?.name ?? "an employee"}'s count on ${dayLabel(gone.date)} taken back`);
+    return c.json({ ok: true });
   })
 
   // --- Holidays (Settings › Attendance) ---

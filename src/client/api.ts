@@ -6,7 +6,7 @@ import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, Emai
   AssistantInfo, AssistantUnseen, CallLog, QueueInfo, QueueRunReport, EventType, StaffMove, Register, RegisterEntry, LinkedEmail, OfficeFile, Report, SiteLogin, Tag, RetiringEmployee, StaffList, Summary, Task, TaskView, Thread } from "../shared/types";
 import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput, LeaveInput, LeaveLineInput, LeavePatch, LeaveSurrenderInput, LeaveTypeInput } from "../shared/schemas";
 import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, LeaveType } from "../shared/types";
-import type { AttendanceMonth, Holiday } from "../shared/types";
+import type { AttendanceMonth, Holiday, OffsBoard } from "../shared/types";
 import type { AttendanceMark, AttendanceSettings } from "../shared/attendance";
 
 export class ApiError extends Error {
@@ -351,8 +351,14 @@ export function useAttendanceActions() {
     saveHoliday: m((body: { date: string; name: string }) => api("/attendance/holidays", { method: "POST", body })),
     removeHoliday: m((date: string) => api(`/attendance/holidays/${date}`, { method: "DELETE" })),
     saveSettings: m((body: AttendanceSettings) => api("/attendance/settings", { method: "PUT", body })),
+    // Correct the count (docs/ATTENDANCE_UX_PLAN.md 4.4) and its Undo.
+    correct: m((body: { employeeId: string; offsDue: number; towards: number; run: number; note: string }) => api<{ id: string }>("/attendance/corrections", { method: "POST", body })),
+    uncorrect: m((id: string) => api(`/attendance/corrections/${id}`, { method: "DELETE" })),
   };
 }
+// The Offs board (docs/ATTENDANCE_UX_PLAN.md 4.6): weekly-off staff's figures as on today. Fresh each time the page
+// opens, not the phone's saved copy, since the reminders are what it is for.
+export const useOffsBoard = () => useQuery({ queryKey: ["attendance", "offs"], queryFn: () => api<OffsBoard>("/attendance/offs"), refetchOnMount: "always" });
 // Joining and relieving (user request 2026-10-15). Under "staff", so employee and task changes refresh it.
 export const useMoves = () => useQuery({ queryKey: ["staff", "moves"], queryFn: () => api<{ moves: StaffMove[] }>("/moves") });
 export function useMoveActions() {
