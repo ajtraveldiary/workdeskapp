@@ -93,7 +93,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   notification an hour before, and CSV export/import.
 
 ### Calendar
-- **Month view** of tasks, reminders and events; tap a day to see its list.
+- **Month view** of tasks, reminders and events; tap a day to see its list. The attendance register's holidays
+  (and second Saturdays) show too: the date in red with the holiday's name.
 - **Private calendar link:** see everything in Apple Calendar, Google Calendar or Outlook (a read-only copy).
 
 ### Employees
@@ -127,31 +128,25 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   a column per day of the month. Tap a day's number to select everyone and mark them present in one go, or pick
   cells (a person's month, a range) and mark Off, CL, half-day CL or Absent. Holidays (set in Settings ›
   Attendance, with second Saturdays) and Sundays are shaded, and leave marked on the Leave page fills its days by
-  itself. Phones show one day at a time. **CH**: work on a holiday earns a compensation leave; Mark CH asks which
+  itself. The page is the register alone, on every screen: on phones it scrolls sideways with the names staying in
+  place, and a tap selects a cell (a swipe just scrolls). **CH**: work on a holiday earns a compensation leave; Mark CH asks which
   holiday each one is for and only offers holidays worked in the last 3 months, with each post's yearly limit
   (G.O. 43/2021). **Weekly-off staff**: 6 days of work earn an off; offs due (or the days of duty still needed for one) show by the name, and more than 12 days
   in a row is flagged (and warned about before marking). An off given early is still marked, shown as taken early. Starting figures carry over a year already under way,
   entered in Settings or imported from a spreadsheet. Tap anyone's CL / CH cell for their figures; CH that must be
   taken within a week are listed above the register. The register stretches to fit the screen. The Summary button opens a summary of the month for each person; Print gives
-  an A4 page with signature lines, and Download a spreadsheet of the month. The Today tab shows who is still to be
-  ticked; `/markattendance` is a plain page for phones to mark one person's CL, CH or off for a
+  an A4 page with signature lines, and Download a spreadsheet of the month; `/markattendance` is a plain page for phones to mark one person's CL, CH or off for a
   day or a range, and each employee's page shows their month so far.
-- **Offs board:** the Attendance page opens on Offs: a card per weekly-off person, in the order of the designations in Settings, with
-  "Day N" (days of duty in a row), a coloured status (off after n more days, off due, overdue, or the off and a
-  compensatory off owed after 12 days), the last 14 days at a glance, the last off and an Off today button. Tap a
-  card for their figures in plain words, CL and CH this year, and **Correct the count** (days in a row and offs
-  owed with − / +, with a note and Undo) when the office knows better than the marks. The morning notification says
-  who needs an off. Attendance stays on its own page: Home's Due Today shows none of it. **Days not marked count as duty** (a switch in Settings ›
-  Attendance, on to start), so the office marks only offs, CL, CH and absences; the register shows those days with a
-  faint ✓. The **Today** tab lists everyone for one day: tap a person for Duty, Off, CL, half-day CL, CH or Absent
-  (saved at once, with Undo), or tick several and use the bar. **Start the register** puts everyone's starting point
-  in at once: the day of each weekly-off person's last off (or the days since it) and offs owed from before, and the
-  app works out their Day N; the starting-figures spreadsheet takes a "Last off on" column too. The register is the
-  third tab on computers. **Plan an off** ahead from a person's card: the day it falls due is suggested, the days
-  around it say how many of the same post are already off, and on its day the planned off becomes an off by itself
-  (a dotted O in the register until then; move or cancel it any time). Assistants can plan offs too.
-- **Mark days for someone:** when someone says "I'm off tomorrow and on CL the day after", open them (tap their name
-  in Today, or the + / Mark for someone button and pick them) and see their month as a calendar (‹ › for other months): tap tomorrow, tap Off;
+- **Weekly offs:** each weekly-off person's offs owed (or the days of duty still needed for one) and "Day N" show
+  by their name in the register, and the morning notification says who needs an off. Attendance stays on its own
+  page: Home's Due Today shows none of it. **A day left blank is never duty**: it means the person wasn't in the
+  office or hasn't signed yet, so every day of duty is ticked. **Start the register** (Settings › Attendance ›
+  Starting figures) puts everyone's starting point in at once: the day of each weekly-off person's last off (or the
+  days since it) and offs owed from before, and the app works out their Day N; the starting-figures spreadsheet
+  takes a "Last off on" column too. Offs planned ahead (assistants can plan them) show as a dotted O in the register
+  and become offs on their day.
+- **Mark days for someone:** when someone says "I'm off tomorrow and on CL the day after", open them (the + / Mark for
+  someone button, then pick them) and see their month as a calendar (‹ › for other months): tap tomorrow, tap Off;
   tap the day after, tap CL. Saved at once, with Undo; future days are drawn lighter until they come. Each button says
   before you tap what it would cause (an off taken early, CL past 20, past 12 days in a row, no holiday worked for a
   CH, CL or CH next to regular leave, and from G.O.(Ms) 303/82/HSD: no off after a week away on CL, CH and offs, and
@@ -161,12 +156,12 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   off. Settings › Attendance › **Who is in the register** leaves out anyone who isn't in the register (their marks
   are kept) and can hide temporary staff altogether. Marking CH with no holiday worked listed, **Add a holiday
   worked** right in the pop-up: the day (and its name, when it isn't a holiday yet) is recorded as holiday duty and
-  picked for the CH. Each off owed shows the day it must be taken by (within a month of earning
-  it, G.O.(Ms) 161/08/AD), red once past. In **Today**, each person's circle is the tick: tap to mark present, tap again to clear, with "12 of 16 done"
-  at the top and "Tick the other n present" for the rest.
-- **Who is away today and tomorrow:** the Today tab starts with everyone off, on CL, ½CL, CH, absent or on leave
-  today and tomorrow (planned offs too), each name opening their days, and the CH that must be taken within a week;
-  the morning notification carries the same "Away today" line.
+  picked for the CH, and the day becomes a holiday on the Calendar page too. **Clear all attendance** (Settings ›
+  Attendance, after typing "clear all") deletes every mark, planned off and count correction, keeping holidays,
+  starting figures and settings. Each off owed shows the day it must be taken by (within a month of earning
+  it, G.O.(Ms) 161/08/AD), red once past.
+- **Who is away today:** the morning notification starts with everyone off, on CL, ½CL, CH, absent or on leave
+  today (planned offs too).
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).

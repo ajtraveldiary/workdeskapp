@@ -88,6 +88,8 @@ describe("what a call is logged as", () => {
   it("never saves passwords, sign-in secrets, imports or the queue's own buttons for retry", () => {
     expect(notSavedReason("/api/logins/abc")).toMatch(/password/);
     expect(notSavedReason("/api/oauth/token")).toBeTruthy();
+    expect(notSavedReason("/api/attendance/clear-all")).toBeTruthy();
+    expect(notSavedReason("/api/attendance/clear")).toBeNull();
     expect(notSavedReason("/api/transfer/backup")).toBeTruthy();
     expect(notSavedReason("/api/queue/run")).toBeTruthy();
     expect(notSavedReason("/api/tasks")).toBeNull();

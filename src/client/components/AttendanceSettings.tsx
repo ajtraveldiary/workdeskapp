@@ -2,7 +2,7 @@
 // month (tap a date to make it a holiday and name it, tap again to rename or remove it), second Saturdays as
 // holidays (a switch) and the days of casual leave a year. The register shades these days for everyone. Phase 2: the
 // CH limit a year of each post (G.O.(Ms) 43/2021/H&FWD) and each employee's starting figures. 2026-11-03: who is in the
-// register (RegisterPeople: hide temporary staff, leave people out).
+// register (RegisterPeople: hide temporary staff, leave people out); Clear all attendance (ClearAll, typed "clear all").
 import { useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Play, Plus, Trash2, X } from "lucide-react";
 import { openStartRegister } from "./StartRegister";
@@ -19,6 +19,7 @@ export function AttendanceSettings() {
       <RegisterPeople />
       <ChLimits />
       <StartingFigures />
+      <ClearAll />
     </>
   );
 }
@@ -159,14 +160,7 @@ function RegisterSettings() {
         <input type="checkbox" className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={s.secondSaturday} onChange={(e) => saveSettings.mutate({ ...s, secondSaturday: e.target.checked })} />
         <span className="text-sm text-ink">Second Saturdays are holidays</span>
       </label>
-      {/* Days not marked count as duty (2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.2): only the exceptions are marked. */}
-      <label className="flex min-h-11 cursor-pointer items-start gap-2.5 rounded-lg px-1.5 py-2 hover:bg-slate-50">
-        <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={s.assumeDuty} onChange={(e) => saveSettings.mutate({ ...s, assumeDuty: e.target.checked })} />
-        <span className="text-sm text-ink">
-          Count days not marked as duty
-          <span className="block text-footnote text-slate-500">Mark only offs, CL, CH, absences and the like; a past working day left empty is a day of duty (a faint ✓ in the register). Off: every day has to be ticked.</span>
-        </span>
-      </label>
+      {/* "Count days not marked as duty" was removed 2026-11-03: a day left empty is never duty. */}
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-slate-700">Casual leave a year (days)</span>
@@ -408,6 +402,57 @@ function StartingFigures() {
         )}
       </form>
       <ErrorNote error={saveSettings.error} />
+    </Card>
+  );
+}
+
+// Clear all attendance (user request 2026-11-03, "type clear all to confirm deletion"): every mark, planned off and
+// count correction; holidays, starting figures and these settings stay. No Undo, so the words must be typed.
+function ClearAll() {
+  const { clearAll } = useAttendanceActions();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [done, setDone] = useState("");
+  const ok = typed.trim().toLowerCase() === "clear all";
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!ok) return;
+    clearAll.mutate(typed, {
+      onSuccess: (r) => {
+        setDone(`Cleared ${r.marks} ${r.marks === 1 ? "mark" : "marks"}, ${r.plans} planned ${r.plans === 1 ? "off" : "offs"} and ${r.corrections} ${r.corrections === 1 ? "correction" : "corrections"}.`);
+        setTyped("");
+        setOpen(false);
+      },
+    });
+  };
+  return (
+    <Card className="border-urgent/30 p-5">
+      <h2 className="font-semibold text-slate-900">Clear all attendance</h2>
+      <p className="mt-1 text-sm text-slate-600">Deletes every mark in the register, the planned offs and the count corrections, for everyone. Holidays, starting figures and these settings stay. This can't be undone.</p>
+      {done && <p className="mt-2 text-sm font-medium text-low-ink">{done}</p>}
+      {!open ? (
+        <Button variant="danger" size="sm" className="mt-3" onClick={() => { setOpen(true); setDone(""); }}>
+          <Trash2 size={15} /> Clear all attendance
+        </Button>
+      ) : (
+        <form onSubmit={submit} className="mt-3 space-y-2">
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">
+              Type <span className="font-semibold text-urgent-ink">clear all</span> to confirm
+            </span>
+            <input className={cx(inputClass, "w-full max-w-xs")} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoCapitalize="off" spellCheck={false} placeholder="clear all" aria-label="Type clear all to confirm" />
+          </label>
+          <ErrorNote error={clearAll.error} />
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" variant="danger" size="sm" disabled={!ok || clearAll.isPending}>
+              <Trash2 size={15} /> Delete all attendance
+            </Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setOpen(false); setTyped(""); }}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      )}
     </Card>
   );
 }

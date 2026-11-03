@@ -59,7 +59,8 @@ const log = (db: DB, userId: string, action: string, summary: string) => db.inse
 
 async function loadSettings(db: DB, userId: string): Promise<AttendanceSettings> {
   const [row] = await db.select().from(attendanceSettings).where(eq(attendanceSettings.userId, userId));
-  return { ...DEFAULT_ATTENDANCE_SETTINGS, ...(row?.data ?? {}) };
+  // A day not marked is never duty (2026-11-03): an assumeDuty saved earlier is ignored.
+  return { ...DEFAULT_ATTENDANCE_SETTINGS, ...(row?.data ?? {}), assumeDuty: false };
 }
 async function holidayMap(db: DB, userId: string, from: string, to: string) {
   const rows = await db.select().from(holidays).where(and(eq(holidays.userId, userId), gte(holidays.date, from), lte(holidays.date, to)));
@@ -720,6 +721,23 @@ export const attendanceRoutes = new Hono<AppEnv>()
     }
     return c.json({ cleared: gone.length, kept: v.cells.length - cells.length });
   })
+  // Clear all attendance (user request 2026-11-03, "add an option in settings to clear all attendance; type clear all
+  // to confirm deletion"; user's answer: marks, planned offs and count corrections; holidays, starting figures and
+  // settings stay). The body must say "clear all".
+  .post("/clear-all", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const body = (await c.req.json().catch(() => ({}))) as { confirm?: unknown };
+    if (typeof body.confirm !== "string" || body.confirm.trim().toLowerCase() !== "clear all") throw new HTTPException(400, { message: 'Type "clear all" to confirm' });
+    const [marks, plans, fixes] = await Promise.all([
+      db.delete(attendanceMarks).where(eq(attendanceMarks.userId, userId)).returning({ id: attendanceMarks.id }),
+      db.delete(plannedOffs).where(eq(plannedOffs.userId, userId)).returning({ id: plannedOffs.id }),
+      db.delete(attendanceCorrections).where(eq(attendanceCorrections.userId, userId)).returning({ id: attendanceCorrections.id }),
+    ]);
+    const n = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+    await log(db, userId, "attendance.cleared_all", `All attendance cleared: ${n(marks.length, "mark", "marks")}, ${n(plans.length, "planned off", "planned offs")}, ${n(fixes.length, "count correction", "count corrections")} (holidays, starting figures and settings kept)`);
+    return c.json({ marks: marks.length, plans: plans.length, corrections: fixes.length });
+  })
   // Mark CH (phase 2): each cell with the holiday worked it is for. Left out: not in the office, on leave, a holiday
   // (nothing to take CH on), another mark unless replace, and a holiday not open for that day (not worked, its CH
   // taken, before it or past its 3 months).
@@ -1020,8 +1038,9 @@ export const attendanceRoutes = new Hono<AppEnv>()
   .put("/settings", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
-    const data = attendanceSettingsInput.parse(await c.req.json());
+    // A day not marked is never duty (2026-11-03), whatever an older copy of the app sends.
+    const data = { ...attendanceSettingsInput.parse(await c.req.json()), assumeDuty: false };
     await db.insert(attendanceSettings).values({ userId, data }).onConflictDoUpdate({ target: attendanceSettings.userId, set: { data, updatedAt: new Date() } });
-    await log(db, userId, "settings.attendance", `Attendance settings saved: second Saturdays ${data.secondSaturday ? "are" : "aren't"} holidays, ${data.clPerYear} days of casual leave a year, days not marked ${data.assumeDuty ? "count as duty" : "count as nothing"}, temporary staff ${data.hideTemporary ? "hidden" : "shown"}, ${data.leftOut.length} ${data.leftOut.length === 1 ? "person" : "people"} left out`);
+    await log(db, userId, "settings.attendance", `Attendance settings saved: second Saturdays ${data.secondSaturday ? "are" : "aren't"} holidays, ${data.clPerYear} days of casual leave a year, temporary staff ${data.hideTemporary ? "hidden" : "shown"}, ${data.leftOut.length} ${data.leftOut.length === 1 ? "person" : "people"} left out`);
     return c.json({ ok: true });
   });

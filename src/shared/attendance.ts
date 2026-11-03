@@ -58,8 +58,10 @@ export function mondayOf(day: string) {
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
   return d.toISOString().slice(0, 10);
 }
-// A past working day with no mark, taken as duty while assumeDuty is on (today only once it is over).
-export const assumedDuty = (settings: { assumeDuty?: boolean }, date: string, today: string) => settings.assumeDuty !== false && date < today;
+// A past working day with no mark, taken as duty while assumeDuty is on (today only once it is over). Never on since
+// 2026-11-03 (user: "blank is not treated as duty: either the employee is not in the office, or is but hasn't signed
+// yet"): the server always answers assumeDuty false and the switch is gone from Settings.
+export const assumedDuty = (settings: { assumeDuty?: boolean }, date: string, today: string) => settings.assumeDuty === true && date < today;
 
 const utc = (day: string) => new Date(`${day}T00:00:00Z`);
 // 0 = Sunday … 6 = Saturday.
@@ -352,7 +354,7 @@ export function monthCounts(m: {
   const marks = new Map(m.marks.map((x) => [`${x.employeeId}|${x.date}`, x.mark]));
   // Days not marked count as duty (2026-11-02): a past working day not marked is present, and none is "not marked"
   // (today is neither until it is over). Without settings (older callers) nothing is assumed.
-  const assume = !!m.settings && m.settings.assumeDuty !== false;
+  const assume = m.settings?.assumeDuty === true;
   return m.employees.map((e) => {
     const c: MonthCounts = { employeeId: e.id, present: 0, holidayDuty: 0, od: 0, cl: 0, ch: 0, off: 0, holiday: 0, absent: 0, leave: 0, notMarked: 0 };
     for (const d of m.days) {

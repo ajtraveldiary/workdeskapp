@@ -3,7 +3,8 @@ import { CalendarClock, ChevronLeft, ChevronRight, Plus, CalendarRange } from "l
 import { Link } from "react-router";
 import type { Report, Task } from "../../shared/types";
 import { occurrences, remindLabel } from "../../shared/reminderSchedule";
-import { useMe, useOfficeEvents, useRangeTasks, useReports, useThread } from "../api";
+import { useAttendanceSettings, useHolidays, useMe, useOfficeEvents, useRangeTasks, useReports, useThread } from "../api";
+import { DEFAULT_ATTENDANCE_SETTINGS, holidayOn } from "../../shared/attendance";
 import { eventOccurrences, type EventOccurrence } from "../../shared/eventSchedule";
 import type { OfficeEvent } from "../../shared/types";
 import { openEventDetails } from "../components/EventDetails";
@@ -106,6 +107,14 @@ export function CalendarPage() {
     }
   }
   const selectedScheduled = scheduled.get(selected) ?? [];
+  // The attendance register's holidays (user request 2026-11-03, "make it holiday in the calendar also": a holiday
+  // added in Settings › Attendance or from a CH pop-up), second Saturdays too while they are holidays there.
+  const holsFirst = useHolidays(first.slice(0, 4)).data?.holidays;
+  const holsLast = useHolidays(last.slice(0, 4)).data?.holidays;
+  const regSettings = useAttendanceSettings().data?.settings ?? DEFAULT_ATTENDANCE_SETTINGS;
+  const holMap = new Map([...(holsFirst ?? []), ...(holsLast ?? [])].map((h) => [h.date, h.name]));
+  const holidayOf = (day: string) => holidayOn(day, holMap, regSettings);
+  const selectedHoliday = holidayOf(selected);
   const monthLabel = new Date(`${month}T00:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
   const phone = usePhone();
   const selectedLabel = new Date(`${selected}T00:00:00Z`).toLocaleDateString("en-IN", phone ? { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" } : { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -170,6 +179,7 @@ export function CalendarPage() {
               // calendar apps (2026-10-06: they made September and October look broken). Tapping one goes there.
               const quiet = phone && !inMonth;
               const isToday = day === today && !quiet;
+              const holiday = holidayOf(day);
               return (
                 <button
                   key={day}
@@ -177,7 +187,8 @@ export function CalendarPage() {
                     if (quiet) setMonth(monthStart(day));
                     setSelected(day);
                   }}
-                  aria-label={day}
+                  aria-label={holiday ? `${day}, ${holiday.name}` : day}
+                  title={holiday?.name}
                   aria-pressed={day === selected}
                   className={cx(
                     // Phones: a compact cell, the date centred with dots below; wider: a bordered box with chips.
@@ -191,7 +202,7 @@ export function CalendarPage() {
                   <span
                     className={cx(
                       "flex size-7 items-center justify-center rounded-full text-sm tabular-nums sm:self-start",
-                      isToday ? "bg-brand-600 font-semibold text-white" : inMonth ? "text-ink" : "text-slate-300 sm:text-slate-400",
+                      isToday ? "bg-brand-600 font-semibold text-white" : inMonth ? (holiday ? "font-medium text-urgent-ink" : "text-ink") : "text-slate-300 sm:text-slate-400",
                       day === selected && !quiet && !isToday && "ring-2 ring-brand-500 max-sm:font-semibold max-sm:text-brand-700 sm:ring-0",
                       day === selected && isToday && "ring-2 ring-brand-200 sm:ring-0",
                     )}
@@ -211,6 +222,7 @@ export function CalendarPage() {
                     ))}
                   </span>
                   <span className="hidden flex-col gap-1 sm:flex">
+                    {holiday && <span className={cx("truncate px-1 text-caption2 font-medium", inMonth ? "text-urgent-ink" : "text-slate-400")}>{holiday.name}</span>}
                     {dayEvents.slice(0, 2).map((x) => (
                       <span
                         key={`${x.e.id}:${x.o.original}`}
@@ -250,7 +262,10 @@ export function CalendarPage() {
 
         <Card className="min-w-0 self-start">
           <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5 sm:px-4 sm:py-3">
-            <h2 className="font-medium text-ink">{selected === today ? (phone ? `${selectedLabel} · Today` : `Today · ${selectedLabel}`) : selectedLabel}</h2>
+            <div className="min-w-0">
+              <h2 className="font-medium text-ink">{selected === today ? (phone ? `${selectedLabel} · Today` : `Today · ${selectedLabel}`) : selectedLabel}</h2>
+              {selectedHoliday && <p className="text-footnote font-medium text-urgent-ink [overflow-wrap:anywhere]">Holiday: {selectedHoliday.name}</p>}
+            </div>
             <div className="flex shrink-0 items-center gap-2">
               <Button size="sm" onClick={() => openEventForm({ kind: "new", date: selected })}>
                 <CalendarRange size={15} /> Event

@@ -29,8 +29,10 @@
 // Present directly and names open Person days (components/PersonDays.tsx); Mark for someone (the + button on phones)
 // opens it after asking who. Marks since 2026-11-03: OD (on duty, as present, with a remark asked for in the bar)
 // and H / SS (a holiday or second Saturday taken; the bar offers it where a holiday is chosen). Phase 2: the Today tab starts with who is away today and tomorrow (AwayCard, which also
-// lists the CH to take within a week, in place of ChDueSoon there).
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
+// lists the CH to take within a week, in place of ChDueSoon there). Only the register since 2026-11-03 (user request,
+// "remove off and today pages, show only register"): no tabs, on every screen size (it scrolls sideways on phones,
+// the name and CL / CH columns staying put); Mark for someone stays beside the toolbar (the + button on phones).
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, CalendarPlus, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
@@ -39,14 +41,12 @@ import { toCsv } from "../../shared/transfer";
 import { saveFile } from "../saveFile";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
-import { useAttendance, useAttendanceActions, useMe, useOffsBoard, useOfficeProfile, type AttendanceCell } from "../api";
-import { OffsBoard } from "../components/OffsBoard";
+import { useAttendance, useAttendanceActions, useMe, useOfficeProfile, type AttendanceCell } from "../api";
 import { HolidayWorkedForm } from "../components/HolidayWorked";
 import { openPersonDays } from "../components/PersonDays";
-import { AwayCard } from "../components/AwayCard";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
-import { Button, Card, ErrorNote, Fab, Modal, Segmented, SkeletonList, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Fab, Modal, SkeletonList, cx, inputClass } from "../components/ui";
 
 type Person = AttendanceMonth["employees"][number];
 type Markable = Exclude<AttendanceMark, "ch">;
@@ -134,88 +134,36 @@ export function AttendancePage() {
   useEffect(() => setSelected(new Set()), [month]);
   // The month's summary, in a pop-up opened by Summary.
   const [summary, setSummary] = useState(false);
-  // Offs (the reminder board, first), Today or the register (user request 2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.6),
-  // remembered on the device; until chosen, Today when nobody is on weekly off. Phones have no Register tab.
-  const board = useOffsBoard().data;
-  const [chosen, setChosen] = useState<View | null>(readView);
-  const picked: View = chosen ?? (board && board.people.length === 0 ? "today" : "offs");
-  const view: View = picked === "register" && !wide ? "today" : picked;
-  const choose = (v: View) => {
-    setChosen(v);
-    setSelected(new Set());
-    try {
-      localStorage.setItem(VIEW_KEY, v);
-    } catch {
-      // Private mode: the choice lasts until the page closes.
-    }
-  };
-  const due = board ? board.people.filter((p) => p.started && needsOff(offStatus(p, board))).length : 0;
-  // Mark for someone (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): Person days after asking who; a button beside the tabs on
+  // Mark for someone (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): Person days after asking who; a button in the toolbar on
   // wider screens, the round + button on phones.
-  const tabs = (
-    <div className="-mt-2 mb-3 flex items-center gap-2 print:hidden sm:-mt-3">
-      <div className="min-w-0 flex-1">
-        <Segmented
-          oneRow
-          value={view}
-          onChange={choose}
-          options={[
-            { value: "offs", label: "Offs", count: due || undefined, tone: due ? "urgent" : undefined },
-            { value: "today", label: "Today" },
-            ...(wide ? [{ value: "register" as const, label: "Register" }] : []),
-          ]}
-        />
-      </div>
-      {wide && (
-        <Button size="sm" variant="primary" onClick={() => openPersonDays()}>
-          <CalendarPlus size={15} /> Mark for someone
-        </Button>
-      )}
-      <Fab label="Mark for someone" onClick={() => openPersonDays()} />
-    </div>
-  );
-  if (view === "offs")
-    return (
-      <>
-        <h1 className="sr-only">Attendance: weekly offs</h1>
-        {tabs}
-        <OffsBoard onRegister={() => choose(wide ? "register" : "today")} />
-      </>
-    );
-
-  const register = view === "register";
   return (
     <>
-      <h1 className="sr-only">{register ? "Attendance register" : "Attendance today"}</h1>
-      {tabs}
+      <h1 className="sr-only">Attendance register</h1>
+      <Fab label="Mark for someone" onClick={() => openPersonDays()} />
       <div className="mb-2 flex flex-wrap items-center gap-1 print:hidden">
-        {register && (
-          <>
-            <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
-              <ChevronLeft size={18} />
-            </button>
-            <span className="text-center font-medium whitespace-nowrap text-ink sm:min-w-36">{monthLabel(month)}</span>
-            <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
-              <ChevronRight size={18} />
-            </button>
-            {month !== today.slice(0, 7) && (
-              <Button size="sm" variant="ghost" onClick={() => setMonth(today.slice(0, 7))}>
-                This month
-              </Button>
-            )}
-          </>
+        <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
+          <ChevronLeft size={18} />
+        </button>
+        <span className="text-center font-medium whitespace-nowrap text-ink sm:min-w-36">{monthLabel(month)}</span>
+        <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
+          <ChevronRight size={18} />
+        </button>
+        {month !== today.slice(0, 7) && (
+          <Button size="sm" variant="ghost" onClick={() => setMonth(today.slice(0, 7))}>
+            This month
+          </Button>
         )}
         <span className="ml-auto flex flex-wrap items-center gap-1">
           {data && data.employees.length > 0 && (
             <>
-              <Button size="sm" variant="ghost" aria-haspopup="dialog" onClick={() => setSummary(true)} title="Show the month's summary">
-                <Sigma size={15} /> Summary
+              <Button size="sm" variant="ghost" aria-haspopup="dialog" onClick={() => setSummary(true)} title="Show the month's summary" aria-label="Summary">
+                <Sigma size={15} /> <span className="hidden sm:inline">Summary</span>
               </Button>
               <Button size="sm" variant="ghost" onClick={() => downloadMonth(data)} aria-label="Download the month as a CSV file">
                 <Download size={15} /> <span className="hidden sm:inline">Download</span>
               </Button>
               {/* Printing is for the register's page (computers). */}
-              {register && (
+              {wide && (
                 <Button size="sm" variant="ghost" onClick={() => window.print()} aria-label="Print the month">
                   <Printer size={15} /> Print
                 </Button>
@@ -226,6 +174,11 @@ export function AttendancePage() {
           <Link to="/settings#attendance" className="hidden h-8 items-center rounded-lg px-3 text-footnote font-medium text-brand-700 hover:bg-slate-50 sm:inline-flex">
             Holidays
           </Link>
+          {wide && (
+            <Button size="sm" variant="primary" onClick={() => openPersonDays()}>
+              <CalendarPlus size={15} /> Mark for someone
+            </Button>
+          )}
         </span>
       </div>
       <ErrorNote error={error} />
@@ -233,7 +186,7 @@ export function AttendancePage() {
         <SkeletonList rows={6} />
       ) : data.employees.length === 0 ? (
         <Card className="p-6 text-center text-sm text-slate-500">No employees in the office in {monthLabel(month)}. Add them on the Employees page.</Card>
-      ) : register ? (
+      ) : (
         <>
           <div className="print:hidden">
             <ChDueSoon data={data} />
@@ -243,11 +196,6 @@ export function AttendancePage() {
           <div className="hidden print:block">
             <MonthSummary data={data} />
           </div>
-        </>
-      ) : (
-        <>
-          <AwayCard />
-          <TodayView data={data} cells={cells} onMonth={setMonth} />
         </>
       )}
       {data && (
@@ -263,17 +211,6 @@ export function AttendancePage() {
       )}
     </>
   );
-}
-
-type View = "offs" | "today" | "register";
-const VIEW_KEY = "workdesk-attendance-view";
-function readView(): View | null {
-  try {
-    const v = localStorage.getItem(VIEW_KEY);
-    return v === "offs" || v === "today" || v === "register" ? v : null;
-  } catch {
-    return null;
-  }
 }
 
 type Cells = NonNullable<ReturnType<typeof useCells>>;
@@ -581,6 +518,10 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
   const office = useOfficeProfile().data?.profile.officeName;
   const anchor = useRef<{ row: number; col: number } | null>(null);
   const drag = useRef<{ add: boolean } | null>(null);
+  // Phones (2026-11-03, the register on every screen): a finger selects on a finished tap (click), so swiping the
+  // register sideways scrolls it instead of selecting the cell the swipe started on. Mouse and pen select on press
+  // (and drag); the click that follows is then skipped. Keyboards select with the click too.
+  const pressed = useRef(false);
   const settings = data.settings;
   const totals = new Map(data.totals.map((t) => [t.employeeId, t]));
   const ch = useChLookups(data);
@@ -600,11 +541,23 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
   const column = (date: string) => toggleMany(data.employees.filter((e) => cells.selectable(e, date)).map((e) => key(e.id, date)));
   const row = (e: Person) => toggleMany(data.days.filter((d) => cells.selectable(e, d.date)).map((d) => key(e.id, d.date)));
   const cellDown = (ev: ReactPointerEvent, r: number, c: number) => {
+    if (ev.pointerType === "touch") return;
+    pressed.current = true;
+    pick(ev.shiftKey, ev.pointerType === "mouse", r, c);
+  };
+  const cellClick = (ev: ReactMouseEvent, r: number, c: number) => {
+    if (pressed.current) {
+      pressed.current = false;
+      return;
+    }
+    pick(ev.shiftKey, false, r, c);
+  };
+  const pick = (shiftKey: boolean, mouse: boolean, r: number, c: number) => {
     const e = data.employees[r]!;
     const date = data.days[c]!.date;
     const k = key(e.id, date);
     const next = new Set(selected);
-    if (ev.shiftKey && anchor.current) {
+    if (shiftKey && anchor.current) {
       const [r0, r1] = [Math.min(anchor.current.row, r), Math.max(anchor.current.row, r)];
       const [c0, c1] = [Math.min(anchor.current.col, c), Math.max(anchor.current.col, c)];
       for (let i = r0; i <= r1; i++) for (let j = c0; j <= c1; j++) if (cells.selectable(data.employees[i]!, data.days[j]!.date)) next.add(key(data.employees[i]!.id, data.days[j]!.date));
@@ -613,7 +566,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
       add ? next.add(k) : next.delete(k);
       anchor.current = { row: r, col: c };
       // Mouse: dragging over more cells selects (or unselects) them too.
-      if (ev.pointerType === "mouse") drag.current = { add };
+      if (mouse) drag.current = { add };
     }
     setSelected(next);
   };
@@ -638,7 +591,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
         <p className="font-serif text-subhead text-slate-600">For the month of {monthLabel(data.month)}</p>
       </div>
       <div className="scroll-thin overflow-x-auto select-none print:overflow-visible">
-        <table className="w-full min-w-[46rem] table-fixed border-collapse text-xs print:min-w-0">
+        <table className="w-full min-w-[72rem] table-fixed md:min-w-[46rem] border-collapse text-xs print:min-w-0">
           <colgroup>
             <col className={NAME_COL} />
             <col className={TOTALS_COL} />
@@ -724,6 +677,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                     <button
                       type="button"
                       onPointerDown={(ev) => cellDown(ev, r, c)}
+                      onClick={(ev) => cellClick(ev, r, c)}
                       onPointerEnter={() => cellEnter(r, c)}
                       aria-pressed={on}
                       aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : info.assumed ? "duty, not marked" : "not marked"}`}
@@ -775,158 +729,6 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
       </p>
       <DetailsDialog id={details} data={data} lookups={ch} onClose={() => setDetails(null)} />
     </Card>
-  );
-}
-
-// Today (phase 2, user request 2026-11-02; every screen size, in place of the phones' day view): one day at a time
-// (today to start; ‹ › and Today), everyone in the office with their state. Since the assist plan
-// (docs/ATTENDANCE_ASSIST_PLAN.md 3.2, the user ticks everyone daily): each row's circle is the tick — tap marks
-// Present at once, tap again clears it; a row with another mark shows that mark instead, and leave or a holiday needs
-// no tick. Tapping a name opens Person days (openPersonDays) for an off, CL, CH and the rest, on any day. A progress
-// line counts who is done, and "Tick the other n present" marks the rest in one go (Undo clears them). While days not
-// marked count as duty, a day left empty shows "Duty" faintly.
-function TodayView({ data, cells, onMonth }: { data: AttendanceMonth; cells: Cells; onMonth: (m: string) => void }) {
-  const inMonth = data.today.startsWith(data.month);
-  const [date, setDate] = useState(inMonth ? data.today : data.days[0]!.date);
-  useEffect(() => setDate(inMonth ? data.today : data.days[0]!.date), [data.month, data.today, inMonth]);
-  const i = Math.max(0, data.days.findIndex((d) => d.date === date));
-  const day = data.days[i]!;
-  const { mark, clear } = useAttendanceActions();
-  const go = (n: number) => {
-    const j = i + n;
-    if (j < 0) onMonth(shiftMonth(data.month, -1));
-    else if (j >= data.days.length) onMonth(shiftMonth(data.month, 1));
-    else setDate(data.days[j]!.date);
-  };
-  const toToday = () => (inMonth ? setDate(data.today) : onMonth(data.today.slice(0, 7)));
-  const people = data.employees.filter((e) => !cells.info(e, day.date).out);
-  const lookups = useChLookups(data);
-  const infoOf = (e: Person) => cells.info(e, day.date) as Exclude<CellInfo, { out: true }>;
-  const cell = (e: Person) => ({ employeeId: e.id, date: day.date });
-  const future = day.date > data.today;
-  // Who needs ticking: working days (not a holiday or a Sunday-off Sunday) without leave.
-  const working = people.filter((e) => !infoOf(e).holiday && !infoOf(e).leave);
-  const left = working.filter((e) => !infoOf(e).mark);
-  const count = (m: AttendanceMark | AttendanceMark[]) => working.filter((e) => [m].flat().includes(infoOf(e).mark!)).length;
-  const onLeave = people.filter((e) => infoOf(e).leave).length;
-  const progress = [
-    !future && `${working.length - left.length} of ${working.length} done`,
-    count("present") && `${count("present")} present`,
-    count("od") && `${count("od")} OD`,
-    count("off") && `${count("off")} off`,
-    count(["cl", "cl_half"]) && `${count(["cl", "cl_half"])} CL`,
-    count("ch") && `${count("ch")} CH`,
-    count("absent") && `${count("absent")} absent`,
-    onLeave && `${onLeave} on leave`,
-  ].filter(Boolean);
-  // The row being saved, so its circle waits.
-  const saving = (e: Person) =>
-    (mark.isPending && mark.variables?.cells.length === 1 && mark.variables.cells[0]!.employeeId === e.id) || (clear.isPending && clear.variables?.length === 1 && clear.variables[0]!.employeeId === e.id);
-  const tick = (e: Person) => {
-    const info = infoOf(e);
-    if (info.mark === "present") clear.mutate([cell(e)]);
-    else if (!info.mark) mark.mutate({ cells: [cell(e)], mark: "present" });
-  };
-  const tickRest = () => {
-    const cellsLeft = left.map(cell);
-    mark.mutate({ cells: cellsLeft, mark: "present" }, { onSuccess: (r) => showUndo({ message: `Present: ${r.marked} ticked`, onUndo: r.marked ? () => clear.mutate(cellsLeft) : undefined }) });
-  };
-  const dutyShown = data.settings.assumeDuty && day.date <= data.today;
-  return (
-    <Card className="fab-page overflow-visible">
-      <div className="flex items-center gap-1 border-b border-line px-2 py-1.5">
-        <button type="button" onClick={() => go(-1)} aria-label="Previous day" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
-          <ChevronLeft size={18} />
-        </button>
-        <span className="min-w-0 flex-1 text-center">
-          <span className="block font-medium text-ink">
-            {day.date === data.today ? "Today, " : ""}
-            {new Date(`${day.date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}
-          </span>
-          {day.holiday && <span className="block text-footnote text-urgent-ink">{day.holiday.name}</span>}
-        </span>
-        {day.date !== data.today && (
-          <Button size="sm" variant="ghost" onClick={toToday}>
-            Today
-          </Button>
-        )}
-        <button type="button" onClick={() => go(1)} aria-label="Next day" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
-          <ChevronRight size={18} />
-        </button>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-2">
-        <p className={cx("min-w-0 flex-1 text-footnote [overflow-wrap:anywhere]", !future && working.length > 0 && left.length === 0 ? "font-medium text-low-ink" : "text-slate-600")}>
-          {!future && working.length > 0 && left.length === 0 && <Check size={14} className="mr-1 inline -translate-y-px" aria-hidden />}
-          {progress.join(" · ") || (future ? "Nothing marked for this day yet" : "Nobody to tick on this day")}
-        </p>
-        {!future && left.length > 0 && !data.settings.assumeDuty && (
-          <Button size="sm" variant="ghost" onClick={tickRest} disabled={mark.isPending}>
-            Tick the other {left.length} present
-          </Button>
-        )}
-      </div>
-      <ul className="divide-y divide-line">
-        {people.map((e) => {
-          const info = infoOf(e);
-          const other = info.mark && info.mark !== "present";
-          return (
-            <li key={e.id} className={cx("relative flex items-stretch", info.holiday && "bg-slate-50")}>
-              {info.leave || (info.holiday && !info.mark) ? (
-                <span className="w-12 shrink-0" />
-              ) : other ? (
-                <button type="button" onClick={() => openPersonDays(e.id)} aria-label={`${e.name}: ${MARK_NAME[info.mark!]}. Change`} className="flex w-12 shrink-0 items-center justify-center">
-                  <span className={cx("rounded-md bg-slate-100 px-1.5 py-0.5 text-footnote", MARK_TONE[info.mark!])}>{markShort(info.mark!, day.holiday)}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => tick(e)}
-                  disabled={future || saving(e)}
-                  aria-pressed={info.mark === "present"}
-                  aria-label={`${e.name}: ${info.mark === "present" ? "present, tap to clear" : "tick present"}`}
-                  className="flex w-12 shrink-0 items-center justify-center disabled:opacity-40"
-                >
-                  {saving(e) ? <span className="size-6 animate-pulse rounded-full bg-brand-100" /> : <Tick on={info.mark === "present"} />}
-                </button>
-              )}
-              <button type="button" onClick={() => openPersonDays(e.id)} className="flex min-w-0 flex-1 items-center gap-3 py-2 pr-3 text-left hover:bg-slate-50/80" aria-label={`${e.name}: mark days`}>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm text-ink [overflow-wrap:anywhere]">{e.name}</span>
-                  <span className="block truncate text-footnote text-slate-500">{[e.designation, e.offDay === "weekly" && OFF_DAY_LABELS.weekly].filter(Boolean).join(" · ")}</span>
-                  {/* Their figures, since this view has no CL / CH column (attendance phase 2). */}
-                  <span className={cx("block text-caption [overflow-wrap:anywhere]", (lookups.weekly.get(e.id)?.long.length ?? 0) > 0 ? "text-urgent-ink" : "text-slate-500")}>{figuresLine(e.id, data, lookups)}</span>
-                </span>
-                <span className="shrink-0 text-sm">
-                  {info.leave ? (
-                    <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-footnote font-semibold text-brand-700">{info.leave.short}</span>
-                  ) : info.mark ? (
-                    <span className={cx("text-footnote", MARK_TONE[info.mark])}>
-                      {markName(info.mark, day.holiday)}
-                      {cells.notes.get(key(e.id, day.date)) && <span className="block max-w-40 truncate text-slate-500">{cells.notes.get(key(e.id, day.date))}</span>}
-                    </span>
-                  ) : info.holiday ? (
-                    <span className="text-footnote text-slate-400">Holiday</span>
-                  ) : lookups.planned.has(key(e.id, day.date)) ? (
-                    <span className="rounded border border-dashed border-brand-500 px-1 text-footnote font-medium text-brand-700">O planned</span>
-                  ) : dutyShown ? (
-                    <span className="text-footnote text-low-ink/60">✓ Duty</span>
-                  ) : null}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </Card>
-  );
-}
-
-// The look of a tick circle inside a row's own button (a button can't hold another).
-function Tick({ on }: { on: boolean }) {
-  return (
-    <span className={cx("flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition", on ? "border-brand-600 bg-brand-600 text-white" : "border-slate-300 text-transparent")} aria-hidden>
-      <Check size={13} strokeWidth={3} />
-    </span>
   );
 }
 

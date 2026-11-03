@@ -424,9 +424,33 @@ describe("attendance register", () => {
     expect(before === 0 ? after : before! - 1).toBe(after);
     // Home no longer shows it (attendance on its own page only, 2026-11-02).
     expect((await call("GET", "/summary")).json).not.toHaveProperty("attendanceUnmarked");
-    // While days not marked count as duty there is nothing to remind about.
+    // A day not marked is never duty (2026-11-03): an older app sending assumeDuty changes nothing.
     await call("PUT", "/attendance/settings", { assumeDuty: true });
-    expect(await unmarkedToday(db, userId, today, "Asia/Kolkata", at(12))).toBeNull();
+    expect((await call("GET", "/attendance/settings")).json.settings.assumeDuty).toBe(false);
+    expect(await unmarkedToday(db, userId, today, "Asia/Kolkata", at(12))).toBe(after);
+  });
+
+  it("Clear all attendance needs the words typed and keeps holidays, starting figures and settings", async () => {
+    const a = await add({ name: NAME });
+    const w = await add({ name: "Weekly", offDay: "weekly" });
+    const later = new Date(Date.now() + 5 * 86400_000).toISOString().slice(0, 10);
+    await call("POST", "/attendance/holidays", { date: "2026-10-02", name: "ഗാന്ധി ജയന്തി" });
+    await call("PUT", "/attendance/settings", { clPerYear: 15, start: { [a]: { asOn: "2026-08-31", clTaken: 2, chOpen: [], offsDue: 0, towards: 0 } } });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-10-05" }, { employeeId: w, date: "2026-10-05" }], mark: "present" });
+    await call("POST", "/attendance/corrections", { employeeId: w, offsDue: 1, towards: 2, run: 8 });
+    await call("POST", "/attendance/plans", { employeeId: w, date: later });
+    expect((await call("POST", "/attendance/clear-all", { confirm: "clear" })).status).toBe(400);
+    expect((await call("POST", "/attendance/clear-all", {})).status).toBe(400);
+    expect(markOf(await month("2026-10"), a, "2026-10-05")).toBe("present");
+    expect((await call("POST", "/attendance/clear-all", { confirm: " Clear All " })).json).toEqual({ marks: 2, plans: 1, corrections: 1 });
+    const oct = await month("2026-10");
+    expect(oct.marks).toEqual([]);
+    expect(oct.days.find((x) => x.date === "2026-10-02")!.holiday?.name).toBe("ഗാന്ധി ജയന്തി");
+    const s = (await call("GET", "/attendance/settings")).json.settings as AttendanceSettings;
+    expect([s.clPerYear, s.start[a]?.clTaken]).toEqual([15, 2]);
+    expect(await db.select().from(schema.plannedOffs)).toEqual([]);
+    expect(await db.select().from(schema.attendanceCorrections)).toEqual([]);
+    expect((await history())[0]).toBe("All attendance cleared: 2 marks, 1 planned off, 1 count correction (holidays, starting figures and settings kept)");
   });
 
   it("the backup brings holidays, marks and settings back into an empty WorkDesk", async () => {
@@ -450,7 +474,7 @@ describe("attendance register", () => {
     expect(((await call("GET", "/attendance/offs")).json as OffsBoard).people[0]).toMatchObject({ run: 8, offsDue: 1, towards: 2 });
   });
 
-  it("days not marked count as duty from a starting point; Start the register works out Day N from the last off", async () => {
+  it("days not marked never count as duty; Start the register works out Day N from the last off", async () => {
     const w = await add({ name: NAME, offDay: "weekly" });
     const fresh = await add({ name: "Fresh", offDay: "weekly" });
     const s = await add({ name: "Sunday off" });
@@ -458,31 +482,29 @@ describe("attendance register", () => {
     const shift = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
     const board = async () => (await call("GET", "/attendance/offs")).json as OffsBoard;
     const person = async (id: string) => (await board()).people.find((p) => p.id === id)!;
-    // Off to start since 2026-11-02 (the register keeper ticks every day): switched on here.
-    await call("PUT", "/attendance/settings", { assumeDuty: true });
+    // A blank is "not in the office" or "not signed yet", never duty (2026-11-03): sending assumeDuty changes nothing.
+    // No second Saturdays, so the blank days below are working days whatever day the suite runs.
+    await call("PUT", "/attendance/settings", { assumeDuty: true, secondSaturday: false });
     // Nobody has a starting point: nothing is assumed and nobody is reminded.
     expect(await person(w)).toMatchObject({ started: false, run: 0, offsDue: 0 });
     const uid = (await db.select().from(schema.users))[0]!.id;
     expect(await offsReminder(db, uid, today)).toEqual([]);
     // The last off 16 days before the start (as on 3 days ago): 13 days since it, so Day 13 with the off and a
-    // compensatory off owed and 1 day towards the next; the 2 days since then count as duty, today not yet.
+    // compensatory off owed and 1 day towards the next; the 2 days since then are blank, so they count nothing.
     expect((await call("POST", "/attendance/start", { asOn: shift(-3), people: [{ employeeId: w, lastOff: shift(-16), clTaken: 1 }, { employeeId: s, clTaken: 2.5 }] })).json).toEqual({ saved: 2 });
-    expect(await person(w)).toMatchObject({ started: true, run: 15, offsDue: 2, towards: 3, lastOff: shift(-16) });
+    expect(await person(w)).toMatchObject({ started: true, run: 13, offsDue: 2, towards: 1, lastOff: shift(-16) });
     expect(await person(fresh)).toMatchObject({ started: false });
     expect((await offsReminder(db, uid, today)).map((o) => o.employeeId)).toEqual([w]);
     expect((await history())[0]).toBe(`Attendance register started as on ${dayLabel(shift(-3))} for 2 people`);
     const saved = (await call("GET", "/attendance/settings")).json.settings as AttendanceSettings;
     expect(saved.start[w]).toMatchObject({ asOn: shift(-3), run: 13, offsDue: 2, towards: 1, lastOff: shift(-16), clTaken: 1 });
     expect(saved.start[s]).toMatchObject({ run: 0, offsDue: 0, clTaken: 2.5, lastOff: null });
-    // An off two days ago: one owed paid, and yesterday (not marked) is Day 1.
+    // An off two days ago: one owed paid; yesterday (not marked) counts nothing, so still Day 0.
     await call("POST", "/attendance/mark", { cells: [{ employeeId: w, date: shift(-2) }], mark: "off" });
-    expect(await person(w)).toMatchObject({ run: 1, offsDue: 1, towards: 2 });
-    // The month counts a past working day not marked as present and none as not marked.
-    const m = await month(shift(-1).slice(0, 7));
-    expect(monthCounts(m).find((c) => c.employeeId === s)!.notMarked).toBe(0);
-    // With every day to be ticked, yesterday counts nothing.
-    await call("PUT", "/attendance/settings", { ...saved, assumeDuty: false });
     expect(await person(w)).toMatchObject({ run: 0, offsDue: 1, towards: 1 });
+    // Ticked present, yesterday is Day 1.
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: w, date: shift(-1) }], mark: "present" });
+    expect(await person(w)).toMatchObject({ run: 1, offsDue: 1, towards: 2 });
     // Days since the last off instead of its date; a last off after the start is refused.
     expect((await call("POST", "/attendance/start", { asOn: shift(-1), people: [{ employeeId: fresh, days: 7, extraOffs: 1 }] })).json.saved).toBe(1);
     expect(await person(fresh)).toMatchObject({ started: true, run: 7, offsDue: 2, towards: 1 });

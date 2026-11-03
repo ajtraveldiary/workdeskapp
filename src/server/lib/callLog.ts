@@ -19,6 +19,8 @@ const NOT_SAVED: [RegExp, string][] = [
   [/^\/api\/transfer\//, "import the file again"],
   [/^\/api\/mcp/, "the assistant tries again itself"],
   [/^\/api\/(queue|sync|maintain)\b/, "it is queue work already"],
+  // Done later it would also wipe marks entered since (2026-11-03).
+  [/^\/api\/attendance\/clear-all/, "clearing everything is only done when you ask"],
 ];
 const MAX_BODY = 100_000;
 

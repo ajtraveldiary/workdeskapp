@@ -350,6 +350,8 @@ export function useAttendanceActions() {
     ),
     saveHoliday: m((body: { date: string; name: string }) => api("/attendance/holidays", { method: "POST", body })),
     removeHoliday: m((date: string) => api(`/attendance/holidays/${date}`, { method: "DELETE" })),
+    // Settings › Attendance › Clear all attendance (2026-11-03): marks, planned offs and corrections.
+    clearAll: m((confirm: string) => api<{ marks: number; plans: number; corrections: number }>("/attendance/clear-all", { method: "POST", body: { confirm } })),
     saveSettings: m((body: AttendanceSettings) => api("/attendance/settings", { method: "PUT", body })),
     // Correct the count (docs/ATTENDANCE_UX_PLAN.md 4.4) and its Undo.
     correct: m((body: { employeeId: string; offsDue: number; towards: number; run: number; note: string }) => api<{ id: string }>("/attendance/corrections", { method: "POST", body })),
