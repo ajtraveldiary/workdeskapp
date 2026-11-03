@@ -2,12 +2,14 @@
 // office retires, make a "Pension papers" task about them (due a year before the retirement date, when the
 // pension application should go in), with the pension checklist inside. Made once per employee
 // (employees.pension_task_id), so a deleted task isn't made again. Safe on every page load and from the cron.
+import { dayLabel } from "../../shared/reminderSchedule";
 import { and, eq, gte, isNotNull, isNull, lte } from "drizzle-orm";
 import type { DB } from "../db";
 import { employees, events, tasks } from "../db/schema";
 import { PENSION_CHECKLIST, nextYear, pensionTaskTitle, yearBefore } from "../../shared/staff";
 
-const longDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+// dd.mm.yyyy, the site-wide date format (2026-11-03).
+const longDate = (day: string) => dayLabel(day);
 
 export async function ensurePensionTasks(db: DB, today: string, userId?: string) {
   const due = await db

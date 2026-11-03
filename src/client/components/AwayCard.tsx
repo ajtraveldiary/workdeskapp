@@ -2,7 +2,7 @@
 // Attendance page's Today tab, everyone off, on CL, ½CL, CH, absent or on leave today and tomorrow (an off planned
 // counts), each name opening their Person days; and the CH that must be taken within a week. Fresh each time.
 import type { AwayPerson } from "../../shared/types";
-import { dayLabel } from "../../shared/reminderSchedule";
+import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import { useAway } from "../api";
 import { openPersonDays } from "./PersonDays";
 import { cx } from "./ui";
@@ -32,7 +32,7 @@ export function AwayCard() {
           day ? (
             <section key={day.date} className="min-w-0">
               <h2 className="text-footnote font-semibold text-slate-600">
-                {label} <span className="font-normal text-slate-400">· {dayLabel(day.date).replace(/ \d{4}$/, "")}</span>
+                {label} <span className="font-normal text-slate-400">· {dayShort(day.date)}</span>
               </h2>
               {day.people.length === 0 ? (
                 <p className="mt-1 text-sm text-slate-500">Nobody away</p>
@@ -54,7 +54,7 @@ export function AwayCard() {
       </div>
       {data.chLapsing.length > 0 && (
         <p className="mt-2 border-t border-line pt-2 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
-          CH to take within a week: {data.chLapsing.map((c) => `${c.name} (${c.holidayName}, by ${dayLabel(c.expires).replace(/ \d{4}$/, "")})`).join("; ")}
+          CH to take within a week: {data.chLapsing.map((c) => `${c.name} (${c.holidayName}, by ${dayShort(c.expires)})`).join("; ")}
         </p>
       )}
     </div>

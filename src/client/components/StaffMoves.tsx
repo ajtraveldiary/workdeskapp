@@ -3,6 +3,7 @@
 // Relieve form. A pill writes the step of the person's joining / relieving task, and ticking the step in the task
 // changes the pill: they are the same data (src/shared/moves.ts). Finished ones (task completed) are behind
 // "Show finished".
+import { dayLabel } from "../../shared/reminderSchedule";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { ChevronDown, UserMinus, UserPlus, UsersRound } from "lucide-react";
@@ -12,7 +13,8 @@ import { useMe, useMoveActions, useMoves, useStaff } from "../api";
 import { EmployeeDialog } from "../pages/Staff";
 import { Button, Card, ErrorNote, Field, Modal, Segmented, SkeletonList, TONE, cx, inputClass } from "./ui";
 
-const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+// dd.mm.yyyy, the site-wide date format (2026-11-03).
+const fullDate = (day: string) => dayLabel(day);
 const STATE_TONE = { pending: TONE.urgent.soft, waiting: TONE.medium.soft, done: TONE.low.soft } as const;
 const stateLabel = (step: MoveStep, state: StepState) => (state === "done" ? step.doneLabel : state === "waiting" ? "Waiting" : "Pending");
 

@@ -50,7 +50,7 @@ import {
   type WeeklySet,
 } from "../../shared/attendance";
 import { leaveEnd, leaveShort, shiftDate } from "../../shared/leave";
-import { dayLabel } from "../../shared/reminderSchedule";
+import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import type { AttendanceMonth, AwayDays, AwayPerson, Holiday, OffNeeded, OffsBoard, OffsBoardDay, PersonDays } from "../../shared/types";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
@@ -416,7 +416,7 @@ export async function awayDays(db: DB, userId: string, today: string, n = 2, chL
       if ((e.joinedOfficeOn && date < e.joinedOfficeOn) || (e.leftOn && date > e.leftOn)) continue;
       const leave = leaves.find((l) => l.employeeId === e.id && l.from <= date && date <= l.to);
       const m = marks.find((x) => x.employeeId === e.id && x.date === date);
-      if (leave) people.push({ employeeId: e.id, name: e.name, what: `${leave.short} till ${dayLabel(leave.to).replace(/ \d{4}$/, "")}`, kind: "leave" });
+      if (leave) people.push({ employeeId: e.id, name: e.name, what: `${leave.short} till ${dayShort(leave.to)}`, kind: "leave" });
       else if (m) people.push({ employeeId: e.id, name: e.name, what: WHAT[m.mark as keyof typeof WHAT], kind: m.mark as AwayPerson["kind"] });
       else if (plans.some((p) => p.employeeId === e.id && p.date === date)) people.push({ employeeId: e.id, name: e.name, what: "Off (planned)", kind: "planned" });
     }

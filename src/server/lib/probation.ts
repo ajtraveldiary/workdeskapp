@@ -6,12 +6,14 @@
 // form completes the open task. Only joinings in the last few years (PROBATION_LOOKBACK_YEARS after the 2), so
 // old staff whose declaration date was never entered don't each get one. Safe on every page load and the cron.
 // Probation declared "yes" without a date (user request 2026-10-30, the employee's switch) counts as declared too.
+import { dayLabel } from "../../shared/reminderSchedule";
 import { and, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import type { DB } from "../db";
 import { employees, events, tasks } from "../db/schema";
 import { CONTRACT_HOME_DAYS, PROBATION_LOOKBACK_YEARS, contractEnd, probationDue, probationTaskTitle, yearBefore } from "../../shared/staff";
 
-const longDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+// dd.mm.yyyy, the site-wide date format (2026-11-03).
+const longDate = (day: string) => dayLabel(day);
 
 export async function ensureProbationTasks(db: DB, today: string, userId?: string) {
   const windowEnd = contractEnd(today, CONTRACT_HOME_DAYS + 1); // today + 7 days

@@ -17,7 +17,7 @@ import { openStartRegister } from "./StartRegister";
 import { openPersonDays } from "./PersonDays";
 import type { OffsBoard as Board, OffsBoardDay, OffsBoardPerson } from "../../shared/types";
 import { MARK_NAME, dutyForOff, offStatus, offTakeBy, type OffTone } from "../../shared/attendance";
-import { dayLabel } from "../../shared/reminderSchedule";
+import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import { useAttendanceActions, useOffsBoard } from "../api";
 import { RefreshButton } from "./RefreshButton";
 import { showUndo } from "./SwipeRow";
@@ -25,7 +25,7 @@ import { Button, Card, ErrorNote, Modal, SkeletonList, TONE, cx, inputClass, typ
 
 const TONE_OF: Record<OffTone, Tone> = { red: "urgent", orange: "high", amber: "medium", blue: "info", grey: "neutral" };
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const shortDay = (d: string) => `${WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]} ${dayLabel(d).replace(/ \d{4}$/, "")}`;
+const shortDay = (d: string) => `${WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]} ${dayShort(d)}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export function OffsBoard({ onRegister }: { onRegister: () => void }) {

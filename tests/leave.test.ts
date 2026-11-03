@@ -351,7 +351,7 @@ describe("leave", () => {
     const mine = (await leaves(`?employeeId=${id}`)).leaves;
     expect(mine).toHaveLength(1);
     expect(mine[0]).toMatchObject({ days: 10, status: "active", orderNo: "A1/12/2026", task: { id: t.id } });
-    expect((await history()).some((h) => h.summary === `Leave of ${NAME}: Half pay leave, 10 days, 1 Nov 2026 to 10 Nov 2026`)).toBe(true);
+    expect((await history()).some((h) => h.summary === `Leave of ${NAME}: Half pay leave, 10 days, 01.11.2026 to 10.11.2026`)).toBe(true);
     // Two leaves can't share a day.
     expect((await call("POST", "/leave/leaves", { employeeId: id, typeId: hpl.id, fromDate: "2026-11-10", toDate: "2026-11-12", days: 3 })).status).toBe(409);
   });
@@ -386,7 +386,7 @@ describe("leave", () => {
     await call("PUT", `/leave/leaves/${lid}`, { typeId: el.id, fromDate: "2026-11-01", toDate: "2026-11-20", days: 10, rejoinedOn: "2026-11-11" });
     expect(await balance(id, el.id)).toBe(90);
     expect((await taskOf(made.json.taskId))).toMatchObject({ dueDate: "2026-11-11", title: "Leave: Anitha — EL 10 days" });
-    expect((await history()).some((h) => h.summary === "Anitha rejoined on 11 Nov 2026 after Earned leave (10 days)")).toBe(true);
+    expect((await history()).some((h) => h.summary === "Anitha rejoined on 11.11.2026 after Earned leave (10 days)")).toBe(true);
     // Changed to HPL: EL back, HPL taken.
     await call("PUT", `/leave/leaves/${lid}`, { typeId: hpl.id, fromDate: "2026-11-01", toDate: "2026-11-20", days: 10, rejoinedOn: "2026-11-11" });
     expect([await balance(id, el.id), await balance(id, hpl.id)]).toEqual([100, 40]);
@@ -447,7 +447,7 @@ describe("leave", () => {
     expect(await ensureLeaveCredits(db, "2026-11-15")).toBe(1);
     expect(await ensureLeaveCredits(db, "2026-11-20")).toBe(0);
     expect(await balance(a, hpl.id)).toBe(20);
-    expect((await account(a)).lines[0]).toMatchObject({ kind: "credit", creditFor: "2026", onDate: "2026-11-15", note: "Service anniversary 15 Nov 2026 (16 years of service)" });
+    expect((await account(a)).lines[0]).toMatchObject({ kind: "credit", creditFor: "2026", onDate: "2026-11-15", note: "Service anniversary 15.11.2026 (16 years of service)" });
     // A year already credited by Credit now isn't credited again.
     await call("POST", `/leave/types/${hpl.id}/credit`, { creditFor: "2027", onDate: "2027-01-01", days: 20 });
     expect(await ensureLeaveCredits(db, "2027-12-31")).toBe(0);
@@ -473,7 +473,7 @@ describe("leave", () => {
     expect(await ensureLeaveCredits(db, "2026-07-01")).toBe(1);
     expect(await balance(a, el.id)).toBe(300);
     const credit = (await account(a)).lines.find((l) => l.kind === "credit")!;
-    expect(credit).toMatchObject({ days: 16, creditFor: "2026", note: "Service anniversary 1 Jul 2026: 181 days, 0 on leave → 181 on duty ÷ 11" });
+    expect(credit).toMatchObject({ days: 16, creditFor: "2026", note: "Service anniversary 01.07.2026: 181 days, 0 on leave → 181 on duty ÷ 11" });
     // 1 Jul 2027: 365 days, 22 on leave → 343 ÷ 11 = 31.
     await call("POST", `/leave/accounts/${a}/lines`, { typeId: el.id, kind: "adjust", onDate: "2027-01-01", days: -100 });
     expect(await ensureLeaveCredits(db, "2027-07-01")).toBe(1);
@@ -552,7 +552,7 @@ describe("leave", () => {
     expect(made.json.postponed).toEqual({ increment: { from: "2027-06-01", to: "2027-06-21" }, probation: { taskId: probationTask.id, from: shift(today, 3), to: shift(today, 23) } });
     expect((await employee(id)).nextIncrementOn).toBe("2027-06-21");
     expect((await taskOf(probationTask.id)).dueDate).toBe(shift(today, 23));
-    expect((await history()).some((h) => h.summary === `Next increment of ${NAME} moved from 1 Jun 2027 to 21 Jun 2027 (20 days of Extraordinary leave)`)).toBe(true);
+    expect((await history()).some((h) => h.summary === `Next increment of ${NAME} moved from 01.06.2027 to 21.06.2027 (20 days of Extraordinary leave)`)).toBe(true);
     // Undo puts both back (only while they are still the moved dates).
     await call("POST", `/leave/leaves/${made.json.id}/postpone/undo`, made.json.postponed);
     expect((await employee(id)).nextIncrementOn).toBe("2027-06-01");

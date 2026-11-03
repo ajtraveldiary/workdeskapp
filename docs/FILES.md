@@ -208,7 +208,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `assistantHelp.ts` | The text of Settings › Assistant help: every MCP command and prompt in groups, with its kind (reads / needs Allow changes / needs Allow staff actions / prompt), hint, example and notes. |
 | `types.ts` | The shapes of data the API sends to the app (Thread, Task, Report, Employee, OfficeFile, SiteLogin, Summary…). |
 | `schemas.ts` | Checks on everything the app sends (Zod): tasks, reminders, tags, labels, staff, files, website logins, notifications, hidden text. |
-| `reminderSchedule.ts` | Reminder date maths: repeats, next dates, "remind me" lead days, labels like "Every month". |
+| `reminderSchedule.ts` | Reminder date maths: repeats, next dates, "remind me" lead days, labels like "Every month"; `dayLabel` (dd.mm.yyyy, the site-wide date format) and `dayShort` ("3 Nov"). |
 | `eventSchedule.ts` | Event maths: the starting event types and the "Event" label for none, each date of a repeating event in a range with its changes (done, moved, cancelled), time ranges. |
 | `jobs.ts` | The background queue's kinds of work (the four background kinds plus saved changes and refused notifications; title, what it does, calls needed to start), statuses (with `check`), tries and retry waits, and plain names for requests (`requestTitle`). |
 | `moves.ts` | Joining and relieving steps (ids, names, Done or Received), Pending / Waiting / Done, and how a step's state is read from and written to the task's checklist. |
@@ -243,7 +243,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `dbStatus.ts` | Remembers a database problem the server reported, for the pop-up. |
 | `push.ts` | Turns phone notifications on/off on this device; sets the app icon badge. |
 | `theme.ts` | Light / Dark / Automatic, saved on the device. |
-| `format.ts` | Shows dates and times the friendly way ("Today", "Tue 7 Oct", "10:30 am"). |
+| `format.ts` | Shows dates and times: Today / Tomorrow / Yesterday, otherwise dd.mm.yyyy; timestamps as "03.11.2026, 10:30 am". |
 | `fonts.ts` | The Malayalam font for email and Word preview frames. |
 | `snippets.ts` | Removes hidden text from HTML emails; HTML to plain text for sharing. |
 | `addressLists.ts` | Folds long recipient lists inside HTML emails ("and 38 more"). |

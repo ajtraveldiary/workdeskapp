@@ -8,6 +8,7 @@
 //    reminder date before today that isn't done, show on today as an all-day event instead of on their old
 //    date, with the old date in the details. They move along day by day until done. The title is just the
 //    name, without "Overdue:" (user request 2026-10-07).
+import { dayLabel } from "../../shared/reminderSchedule";
 import { occurrences, repeatText, type ReminderRule } from "../../shared/reminderSchedule";
 import { eventOccurrences, eventTypeLabel, type EventRule } from "../../shared/eventSchedule";
 import type { OfficeEvent } from "../../shared/types";
@@ -48,9 +49,9 @@ const shift = (day: string, days: number) => {
 };
 const compactDay = (day: string) => day.replaceAll("-", "");
 const stamp = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
 // "18 Sept 2026, 09:30"
-const wasDue = (day: string, time: string | null) => `${Number(day.slice(8))} ${MONTHS[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}${time ? `, ${time}` : ""}`;
+// dd.mm.yyyy, the site-wide date format (2026-11-03).
+const wasDue = (day: string, time: string | null) => `${dayLabel(day)}${time ? `, ${time}` : ""}`;
 
 // A wall-clock time in `tz` as a UTC instant (works for any time zone, with or without summer time).
 export function localToUtc(day: string, time: string, tz: string): Date {

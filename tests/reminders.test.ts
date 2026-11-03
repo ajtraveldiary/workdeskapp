@@ -45,7 +45,7 @@ describe("reminder schedule", () => {
     expect(repeatText(meeting)).toBe("Every week on Monday");
     expect(repeatText(rule({ repeat: "monthly", startDate: "2026-10-05" }))).toBe("Every month on the 5th");
     expect(repeatText(rule({ repeat: "monthly", startDate: "2026-10-31" }))).toBe("Every month on the last day");
-    expect(repeatText(rule({ repeat: "never", startDate: "2026-10-09" }))).toBe("Once, on 9 Oct 2026");
+    expect(repeatText(rule({ repeat: "never", startDate: "2026-10-09" }))).toBe("Once, on 09.10.2026");
   });
 });
 
@@ -130,7 +130,7 @@ describe("reminders", () => {
     expect(due).toEqual([
       { label: "Jul 2026", due_date: "2026-08-31" },
       { label: "Aug 2026", due_date: "2026-09-30" },
-      { label: "31 Oct 2026", due_date: "2026-10-31" }, // the last day, as before
+      { label: "31.10.2026", due_date: "2026-10-31" }, // the last day, as before
     ]);
   });
 });

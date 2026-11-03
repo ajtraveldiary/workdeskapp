@@ -4,12 +4,14 @@
 // (routes/staff.ts), which also completes it. One task per end date (employees.contract_task_for): a renewed
 // contract gets a new task 7 days before its new end; an edited end date moves the open task to it.
 // Safe on every page load and from the cron.
+import { dayLabel } from "../../shared/reminderSchedule";
 import { and, eq, isNotNull, isNull, lte, ne, or } from "drizzle-orm";
 import type { DB } from "../db";
 import { employees, events, tasks } from "../db/schema";
 import { CONTRACT_HOME_DAYS, contractEnd, contractTaskTitle } from "../../shared/staff";
 
-const longDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+// dd.mm.yyyy, the site-wide date format (2026-11-03).
+const longDate = (day: string) => dayLabel(day);
 const notesFor = (end: string, days: number | null) =>
   `Contract ends on ${longDate(end)}${days ? ` (contract period ${days} days)` : ""}. Tick it to renew the contract or mark it ended.`;
 

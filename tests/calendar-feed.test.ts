@@ -52,7 +52,7 @@ describe("calendar file", () => {
     const task = ev("task-late@workdesk");
     expect(task).toContain("DTSTART;VALUE=DATE:20261007");
     expect(task).toContain("SUMMARY:File returns\r\n");
-    expect(task).toContain("Overdue – was due 18 Sept 2026\\, 09:30");
+    expect(task).toContain("Overdue – was due 18.09.2026\\, 09:30");
     expect(ev("reminder-r2-2026-09-30@workdesk")).toContain("DTSTART;VALUE=DATE:20261007");
     expect(ev("reminder-r2-2026-09-30@workdesk")).toContain("SUMMARY:Staff meeting\r\n");
     expect(ev("reminder-r2-2026-09-23@workdesk")).toContain("SUMMARY:✓ Staff meeting"); // done: stays on its day

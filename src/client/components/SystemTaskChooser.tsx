@@ -7,6 +7,7 @@
 // The first choice of each completes the task, with Undo; changing the date keeps it open, with Undo. On wider
 // screens the choice is a small menu growing out of the tapped tick; on phones (and after a swipe) an action
 // sheet. Opened from anywhere with openTaskChoice(task); it lives once in the app shell (SystemTaskChooserHost).
+import { dayLabel } from "../../shared/reminderSchedule";
 import { BadgeCheck, CalendarClock, CalendarX2, RefreshCw, UserRound } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
@@ -225,7 +226,7 @@ function ProbationChoices({ task, employeeId, name, today, onDone }: { task: Tas
         <BadgeCheck size={16} className="shrink-0 text-low-ink" />
         <span className="min-w-0 flex-1">
           Probation declared
-          <span className="block text-caption text-slate-500">Records today, {new Date(`${today}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}, as the date</span>
+          <span className="block text-caption text-slate-500">Records today, {dayLabel(today)}, as the date</span>
         </span>
         {act.isPending && <Spinner size={14} />}
       </button>

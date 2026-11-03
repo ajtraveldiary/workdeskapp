@@ -1,4 +1,9 @@
-// Display helpers. Calendar dates are YYYY-MM-DD strings; timestamps are ISO strings.
+// Display helpers. Calendar dates are YYYY-MM-DD strings; timestamps are ISO strings. Full dates show as dd.mm.yyyy
+// (user request 2026-11-03), with Today / Tomorrow / Yesterday kept as words.
+import { dayLabel } from "../shared/reminderSchedule";
+
+// A timestamp's day on this device, as YYYY-MM-DD.
+const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export function addDays(day: string, n: number): string {
   const d = new Date(`${day}T00:00:00Z`);
@@ -10,14 +15,7 @@ export function formatDay(day: string, today: string): string {
   if (day === today) return "Today";
   if (day === addDays(today, 1)) return "Tomorrow";
   if (day === addDays(today, -1)) return "Yesterday";
-  const d = new Date(`${day}T00:00:00Z`);
-  const sameYear = day.slice(0, 4) === today.slice(0, 4);
-  return d.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    ...(sameYear ? {} : { year: "numeric" }),
-    timeZone: "UTC",
-  });
+  return dayLabel(day);
 }
 
 export function formatWhen(iso: string): string {
@@ -26,21 +24,12 @@ export function formatWhen(iso: string): string {
   if (d.toDateString() === now.toDateString()) {
     return d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
   }
-  return d.toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    ...(d.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
-  });
+  return dayLabel(localDay(d));
 }
 
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const d = new Date(iso);
+  return `${dayLabel(localDay(d))}, ${d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}`;
 }
 
 // "17:00" -> "5:00 PM"

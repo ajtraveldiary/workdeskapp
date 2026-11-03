@@ -32,6 +32,8 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
 - **Side menu (computers):** labelled buttons in two groups, My work and Office, with Settings always at the
   bottom; shrink it to icons only with the button beside Settings (remembered on that device). It fits any window
   height, scrolling the list when the window is short.
+- **Dates as dd.mm.yyyy:** every full date in the app, History and task notes is written like 03.11.2026; Today,
+  Tomorrow and Yesterday stay words, and short labels like "3 Nov" are kept where a full date wouldn't fit.
 
 ### Home: the day at a glance
 - **Counters:** emails waiting for a decision, pending jobs, work due today, upcoming reminders.

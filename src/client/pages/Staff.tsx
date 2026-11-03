@@ -2,6 +2,7 @@
 // employees, permanent or temporary, and designations. Tasks and reminders can be
 // about an employee, a designation or the general office (Related.tsx). Reached from the side rail on wider
 // screens and from the profile menu on phones. Only WorkDesk's database changes; History records each change.
+import { dayLabel } from "../../shared/reminderSchedule";
 import { Fragment, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
@@ -38,7 +39,8 @@ import { Badge, Button, Card, ErrorNote, Fab, Field, Loading, Modal, PageHeader,
 import { MovesCard, openMoveForm } from "../components/StaffMoves";
 import { OnLeaveTag } from "../components/OnLeave";
 
-const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+// dd.mm.yyyy, the site-wide date format (2026-11-03).
+const fullDate = (day: string) => dayLabel(day);
 // Whole years from a to b (both YYYY-MM-DD).
 function yearsBetween(a: string, b: string) {
   let y = Number(b.slice(0, 4)) - Number(a.slice(0, 4));
@@ -478,8 +480,8 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-// dd/mm/yyyy, the way office registers write dates (and narrow enough for the table).
-const shortDate = (day: string | null) => (day ? `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}` : "");
+// dd.mm.yyyy, the site-wide date format (2026-11-03; dd/mm/yyyy before), narrow enough for the table.
+const shortDate = (day: string | null) => (day ? dayLabel(day) : "");
 
 function EmployeeTable({ people, permanent, staff, onOpen }: { people: Employee[]; permanent: boolean; staff: StaffList; onOpen: (id: string) => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);

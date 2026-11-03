@@ -72,7 +72,7 @@ describe("attendance register", () => {
     expect(r.json).toEqual({ marked: 3, skipped: {} });
     const after = await month("2026-10");
     expect([a, b, t].map((id) => markOf(after, id, "2026-10-05"))).toEqual(["present", "present", "present"]);
-    expect(await history()).toContain("Attendance 5 Oct 2026: Present for 3 people");
+    expect(await history()).toContain("Attendance 05.10.2026: Present for 3 people");
     expect((await month("2026-11")).employees.some((e) => e.id === later)).toBe(true);
   });
 
@@ -134,7 +134,7 @@ describe("attendance register", () => {
     const cleared = await call("POST", "/attendance/clear", { cells: [{ employeeId: a, date: "2026-10-05" }, { employeeId: a, date: "2026-10-07" }] });
     expect(cleared.json.cleared).toBe(1);
     expect((await month("2026-10")).totals[0]!.cl).toBe(1.5);
-    expect(await history()).toContain(`Attendance 5 Oct 2026: marks cleared for ${NAME}`);
+    expect(await history()).toContain(`Attendance 05.10.2026: marks cleared for ${NAME}`);
   });
 
   it("keeps holidays and settings, each in History", async () => {
@@ -147,8 +147,8 @@ describe("attendance register", () => {
     await call("PUT", "/attendance/settings", { secondSaturday: false, clPerYear: 20 });
     expect((await month("2026-10")).days.find((d) => d.date === "2026-10-10")!.holiday).toBeNull();
     const h = await history();
-    expect(h).toContain("Holiday added: 25 Dec 2026, Christmas");
-    expect(h).toContain("Holiday removed: 25 Dec 2026, ക്രിസ്മസ്");
+    expect(h).toContain("Holiday added: 25.12.2026, Christmas");
+    expect(h).toContain("Holiday removed: 25.12.2026, ക്രിസ്മസ്");
     expect(h.some((x) => x.startsWith("Attendance settings saved: second Saturdays aren't holidays"))).toBe(true);
   });
 
@@ -195,7 +195,7 @@ describe("attendance register", () => {
     expect((await call("POST", "/attendance/clear", { cells: [{ employeeId: a, date: "2026-10-02" }] })).json).toEqual({ cleared: 0, kept: 1 });
     await call("POST", "/attendance/clear", { cells: [{ employeeId: a, date: "2026-10-05" }] });
     expect((await month("2026-10")).chOpen.map((o) => o.holiday)).toEqual(["2026-10-02", "2026-10-10"]);
-    expect(await history()).toContain(`Attendance 5 Oct 2026: CH for ${NAME}, for the holiday worked on 2 Oct 2026`);
+    expect(await history()).toContain(`Attendance 05.10.2026: CH for ${NAME}, for the holiday worked on 02.10.2026`);
   });
 
   it("starting figures add CL taken and holidays worked before the register; CH limits follow Settings, else the post", async () => {

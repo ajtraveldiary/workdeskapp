@@ -21,7 +21,7 @@ export default function SheetPreview({ url }: { url: string }) {
       try {
         const res = await fetch(url, { credentials: "same-origin" });
         if (!res.ok) throw new Error(String(res.status));
-        const wb = read(new Uint8Array(await res.arrayBuffer()), { type: "array", sheetRows: MAX_ROWS + 1, cellHTML: false, cellStyles: false, dateNF: "dd/mm/yyyy" });
+        const wb = read(new Uint8Array(await res.arrayBuffer()), { type: "array", sheetRows: MAX_ROWS + 1, cellHTML: false, cellStyles: false, dateNF: "dd.mm.yyyy" });
         if (!cancelled) setBook(wb);
       } catch {
         if (!cancelled) setFailed(true);
@@ -63,7 +63,7 @@ function SheetTable({ book, index }: { book: WorkBook; index: number }) {
   const ws = book.Sheets[book.SheetNames[index]!]!;
   const table = useMemo(() => {
     // Formatted values as Excel shows them (money, percentages); plain dates day first, as in India.
-    const rows = utils.sheet_to_json<string[]>(ws, { header: 1, raw: false, defval: "", blankrows: true, dateNF: "dd/mm/yyyy" });
+    const rows = utils.sheet_to_json<string[]>(ws, { header: 1, raw: false, defval: "", blankrows: true, dateNF: "dd.mm.yyyy" });
     const range = ws["!ref"] ? utils.decode_range(ws["!ref"]) : null;
     const startRow = range?.s.r ?? 0;
     const startCol = range?.s.c ?? 0;

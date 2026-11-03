@@ -51,6 +51,8 @@ import { Button, Card, ErrorNote, Fab, Modal, Segmented, SkeletonList, cx, input
 type Person = AttendanceMonth["employees"][number];
 type Markable = Exclude<AttendanceMark, "ch">;
 const key = (employeeId: string, date: string) => `${employeeId}|${date}`;
+// "Tue 03.11.2026": every register cell's hover hint starts with its day (user request 2026-11-03).
+const cellDate = (date: string) => `${new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" })} ${dayLabel(date)}`;
 const unkey = (k: string): AttendanceCell => {
   const [employeeId, date] = k.split("|") as [string, string];
   return { employeeId, date };
@@ -683,7 +685,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                 const info = cells.info(e, d.date);
                 if (info.out) {
                   tds.push(
-                    <td key={d.date} className="border border-slate-300 bg-slate-50 text-center text-slate-300" title="Not in the office">
+                    <td key={d.date} className="border border-slate-300 bg-slate-50 text-center text-slate-300" title={`${cellDate(d.date)} · Not in the office`}>
                       –
                     </td>,
                   );
@@ -725,13 +727,13 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                       onPointerEnter={() => cellEnter(r, c)}
                       aria-pressed={on}
                       aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : info.assumed ? "duty, not marked" : "not marked"}`}
-                      title={ch.long.has(k) ? `${title ?? ""} · more than 12 days in a row without an off` : title}
+                      title={[cellDate(d.date), title, ch.long.has(k) && "more than 12 days in a row without an off"].filter(Boolean).join(" · ")}
                       className={cx("no-tap relative flex h-8 w-full items-center justify-center overflow-hidden text-caption2 xl:text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
                     >
                       {info.mark && <span className={MARK_TONE[info.mark]}>{markShort(info.mark, d.holiday)}</span>}
                       {info.assumed && <span className="text-slate-300 print:text-slate-400">✓</span>}
                       {!info.mark && ch.planned.has(k) && (
-                        <span className="rounded border border-dashed border-brand-500 px-0.5 leading-none font-medium text-brand-700" title={`Off planned${ch.planned.get(k)!.note ? `: ${ch.planned.get(k)!.note}` : ""}`}>
+                        <span className="rounded border border-dashed border-brand-500 px-0.5 leading-none font-medium text-brand-700" title={`${cellDate(d.date)} · Off planned${ch.planned.get(k)!.note ? `: ${ch.planned.get(k)!.note}` : ""}`}>
                           O
                         </span>
                       )}

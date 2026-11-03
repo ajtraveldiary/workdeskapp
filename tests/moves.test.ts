@@ -69,7 +69,7 @@ describe("joining and relieving", () => {
     await call("POST", "/tasks/bulk-delete", { ids: [r.json.taskId] });
     expect((await moves()).map((m) => m.kind)).toEqual(["join"]);
     const history = ((await call("GET", "/history")).json.events as { summary: string }[]).map((h) => h.summary);
-    expect(history).toContain("Anila relieved on 10 Oct 2026");
+    expect(history).toContain("Anila relieved on 10.10.2026");
   });
 
   it("someone already working here can be put into joining with steps already done (Settings › Employees)", async () => {

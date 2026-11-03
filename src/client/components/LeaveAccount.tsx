@@ -5,6 +5,7 @@
 // paperwork steps (tap a leave to edit it, record the rejoining date or cancel it). Since 2026-10-31 (user request,
 // "move leave to a standalone page") the card is on the Leave page (/leave?employee=…), and the employee's page has
 // only LeaveSummary, one line that opens it.
+import { dayLabel } from "../../shared/reminderSchedule";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { TreePalm, CalendarPlus, Check, ChevronRight, Hourglass, Plus } from "lucide-react";
@@ -16,7 +17,8 @@ import { LeaveDialog, type LeaveFormState } from "./LeaveDialog";
 import { TaskDetails } from "./TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "./TaskDialog";
 
-const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+// dd.mm.yyyy, the site-wide date format (2026-11-03).
+const fullDate = (day: string) => dayLabel(day);
 const signed = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${formatDays(Math.abs(n))}`;
 
 // hideLeaves: their leaves are listed by the page instead (the Leave page's history).

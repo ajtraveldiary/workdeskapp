@@ -1,3 +1,4 @@
+import { dayLabel } from "../../shared/reminderSchedule";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import {
@@ -310,7 +311,7 @@ function CommandCenter({
     <Panel hiddenOnPhone={hiddenOnPhone}>
       <PanelHeader
         title="Due Today"
-        subtitle={new Date(`${today}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}
+        subtitle={`${new Date(`${today}T00:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", timeZone: "UTC" })}, ${dayLabel(today)}`}
         action={
           <div className="flex shrink-0 items-center gap-2">
             <RefreshButton keys={[["tasks"], ["summary"]]} label="Refresh Due Today" />

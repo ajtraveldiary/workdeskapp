@@ -40,7 +40,7 @@ describe("registers", () => {
     expect(await entries()).toEqual([]);
     expect(((await call("GET", "/tasks?view=any")).json.tasks as Task[]).filter((t) => t.title.startsWith("സ്റ്റോക്ക്"))).toEqual([]);
     const history = ((await call("GET", "/history")).json.events as { summary: string }[]).map((h) => h.summary);
-    expect(history).toContain("Service book register updated until 10 Oct 2026");
+    expect(history).toContain("Service book register updated until 10.10.2026");
   });
 
   it("entries are not tasks unless given a due date; then entry and task stay in step both ways", async () => {
@@ -87,6 +87,6 @@ describe("registers", () => {
     // Its completed task stays.
     expect((await task(a.taskId))!.status).toBe("done");
     const history = ((await call("GET", "/history")).json.events as { summary: string }[]).map((h) => h.summary);
-    expect(history).toContain("Stationary Register updated until 17 Oct 2026 (1 done entry cleared)");
+    expect(history).toContain("Stationary Register updated until 17.10.2026 (1 done entry cleared)");
   });
 });

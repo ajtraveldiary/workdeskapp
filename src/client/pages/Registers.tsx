@@ -2,6 +2,7 @@
 // pending entries together, filtered by the employee needed and by register, with Show done; the other is a card
 // per register, one line until clicked (name, pending count, the date it is updated until), opening to its own
 // to-do list, its "Updated until" date and Add entry. Registers are added in Settings › Registers.
+import { dayLabel } from "../../shared/reminderSchedule";
 import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { BookOpen, CheckCheck, ChevronDown, ListPlus, Plus } from "lucide-react";
@@ -12,7 +13,8 @@ import { RefreshButton } from "../components/RefreshButton";
 import { Button, Card, ErrorNote, Fab, PageHeader, SkeletonList, cx, inputClass } from "../components/ui";
 
 const GENERAL = "general";
-const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+// dd.mm.yyyy, the site-wide date format (2026-11-03).
+const fullDate = (day: string) => dayLabel(day);
 
 export function RegistersPage() {
   const regs = useRegisters().data?.registers;

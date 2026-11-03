@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { PersonDay, PersonDays as Data } from "../../shared/types";
 import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chExpires, chFits, clDays, go303Breaks, inAttendance, markName, markShort, mondayOf, nextToLeave, notEligible, offStatus, offTakeBy, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
-import { dayLabel } from "../../shared/reminderSchedule";
+import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendanceActions, useAttendanceSettings, useMe, usePersonDays, useStaff } from "../api";
 import { showUndo } from "./SwipeRow";
@@ -213,9 +213,9 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
             {/* G.O.(Ms) 161/08/AD: take the off within a month of earning it. */}
             {data.weekly.owedSince[0] &&
               (offTakeBy(data.weekly.owedSince[0]) < data.today ? (
-                <span className="text-caption font-medium text-urgent-ink">owed since {dayLabel(data.weekly.owedSince[0]).replace(/ \d{4}$/, "")}: over a month</span>
+                <span className="text-caption font-medium text-urgent-ink">owed since {dayShort(data.weekly.owedSince[0])}: over a month</span>
               ) : (
-                <span className="text-caption text-slate-500">take by {dayLabel(offTakeBy(data.weekly.owedSince[0])).replace(/ \d{4}$/, "")}</span>
+                <span className="text-caption text-slate-500">take by {dayShort(offTakeBy(data.weekly.owedSince[0]))}</span>
               ))}
           </span>
         )}
@@ -226,7 +226,7 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
           <ChevronLeft size={18} />
         </button>
         <span className="min-w-0 flex-1 text-center text-sm font-medium text-ink">
-          {dayLabel(data.from).replace(/ \d{4}$/, "")} – {dayLabel(data.to)}
+          {dayShort(data.from)} – {dayLabel(data.to)}
         </span>
         {from !== mondayOf(today) && (
           <Button size="sm" variant="ghost" onClick={() => setFrom(mondayOf(today))}>

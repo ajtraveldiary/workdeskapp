@@ -3,6 +3,7 @@
 // detail, an "at a glance" summary (basic pay, increment, probation, retirement and pension papers, or the
 // contract for temporary staff), all tasks about them or their designation (open and completed), their
 // reminders and a History of every change about them, with Edit, Left the office and Delete.
+import { dayLabel } from "../../shared/reminderSchedule";
 import { useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { BadgeCheck, CalendarClock, ChevronLeft, FileClock, Hourglass, KeyRound, ListChecks, Mail, MessageCircle, Pencil, Phone, Plus, Trash2, TrendingUp, UserMinus, UserPlus, Wallet, CalendarRange } from "lucide-react";
@@ -29,7 +30,8 @@ import { AttendanceLine } from "./Attendance";
 import { MoveDialog } from "../components/StaffMoves";
 import type { MoveKind } from "../../shared/moves";
 
-const fullDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+// dd.mm.yyyy, the site-wide date format (2026-11-03).
+const fullDate = (day: string) => dayLabel(day);
 const rupees = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 function yearsBetween(a: string, b: string) {

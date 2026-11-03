@@ -65,10 +65,15 @@ export function occurrences(rule: ReminderRule, keep: (day: string) => boolean, 
   return out;
 }
 
-// "5 Oct 2026", the label of an occurrence.
+// "05.10.2026": every full date WorkDesk writes, on screen and in History, notes and occurrence labels (user request
+// 2026-11-03, "site wide, dd.mm.yyyy should be the date format"; was "5 Oct 2026").
 export function dayLabel(day: string): string {
+  return `${day.slice(8, 10)}.${day.slice(5, 7)}.${day.slice(0, 4)}`;
+}
+// "5 Oct": the short label kept where a full date doesn't fit (chips, day strips, "take by"), user's answer 2026-11-03.
+export function dayShort(day: string): string {
   const d = utc(day);
-  return `${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  return `${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}`;
 }
 
 function ordinal(n: number) {

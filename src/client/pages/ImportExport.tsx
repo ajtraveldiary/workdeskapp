@@ -3,6 +3,7 @@
 // CSV import/export for the file register, employees, tasks and reminders, each with a sample CSV. A CSV row that
 // matches an existing entry updates it, others are added (user's choice); the app shows what will happen first.
 // Excel files (.xlsx) are read too. Only WorkDesk's database changes; Gmail is never touched.
+import { formatDateTime } from "../format";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ClipboardCheck, CalendarClock, TreePalm, CalendarRange, Check, DatabaseBackup, Download, FolderOpen, ListChecks, Upload, UsersRound } from "lucide-react";
@@ -454,7 +455,7 @@ function BackupImport({ backup, onClose }: { backup: { name: string; data: Backu
     <div className="space-y-4">
       <p className="text-sm text-slate-600 [overflow-wrap:anywhere]">
         {backup.name}
-        {!Number.isNaN(when.getTime()) && ` · made ${when.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}`}
+        {!Number.isNaN(when.getTime()) && ` · made ${formatDateTime(when.toISOString())}`}
       </p>
       <ul className="divide-y divide-line rounded-lg border border-line text-sm">
         {tables.map((t) => (
