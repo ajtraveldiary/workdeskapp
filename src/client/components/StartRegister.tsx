@@ -7,7 +7,7 @@
 // Attendance; it lives once in the app shell.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Check } from "lucide-react";
-import { fromLastOff, offStatus } from "../../shared/attendance";
+import { fromLastOff, inAttendance, offStatus } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { useAttendanceSettings, useMe, useOffsBoard, useStaff, useStartRegister } from "../api";
 import { showUndo } from "./SwipeRow";
@@ -49,9 +49,9 @@ function StartForm({ onDone }: { onDone: () => void }) {
     if (!staff) return [];
     const order = new Map(staff.designations.map((d, i) => [d.id, i]));
     return staff.employees
-      .filter((e) => (!e.joinedOfficeOn || e.joinedOfficeOn <= asOn) && (!e.leftOn || e.leftOn >= asOn))
+      .filter((e) => (!e.joinedOfficeOn || e.joinedOfficeOn <= asOn) && (!e.leftOn || e.leftOn >= asOn) && (!settings || inAttendance(e, settings)))
       .sort((a, b) => Number(b.offDay === "weekly") - Number(a.offDay === "weekly") || (order.get(a.designationId ?? "") ?? 1e9) - (order.get(b.designationId ?? "") ?? 1e9) || a.name.localeCompare(b.name));
-  }, [staff, asOn]);
+  }, [staff, asOn, settings]);
 
   // Filled in once from the starting figures already saved.
   useEffect(() => {

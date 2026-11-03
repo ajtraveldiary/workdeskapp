@@ -841,6 +841,8 @@ export const attendanceMarks = pgTable(
     mark: text("mark", { enum: ATTENDANCE_MARKS }).notNull(),
     // A CH's holiday worked (phase 2).
     chHoliday: date("ch_holiday"),
+    // An OD's remark (where they were on duty; 2026-11-03).
+    note: text("note").notNull().default(""),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

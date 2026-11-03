@@ -1,0 +1,1 @@
+ALTER TABLE "attendance_marks" ADD COLUMN "note" text DEFAULT '' NOT NULL;

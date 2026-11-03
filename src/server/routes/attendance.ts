@@ -9,7 +9,8 @@
 // the morning notification (offsReminder). Phase 2: days not marked count as duty (settings.assumeDuty, from each
 // person's starting point), and Start the register (POST /attendance/start: everyone's starting point at once, from
 // the last off). Assist plan (docs/ATTENDANCE_ASSIST_PLAN.md): GET /attendance/person/:id, one person's three weeks
-// for Person days; phase 2: who is away today and tomorrow (awayDays: GET /attendance/away, Home's line and the morning
+// for Person days; who is in the register (settings.hideTemporary, settings.leftOut; inAttendance) filters the month,
+// the Offs board, the away lists and the reminders; phase 2: who is away today and tomorrow (awayDays: GET /attendance/away, Home's line and the morning
 // notification). Phase 3: offs planned ahead (planned_offs, /attendance/plans), each turned into an off mark on its day
 // (settlePlannedOffs: from maintain, and before the register, the Offs board and Home's line are read).
 import { Hono } from "hono";
@@ -35,9 +36,11 @@ import {
   awayDay,
   assumedDuty,
   fromLastOff,
+  inAttendance,
   mondayOf,
   needsOff,
   notEligible,
+  onDuty,
   offStatus,
   CL_RUN_MAX,
   type AttendanceSettings,
@@ -81,7 +84,7 @@ async function leavesIn(db: DB, userId: string, from: string, to: string, employ
     .map((r) => ({ employeeId: r.l.employeeId, from: r.l.fromDate < from ? from : r.l.fromDate, to: leaveEnd(r.l) > to ? to : leaveEnd(r.l), short: leaveShort({ name: r.name, short: r.short }), name: r.name }))
     .filter((r) => r.from <= r.to);
 }
-// Holidays these people worked from–to (marked present on a holiday of the register; Sundays don't count) and the
+// Holidays these people worked from–to (marked present or OD on a holiday of the register; Sundays don't count) and the
 // starting figures' ones, less those a CH was already taken for: each with its name and the last day to take it.
 // chFor: the CH taken from `from` on, each with its holiday.
 async function openCh(db: DB, userId: string, settings: AttendanceSettings, ids: string[], from: string, to: string) {
@@ -91,7 +94,7 @@ async function openCh(db: DB, userId: string, settings: AttendanceSettings, ids:
     db
       .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date })
       .from(attendanceMarks)
-      .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), eq(attendanceMarks.mark, "present"), gte(attendanceMarks.date, from), lte(attendanceMarks.date, to))),
+      .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), inArray(attendanceMarks.mark, ["present", "od"]), gte(attendanceMarks.date, from), lte(attendanceMarks.date, to))),
     db
       .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, holiday: attendanceMarks.chHoliday })
       .from(attendanceMarks)
@@ -271,13 +274,18 @@ async function yearTotals(db: DB, userId: string, settings: AttendanceSettings, 
 const chLimitOf = (designationId: string | null, designation: string | null, settings: AttendanceSettings) =>
   designationId && designationId in settings.chLimits ? settings.chLimits[designationId]! : guessChLimit(designation);
 
-// Weekly-off staff in the office today, in designation order then name, and how many Sunday-off people there are.
+// Weekly-off staff in the office today, in designation order then name, and how many Sunday-off people there are;
+// only those in the register (inAttendance).
 async function weeklyPeopleToday(db: DB, userId: string, today: string) {
-  const rows = await db
-    .select({ e: employees, designation: designations.name, order: designations.sortOrder })
-    .from(employees)
-    .leftJoin(designations, eq(designations.id, employees.designationId))
-    .where(and(eq(employees.userId, userId), or(isNull(employees.joinedOfficeOn), lte(employees.joinedOfficeOn, today)), or(isNull(employees.leftOn), gte(employees.leftOn, today))));
+  const [settings, all] = await Promise.all([
+    loadSettings(db, userId),
+    db
+      .select({ e: employees, designation: designations.name, order: designations.sortOrder })
+      .from(employees)
+      .leftJoin(designations, eq(designations.id, employees.designationId))
+      .where(and(eq(employees.userId, userId), or(isNull(employees.joinedOfficeOn), lte(employees.joinedOfficeOn, today)), or(isNull(employees.leftOn), gte(employees.leftOn, today)))),
+  ]);
+  const rows = all.filter((r) => inAttendance(r.e, settings));
   rows.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.e.name.localeCompare(b.e.name));
   const weekly = rows.filter((r) => r.e.offDay === "weekly");
   return { weekly, sundayOff: rows.length - weekly.length };
@@ -372,11 +380,15 @@ export async function offsBoard(db: DB, userId: string, today: string): Promise<
 // name. With `chLapsing`, also the CH that must be taken within a week.
 export async function awayDays(db: DB, userId: string, today: string, n = 2, chLapsing = false): Promise<AwayDays> {
   const last = shiftDate(today, n - 1);
-  const rows = await db
-    .select({ e: employees, order: designations.sortOrder })
-    .from(employees)
-    .leftJoin(designations, eq(designations.id, employees.designationId))
-    .where(and(eq(employees.userId, userId), or(isNull(employees.joinedOfficeOn), lte(employees.joinedOfficeOn, last)), or(isNull(employees.leftOn), gte(employees.leftOn, today))));
+  const [inRegister, all] = await Promise.all([
+    loadSettings(db, userId),
+    db
+      .select({ e: employees, order: designations.sortOrder })
+      .from(employees)
+      .leftJoin(designations, eq(designations.id, employees.designationId))
+      .where(and(eq(employees.userId, userId), or(isNull(employees.joinedOfficeOn), lte(employees.joinedOfficeOn, last)), or(isNull(employees.leftOn), gte(employees.leftOn, today)))),
+  ]);
+  const rows = all.filter((r) => inAttendance(r.e, inRegister));
   rows.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.e.name.localeCompare(b.e.name));
   const ids = rows.map((r) => r.e.id);
   const out: AwayDays = { today, days: [], chLapsing: [] };
@@ -388,15 +400,15 @@ export async function awayDays(db: DB, userId: string, today: string, n = 2, chL
     db
       .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark })
       .from(attendanceMarks)
-      .where(and(eq(attendanceMarks.userId, userId), gte(attendanceMarks.date, today), lte(attendanceMarks.date, last), inArray(attendanceMarks.mark, ["off", "cl", "cl_half", "ch", "absent"]))),
+      .where(and(eq(attendanceMarks.userId, userId), gte(attendanceMarks.date, today), lte(attendanceMarks.date, last), inArray(attendanceMarks.mark, ["off", "cl", "cl_half", "ch", "absent", "holiday"]))),
     leavesIn(db, userId, today, last, ids),
     db
       .select({ employeeId: plannedOffs.employeeId, date: plannedOffs.date })
       .from(plannedOffs)
       .where(and(eq(plannedOffs.userId, userId), gte(plannedOffs.date, today), lte(plannedOffs.date, last))),
-    chLapsing ? loadSettings(db, userId) : Promise.resolve(null),
+    chLapsing ? Promise.resolve(inRegister) : Promise.resolve(null),
   ]);
-  const WHAT = { off: "Off", cl: "CL", cl_half: "½ CL", ch: "CH", absent: "Absent" } as const;
+  const WHAT = { off: "Off", cl: "CL", cl_half: "½ CL", ch: "CH", absent: "Absent", holiday: "Holiday" } as const;
   for (let i = 0; i < n; i++) {
     const date = shiftDate(today, i);
     const people: AwayPerson[] = [];
@@ -525,7 +537,7 @@ export async function unmarkedToday(db: DB, userId: string, today: string, tz: s
     loadSettings(db, userId),
     holidayMap(db, userId, today, today),
     db
-      .select({ id: employees.id, offDay: employees.offDay })
+      .select({ id: employees.id, offDay: employees.offDay, permanent: employees.permanent })
       .from(employees)
       .where(and(eq(employees.userId, userId), or(isNull(employees.joinedOfficeOn), lte(employees.joinedOfficeOn, today)), or(isNull(employees.leftOn), gte(employees.leftOn, today)))),
     db.select({ employeeId: attendanceMarks.employeeId }).from(attendanceMarks).where(and(eq(attendanceMarks.userId, userId), eq(attendanceMarks.date, today))),
@@ -535,7 +547,7 @@ export async function unmarkedToday(db: DB, userId: string, today: string, tz: s
   if (settings.assumeDuty) return null;
   const holiday = holidayOn(today, hols, settings);
   const marked = new Set(marks.map((m) => m.employeeId));
-  return people.filter((p) => !marked.has(p.id) && !leaves.some((l) => l.employeeId === p.id) && !offByItself(today, holiday, p.offDay)).length;
+  return people.filter((p) => inAttendance(p, settings) && !marked.has(p.id) && !leaves.some((l) => l.employeeId === p.id) && !offByItself(today, holiday, p.offDay)).length;
 }
 
 // "31 Oct 2026", or "1 Oct 2026 to 5 Oct 2026" for several days.
@@ -564,13 +576,13 @@ export const attendanceRoutes = new Hono<AppEnv>()
         .from(employees)
         .leftJoin(designations, eq(designations.id, employees.designationId))
         .where(and(eq(employees.userId, userId), or(isNull(employees.joinedOfficeOn), lte(employees.joinedOfficeOn, last)), or(isNull(employees.leftOn), gte(employees.leftOn, first)))),
-    ]);
+    ]).then(([s, h, all]) => [s, h, all.filter((p) => inAttendance(p.e, s))] as const);
     people.sort((a, b) => Number(b.e.permanent) - Number(a.e.permanent) || (a.order ?? 1e9) - (b.order ?? 1e9) || a.e.name.localeCompare(b.e.name));
     const ids = people.map((p) => p.e.id);
     const [marks, leaves, totals] = ids.length
       ? await Promise.all([
           db
-            .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark })
+            .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark, note: attendanceMarks.note })
             .from(attendanceMarks)
             .where(and(eq(attendanceMarks.userId, userId), gte(attendanceMarks.date, first), lte(attendanceMarks.date, last))),
           leavesIn(db, userId, first, last),
@@ -662,24 +674,27 @@ export const attendanceRoutes = new Hono<AppEnv>()
       }
       if ((e.joinedOfficeOn && cell.date < e.joinedOfficeOn) || (e.leftOn && cell.date > e.leftOn)) skip("not in the office");
       else if (leaves.some((l) => l.employeeId === e.id && l.from <= cell.date && cell.date <= l.to)) skip("on leave");
-      else if (v.mark !== "present" && offByItself(cell.date, holidayOn(cell.date, hols, settings), e.offDay)) skip("holiday");
+      // A holiday takes on duty (present / OD: holiday duty) or H / SS, the holiday taken (2026-11-03), which only a
+      // holiday of the register takes.
+      else if (v.mark === "holiday" && !holidayOn(cell.date, hols, settings)) skip("not a holiday");
+      else if (!onDuty(v.mark) && v.mark !== "holiday" && offByItself(cell.date, holidayOn(cell.date, hols, settings), e.offDay)) skip("holiday");
       else if (v.mark === "off" && e.offDay !== "weekly") skip("Sunday-off staff");
       else if (had.get(key) === v.mark) skip("already marked");
       else if (had.has(key) && !v.replace) skip("has another mark");
       else if (chTaken.has(key)) skip("its CH is taken");
-      else rows.push({ userId, employeeId: e.id, date: cell.date, mark: v.mark, chHoliday: null });
+      else rows.push({ userId, employeeId: e.id, date: cell.date, mark: v.mark, chHoliday: null, note: v.mark === "od" ? v.note : "" });
     }
     if (rows.length) {
       await db
         .insert(attendanceMarks)
         .values(rows)
-        .onConflictDoUpdate({ target: [attendanceMarks.employeeId, attendanceMarks.date], set: { mark: sql`excluded.mark`, chHoliday: null, updatedAt: new Date() } });
+        .onConflictDoUpdate({ target: [attendanceMarks.employeeId, attendanceMarks.date], set: { mark: sql`excluded.mark`, chHoliday: null, note: sql`excluded.note`, updatedAt: new Date() } });
       const who = new Set(rows.map((r) => r.employeeId));
       await log(
         db,
         userId,
         "attendance.marked",
-        `Attendance ${daysText(rows.map((r) => r.date))}: ${MARK_NAME[v.mark]} for ${who.size === 1 ? byId.get([...who][0]!)!.name : `${who.size} people`}${rows.length > who.size ? ` (${rows.length} days)` : ""}`,
+        `Attendance ${daysText(rows.map((r) => r.date))}: ${MARK_NAME[v.mark]} for ${who.size === 1 ? byId.get([...who][0]!)!.name : `${who.size} people`}${rows.length > who.size ? ` (${rows.length} days)` : ""}${v.mark === "od" && v.note ? `: ${v.note}` : ""}`,
       );
     }
     return c.json({ marked: rows.length, skipped });
@@ -751,7 +766,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
       await db
         .insert(attendanceMarks)
         .values(rows)
-        .onConflictDoUpdate({ target: [attendanceMarks.employeeId, attendanceMarks.date], set: { mark: "ch", chHoliday: sql`excluded.ch_holiday`, updatedAt: new Date() } });
+        .onConflictDoUpdate({ target: [attendanceMarks.employeeId, attendanceMarks.date], set: { mark: "ch", chHoliday: sql`excluded.ch_holiday`, note: "", updatedAt: new Date() } });
       const who = new Set(rows.map((r) => r.employeeId));
       await log(
         db,
@@ -827,7 +842,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
       holidayMap(db, userId, from, to),
       leavesIn(db, userId, from, to, [e.id]),
       db
-        .select({ date: attendanceMarks.date, mark: attendanceMarks.mark, chHoliday: attendanceMarks.chHoliday })
+        .select({ date: attendanceMarks.date, mark: attendanceMarks.mark, chHoliday: attendanceMarks.chHoliday, note: attendanceMarks.note })
         .from(attendanceMarks)
         .where(and(eq(attendanceMarks.userId, userId), eq(attendanceMarks.employeeId, e.id), gte(attendanceMarks.date, from), lte(attendanceMarks.date, to))),
       db.select({ date: plannedOffs.date }).from(plannedOffs).where(and(eq(plannedOffs.userId, userId), eq(plannedOffs.employeeId, e.id), gte(plannedOffs.date, from), lte(plannedOffs.date, to))),
@@ -854,6 +869,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
         weekday: weekdayOf(date),
         holiday: h ? h.name : e.offDay === "sunday" && weekdayOf(date) === 0 ? "Sunday" : null,
         mark: m?.mark ?? null,
+        note: m?.note ?? "",
         chHoliday: m?.chHoliday ?? null,
         leave: leaves.find((l) => l.from <= date && date <= l.to)?.short ?? null,
         out: !!((e.joinedOfficeOn && date < e.joinedOfficeOn) || (e.leftOn && date > e.leftOn)),
@@ -1003,6 +1019,6 @@ export const attendanceRoutes = new Hono<AppEnv>()
     const userId = c.get("userId");
     const data = attendanceSettingsInput.parse(await c.req.json());
     await db.insert(attendanceSettings).values({ userId, data }).onConflictDoUpdate({ target: attendanceSettings.userId, set: { data, updatedAt: new Date() } });
-    await log(db, userId, "settings.attendance", `Attendance settings saved: second Saturdays ${data.secondSaturday ? "are" : "aren't"} holidays, ${data.clPerYear} days of casual leave a year, days not marked ${data.assumeDuty ? "count as duty" : "count as nothing"}`);
+    await log(db, userId, "settings.attendance", `Attendance settings saved: second Saturdays ${data.secondSaturday ? "are" : "aren't"} holidays, ${data.clPerYear} days of casual leave a year, days not marked ${data.assumeDuty ? "count as duty" : "count as nothing"}, temporary staff ${data.hideTemporary ? "hidden" : "shown"}, ${data.leftOut.length} ${data.leftOut.length === 1 ? "person" : "people"} left out`);
     return c.json({ ok: true });
   });

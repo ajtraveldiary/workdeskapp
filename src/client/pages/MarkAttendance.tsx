@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, ClipboardCheck } from "lucide-react";
-import { MARK_NAME, chFits, offByItself, offLine } from "../../shared/attendance";
+import { MARK_NAME, chFits, inAttendance, offByItself, offLine } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { useAttendance, useAttendanceActions, useMe, useStaff } from "../api";
 import { Button, Card, ErrorNote, Loading, cx, inputClass } from "../components/ui";
@@ -49,7 +49,8 @@ export function MarkAttendancePage() {
     ...(staff?.designations ?? []).map((d) => ({ label: d.name, list: people.filter((e) => e.designationId === d.id) })),
     { label: "No designation", list: people.filter((e) => !e.designationId || !staff?.designations.some((d) => d.id === e.designationId)) },
   ]
-    .map((g) => ({ ...g, list: g.list.filter((e) => !e.leftOn).sort((a, b) => a.name.localeCompare(b.name)) }))
+    // Only those in the register (Settings › Attendance › Who is in the register).
+    .map((g) => ({ ...g, list: g.list.filter((e) => !e.leftOn && (!month || inAttendance(e, month.settings))).sort((a, b) => a.name.localeCompare(b.name)) }))
     .filter((g) => g.list.length);
   const person = people.find((e) => e.id === employeeId);
   const weekly = person?.offDay === "weekly";

@@ -58,7 +58,8 @@ and wait for the user's yes, as CLAUDE.md requires.
 | CL + off, or off + CH together; not all three in a week | G.O. 303/82 | Warning (Monday–Sunday week) |
 | Never more than 15 days at a stretch (with holidays) | G.O. 303/82; KSR App. VII | Warning |
 | The user's own rule: at most 12 days in a row without an off | User | Warning, red on the Offs board |
-| One CH per second Saturday / public holiday worked; Sundays earn none | G.O. 161/08, 43/2021 | Yes |
+| One CH per second Saturday / public holiday worked; Sundays earn none | G.O. 161/08, 43/2021 | Yes (worked on OD too, 2026-11-03) |
+| A holiday taken (H, SS on a second Saturday) counts as duty for the weekly off | User, 2026-11-03 | Yes: an H / SS mark counts like a holiday not worked |
 | CH within 3 months of the holiday | G.O. 161/08, 43/2021 | Yes (only open holidays offered; CH to take within a week listed) |
 | CH a year: 22, later by post (nursing none, attenders 45, MO in charge 15, others 22) | G.O. 303/82 → 43/2021 | Yes, by post (warning past it) |
 | CH not held beyond 10 | G.O. 43/2021 | Warning |

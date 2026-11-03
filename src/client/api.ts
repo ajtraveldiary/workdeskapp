@@ -340,7 +340,7 @@ export function useAttendanceActions() {
   const refresh = () => qc.invalidateQueries({ predicate: (q) => ["attendance", "history", "summary"].includes(q.queryKey[0] as string) });
   const m = <V, R = unknown>(fn: (v: V) => Promise<R>) => useMutation({ mutationFn: fn, onSettled: refresh });
   return {
-    mark: m((body: { cells: AttendanceCell[]; mark: Exclude<AttendanceMark, "ch">; replace?: boolean }) =>
+    mark: m((body: { cells: AttendanceCell[]; mark: Exclude<AttendanceMark, "ch">; replace?: boolean; note?: string }) =>
       api<{ marked: number; skipped: Record<string, number> }>("/attendance/mark", { method: "POST", body }),
     ),
     clear: m((cells: AttendanceCell[]) => api<{ cleared: number; kept: number }>("/attendance/clear", { method: "POST", body: { cells } })),

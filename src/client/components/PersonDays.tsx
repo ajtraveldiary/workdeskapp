@@ -8,15 +8,17 @@
 // away on CL, CH and offs, not CL, CH and an off all in one week; CL / CH next to leave from the Leave page, KSR
 // Appendix VII); nothing is blocked. Weekly-off staff show when the off owed must be taken by (G.O.(Ms) 161/08/AD). Opened with
 // openPersonDays(id) from the Today tab's names and the Offs board, or openPersonDays() (the + button / Mark for
-// someone), which first asks who. Lives once in the app shell (PersonDaysHost).
+// someone), which first asks who. Since 2026-11-03 also OD (on duty, as present; a remark asked for first) and H / SS
+// (a holiday or second Saturday taken: only on holidays of the register; weekly-off staff count it as duty). Lives once in the app shell (PersonDaysHost).
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { PersonDay, PersonDays as Data } from "../../shared/types";
-import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chFits, clDays, go303Breaks, mondayOf, nextToLeave, notEligible, offStatus, offTakeBy, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chExpires, chFits, clDays, go303Breaks, inAttendance, markName, markShort, mondayOf, nextToLeave, notEligible, offStatus, offTakeBy, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
-import { useAttendanceActions, useMe, usePersonDays, useStaff } from "../api";
+import { useAttendanceActions, useAttendanceSettings, useMe, usePersonDays, useStaff } from "../api";
 import { showUndo } from "./SwipeRow";
+import { HolidayWorkedForm } from "./HolidayWorked";
 import { Button, ErrorNote, Loading, Modal, TONE, cx, inputClass } from "./ui";
 
 let opener: ((id: string | null) => void) | null = null;
@@ -46,13 +48,15 @@ export function PersonDaysHost() {
 // Who: everyone in the office today, in designation order then name, with a search box.
 function WhoPicker({ onPick }: { onPick: (id: string) => void }) {
   const staff = useStaff().data;
+  // Only those in the register (Settings › Attendance › Who is in the register).
+  const settings = useAttendanceSettings().data?.settings;
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
   const [q, setQ] = useState("");
-  if (!staff) return <Loading />;
+  if (!staff || !settings) return <Loading />;
   const order = new Map(staff.designations.map((d, i) => [d.id, i]));
   const desig = new Map(staff.designations.map((d) => [d.id, d.name]));
   const people = staff.employees
-    .filter((e) => (!e.joinedOfficeOn || e.joinedOfficeOn <= today) && (!e.leftOn || e.leftOn >= today))
+    .filter((e) => (!e.joinedOfficeOn || e.joinedOfficeOn <= today) && (!e.leftOn || e.leftOn >= today) && inAttendance(e, settings))
     .filter((e) => !q.trim() || `${e.name} ${e.pen ?? ""} ${desig.get(e.designationId ?? "") ?? ""}`.toLowerCase().includes(q.trim().toLowerCase()))
     .sort((a, b) => (order.get(a.designationId ?? "") ?? 1e9) - (order.get(b.designationId ?? "") ?? 1e9) || a.name.localeCompare(b.name));
   return (
@@ -90,7 +94,11 @@ const MARK_LOOK: Record<AttendanceMark, string> = {
   cl_half: "text-high-ink",
   ch: "text-info-ink",
   absent: "text-urgent-ink",
+  od: "text-low-ink",
+  holiday: "text-slate-500",
 };
+// A day's holiday name as markShort / markName read it: "Second Saturday" is the second Saturday.
+const holidayKind = (d: PersonDay) => (d.holiday ? { kind: d.holiday === "Second Saturday" ? ("second_saturday" as const) : ("public" as const) } : null);
 
 function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: () => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
@@ -98,6 +106,9 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
   const { data, error } = usePersonDays(id, from);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [choosingCh, setChoosingCh] = useState(false);
+  // OD asks for a remark (where they were on duty) before it is marked.
+  const [odOpen, setOdOpen] = useState(false);
+  const [odNote, setOdNote] = useState("");
   const { mark, clear, markCh } = useAttendanceActions();
   useEffect(() => setSelected(new Set()), [from]);
   const warn = useMemo(() => (data ? warnings(data, selected) : null), [data, selected]);
@@ -120,15 +131,17 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
     if (none.length) clear.mutate(cellsOf(none));
     const chs = was.filter((d) => d.mark === "ch" && d.chHoliday);
     if (chs.length) markCh.mutate({ items: chs.map((d) => ({ employeeId: e.id, date: d.date, holiday: d.chHoliday! })), replace: true });
-    for (const m of ["present", "off", "cl", "cl_half", "absent"] as Markable[]) {
+    for (const m of ["present", "off", "cl", "cl_half", "absent", "holiday"] as Markable[]) {
       const these = was.filter((d) => d.mark === m);
       if (these.length) mark.mutate({ cells: cellsOf(these), mark: m, replace: true });
     }
+    // An OD goes back with its own remark.
+    for (const d of was.filter((x) => x.mark === "od")) mark.mutate({ cells: cellsOf([d]), mark: "od", replace: true, note: d.note });
   };
-  const apply = (m: Markable) => {
+  const apply = (m: Markable, note = "") => {
     const was = chosen.map((d) => ({ ...d }));
     mark.mutate(
-      { cells: cellsOf(chosen), mark: m, replace: true },
+      { cells: cellsOf(chosen), mark: m, replace: true, note },
       {
         onSuccess: (r) => {
           const left = Object.entries(r.skipped);
@@ -154,13 +167,22 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
   const busy = mark.isPending || clear.isPending || markCh.isPending;
   const button = (m: Markable | "ch" | "clear", label: string) => {
     const w = warn?.[m];
-    const disabled = busy || chosen.length === 0 || (m === "clear" ? !chosen.some((d) => d.mark) : allHoliday && m !== "present");
+    // Holidays take duty, OD or the holiday taken; the holiday taken needs every chosen day to be a holiday of the
+    // register (a Sunday-off person's Sunday isn't one).
+    const disabled =
+      busy ||
+      chosen.length === 0 ||
+      (m === "clear"
+        ? !chosen.some((d) => d.mark)
+        : m === "holiday"
+          ? !chosen.every((d) => d.holiday && d.holiday !== "Sunday")
+          : allHoliday && m !== "present" && m !== "od");
     return (
       <button
         key={m}
         type="button"
         disabled={disabled}
-        onClick={() => (m === "clear" ? wipe() : m === "ch" ? setChoosingCh(true) : apply(m))}
+        onClick={() => (m === "clear" ? wipe() : m === "ch" ? setChoosingCh(true) : m === "od" ? setOdOpen(!odOpen) : apply(m))}
         className={cx(
           "flex min-h-11 flex-col items-center justify-center rounded-lg border px-2.5 py-1 text-sm font-medium transition active:scale-[0.97] disabled:opacity-50",
           m === "present" ? "border-brand-600 bg-brand-600 text-white enabled:hover:bg-brand-700" : m === "absent" || m === "clear" ? "border-line bg-white text-urgent-ink enabled:hover:bg-slate-50" : "border-line bg-white text-ink enabled:hover:bg-slate-50",
@@ -255,8 +277,26 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
           {button("cl_half", "½ CL")}
           {button("ch", "CH…")}
           {button("absent", "Absent")}
+          {button("od", "OD")}
+          {button("holiday", chosen.length > 0 && chosen.every((d) => d.holiday === "Second Saturday") ? "SS" : "H / SS")}
           {button("clear", "Clear")}
         </div>
+        {odOpen && (
+          <form
+            className="mt-2 flex flex-wrap items-center gap-2"
+            onSubmit={(ev) => {
+              ev.preventDefault();
+              apply("od", odNote.trim());
+              setOdOpen(false);
+              setOdNote("");
+            }}
+          >
+            <input className={cx(inputClass, "min-w-0 flex-1 basis-48")} value={odNote} onChange={(ev) => setOdNote(ev.target.value)} maxLength={200} placeholder="OD remark: where, why (optional)" aria-label="OD remark" />
+            <Button type="submit" size="sm" variant="primary" disabled={busy || chosen.length === 0}>
+              Mark OD
+            </Button>
+          </form>
+        )}
         <ErrorNote error={mark.error ?? clear.error ?? markCh.error} />
       </div>
 
@@ -281,7 +321,7 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
 // O. Today outlined; future marks lighter; leave and days outside the office can't be chosen.
 function DayCell({ d, today, on, onTap }: { d: PersonDay; today: string; on: boolean; onTap: () => void }) {
   const future = d.date > today;
-  const words = d.out ? "not in the office" : d.leave ? `leave (${d.leave})` : d.mark ? MARK_NAME[d.mark] : d.holiday ? d.holiday : d.planned ? "off planned" : "not marked";
+  const words = d.out ? "not in the office" : d.leave ? `leave (${d.leave})` : d.mark ? `${markName(d.mark, holidayKind(d))}${d.note ? `: ${d.note}` : ""}` : d.holiday ? d.holiday : d.planned ? "off planned" : "not marked";
   return (
     <button
       type="button"
@@ -302,7 +342,7 @@ function DayCell({ d, today, on, onTap }: { d: PersonDay; today: string; on: boo
         {d.leave ? (
           <span className="text-snooze-ink">{d.leave.length <= 3 ? d.leave : "L"}</span>
         ) : d.mark ? (
-          <span className={MARK_LOOK[d.mark]}>{d.mark === "cl_half" ? "½" : MARK_SHORT[d.mark]}</span>
+          <span className={MARK_LOOK[d.mark]}>{d.mark === "cl_half" ? "½" : markShort(d.mark, holidayKind(d))}</span>
         ) : d.planned ? (
           <span className="rounded border border-dashed border-brand-500 px-0.5 text-brand-700">O</span>
         ) : d.holiday ? (
@@ -444,6 +484,19 @@ function ChChoose({ data, days, onClose, onDone }: { data: Data; days: PersonDay
             );
           })}
         </ul>
+        {/* A holiday worked that isn't listed yet: added here, then picked for the first chosen day it fits. */}
+        {days.length > 0 && (
+          <HolidayWorkedForm
+            employeeId={data.employee.id}
+            before={days[0]!.date}
+            onAdded={(h) =>
+              setChoice((c) => {
+                const d = days.find((x) => !c[x.date] && h < x.date && x.date <= chExpires(h));
+                return d ? { ...c, [d.date]: h } : c;
+              })
+            }
+          />
+        )}
         <ErrorNote error={markCh.error} />
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="ghost" onClick={onClose}>

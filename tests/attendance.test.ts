@@ -9,7 +9,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { DEFAULT_ATTENDANCE_SETTINGS, allThreeInAWeek, dutyForOff, fromLastOff, go303Breaks, mondayOf, longAwayDays, needsOff, nextToLeave, notEligible, offTakeBy, offsInLongAway, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
+import { DEFAULT_ATTENDANCE_SETTINGS, allThreeInAWeek, awayDay, inAttendance, markShort, dutyForOff, fromLastOff, go303Breaks, mondayOf, longAwayDays, needsOff, nextToLeave, notEligible, offTakeBy, offsInLongAway, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
 import type { AttendanceMonth, AuditEvent, AwayDays, LeaveType, OffsBoard, PersonDays } from "../src/shared/types";
 import type { AttendanceSettings, MarkDay } from "../src/shared/attendance";
 import { dayLabel } from "../src/shared/reminderSchedule";
@@ -143,7 +143,7 @@ describe("attendance register", () => {
     expect((await call("GET", "/attendance/holidays?year=2026")).json.holidays).toMatchObject([{ date: "2026-12-25", name: "ക്രിസ്മസ്" }]);
     expect((await call("DELETE", "/attendance/holidays/2026-12-25")).status).toBe(200);
     expect((await call("DELETE", "/attendance/holidays/2026-12-25")).status).toBe(404);
-    expect((await call("GET", "/attendance/settings")).json.settings).toEqual({ secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12, assumeDuty: false });
+    expect((await call("GET", "/attendance/settings")).json.settings).toEqual({ secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12, assumeDuty: false, hideTemporary: false, leftOut: [] });
     await call("PUT", "/attendance/settings", { secondSaturday: false, clPerYear: 20 });
     expect((await month("2026-10")).days.find((d) => d.date === "2026-10-10")!.holiday).toBeNull();
     const h = await history();
@@ -402,7 +402,7 @@ describe("attendance register", () => {
     const sep = await month("2026-09");
     // 30 days: 8 marked (the second CH for the same holiday was left out), the second Saturday (12 Sep) not marked
     // is a holiday; every other day not marked is counted (weekly-off staff work Sundays).
-    expect(monthCounts(sep)[0]).toEqual({ employeeId: a, present: 2, holidayDuty: 1, cl: 1.5, ch: 1, off: 1, absent: 1, leave: 0, notMarked: 30 - 8 - 1 });
+    expect(monthCounts(sep)[0]).toEqual({ employeeId: a, present: 2, holidayDuty: 1, od: 0, cl: 1.5, ch: 1, off: 1, holiday: 0, absent: 1, leave: 0, notMarked: 30 - 8 - 1 });
   });
 
   it("Home's reminder: from 11 am, people in the office not marked today, only when the register is kept", async () => {
@@ -647,5 +647,59 @@ describe("attendance register", () => {
     // Counted: 1 Sep, nothing for the week away, then 9–10 Sep and 12 Sep (the second Saturday, not worked): 4 days,
     // the run 3 (11 Sep, not marked, keeps it); the off paid the one owed. Without the rule it would be 10 and 10.
     expect(sep.weekly[0]).toMatchObject({ offsDue: 0, towards: 4, run: 3 });
+  });
+
+  it("OD counts as present (holiday duty and a CH on a holiday), with its remark; H / SS is a holiday taken, duty for weekly-off staff", async () => {
+    const w = await add({ name: NAME, offDay: "weekly" });
+    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 0, towards: 0 } }, assumeDuty: false });
+    await call("POST", "/attendance/holidays", { date: "2026-09-15", name: "Onam" });
+    const day = (d: number) => ({ employeeId: w, date: `2026-09-${String(d).padStart(2, "0")}` });
+    // OD on 1–2 Sep with a remark, and on Onam (holiday duty).
+    const od = await call("POST", "/attendance/mark", { cells: [day(1), day(2), day(15)], mark: "od", note: "ജില്ലാ മെഡിക്കൽ ഓഫീസിൽ യോഗം" });
+    expect(od.json).toEqual({ marked: 3, skipped: {} });
+    expect((await history())[0]).toContain("On duty (OD) for");
+    expect((await history())[0]).toContain(": ജില്ലാ മെഡിക്കൽ ഓഫീസിൽ യോഗം");
+    // H on a working day is refused; on the second Saturday (12 Sep) and Onam's day it is the holiday taken.
+    expect((await call("POST", "/attendance/mark", { cells: [day(3)], mark: "holiday" })).json.skipped).toEqual({ "not a holiday": 1 });
+    expect((await call("POST", "/attendance/mark", { cells: [day(12)], mark: "holiday" })).json.marked).toBe(1);
+    // Other marks keep no remark.
+    await call("POST", "/attendance/mark", { cells: [day(4)], mark: "present", note: "ignored" });
+    const sep = await month("2026-09");
+    expect(sep.marks.find((m) => m.date === "2026-09-01")).toMatchObject({ mark: "od", note: "ജില്ലാ മെഡിക്കൽ ഓഫീസിൽ യോഗം" });
+    expect(sep.marks.find((m) => m.date === "2026-09-04")).toMatchObject({ mark: "present", note: "" });
+    // Present 1, 2 and 4 Sep (two of them OD), holiday duty on Onam (OD), 12 Sep taken.
+    expect(monthCounts(sep)[0]).toMatchObject({ present: 3, holidayDuty: 1, od: 3, holiday: 1 });
+    // Onam worked on OD earns a CH.
+    expect(sep.chOpen.map((o) => o.holiday)).toEqual(["2026-09-15"]);
+    // Weekly-off counting: OD and the holiday taken count as duty: 1, 2, 4, 12, 15 Sep = 5.
+    expect(sep.weekly[0]).toMatchObject({ offsDue: 0, towards: 5 });
+    // The cell's short text: SS on a second Saturday, H on another holiday.
+    expect([markShort("holiday", { kind: "second_saturday" }), markShort("holiday", { kind: "public" }), markShort("od")]).toEqual(["SS", "H", "OD"]);
+    // A holiday taken is away for the 15-day and week-away checks.
+    expect(awayDay("holiday", true)).toBe(true);
+  });
+
+  it("who is in the register: people left out and temporary staff hidden leave the month, the Offs board and the away lists", async () => {
+    const a = await add({ name: NAME, offDay: "weekly" });
+    const b = await add({ name: "Biju", offDay: "weekly" });
+    const t = await add({ name: "Daily wage", permanent: false });
+    const today = (await call("GET", "/me")).json.today as string;
+    await call("POST", "/attendance/mark", { cells: [a, b, t].map((employeeId) => ({ employeeId, date: today })), mark: "cl" });
+    const names = async () => (await month(today.slice(0, 7))).employees.map((e) => e.name).sort();
+    const board = async () => ((await call("GET", "/attendance/offs")).json as OffsBoard).people.map((p) => p.name).sort();
+    const away = async () => ((await call("GET", "/attendance/away")).json as AwayDays).days[0]!.people.map((p) => p.name).sort();
+    expect(await names()).toEqual([NAME, "Biju", "Daily wage"].sort());
+    // Biju left out, temporary staff hidden.
+    const saved = (await call("GET", "/attendance/settings")).json.settings as AttendanceSettings;
+    await call("PUT", "/attendance/settings", { ...saved, leftOut: [b], hideTemporary: true });
+    expect(await names()).toEqual([NAME]);
+    expect(await board()).toEqual([NAME]);
+    expect(await away()).toEqual([NAME]);
+    expect(inAttendance({ id: t, permanent: false }, { hideTemporary: true })).toBe(false);
+    expect(inAttendance({ id: b, permanent: true }, { leftOut: [b] })).toBe(false);
+    // Their marks are kept: back in, they show again.
+    await call("PUT", "/attendance/settings", { ...saved, leftOut: [], hideTemporary: false });
+    expect(await away()).toEqual([NAME, "Biju", "Daily wage"].sort());
+    expect((await history())[0]).toContain("temporary staff shown, 0 people left out");
   });
 });

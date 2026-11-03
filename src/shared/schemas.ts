@@ -465,6 +465,8 @@ export const attendanceMarkInput = z.object({
   cells: attendanceCells,
   mark: z.enum(ATTENDANCE_MARKS).exclude(["ch"]),
   replace: z.boolean().default(false),
+  // A remark for OD (where they were on duty); kept on OD marks only.
+  note: z.string().trim().max(200).default(""),
 });
 export const attendanceClearInput = z.object({ cells: attendanceCells });
 export const holidayInput = z.object({ date: day, name: z.string().trim().max(100).default("") });
@@ -487,6 +489,8 @@ export const attendanceSettingsInput = z.object({
   offEvery: z.number().int().min(2).max(13).default(6),
   maxRun: z.number().int().min(3).max(31).default(12),
   assumeDuty: z.boolean().default(false),
+  hideTemporary: z.boolean().default(false),
+  leftOut: z.array(z.uuid()).max(1000).default([]),
 });
 // Start the register (2026-11-02, docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point as on a day. Weekly-off
 // staff: the last off (or the days since it) and offs owed from before; everyone: CL taken this year.

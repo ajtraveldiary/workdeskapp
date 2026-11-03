@@ -1,11 +1,12 @@
 // Settings › Attendance (user request 2026-10-31, docs/ATTENDANCE_PLAN.md phase 1): the office's holidays month by
 // month (tap a date to make it a holiday and name it, tap again to rename or remove it), second Saturdays as
 // holidays (a switch) and the days of casual leave a year. The register shades these days for everyone. Phase 2: the
-// CH limit a year of each post (G.O.(Ms) 43/2021/H&FWD) and each employee's starting figures.
+// CH limit a year of each post (G.O.(Ms) 43/2021/H&FWD) and each employee's starting figures. 2026-11-03: who is in the
+// register (RegisterPeople: hide temporary staff, leave people out).
 import { useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Play, Plus, Trash2, X } from "lucide-react";
 import { openStartRegister } from "./StartRegister";
-import { CH_LIMIT_CHOICES, DEFAULT_ATTENDANCE_SETTINGS, WEEKDAY_LETTER, guessChLimit, isSecondSaturday, monthDays, monthLabel, shiftMonth, weekdayOf, type StartFigures } from "../../shared/attendance";
+import { CH_LIMIT_CHOICES, DEFAULT_ATTENDANCE_SETTINGS, inAttendance, WEEKDAY_LETTER, guessChLimit, isSecondSaturday, monthDays, monthLabel, shiftMonth, weekdayOf, type StartFigures } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { useAttendanceActions, useAttendanceSettings, useHolidays, useMe, useStaff } from "../api";
 import { Button, Card, ErrorNote, Field, Loading, cx, inputClass } from "./ui";
@@ -15,6 +16,7 @@ export function AttendanceSettings() {
     <>
       <HolidayCalendar />
       <RegisterSettings />
+      <RegisterPeople />
       <ChLimits />
       <StartingFigures />
     </>
@@ -193,6 +195,57 @@ function RegisterSettings() {
         )}
       </div>
       <p className="mt-1 text-footnote text-slate-500">For weekly-off staff: 6 days of work earn the 7th day off, and everyone takes an off after at most 12 days in a row (more is flagged).</p>
+      <ErrorNote error={saveSettings.error} />
+    </Card>
+  );
+}
+
+// Who is in the register (user request 2026-11-03): temporary staff hidden altogether, and anyone left out one by one;
+// their marks are kept, they just aren't listed, counted or reminded about. Saved at once.
+function RegisterPeople() {
+  const staff = useStaff().data;
+  const { data } = useAttendanceSettings();
+  const { saveSettings } = useAttendanceActions();
+  if (!staff || !data) return null;
+  const s = data.settings;
+  const groups = [
+    ...staff.designations.map((d) => ({ id: d.id, name: d.name })),
+    { id: "", name: "No designation" },
+  ]
+    .map((g) => ({ ...g, people: staff.employees.filter((e) => !e.leftOn && (g.id ? e.designationId === g.id : !e.designationId || !staff.designations.some((d) => d.id === e.designationId))).sort((a, b) => a.name.localeCompare(b.name)) }))
+    .filter((g) => g.people.length);
+  const leftOut = new Set(s.leftOut);
+  const setIn = (id: string, keep: boolean) => saveSettings.mutate({ ...s, leftOut: keep ? s.leftOut.filter((x) => x !== id) : [...s.leftOut, id] });
+  const listed = staff.employees.filter((e) => !e.leftOn && inAttendance(e, s)).length;
+  return (
+    <Card className="p-5">
+      <h2 className="font-semibold text-slate-900">Who is in the register</h2>
+      <p className="mt-1 text-sm text-slate-600">Untick someone who isn't in the attendance register: they leave the register, Today, the Offs board and the reminders. Their marks are kept, and ticking them again brings them back. {listed} listed now.</p>
+      <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg px-1.5 hover:bg-slate-50">
+        <input type="checkbox" className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={s.hideTemporary} onChange={(e) => saveSettings.mutate({ ...s, hideTemporary: e.target.checked })} />
+        <span className="text-sm text-ink">Hide temporary staff altogether</span>
+      </label>
+      <div className="mt-2 space-y-3">
+        {groups.map((g) => (
+          <div key={g.id || "none"}>
+            <p className="mb-1 text-footnote font-semibold text-slate-600">{g.name}</p>
+            <ul className="divide-y divide-line rounded-lg border border-line">
+              {g.people.map((e) => {
+                const hidden = s.hideTemporary && !e.permanent;
+                return (
+                  <li key={e.id}>
+                    <label className={cx("flex min-h-11 items-center gap-2.5 px-3 py-1.5", hidden ? "cursor-default opacity-60" : "cursor-pointer hover:bg-slate-50")}>
+                      <input type="checkbox" className="size-4 shrink-0 accent-brand-700 pointer-coarse:size-5" checked={!hidden && !leftOut.has(e.id)} disabled={hidden || saveSettings.isPending} onChange={(ev) => setIn(e.id, ev.target.checked)} aria-label={`${e.name} in the register`} />
+                      <span className="min-w-0 flex-1 text-sm text-ink [overflow-wrap:anywhere]">{e.name}</span>
+                      {!e.permanent && <span className="shrink-0 rounded bg-high-soft px-1.5 text-caption font-medium text-high-ink">{hidden ? "Temporary: hidden" : "Temporary"}</span>}
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
       <ErrorNote error={saveSettings.error} />
     </Card>
   );

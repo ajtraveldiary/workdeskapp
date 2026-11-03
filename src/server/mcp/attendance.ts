@@ -10,7 +10,7 @@ import { Unclear, findEmployee, safely } from "./staff";
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 const ASK = " Before calling, tell the user exactly what will change and wait for their yes.";
-const MARKS = { present: "present", off: "off", cl: "cl", "half day cl": "cl_half", absent: "absent", ch: "ch" } as const;
+const MARKS = { present: "present", od: "od", off: "off", cl: "cl", "half day cl": "cl_half", absent: "absent", ch: "ch", holiday: "holiday" } as const;
 
 // Days from–to, both counted.
 function daysFrom(from: string, to: string) {
@@ -49,7 +49,7 @@ export const ATTENDANCE_READ_TOOLS: Tool[] = [
               name: e.name,
               designation: e.designation ?? undefined,
               dayOff: e.offDay === "weekly" ? "Weekly off" : "Sunday off",
-              thisMonth: { present: c.present, holidayDuty: c.holidayDuty, cl: c.cl, ch: c.ch, offs: c.off, absent: c.absent, leaveDays: c.leave, notMarked: c.notMarked },
+              thisMonth: { present: c.present, holidayDuty: c.holidayDuty, onDutyElsewhere: c.od, holidaysTaken: c.holiday, cl: c.cl, ch: c.ch, offs: c.off, absent: c.absent, leaveDays: c.leave, notMarked: c.notMarked },
               thisYear: { cl: totals.get(e.id)?.cl ?? 0, ch: totals.get(e.id)?.ch ?? 0, clPerYear: m.settings.clPerYear, chLimit: m.chLimits.find((x) => x.employeeId === e.id)?.limit ?? "no limit" },
               chToTake: m.chOpen.filter((o) => o.employeeId === e.id && o.expires >= m.today).map((o) => ({ holiday: o.holiday, name: o.name, takeBy: o.expires })),
               weeklyOff: w ? { offsDue: w.offsDue, daysTowardsNext: `${w.towards} of ${m.settings.offEvery}`, daysOfDutyStillNeededForAnOff: dutyForOff(w.offsDue, w.towards, m.settings.offEvery), daysInARow: w.run, status: offStatus(w, m.settings).text, plannedOffs: m.planned.filter((p) => p.employeeId === e.id).map((p) => p.date), offsTakenEarly: w.offsDue < 0 ? -w.offsDue : undefined, overTheMostOn: w.long.length ? w.long : undefined } : undefined,
@@ -75,13 +75,14 @@ export const ATTENDANCE_STAFF_TOOLS: Tool[] = [
     write: true,
     staff: true,
     description:
-      "Mark the attendance register as the app does, for everyone in the office or named employees, on one day or from–to: present, off (weekly-off staff only; 6 counted days of duty, CL or CH earn an off, and an off marked before it is earned is still marked but counted as taken early: tell the user when that happens), cl, half day cl, absent, or ch (compensation leave: give holidayWorked, the holiday they worked that it is for, within the last 3 months). Holidays and Sundays of Sunday-off staff take only present (holiday duty, which earns a CH); days of leave from the Leave page and cells already marked otherwise are left out unless replace (the answer says what was left out and why)." +
+      "Mark the attendance register as the app does, for everyone in the office or named employees, on one day or from–to: present, od (on duty elsewhere, counted as present; give a note), holiday (a holiday of the register taken, H, or SS on a second Saturday; weekly-off staff count it as duty), off (weekly-off staff only; 6 counted days of duty, CL or CH earn an off, and an off marked before it is earned is still marked but counted as taken early: tell the user when that happens), cl, half day cl, absent, or ch (compensation leave: give holidayWorked, the holiday they worked that it is for, within the last 3 months). Holidays and Sundays of Sunday-off staff take only present (holiday duty, which earns a CH); days of leave from the Leave page and cells already marked otherwise are left out unless replace (the answer says what was left out and why)." +
       ASK,
     input: z.object({
       date: day.describe("The day, or the first day"),
       to: day.optional().describe("The last day, for several days"),
       employees: z.array(z.string()).max(100).optional().describe("Names, PENs or ids; leave out for everyone in the office"),
-      mark: z.enum(["present", "off", "cl", "half day cl", "absent", "ch"]),
+      mark: z.enum(["present", "od", "off", "cl", "half day cl", "absent", "ch", "holiday"]),
+      note: z.string().max(200).optional().describe("For od: where they were on duty"),
       holidayWorked: day.optional().describe("For ch: the holiday worked it is for"),
       replace: z.boolean().optional().describe("Also over a different mark already there"),
     }),
@@ -104,6 +105,7 @@ export const ATTENDANCE_STAFF_TOOLS: Tool[] = [
               cells: ids.flatMap((employeeId) => dates.map((date) => ({ employeeId, date }))),
               mark,
               replace: !!a.replace,
+              note: mark === "od" && a.note ? String(a.note) : "",
             });
       const names = ids.map((id) => staff.employees.find((e) => e.id === id)?.name ?? "Employee");
       return {

@@ -177,7 +177,7 @@ function Strip({ days, today, assume }: { days: OffsBoardDay[]; today: string; a
               className={cx("relative flex aspect-square min-w-0 items-center justify-center overflow-hidden rounded text-caption2 leading-none font-semibold", look.cls, d.date === today && "ring-2 ring-brand-500 ring-offset-1 ring-offset-white")}
             >
               {look.text}
-              {d.mark === "present" && d.holiday && <span className="absolute top-0.5 right-0.5 size-1 rounded-full bg-info" aria-hidden />}
+              {(d.mark === "present" || d.mark === "od") && d.holiday && <span className="absolute top-0.5 right-0.5 size-1 rounded-full bg-info" aria-hidden />}
             </li>
           );
         })}
@@ -207,6 +207,10 @@ function dayLook(d: OffsBoardDay, assumed: boolean): { text: string; cls: string
       return { text: "CH", cls: "bg-info-soft text-info-ink", words: MARK_NAME.ch };
     case "absent":
       return { text: "A", cls: "bg-urgent-soft text-urgent-ink", words: "absent" };
+    case "od":
+      return { text: "OD", cls: "bg-low-soft text-low-ink", words: d.holiday ? `on duty, holiday (${d.holiday})` : "on duty (OD)" };
+    case "holiday":
+      return { text: d.holiday === "Second Saturday" ? "SS" : "H", cls: "bg-slate-100 text-slate-600", words: `holiday taken${d.holiday ? ` (${d.holiday})` : ""}` };
   }
   if (d.holiday) return { text: "H", cls: "bg-slate-100 text-slate-500", words: d.holiday };
   if (assumed) return { text: "✓", cls: "bg-low-soft/50 text-low-ink/50", words: "duty (not marked)" };

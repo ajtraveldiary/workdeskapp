@@ -14,6 +14,7 @@ const KIND_LOOK: Record<AwayPerson["kind"], string> = {
   cl_half: "bg-high-soft text-high-ink",
   ch: "bg-info-soft text-info-ink",
   absent: "bg-urgent-soft text-urgent-ink",
+  holiday: "bg-slate-100 text-slate-600",
   leave: "bg-snooze-soft text-snooze-ink",
 };
 

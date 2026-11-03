@@ -154,7 +154,12 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   before you tap what it would cause (an off taken early, CL past 20, past 12 days in a row, no holiday worked for a
   CH, CL or CH next to regular leave, and from G.O.(Ms) 303/82/HSD: no off after a week away on CL, CH and offs, and
   not CL, CH and an off all in one week). A week or more away on CL, CH and offs together counts nothing towards
-  the next off. Each off owed shows the day it must be taken by (within a month of earning
+  the next off. **OD** (on duty elsewhere, with a remark) counts exactly as present, a holiday worked on OD earning a
+  CH too; **H / SS** marks a holiday or second Saturday taken, which counts as duty towards a weekly-off person's next
+  off. Settings › Attendance › **Who is in the register** leaves out anyone who isn't in the register (their marks
+  are kept) and can hide temporary staff altogether. Marking CH with no holiday worked listed, **Add a holiday
+  worked** right in the pop-up: the day (and its name, when it isn't a holiday yet) is recorded as holiday duty and
+  picked for the CH. Each off owed shows the day it must be taken by (within a month of earning
   it, G.O.(Ms) 161/08/AD), red once past. In **Today**, each person's circle is the tick: tap to mark present, tap again to clear, with "12 of 16 done"
   at the top and "Tick the other n present" for the rest.
 - **Who is away today and tomorrow:** the Today tab starts with everyone off, on CL, ½CL, CH, absent or on leave

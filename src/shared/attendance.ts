@@ -2,11 +2,14 @@
 // month's days and its holidays (the office's own, and second Saturdays when that switch is on), and the settings.
 // Dates are YYYY-MM-DD strings, months YYYY-MM.
 
-// A cell's mark. "ch" is compensation leave for a holiday worked, tied to that holiday (phase 2, Mark CH).
-export const ATTENDANCE_MARKS = ["present", "off", "cl", "cl_half", "ch", "absent"] as const;
+// A cell's mark. "ch" is compensation leave for a holiday worked, tied to that holiday (phase 2, Mark CH). Since
+// 2026-11-03 (user request): "od", on duty elsewhere, counted exactly as present (holiday duty on a holiday, earning a
+// CH), with an optional remark; and "holiday", a holiday of the register taken (H, or SS on a second Saturday), which
+// weekly-off staff count as duty towards their next off.
+export const ATTENDANCE_MARKS = ["present", "off", "cl", "cl_half", "ch", "absent", "od", "holiday"] as const;
 export type AttendanceMark = (typeof ATTENDANCE_MARKS)[number];
 // What the register shows in the cell (✓ for present, like a signature; user's answers 2026-10-31).
-export const MARK_SHORT: Record<AttendanceMark, string> = { present: "✓", off: "O", cl: "CL", cl_half: "½CL", ch: "CH", absent: "A" };
+export const MARK_SHORT: Record<AttendanceMark, string> = { present: "✓", off: "O", cl: "CL", cl_half: "½CL", ch: "CH", absent: "A", od: "OD", holiday: "H" };
 export const MARK_NAME: Record<AttendanceMark, string> = {
   present: "Present",
   off: "Weekly off",
@@ -14,7 +17,14 @@ export const MARK_NAME: Record<AttendanceMark, string> = {
   cl_half: "Half day casual leave",
   ch: "Compensation leave",
   absent: "Absent",
+  od: "On duty (OD)",
+  holiday: "Holiday",
 };
+// On duty: present, or OD (the same in every count, user's answer 2026-11-03).
+export const onDuty = (m: AttendanceMark | null | undefined) => m === "present" || m === "od";
+// The cell's short text: a holiday taken on a second Saturday is SS (user request 2026-11-03).
+export const markShort = (m: AttendanceMark, holiday?: { kind: HolidayInfo["kind"] } | null) => (m === "holiday" && holiday?.kind === "second_saturday" ? "SS" : MARK_SHORT[m]);
+export const markName = (m: AttendanceMark, holiday?: { kind: HolidayInfo["kind"] } | null) => (m === "holiday" && holiday?.kind === "second_saturday" ? "Second Saturday" : MARK_NAME[m]);
 // Casual leave days a mark uses.
 export const clDays = (m: AttendanceMark | null | undefined) => (m === "cl" ? 1 : m === "cl_half" ? 0.5 : 0);
 
@@ -34,8 +44,14 @@ export type AttendanceSettings = {
   // no mark is duty, so only the exceptions (offs, CL, CH, absences) need marking. Off to start since the same day
   // (the user ticks everyone daily, docs/ATTENDANCE_ASSIST_PLAN.md; migration 0056 turned saved settings off).
   assumeDuty: boolean;
+  // Who is in the register (user request 2026-11-03): temporary staff left out altogether, and people left out one by
+  // one (employee ids). Their marks are kept; they just aren't listed, counted or reminded about.
+  hideTemporary: boolean;
+  leftOut: string[];
 };
-export const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = { secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12, assumeDuty: false };
+export const DEFAULT_ATTENDANCE_SETTINGS: AttendanceSettings = { secondSaturday: true, clPerYear: 20, chLimits: {}, start: {}, offEvery: 6, maxRun: 12, assumeDuty: false, hideTemporary: false, leftOut: [] };
+// Whether an employee is in the attendance register (not left out, not temporary while those are hidden).
+export const inAttendance = (e: { id: string; permanent: boolean }, s: { hideTemporary?: boolean; leftOut?: string[] }) => !(s.leftOut ?? []).includes(e.id) && !(s.hideTemporary && !e.permanent);
 // Monday of a day's week (the person's days start on one).
 export function mondayOf(day: string) {
   const d = new Date(`${day}T00:00:00Z`);
@@ -235,7 +251,7 @@ export const needsOff = (st: OffStatus) => st.owed >= 1 || st.tone === "red";
 // The days of a run of absence (KSR Appendix VII: CL or CH with the holidays around it, at most 15 days in a row):
 // CL, CH, a weekly off, and a holiday or Sunday-off staff's Sunday not worked.
 export const CL_RUN_MAX = 15;
-export const awayDay = (mark: AttendanceMark | null | undefined, offItself: boolean) => mark === "cl" || mark === "ch" || mark === "off" || (offItself && !mark);
+export const awayDay = (mark: AttendanceMark | null | undefined, offItself: boolean) => mark === "cl" || mark === "ch" || mark === "off" || mark === "holiday" || (offItself && !mark);
 
 // G.O.(Ms) No. 303/82/HSD dated 15.12.1982 (Health (A) Department), weekly off and compensation leave to hospital
 // staff (the user's copy, 2026-11-03): six days of duty continuously give the 7th day off, CL and CH within the six
@@ -262,7 +278,7 @@ export function longAwayDays(days: MarkDay[]): Set<string> {
     run = [];
   };
   for (const d of days) {
-    if (d.mark === "cl" || d.mark === "ch" || d.mark === "off" || (!d.mark && d.holiday)) run.push(d);
+    if (d.mark === "cl" || d.mark === "ch" || d.mark === "off" || d.mark === "holiday" || (!d.mark && d.holiday)) run.push(d);
     else flush();
   }
   flush();
@@ -322,7 +338,9 @@ export function go303Breaks(days: MarkDay[], dates: Set<string>, mark: Attendanc
 
 // Each person's month: days present (holiday duty apart), CL (half days ½), CH, offs, absent, days of leave from the
 // Leave page, and working days up to today not marked yet.
-export type MonthCounts = { employeeId: string; present: number; holidayDuty: number; cl: number; ch: number; off: number; absent: number; leave: number; notMarked: number };
+// `od`: of the present days, those on duty elsewhere (counted in present / holiday duty too); `holiday`: holidays taken
+// (H / SS marked).
+export type MonthCounts = { employeeId: string; present: number; holidayDuty: number; od: number; cl: number; ch: number; off: number; holiday: number; absent: number; leave: number; notMarked: number };
 export function monthCounts(m: {
   today: string;
   settings?: { assumeDuty?: boolean };
@@ -336,7 +354,7 @@ export function monthCounts(m: {
   // (today is neither until it is over). Without settings (older callers) nothing is assumed.
   const assume = !!m.settings && m.settings.assumeDuty !== false;
   return m.employees.map((e) => {
-    const c: MonthCounts = { employeeId: e.id, present: 0, holidayDuty: 0, cl: 0, ch: 0, off: 0, absent: 0, leave: 0, notMarked: 0 };
+    const c: MonthCounts = { employeeId: e.id, present: 0, holidayDuty: 0, od: 0, cl: 0, ch: 0, off: 0, holiday: 0, absent: 0, leave: 0, notMarked: 0 };
     for (const d of m.days) {
       if ((e.from && d.date < e.from) || (e.until && d.date > e.until)) continue;
       if (m.leaves.some((l) => l.employeeId === e.id && l.from <= d.date && d.date <= l.to)) {
@@ -344,7 +362,10 @@ export function monthCounts(m: {
         continue;
       }
       const mark = marks.get(`${e.id}|${d.date}`);
-      if (mark === "present") d.holiday ? c.holidayDuty++ : c.present++;
+      if (onDuty(mark)) {
+        d.holiday ? c.holidayDuty++ : c.present++;
+        if (mark === "od") c.od++;
+      } else if (mark === "holiday") c.holiday++;
       else if (mark === "cl" || mark === "cl_half") c.cl += clDays(mark);
       else if (mark === "ch") c.ch++;
       else if (mark === "off") c.off++;

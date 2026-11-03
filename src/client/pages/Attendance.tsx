@@ -27,19 +27,21 @@
 // Phase 3: offs planned ahead (Offs board › Plan an off) show as a dotted O in the register and "O planned" in Today
 // until their day, when they become offs. Assist plan (docs/ATTENDANCE_ASSIST_PLAN.md phase 1): Today's circles tick
 // Present directly and names open Person days (components/PersonDays.tsx); Mark for someone (the + button on phones)
-// opens it after asking who. Phase 2: the Today tab starts with who is away today and tomorrow (AwayCard, which also
+// opens it after asking who. Marks since 2026-11-03: OD (on duty, as present, with a remark asked for in the bar)
+// and H / SS (a holiday or second Saturday taken; the bar offers it where a holiday is chosen). Phase 2: the Today tab starts with who is away today and tomorrow (AwayCard, which also
 // lists the CH to take within a week, in place of ChDueSoon there).
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, CalendarPlus, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
-import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, go303Breaks, nextToLeave, notEligible, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chExpires, chFits, clDays, go303Breaks, markName, markShort, nextToLeave, notEligible, onDuty, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
 import { saveFile } from "../saveFile";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendance, useAttendanceActions, useMe, useOffsBoard, useOfficeProfile, type AttendanceCell } from "../api";
 import { OffsBoard } from "../components/OffsBoard";
+import { HolidayWorkedForm } from "../components/HolidayWorked";
 import { openPersonDays } from "../components/PersonDays";
 import { AwayCard } from "../components/AwayCard";
 import { RefreshButton } from "../components/RefreshButton";
@@ -60,6 +62,8 @@ const MARK_TONE: Record<AttendanceMark, string> = {
   cl_half: "font-semibold text-high-ink",
   ch: "font-semibold text-info-ink",
   absent: "font-bold text-urgent-ink",
+  od: "font-semibold text-low-ink",
+  holiday: "font-medium text-slate-500",
 };
 const WIDE = "(min-width: 768px)";
 // The register's set columns (the day columns share what is left): Sl · Name and CL / CH, wider on bigger screens;
@@ -87,6 +91,8 @@ function useCells(data: AttendanceMonth | undefined) {
   return useMemo(() => {
     if (!data) return null;
     const marks = new Map(data.marks.map((m) => [key(m.employeeId, m.date), m.mark]));
+    // An OD's remark, by cell.
+    const notes = new Map(data.marks.filter((m) => m.note).map((m) => [key(m.employeeId, m.date), m.note]));
     const holidayOf = new Map(data.days.map((d) => [d.date, d.holiday]));
     const info = (e: Person, date: string): CellInfo => {
       if ((e.from && date < e.from) || (e.until && date > e.until)) return { out: true };
@@ -109,7 +115,7 @@ function useCells(data: AttendanceMonth | undefined) {
       const c = info(e, date);
       return !data.settings.assumeDuty && !c.out && !c.leave && !c.holiday && !c.mark;
     };
-    return { info, selectable, holiday, unmarked, marks };
+    return { info, selectable, holiday, unmarked, marks, notes };
   }, [data]);
 }
 
@@ -447,9 +453,11 @@ function MonthSummary({ data, bare }: { data: AttendanceMonth; bare?: boolean })
   const cols: [keyof Omit<(typeof counts)[number], "employeeId">, string, string][] = [
     ["present", "Present", "P"],
     ["holidayDuty", "Holiday duty", "HD"],
+    ["od", "Of them OD", "OD"],
     ["cl", "CL", "CL"],
     ["ch", "CH", "CH"],
     ["off", "Offs", "O"],
+    ["holiday", "Holidays taken", "H"],
     ["absent", "Absent", "A"],
     ["leave", "Leave", "Lv"],
     ["notMarked", "Not marked", "NM"],
@@ -513,8 +521,8 @@ async function downloadMonth(data: AttendanceMonth) {
   const marks = new Map(data.marks.map((m) => [key(m.employeeId, m.date), m.mark]));
   const counts = new Map(monthCounts(data).map((c) => [c.employeeId, c]));
   const totals = new Map(data.totals.map((t) => [t.employeeId, t]));
-  const letter: Record<AttendanceMark, string> = { present: "P", off: "O", cl: "CL", cl_half: "½CL", ch: "CH", absent: "A" };
-  const head = ["Sl", "Name", "Designation", "CL this year", "CH this year", ...data.days.map((d) => d.date.slice(8)), "Present", "Holiday duty", "CL", "CH", "Offs", "Absent", "Leave", "Not marked"];
+  const letter: Record<AttendanceMark, string> = { present: "P", off: "O", cl: "CL", cl_half: "½CL", ch: "CH", absent: "A", od: "OD", holiday: "H" };
+  const head = ["Sl", "Name", "Designation", "CL this year", "CH this year", ...data.days.map((d) => d.date.slice(8)), "Present", "Holiday duty", "Of them OD", "CL", "CH", "Offs", "Holidays taken", "Absent", "Leave", "Not marked"];
   const rows = data.employees.map((e, i) => {
     const c = counts.get(e.id)!;
     const t = totals.get(e.id) ?? { cl: 0, ch: 0 };
@@ -523,12 +531,12 @@ async function downloadMonth(data: AttendanceMonth) {
       const leave = data.leaves.find((l) => l.employeeId === e.id && l.from <= d.date && d.date <= l.to);
       if (leave) return leave.short;
       const m = marks.get(key(e.id, d.date));
-      if (m) return letter[m];
+      if (m) return m === "holiday" && d.holiday?.kind === "second_saturday" ? "SS" : letter[m];
       if (offByItself(d.date, d.holiday, e.offDay)) return "H";
       // Not marked but counted as duty (2026-11-02).
       return data.settings.assumeDuty && d.date < data.today ? "P" : "";
     });
-    return [String(i + 1), e.name, e.designation ?? "", String(t.cl), String(t.ch), ...cellsOf, String(c.present), String(c.holidayDuty), String(c.cl), String(c.ch), String(c.off), String(c.absent), String(c.leave), String(c.notMarked)];
+    return [String(i + 1), e.name, e.designation ?? "", String(t.cl), String(t.ch), ...cellsOf, String(c.present), String(c.holidayDuty), String(c.od), String(c.cl), String(c.ch), String(c.off), String(c.holiday), String(c.absent), String(c.leave), String(c.notMarked)];
   });
   // toCsv starts with the BOM Excel needs for Malayalam.
   await saveFile(new Blob([toCsv([head, ...rows])], { type: "text/csv;charset=utf-8" }), `attendance-${data.month}.csv`);
@@ -698,14 +706,14 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                 const k = key(e.id, d.date);
                 const on = selected.has(k);
                 // Holiday duty: present on a holiday of the register (not a Sunday), which earns a CH.
-                const duty = info.mark === "present" && !!d.holiday;
+                const duty = onDuty(info.mark) && !!d.holiday;
                 const dutyOpen = duty && ch.open.get(e.id)?.find((o) => o.holiday === d.date);
                 const title = info.mark === "ch" && ch.forCell.get(k)
                   ? `CH for the holiday worked on ${dayLabel(ch.forCell.get(k)!)}`
                   : duty
                     ? `Holiday duty (${d.holiday!.name}): ${dutyOpen ? `CH to take by ${dayLabel(dutyOpen.expires)}` : ch.taken.has(k) ? "CH taken" : "CH no longer open"}`
                     : info.mark
-                      ? MARK_NAME[info.mark]
+                      ? `${markName(info.mark, d.holiday)}${cells.notes.get(k) ? `: ${cells.notes.get(k)}` : ""}`
                       : ch.planned.has(k)
                         ? "Off planned"
                         : d.holiday?.name;
@@ -720,7 +728,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                       title={ch.long.has(k) ? `${title ?? ""} · more than 12 days in a row without an off` : title}
                       className={cx("no-tap relative flex h-8 w-full items-center justify-center overflow-hidden text-caption2 xl:text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
                     >
-                      {info.mark && <span className={MARK_TONE[info.mark]}>{MARK_SHORT[info.mark]}</span>}
+                      {info.mark && <span className={MARK_TONE[info.mark]}>{markShort(info.mark, d.holiday)}</span>}
                       {info.assumed && <span className="text-slate-300 print:text-slate-400">✓</span>}
                       {!info.mark && ch.planned.has(k) && (
                         <span className="rounded border border-dashed border-brand-500 px-0.5 leading-none font-medium text-brand-700" title={`Off planned${ch.planned.get(k)!.note ? `: ${ch.planned.get(k)!.note}` : ""}`}>
@@ -760,7 +768,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
         </table>
       </div>
       <p className="border-t border-line px-4 py-2 text-footnote text-slate-500">
-        ✓ Present · O Weekly off · CL Casual leave · ½CL Half day · CH Compensation leave · A Absent · grey: holiday or Sunday off · a blue dot: holiday worked, CH open (grey once taken) · EL, HPL…: leave from the
+        ✓ Present · OD On duty · O Weekly off · H / SS Holiday / second Saturday taken · CL Casual leave · ½CL Half day · CH Compensation leave · A Absent · grey: holiday or Sunday off · a blue dot: holiday worked, CH open (grey once taken) · EL, HPL…: leave from the
         Leave page · a dotted O: off planned · {data.settings.assumeDuty ? "a faint ✓: not marked, counted as duty" : "a red dot under a day: someone not marked yet"} · red outline: more than 12 days in a row without an off. CL and CH are this year's; +n: CH still to take.
       </p>
       <DetailsDialog id={details} data={data} lookups={ch} onClose={() => setDetails(null)} />
@@ -802,6 +810,7 @@ function TodayView({ data, cells, onMonth }: { data: AttendanceMonth; cells: Cel
   const progress = [
     !future && `${working.length - left.length} of ${working.length} done`,
     count("present") && `${count("present")} present`,
+    count("od") && `${count("od")} OD`,
     count("off") && `${count("off")} off`,
     count(["cl", "cl_half"]) && `${count(["cl", "cl_half"])} CL`,
     count("ch") && `${count("ch")} CH`,
@@ -864,7 +873,7 @@ function TodayView({ data, cells, onMonth }: { data: AttendanceMonth; cells: Cel
                 <span className="w-12 shrink-0" />
               ) : other ? (
                 <button type="button" onClick={() => openPersonDays(e.id)} aria-label={`${e.name}: ${MARK_NAME[info.mark!]}. Change`} className="flex w-12 shrink-0 items-center justify-center">
-                  <span className={cx("rounded-md bg-slate-100 px-1.5 py-0.5 text-footnote", MARK_TONE[info.mark!])}>{MARK_SHORT[info.mark!]}</span>
+                  <span className={cx("rounded-md bg-slate-100 px-1.5 py-0.5 text-footnote", MARK_TONE[info.mark!])}>{markShort(info.mark!, day.holiday)}</span>
                 </button>
               ) : (
                 <button
@@ -889,7 +898,10 @@ function TodayView({ data, cells, onMonth }: { data: AttendanceMonth; cells: Cel
                   {info.leave ? (
                     <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-footnote font-semibold text-brand-700">{info.leave.short}</span>
                   ) : info.mark ? (
-                    <span className={cx("text-footnote", MARK_TONE[info.mark])}>{MARK_NAME[info.mark]}</span>
+                    <span className={cx("text-footnote", MARK_TONE[info.mark])}>
+                      {markName(info.mark, day.holiday)}
+                      {cells.notes.get(key(e.id, day.date)) && <span className="block max-w-40 truncate text-slate-500">{cells.notes.get(key(e.id, day.date))}</span>}
+                    </span>
                   ) : info.holiday ? (
                     <span className="text-footnote text-slate-400">Holiday</span>
                   ) : lookups.planned.has(key(e.id, day.date)) ? (
@@ -1019,9 +1031,13 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
     });
     return nextToLeave(days, new Set(picked.filter((c) => c.employeeId === id).map((c) => c.date))).length > 0;
   });
-  const run = (m: Markable) =>
+  // OD asks for a remark first (where they were on duty); H / SS only where a holiday of the register is chosen.
+  const [odOpen, setOdOpen] = useState(false)
+  const [odNote, setOdNote] = useState("")
+  const holidayChosen = picked.some((c) => data.days.find((d) => d.date === c.date)?.holiday)
+  const run = (m: Markable, note = "") =>
     mark.mutate(
-      { cells: picked, mark: m, replace },
+      { cells: picked, mark: m, replace, note },
       {
         onSuccess: (r) => {
           const left = Object.entries(r.skipped);
@@ -1057,6 +1073,14 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
         <Button size="sm" onClick={() => run("absent")} disabled={busy}>
           Absent
         </Button>
+        <Button size="sm" onClick={() => setOdOpen(!odOpen)} disabled={busy} aria-expanded={odOpen}>
+          OD
+        </Button>
+        {holidayChosen && (
+          <Button size="sm" onClick={() => run("holiday")} disabled={busy} title="Holiday taken (SS on a second Saturday); counts as duty for weekly-off staff">
+            H / SS
+          </Button>
+        )}
         {existing.length > 0 && (
           <Button size="sm" variant="ghost" onClick={() => clear.mutate(existing, { onSuccess: (r) => (showUndo({ message: `${r.cleared} marks cleared` }), onDone()) })} disabled={busy}>
             <Eraser size={15} /> Clear
@@ -1066,6 +1090,22 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
           <X size={15} />
         </Button>
       </div>
+      {odOpen && (
+        <form
+          className="mt-1.5 flex flex-wrap items-center gap-2 px-1"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            run("od", odNote.trim());
+            setOdOpen(false);
+            setOdNote("");
+          }}
+        >
+          <input className={cx(inputClass, "min-w-0 flex-1 basis-48")} value={odNote} onChange={(ev) => setOdNote(ev.target.value)} maxLength={200} placeholder="OD remark: where, why (optional)" aria-label="OD remark" />
+          <Button type="submit" size="sm" variant="primary" disabled={busy}>
+            Mark OD
+          </Button>
+        </form>
+      )}
       {existing.length > 0 && (
         <label className="mt-1 flex min-h-9 cursor-pointer items-center gap-2 px-1 text-footnote text-slate-600">
           <input type="checkbox" className="size-4 accent-brand-700" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
@@ -1217,6 +1257,17 @@ function ChPicker({ data, cells, lookups, picked, replace, onClose, onDone }: { 
               )}
               {limit != null && total + adding > limit && <p className="mt-1 text-footnote text-urgent-ink">CH this year would be {total + adding}; the limit for this post is {limit}.</p>}
               {held > CH_HOLD_MAX && <p className="mt-1 text-footnote text-urgent-ink">{held} CH are waiting to be taken; at most {CH_HOLD_MAX} may be held.</p>}
+              {/* A holiday worked that isn't listed yet: added here, then picked for the first chosen day it fits. */}
+              <HolidayWorkedForm
+                employeeId={r.employeeId}
+                before={r.dates[0]!}
+                onAdded={(h) =>
+                  setChoice((c) => {
+                    const d = r.dates.find((x) => !c[key(r.employeeId, x)] && h < x && x <= chExpires(h));
+                    return d ? { ...c, [key(r.employeeId, d)]: h } : c;
+                  })
+                }
+              />
             </div>
           );
         })}

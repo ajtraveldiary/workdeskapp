@@ -400,6 +400,13 @@
       "when": 1793640092618,
       "tag": "0056_attendance_tick_daily",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1793684472978,
+      "tag": "0057_attendance_mark_note",
+      "breakpoints": true
     }
   ]
 }

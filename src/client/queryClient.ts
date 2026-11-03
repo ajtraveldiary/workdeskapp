@@ -75,7 +75,9 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 41: the summary carries attendanceAway (attendance assist plan phase 2, 2026-11-02).
 // 42: the summary no longer carries attendanceUnmarked / attendanceOffs / attendanceAway (attendance on its own page only, 2026-11-02).
 // 43: the Offs board and Person days carry owedSince (G.O.(Ms) 161/08/AD, take an off within a month, 2026-11-03).
-export const CACHE_VERSION = "43";
+// 44: attendance marks carry an OD remark (note); OD and holiday marks; month counts od / holiday (2026-11-03).
+// 45: attendance settings carry hideTemporary / leftOut (2026-11-03).
+export const CACHE_VERSION = "45";
 
 export async function clearSavedData() {
   queryClient.clear();

@@ -510,7 +510,8 @@ export type AttendanceMonth = {
   // Everyone in the office some day of the month, permanent first, in designation order then name. from / until:
   // joined this office / left the office (the days outside are "not in the office").
   employees: { id: string; name: string; designation: string | null; permanent: boolean; offDay: import("./staff").OffDay; from: string | null; until: string | null }[];
-  marks: { employeeId: string; date: string; mark: import("./attendance").AttendanceMark }[];
+  // note: an OD's remark ("" otherwise).
+  marks: { employeeId: string; date: string; mark: import("./attendance").AttendanceMark; note: string }[];
   // Leave from the Leave page in this month, read-only in the register (its short name, EL, HPL…).
   leaves: { employeeId: string; from: string; to: string; short: string; name: string }[];
   // Casual leave (with the starting figures) and compensation leave taken in the month's calendar year.
@@ -558,7 +559,7 @@ export type OffsBoardPerson = {
 };
 // Away today and tomorrow (docs/ATTENDANCE_ASSIST_PLAN.md 3.3, phase 2): per day, everyone in the office with an
 // off, CL, ½CL, CH or absence marked, or leave from the Leave page, or an off planned; and CH about to lapse.
-export type AwayPerson = { employeeId: string; name: string; what: string; kind: "off" | "cl" | "cl_half" | "ch" | "absent" | "leave" | "planned" };
+export type AwayPerson = { employeeId: string; name: string; what: string; kind: "off" | "cl" | "cl_half" | "ch" | "absent" | "holiday" | "leave" | "planned" };
 // Weekly-off staff who need an off now, most urgent first (the morning notification).
 export type OffNeeded = { employeeId: string; name: string; tone: import("./attendance").OffTone; text: string };
 export type AwayDays = { today: string; days: { date: string; people: AwayPerson[] }[]; chLapsing: { employeeId: string; name: string; holiday: string; holidayName: string; expires: string }[] };
@@ -566,7 +567,7 @@ export type AwayDays = { today: string; days: { date: string; people: AwayPerson
 // with what the register keeper needs to mark them and to warn before saving: each day's mark (a CH with its
 // holiday), leave, holiday, planned off; the weekly-off figures when the window starts (`before`) and today; CL / CH
 // this year, the holidays worked with CH open, and the days of absence in a row just before and after the window.
-export type PersonDay = { date: string; weekday: number; holiday: string | null; mark: import("./attendance").AttendanceMark | null; chHoliday: string | null; leave: string | null; out: boolean; planned: boolean };
+export type PersonDay = { date: string; weekday: number; holiday: string | null; mark: import("./attendance").AttendanceMark | null; note: string; chHoliday: string | null; leave: string | null; out: boolean; planned: boolean };
 export type PersonDays = {
   today: string;
   from: string;
