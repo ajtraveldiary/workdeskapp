@@ -200,6 +200,7 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
       dueBefore: before.offsDue,
       towardsBefore: before.towards,
       corrections: fixes.filter((f) => f.employeeId === p.id && f.date >= first).map((f) => ({ employeeId: f.employeeId, date: f.date, offsDue: f.offsDue, towards: f.towards, run: f.run })),
+      owedSince: w.owedSince,
     };
   });
 }
@@ -341,6 +342,7 @@ export async function offsBoard(db: DB, userId: string, today: string): Promise<
       towards: w.towards,
       run: w.run,
       started: w.countFrom !== null,
+      owedSince: w.owedSince,
       planned: plans.filter((x) => x.employeeId === e.id).map((x) => ({ id: x.id, date: x.date, note: x.note })),
       lastOff: lastOffs.find((l) => l.employeeId === e.id)?.last ?? settings.start[e.id]?.lastOff ?? null,
       days,
@@ -604,7 +606,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
       chOpen: ch.open,
       chFor: ch.chFor,
       chLimits: people.map(({ e, designation }) => ({ employeeId: e.id, limit: chLimitOf(e.designationId, designation, settings) })),
-      weekly: weekly.map(({ corrections: _, ...w }) => w),
+      weekly: weekly.map(({ corrections: _, owedSince: __, ...w }) => w),
       edges,
       corrections: weekly.flatMap((w) => w.corrections),
       planned: planned.filter((p) => ids.includes(p.employeeId)),
@@ -858,7 +860,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
       settings: { offEvery: settings.offEvery, maxRun: settings.maxRun, clPerYear: settings.clPerYear, assumeDuty: settings.assumeDuty },
       employee: { id: e.id, name: e.name, designation, offDay: e.offDay, permanent: e.permanent },
       days,
-      weekly: w ? { countFrom: w.countFrom, offsDue: w.offsDue, towards: w.towards, run: w.run, dueBefore: w.dueBefore, towardsBefore: w.towardsBefore, runBefore: w.runBefore } : null,
+      weekly: w ? { countFrom: w.countFrom, offsDue: w.offsDue, towards: w.towards, run: w.run, dueBefore: w.dueBefore, towardsBefore: w.towardsBefore, runBefore: w.runBefore, owedSince: w.owedSince } : null,
       lastOff: lastOff[0]?.last ?? settings.start[e.id]?.lastOff ?? null,
       cl: t.cl,
       ch: t.ch,

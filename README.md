@@ -152,8 +152,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   in Today, or the + / Mark for someone button and pick them) and see their next three weeks: tap tomorrow, tap Off;
   tap the day after, tap CL. Saved at once, with Undo; future days are drawn lighter until they come. Each button says
   before you tap what it would cause (an off taken early, CL past 20, past 12 days in a row, no holiday worked for a
-  CH, and from G.O.(Ms) 303/82/HSD: no off after a week away on CL, CH and offs, and not CL, CH and an off all in one
-  week). In **Today**, each person's circle is the tick: tap to mark present, tap again to clear, with "12 of 16 done"
+  CH, CL or CH next to regular leave, and from G.O.(Ms) 303/82/HSD: no off after a week away on CL, CH and offs, and
+  not CL, CH and an off all in one week). Each off owed shows the day it must be taken by (within a month of earning
+  it, G.O.(Ms) 161/08/AD), red once past. In **Today**, each person's circle is the tick: tap to mark present, tap again to clear, with "12 of 16 done"
   at the top and "Tick the other n present" for the rest.
 - **Who is away today and tomorrow:** the Today tab starts with everyone off, on CL, ½CL, CH, absent or on leave
   today and tomorrow (planned offs too), each name opening their days, and the CH that must be taken within a week;

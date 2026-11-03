@@ -33,7 +33,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type Pointe
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, CalendarPlus, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
-import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, go303Breaks, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, go303Breaks, nextToLeave, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
 import { saveFile } from "../saveFile";
 import { dayLabel } from "../../shared/reminderSchedule";
@@ -1000,6 +1000,15 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
       };
     })
     .filter((x) => x.noOff || x.three.length > 0);
+  // CL or CH next to leave from the Leave page, holidays between counting (KSR Appendix VII rule 6; G.O.(Ms) 43/2021).
+  const byLeave = people.filter((id) => {
+    const e = byId.get(id)!;
+    const days = data.days.map((d) => {
+      const info = cells.info(e, d.date);
+      return { date: d.date, leave: !info.out && !!info.leave, holiday: !info.out && !info.leave && info.holiday && !info.mark };
+    });
+    return nextToLeave(days, new Set(picked.filter((c) => c.employeeId === id).map((c) => c.date))).length > 0;
+  });
   const run = (m: Markable) =>
     mark.mutate(
       { cells: picked, mark: m, replace },
@@ -1078,6 +1087,11 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
       {longAway.length > 0 && (
         <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
           As CL or CH, with the holidays around it: {longAway.map((x) => `${byId.get(x.id)?.name} ${x.days} days in a row`).join(", ")}; at most 15 (KSR Appendix VII).
+        </p>
+      )}
+      {byLeave.length > 0 && (
+        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+          As CL or CH: {byLeave.map((id) => byId.get(id)?.name).join(", ")} next to leave from the Leave page; CL and CH aren't combined with regular leave unless the head of office allows (KSR Appendix VII).
         </p>
       )}
       {go303.length > 0 && (

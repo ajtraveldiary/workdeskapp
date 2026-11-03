@@ -5,13 +5,14 @@
 // (drawn lighter until they come), with Undo putting back what was there. Each mark button says before it is tapped
 // what it would cause for the days chosen (an off taken early, CL past the year's days, past the most days in a row,
 // CL / CH with holidays past 15 days, no holiday worked open for a CH; and G.O.(Ms) 303/82/HSD: no off after a week
-// away on CL, CH and offs, not CL, CH and an off all in one week); nothing is blocked. Opened with
+// away on CL, CH and offs, not CL, CH and an off all in one week; CL / CH next to leave from the Leave page, KSR
+// Appendix VII); nothing is blocked. Weekly-off staff show when the off owed must be taken by (G.O.(Ms) 161/08/AD). Opened with
 // openPersonDays(id) from the Today tab's names and the Offs board, or openPersonDays() (the + button / Mark for
 // someone), which first asks who. Lives once in the app shell (PersonDaysHost).
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { PersonDay, PersonDays as Data } from "../../shared/types";
-import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chFits, clDays, go303Breaks, mondayOf, offStatus, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chFits, clDays, go303Breaks, mondayOf, nextToLeave, offStatus, offTakeBy, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendanceActions, useMe, usePersonDays, useStaff } from "../api";
@@ -183,8 +184,17 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
           )}
         </div>
         {st && data.weekly?.countFrom && (
-          <span className={cx("rounded-full px-2 py-0.5 text-footnote font-medium whitespace-nowrap", TONE[TONE_OF[st.tone]].soft)}>
-            Day {data.weekly.run} · {st.text}
+          <span className="flex flex-col items-end gap-0.5">
+            <span className={cx("rounded-full px-2 py-0.5 text-footnote font-medium whitespace-nowrap", TONE[TONE_OF[st.tone]].soft)}>
+              Day {data.weekly.run} · {st.text}
+            </span>
+            {/* G.O.(Ms) 161/08/AD: take the off within a month of earning it. */}
+            {data.weekly.owedSince[0] &&
+              (offTakeBy(data.weekly.owedSince[0]) < data.today ? (
+                <span className="text-caption font-medium text-urgent-ink">owed since {dayLabel(data.weekly.owedSince[0]).replace(/ \d{4}$/, "")}: over a month</span>
+              ) : (
+                <span className="text-caption text-slate-500">take by {dayLabel(offTakeBy(data.weekly.owedSince[0])).replace(/ \d{4}$/, "")}</span>
+              ))}
           </span>
         )}
       </div>
@@ -360,6 +370,13 @@ function warnings(data: Data, selected: Set<string>) {
   // CH needs a holiday worked open for each day.
   const lacking = working.filter((d) => !data.chOpen.some((o) => chFits(o, d.date)));
   if (lacking.length) out.ch = lacking.length === working.length ? "no holiday worked open" : `none open for ${lacking.length}`;
+  // CL and CH not combined with regular leave (KSR Appendix VII rule 6; G.O.(Ms) 43/2021).
+  const touching = nextToLeave(
+    data.days.map((d) => ({ date: d.date, leave: !!d.leave, holiday: !!d.holiday && !d.mark })),
+    new Set(working.map((d) => d.date)),
+  );
+  if (touching.length)
+    for (const m of ["cl", "cl_half", "ch"] as const) out[m] = [out[m], "next to leave"].filter(Boolean).join(" · ");
   // G.O.(Ms) 303/82/HSD: no off after a week away on CL, CH and offs; not CL, CH and an off all in one week.
   const marked: MarkDay[] = data.days.map((d) => ({ date: d.date, mark: d.out || d.leave ? null : d.mark, holiday: !d.out && !d.leave && !d.mark && !!d.holiday }));
   const dates = new Set(working.map((d) => d.date));

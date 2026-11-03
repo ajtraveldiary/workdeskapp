@@ -36,7 +36,37 @@ and wait for the user's yes, as CLAUDE.md requires.
   all three in a week**; never more than 15 days at a stretch; CH 22 a year (later set by post, G.O.(Ms) 43/2021);
   CL 20 a year. The two rules in bold were added as warnings (`offsInLongAway`, `allThreeInAWeek`, `go303Breaks` in
   src/shared/attendance.ts) in Person days and the register's bar; the rest was already built.
-- **No Health Department order on the weekly-off cycle was found online** (before the user's copy above). The nearest is **G.O.(Ms) No. 161/08/AD
+- **G.O.(Ms) No. 161/08/AD dated 27.09.2008** (the user's copy, 2026-11-03; vet hospitals on par with H&FW): the same
+  rules, plus **the weekly off can be taken on any day of the week** and **shall be availed within one month**; CH is
+  for second Saturdays and public holidays worked, not Sundays, within three months; a section closed on the holiday
+  earns none; the head of the institution grants the off. The one-month limit was added as "take by" dates, a
+  warning only (user's answer 2026-11-03: an off past it stays owed).
+- **KSR Part I Appendix VII rule 6 / G.O.(Ms) 43/2021**: CL and CH are not combined with regular leave unless the
+  head of office allows — added as a warning (user's answer 2026-11-03).
+- **No Health Department order on the weekly-off cycle was found online** (before the user's copies above).
+
+### Every rule, and whether WorkDesk applies it (checked 2026-11-03)
+
+| Rule | Source | In WorkDesk |
+|---|---|---|
+| 6 days of duty continuously give the 7th day off | G.O. 303/82, 161/08 | Yes: 6 counted days earn an off (Settings › Attendance) |
+| CL and CH within the six days count as duty | G.O. 303/82, 161/08 | Yes (½CL and holidays not worked count too, user's answer) |
+| CL, CH and offs at a stretch for a week or more: no weekly off | G.O. 303/82, 161/08 | Warning (Person days, register bar) |
+| Weekly off on any day of the week | G.O. 161/08 | Yes (Sundays too for weekly-off staff) |
+| Weekly off and Sunday not both in a week | G.O. 303/82, 161/08 | Yes: weekly-off staff have no Sunday off; Sunday-off staff can't take a weekly off |
+| Weekly off taken within one month | G.O. 161/08 | Warning: "take by" on the Offs board and Person days, red past it |
+| CL + off, or off + CH together; not all three in a week | G.O. 303/82 | Warning (Monday–Sunday week) |
+| Never more than 15 days at a stretch (with holidays) | G.O. 303/82; KSR App. VII | Warning |
+| The user's own rule: at most 12 days in a row without an off | User | Warning, red on the Offs board |
+| One CH per second Saturday / public holiday worked; Sundays earn none | G.O. 161/08, 43/2021 | Yes |
+| CH within 3 months of the holiday | G.O. 161/08, 43/2021 | Yes (only open holidays offered; CH to take within a week listed) |
+| CH a year: 22, later by post (nursing none, attenders 45, MO in charge 15, others 22) | G.O. 303/82 → 43/2021 | Yes, by post (warning past it) |
+| CH not held beyond 10 | G.O. 43/2021 | Warning |
+| CH / CL not combined with regular leave (unless the head allows) | KSR App. VII r. 6; G.O. 43/2021 | Warning |
+| CL 20 days a calendar year; half days allowed | KSR App. VII; G.O. 303/82, 161/08 | Yes (warning past 20) |
+| Second Saturdays and public holidays are holidays | Govt. calendar | Yes (Settings › Attendance) |
+| Head of institution grants offs / CH, without dislocating work; prior permission | G.O. 161/08, 43/2021 | Not checked (the office's decision) |
+| No CH for a section closed on the holiday | G.O. 161/08 | Follows: CH only for a holiday marked worked | The nearest is **G.O.(Ms) No. 161/08/AD
   dated 27.09.2008** (Animal Husbandry), issued to give veterinary hospital staff weekly off "on par with the
   hospital employees of H & FW Department", so it most likely copies the Health Department's rule. It says (from the
   AHD Manual and a copy of the order; to be checked against the original):

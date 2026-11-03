@@ -142,27 +142,41 @@ export const MAX_RUN = 12;
 // day the figures are set to these, whatever the marks before it say.
 export type WeeklySet = { offsDue: number; towards: number; run: number };
 export type WeeklyDay = { date: string; state: "count" | "off" | "reset" | "skip"; set?: WeeklySet };
-export function weeklyOff(days: WeeklyDay[], start?: { offsDue: number; towards: number }, figures?: { offEvery?: number; maxRun?: number }, startRun = 0) {
+// `owedSince`: the day each off still owed was earned, oldest first (an off taken pays the oldest; starting figures
+// and corrections date theirs on their own day), for G.O.(Ms) 161/08/AD's "within one month" (offTakeBy).
+export function weeklyOff(days: WeeklyDay[], start?: { offsDue: number; towards: number; asOn?: string }, figures?: { offEvery?: number; maxRun?: number }, startRun = 0) {
   const every = figures?.offEvery ?? OFF_EVERY;
   const max = figures?.maxRun ?? MAX_RUN;
   let counted = start?.towards ?? 0;
   let due = start?.offsDue ?? 0;
   let run = startRun;
   const long: string[] = [];
+  let owed: string[] = Array.from({ length: Math.max(0, due) }, () => start?.asOn ?? days[0]?.date ?? "");
   for (const d of days) {
     if (d.state === "count") {
       counted++;
       run++;
-      if (counted % every === 0) due++;
+      if (counted % every === 0) {
+        due++;
+        if (due > 0) owed.push(d.date);
+      }
       if (run > max) long.push(d.date);
     } else if (d.state === "off") {
       due--;
+      owed.shift();
       run = 0;
     } else if (d.state === "reset") run = 0;
-    if (d.set) ({ offsDue: due, towards: counted, run } = d.set);
+    if (d.set) {
+      ({ offsDue: due, towards: counted, run } = d.set);
+      owed = Array.from({ length: Math.max(0, due) }, () => d.date);
+    }
   }
-  return { offsDue: due, towards: counted % every, run, long };
+  return { offsDue: due, towards: counted % every, run, long, owedSince: owed };
 }
+// G.O.(Ms) No. 161/08/AD dated 27.09.2008 (weekly off on par with H&FW hospitals): "the weekly off shall be availed
+// at any rate within one month". Only warned about (user's answer 2026-11-03): an off still owed past it stays owed.
+export const OFF_WITHIN_MONTHS = 1;
+export const offTakeBy = (earned: string) => addMonths(earned, OFF_WITHIN_MONTHS);
 
 // Offs earned or taken early (user request 2026-10-31, "allow off only if 6 duty + CL + CH completed"; since
 // 2026-11-02 an early off is marked anyway and only warned about, docs/ATTENDANCE_UX_PLAN.md 4.3): the days as
@@ -259,6 +273,26 @@ export function allThreeInAWeek(days: MarkDay[]): string[] {
   }
   return [...weeks].filter(([, kinds]) => kinds.size === 3).map(([w]) => w);
 }
+// CL and CH are not combined with regular leave (EL, HPL, commuted…) except as the head of office allows (KSR Part I
+// Appendix VII rule 6; G.O.(Ms) 43/2021/H&FWD for CH; warned about, user's answer 2026-11-03): the days chosen that
+// touch a day of leave from the Leave page, directly or across holidays not worked between them.
+export type LeaveTouchDay = { date: string; leave: boolean; holiday: boolean };
+export function nextToLeave(days: LeaveTouchDay[], dates: Set<string>): string[] {
+  const out: string[] = [];
+  days.forEach((d, i) => {
+    if (!dates.has(d.date) || d.leave) return;
+    for (const step of [-1, 1]) {
+      let j = i + step;
+      while (days[j] && days[j]!.holiday && !days[j]!.leave && !dates.has(days[j]!.date)) j += step;
+      if (days[j]?.leave) {
+        out.push(d.date);
+        return;
+      }
+    }
+  });
+  return out;
+}
+
 // What marking `dates` as `mark` would newly break of G.O. 303/82, from a person's days: an off in a week-long stretch
 // away, and CL + CH + an off in one week.
 export function go303Breaks(days: MarkDay[], dates: Set<string>, mark: AttendanceMark) {

@@ -9,7 +9,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { DEFAULT_ATTENDANCE_SETTINGS, allThreeInAWeek, dutyForOff, fromLastOff, go303Breaks, mondayOf, needsOff, offsInLongAway, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
+import { DEFAULT_ATTENDANCE_SETTINGS, allThreeInAWeek, dutyForOff, fromLastOff, go303Breaks, mondayOf, needsOff, nextToLeave, offTakeBy, offsInLongAway, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
 import type { AttendanceMonth, AuditEvent, AwayDays, LeaveType, OffsBoard, PersonDays } from "../src/shared/types";
 import type { AttendanceSettings, MarkDay } from "../src/shared/attendance";
 import { dayLabel } from "../src/shared/reminderSchedule";
@@ -163,7 +163,8 @@ describe("attendance register", () => {
     // Regular leave starts the run again; days not marked keep it; more than 12 in a row are warned about.
     const w = weeklyOff(days([...Array(10).fill("count"), "skip", ...Array(3).fill("count"), "reset", "count"]));
     expect(w).toMatchObject({ offsDue: 2, towards: 2, run: 1, long: ["2026-09-14"] });
-    expect(weeklyOff([], { offsDue: 2, towards: 4 })).toEqual({ offsDue: 2, towards: 4, run: 0, long: [] });
+    // No days and no as-on date: the offs owed have no earned day to show.
+    expect(weeklyOff([], { offsDue: 2, towards: 4 })).toEqual({ offsDue: 2, towards: 4, run: 0, long: [], owedSince: ["", ""] });
     // Other figures from Settings, and a run carried in from before.
     expect(weeklyOff(days(Array(5).fill("count")), undefined, { offEvery: 5, maxRun: 6 }, 3)).toMatchObject({ offsDue: 1, towards: 0, run: 8, long: ["2026-09-04", "2026-09-05"] });
   });
@@ -598,5 +599,31 @@ describe("attendance register", () => {
     const before = [d(2, "cl"), d(3, "present"), d(4, "ch"), d(5, "present")];
     expect(go303Breaks(before, new Set(["2026-11-05"]), "off")).toEqual({ offInLongAway: [], threeInWeek: ["2026-11-02"] });
     expect(go303Breaks(before, new Set(["2026-11-05"]), "cl")).toEqual({ offInLongAway: [], threeInWeek: [] });
+  });
+
+  it("G.O.(Ms) 161/08/AD: an off taken within a month of being earned; KSR: CL / CH not next to regular leave", async () => {
+    // Each owed off remembers the day it was earned; an off taken pays the oldest.
+    const days = (from: number, n: number, state: WeeklyDay["state"]) => Array.from({ length: n }, (_, i) => ({ date: `2026-10-${String(from + i).padStart(2, "0")}`, state }));
+    const w = weeklyOff([...days(1, 12, "count"), ...days(13, 1, "off")]);
+    expect(w).toMatchObject({ offsDue: 1, owedSince: ["2026-10-12"] });
+    expect(offTakeBy("2026-10-12")).toBe("2026-11-12");
+    expect(offTakeBy("2026-01-31")).toBe("2026-02-28");
+    // Starting figures date their offs owed on their own day; a correction on its day.
+    expect(weeklyOff(days(1, 2, "count"), { offsDue: 2, towards: 0, asOn: "2026-09-30" }).owedSince).toEqual(["2026-09-30", "2026-09-30"]);
+    expect(weeklyOff([{ date: "2026-10-01", state: "count", set: { offsDue: 1, towards: 0, run: 0 } }]).owedSince).toEqual(["2026-10-01"]);
+    // An early off owes nothing.
+    expect(weeklyOff([...days(1, 2, "count"), ...days(3, 1, "off")]).owedSince).toEqual([]);
+    // The Offs board carries them.
+    const id = await add({ name: NAME, offDay: "weekly" });
+    await call("POST", "/attendance/corrections", { employeeId: id, offsDue: 1, towards: 0, run: 6 });
+    const today = (await call("GET", "/me")).json.today as string;
+    expect(((await call("GET", "/attendance/offs")).json as OffsBoard).people[0]!.owedSince).toEqual([today]);
+    // CL next to leave, directly or across a holiday not worked, but not across a day of duty.
+    const t = (date: string, leave = false, holiday = false) => ({ date, leave, holiday });
+    const run = [t("a"), t("b", true), t("c"), t("d", false, true), t("e"), t("f")];
+    expect(nextToLeave(run, new Set(["c"]))).toEqual(["c"]);
+    expect(nextToLeave(run, new Set(["e"]))).toEqual([]);
+    expect(nextToLeave([t("a", true), t("b", false, true), t("c")], new Set(["c"]))).toEqual(["c"]);
+    expect(nextToLeave([t("a", true), t("b"), t("c")], new Set(["c"]))).toEqual([]);
   });
 });

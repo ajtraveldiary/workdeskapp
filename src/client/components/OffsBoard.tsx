@@ -16,7 +16,7 @@ import { CalendarCheck, CalendarClock, CalendarPlus, Check, Minus, Play, Plus, S
 import { openStartRegister } from "./StartRegister";
 import { openPersonDays } from "./PersonDays";
 import type { OffsBoard as Board, OffsBoardDay, OffsBoardPerson } from "../../shared/types";
-import { MARK_NAME, dutyForOff, offStatus, type OffTone } from "../../shared/attendance";
+import { MARK_NAME, dutyForOff, offStatus, offTakeBy, type OffTone } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { useAttendanceActions, useOffsBoard } from "../api";
 import { RefreshButton } from "./RefreshButton";
@@ -127,6 +127,7 @@ function OffCard({ p, board, tone, text, early, onOpen }: { p: OffsBoardPerson; 
       <div className="flex flex-wrap items-center gap-1.5">
         {p.started ? <StatusPill tone={tone} text={text} /> : <StatusPill tone="grey" text="No starting point" />}
         {p.started && early > 0 && <span className="text-footnote text-slate-500">{plural(early, "off")} taken early</span>}
+        {p.started && p.owedSince[0] && <TakeBy earned={p.owedSince[0]} today={board.today} />}
       </div>
       <Strip days={p.days} today={board.today} assume={board.assumeDuty && p.started} />
       <div className="flex items-center gap-2">
@@ -137,6 +138,17 @@ function OffCard({ p, board, tone, text, early, onOpen }: { p: OffsBoardPerson; 
         <OffToday p={p} board={board} />
       </div>
     </li>
+  );
+}
+
+// G.O.(Ms) 161/08/AD: an off is taken within a month of being earned. "Take by 3 Dec", red once past ("owed since
+// 2 Oct: over a month"); it stays owed either way (user's answer 2026-11-03).
+function TakeBy({ earned, today }: { earned: string; today: string }) {
+  const by = offTakeBy(earned);
+  return by < today ? (
+    <span className="text-footnote font-medium text-urgent-ink">owed since {shortDay(earned)}: over a month</span>
+  ) : (
+    <span className="text-footnote text-slate-500">take by {shortDay(by)}</span>
   );
 }
 
@@ -273,6 +285,17 @@ function PersonSheet({ p, board, onRegister }: { p: OffsBoardPerson; board: Boar
       <dl className="divide-y divide-line">
         {row("Days in a row", `${plural(p.run, "day")} of duty since the last off or leave`)}
         {row("Next off", st.owed >= 1 ? `${plural(st.owed, "off")} owed now${st.owed >= 2 ? " (the off and a compensatory off)" : ""}` : `After ${plural(st.need, "more day")} of duty`)}
+        {p.owedSince.some(Boolean) &&
+          row(
+            "Take by",
+            <ul>
+              {p.owedSince.filter(Boolean).map((x, i) => (
+                <li key={`${x}${i}`} className={offTakeBy(x) < board.today ? "font-medium text-urgent-ink" : undefined}>
+                  {shortDay(offTakeBy(x))} (earned {shortDay(x)}){offTakeBy(x) < board.today ? ": over a month" : ""}
+                </li>
+              ))}
+            </ul>,
+          )}
         {st.early > 0 && row("Taken early", `${plural(st.early, "off")}, paid back by the next ${st.early === 1 ? "one" : "ones"} earned`)}
         {row("Carried over", `${p.towards} of ${board.offEvery} days towards the next off`)}
         {row("Last off", p.lastOff ? shortDay(p.lastOff) : "None marked yet")}

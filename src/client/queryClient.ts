@@ -74,7 +74,8 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 40: attendance settings assumeDuty off by default; Person days (2026-11-02).
 // 41: the summary carries attendanceAway (attendance assist plan phase 2, 2026-11-02).
 // 42: the summary no longer carries attendanceUnmarked / attendanceOffs / attendanceAway (attendance on its own page only, 2026-11-02).
-export const CACHE_VERSION = "42";
+// 43: the Offs board and Person days carry owedSince (G.O.(Ms) 161/08/AD, take an off within a month, 2026-11-03).
+export const CACHE_VERSION = "43";
 
 export async function clearSavedData() {
   queryClient.clear();

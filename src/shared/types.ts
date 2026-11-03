@@ -544,6 +544,8 @@ export type OffsBoardPerson = {
   run: number;
   // A starting point (starting figures, a mark or a correction); without one the figures mean nothing yet.
   started: boolean;
+  // The day each off still owed was earned, oldest first (G.O.(Ms) 161/08/AD: take it within a month, offTakeBy).
+  owedSince: string[];
   lastOff: string | null;
   // Offs planned ahead (after today), soonest first (phase 3).
   planned: { id: string; date: string; note: string }[];
@@ -572,7 +574,7 @@ export type PersonDays = {
   settings: { offEvery: number; maxRun: number; clPerYear: number; assumeDuty: boolean };
   employee: { id: string; name: string; designation: string | null; offDay: import("./staff").OffDay; permanent: boolean };
   days: PersonDay[];
-  weekly: { countFrom: string | null; offsDue: number; towards: number; run: number; dueBefore: number; towardsBefore: number; runBefore: number } | null;
+  weekly: { countFrom: string | null; offsDue: number; towards: number; run: number; dueBefore: number; towardsBefore: number; runBefore: number; owedSince: string[] } | null;
   lastOff: string | null;
   cl: number;
   ch: number;
