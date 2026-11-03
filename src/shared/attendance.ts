@@ -248,10 +248,17 @@ export type MarkDay = { date: string; mark: AttendanceMark | null; holiday?: boo
 // The offs that sit in a stretch of CL, CH and offs (holidays not worked between them too) of a week or more: no
 // weekly off is due for them.
 export function offsInLongAway(days: MarkDay[]): string[] {
-  const out: string[] = [];
+  const long = longAwayDays(days);
+  return days.filter((d) => d.mark === "off" && long.has(d.date)).map((d) => d.date);
+}
+// Every day of a stretch of CL, CH and offs (holidays not worked between them too) of a week or more. Since
+// 2026-11-03 (user's answer, "count nothing") its CL, CH and holidays count nothing towards the next off and Day N
+// starts again after it, as with regular leave (`notEligible`); an off in it is still marked, with the warning.
+export function longAwayDays(days: MarkDay[]): Set<string> {
+  const out = new Set<string>();
   let run: MarkDay[] = [];
   const flush = () => {
-    if (run.length >= AWAY_STRETCH_NO_OFF) out.push(...run.filter((d) => d.mark === "off").map((d) => d.date));
+    if (run.length >= AWAY_STRETCH_NO_OFF) for (const d of run) out.add(d.date);
     run = [];
   };
   for (const d of days) {
@@ -260,6 +267,13 @@ export function offsInLongAway(days: MarkDay[]): string[] {
   }
   flush();
   return out;
+}
+// The counting days with G.O. 303/82's "not eligible for weekly off" applied: a counted day inside a week-long stretch
+// away counts nothing and starts the run again.
+export function notEligible(states: WeeklyDay[], marks: MarkDay[]): WeeklyDay[] {
+  const long = longAwayDays(marks);
+  if (!long.size) return states;
+  return states.map((s) => (s.state === "count" && long.has(s.date) ? { ...s, state: "reset" as const } : s));
 }
 // The weeks (Monday to Sunday, named by their Monday) with CL (a half day too), CH and an off all three in them.
 export function allThreeInAWeek(days: MarkDay[]): string[] {

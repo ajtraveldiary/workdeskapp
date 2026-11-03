@@ -33,7 +33,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type Pointe
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, CalendarPlus, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
-import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, go303Breaks, nextToLeave, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, go303Breaks, nextToLeave, notEligible, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
 import { saveFile } from "../saveFile";
 import { dayLabel } from "../../shared/reminderSchedule";
@@ -386,6 +386,16 @@ function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data
 // A weekly-off person's days of the month as the counting sees them (weeklyOff), with some cells taken as marked.
 function monthStates(data: AttendanceMonth, cells: Cells, e: Person, as?: { dates: Set<string>; mark: AttendanceMark }): WeeklyDay[] {
   const from = data.weekly.find((w) => w.employeeId === e.id)?.countFrom ?? null;
+  // G.O.(Ms) 303/82/HSD: CL, CH and offs together for a week or more count nothing (as the server counts).
+  const marked: MarkDay[] = data.days.map((d) => {
+    const info = cells.info(e, d.date);
+    if (info.out || info.leave) return { date: d.date, mark: null };
+    const m = as?.dates.has(d.date) && !info.holiday ? as.mark : info.mark;
+    return { date: d.date, mark: m, holiday: info.holiday && !m };
+  });
+  return notEligible(rawMonthStates(data, cells, e, from, as), marked);
+}
+function rawMonthStates(data: AttendanceMonth, cells: Cells, e: Person, from: string | null, as?: { dates: Set<string>; mark: AttendanceMark }): WeeklyDay[] {
   return data.days.map((d) => {
     // Before their counting starts nothing counts (the month's starting figures cover it).
     if (from && d.date < from) return { date: d.date, state: "skip" as const };

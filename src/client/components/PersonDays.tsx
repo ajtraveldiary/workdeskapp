@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { PersonDay, PersonDays as Data } from "../../shared/types";
-import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chFits, clDays, go303Breaks, mondayOf, nextToLeave, offStatus, offTakeBy, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chFits, clDays, go303Breaks, mondayOf, nextToLeave, notEligible, offStatus, offTakeBy, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendanceActions, useMe, usePersonDays, useStaff } from "../api";
@@ -322,7 +322,17 @@ function warnings(data: Data, selected: Set<string>) {
   const working = chosen.filter((d) => !d.holiday);
   if (!working.length) return out;
   const w = data.weekly;
+  // G.O.(Ms) 303/82/HSD: CL, CH and offs together for a week or more count nothing (as the server counts).
   const states = (as?: AttendanceMark): WeeklyDay[] =>
+    notEligible(
+      statesOf(as),
+      data.days.map((d) => {
+        if (d.out || d.leave) return { date: d.date, mark: null };
+        const m = as && selected.has(d.date) && !d.holiday ? as : d.mark;
+        return { date: d.date, mark: m, holiday: !!d.holiday && !m };
+      }),
+    );
+  const statesOf = (as?: AttendanceMark): WeeklyDay[] =>
     data.days.map((d) => {
       if (d.out || (w?.countFrom && d.date < w.countFrom)) return { date: d.date, state: "skip" as const };
       if (d.leave) return { date: d.date, state: "reset" as const };

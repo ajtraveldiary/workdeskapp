@@ -51,7 +51,7 @@ and wait for the user's yes, as CLAUDE.md requires.
 |---|---|---|
 | 6 days of duty continuously give the 7th day off | G.O. 303/82, 161/08 | Yes: 6 counted days earn an off (Settings › Attendance) |
 | CL and CH within the six days count as duty | G.O. 303/82, 161/08 | Yes (½CL and holidays not worked count too, user's answer) |
-| CL, CH and offs at a stretch for a week or more: no weekly off | G.O. 303/82, 161/08 | Warning (Person days, register bar) |
+| CL, CH and offs at a stretch for a week or more: no weekly off | G.O. 303/82, 161/08 | Applied (2026-11-03, user's answer "count nothing"): those days count nothing towards the next off and Day N starts again after them; the warning on marking an off there stays |
 | Weekly off on any day of the week | G.O. 161/08 | Yes (Sundays too for weekly-off staff) |
 | Weekly off and Sunday not both in a week | G.O. 303/82, 161/08 | Yes: weekly-off staff have no Sunday off; Sunday-off staff can't take a weekly off |
 | Weekly off taken within one month | G.O. 161/08 | Warning: "take by" on the Offs board and Person days, red past it |

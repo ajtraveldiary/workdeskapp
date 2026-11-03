@@ -37,10 +37,12 @@ import {
   fromLastOff,
   mondayOf,
   needsOff,
+  notEligible,
   offStatus,
   CL_RUN_MAX,
   type AttendanceSettings,
   type ChOpen,
+  type MarkDay,
   type WeeklyDay,
   type WeeklySet,
 } from "../../shared/attendance";
@@ -159,10 +161,14 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
   const markOf = new Map(marks.map((m) => [`${m.employeeId}|${m.date}`, m.mark]));
   return people.map((p) => {
     const assume = origin.get(p.id)!;
-    const days: WeeklyDay[] = [];
+    let days: WeeklyDay[] = [];
+    // The same days as marks, for G.O. 303/82's week away (leave breaks a stretch).
+    const marked: MarkDay[] = [];
     for (let d = starts.get(p.id)!; d <= end && (!p.until || d <= p.until); d = shiftDate(d, 1)) {
       const m = markOf.get(`${p.id}|${d}`);
-      const state: WeeklyDay["state"] = leaves.some((l) => l.employeeId === p.id && l.from <= d && d <= l.to)
+      const onLeave = leaves.some((l) => l.employeeId === p.id && l.from <= d && d <= l.to);
+      marked.push(onLeave ? { date: d, mark: null } : { date: d, mark: m ?? null, holiday: !m && !!holidayOn(d, hols, settings) });
+      const state: WeeklyDay["state"] = onLeave
         ? "reset"
         : m === "off"
           ? "off"
@@ -178,6 +184,8 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
       const set = fixOf.get(`${p.id}|${d}`);
       days.push(set ? { date: d, state, set } : { date: d, state });
     }
+    // CL, CH and weekly offs together for a week or more: not eligible for weekly off (G.O.(Ms) 303/82/HSD).
+    days = notEligible(days, marked);
     const start = settings.start[p.id];
     const w = weeklyOff(days, start, settings, start?.run ?? 0);
     // The run, offs due and days towards the next when the month starts, so the register can work out the month's

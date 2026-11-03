@@ -9,7 +9,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { DEFAULT_ATTENDANCE_SETTINGS, allThreeInAWeek, dutyForOff, fromLastOff, go303Breaks, mondayOf, needsOff, nextToLeave, offTakeBy, offsInLongAway, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
+import { DEFAULT_ATTENDANCE_SETTINGS, allThreeInAWeek, dutyForOff, fromLastOff, go303Breaks, mondayOf, longAwayDays, needsOff, nextToLeave, notEligible, offTakeBy, offsInLongAway, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
 import type { AttendanceMonth, AuditEvent, AwayDays, LeaveType, OffsBoard, PersonDays } from "../src/shared/types";
 import type { AttendanceSettings, MarkDay } from "../src/shared/attendance";
 import { dayLabel } from "../src/shared/reminderSchedule";
@@ -625,5 +625,27 @@ describe("attendance register", () => {
     expect(nextToLeave(run, new Set(["e"]))).toEqual([]);
     expect(nextToLeave([t("a", true), t("b", false, true), t("c")], new Set(["c"]))).toEqual(["c"]);
     expect(nextToLeave([t("a", true), t("b"), t("c")], new Set(["c"]))).toEqual([]);
+  });
+
+  it("G.O.(Ms) 303/82/HSD: CL, CH and offs together for a week or more count nothing towards the next off", async () => {
+    // The rule on its own: counted days inside a week-long stretch away count nothing and start the run again.
+    const d = (day: number, mark: MarkDay["mark"]): MarkDay => ({ date: `2026-09-${String(day).padStart(2, "0")}`, mark });
+    const marks = [d(1, "present"), d(2, "cl"), d(3, "cl"), d(4, "ch"), d(5, "off"), d(6, "cl"), d(7, "cl"), d(8, "cl"), d(9, "present")];
+    const states: WeeklyDay[] = marks.map((m) => ({ date: m.date, state: m.mark === "off" ? "off" : "count" }));
+    expect(notEligible(states, marks).map((x) => x.state)).toEqual(["count", "reset", "reset", "reset", "off", "reset", "reset", "reset", "count"]);
+    expect([...longAwayDays(marks)]).toHaveLength(7);
+    // Six days away is fine: CL and CH count as duty.
+    expect(notEligible(states.slice(0, 7), marks.slice(0, 7)).map((x) => x.state)).toEqual(["count", "count", "count", "count", "off", "count", "count"]);
+    // In the register: 1 Sep duty, 2–8 Sep CL, CH and an off together (7 days), 9–10 Sep duty.
+    const w = await add({ name: NAME, offDay: "weekly" });
+    await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-08-31", clTaken: 0, chOpen: [], offsDue: 1, towards: 0 } }, assumeDuty: false });
+    const mark = (days: number[], m: string) => call("POST", "/attendance/mark", { cells: days.map((x) => ({ employeeId: w, date: `2026-09-${String(x).padStart(2, "0")}` })), mark: m });
+    await mark([1, 9, 10], "present");
+    await mark([2, 3, 4, 6, 7, 8], "cl");
+    await mark([5], "off");
+    const sep = (await call("GET", "/attendance?month=2026-09")).json as AttendanceMonth;
+    // Counted: 1 Sep, nothing for the week away, then 9–10 Sep and 12 Sep (the second Saturday, not worked): 4 days,
+    // the run 3 (11 Sep, not marked, keeps it); the off paid the one owed. Without the rule it would be 10 and 10.
+    expect(sep.weekly[0]).toMatchObject({ offsDue: 0, towards: 4, run: 3 });
   });
 });
