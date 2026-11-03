@@ -223,6 +223,53 @@ export const needsOff = (st: OffStatus) => st.owed >= 1 || st.tone === "red";
 export const CL_RUN_MAX = 15;
 export const awayDay = (mark: AttendanceMark | null | undefined, offItself: boolean) => mark === "cl" || mark === "ch" || mark === "off" || (offItself && !mark);
 
+// G.O.(Ms) No. 303/82/HSD dated 15.12.1982 (Health (A) Department), weekly off and compensation leave to hospital
+// staff (the user's copy, 2026-11-03): six days of duty continuously give the 7th day off, CL and CH within the six
+// days counting as duty; CL, CH and weekly offs taken at a stretch for a week or more give no weekly off; weekly off
+// and Sunday not both in a week; CL with an off, or an off with CH, may be taken together, but not CL, CH and an off
+// all three in a week; at most 15 days at a stretch (CL_RUN_MAX). Its CH 22 a year was later set by post
+// (G.O.(Ms) 43/2021, CH_LIMIT_CHOICES). Both checks only warn, like the others.
+export const AWAY_STRETCH_NO_OFF = 7;
+export type MarkDay = { date: string; mark: AttendanceMark | null; holiday?: boolean };
+// The offs that sit in a stretch of CL, CH and offs (holidays not worked between them too) of a week or more: no
+// weekly off is due for them.
+export function offsInLongAway(days: MarkDay[]): string[] {
+  const out: string[] = [];
+  let run: MarkDay[] = [];
+  const flush = () => {
+    if (run.length >= AWAY_STRETCH_NO_OFF) out.push(...run.filter((d) => d.mark === "off").map((d) => d.date));
+    run = [];
+  };
+  for (const d of days) {
+    if (d.mark === "cl" || d.mark === "ch" || d.mark === "off" || (!d.mark && d.holiday)) run.push(d);
+    else flush();
+  }
+  flush();
+  return out;
+}
+// The weeks (Monday to Sunday, named by their Monday) with CL (a half day too), CH and an off all three in them.
+export function allThreeInAWeek(days: MarkDay[]): string[] {
+  const weeks = new Map<string, Set<string>>();
+  for (const d of days) {
+    const k = d.mark === "cl_half" ? "cl" : d.mark;
+    if (k !== "cl" && k !== "ch" && k !== "off") continue;
+    const w = mondayOf(d.date);
+    if (!weeks.has(w)) weeks.set(w, new Set());
+    weeks.get(w)!.add(k);
+  }
+  return [...weeks].filter(([, kinds]) => kinds.size === 3).map(([w]) => w);
+}
+// What marking `dates` as `mark` would newly break of G.O. 303/82, from a person's days: an off in a week-long stretch
+// away, and CL + CH + an off in one week.
+export function go303Breaks(days: MarkDay[], dates: Set<string>, mark: AttendanceMark) {
+  const after = days.map((d) => (dates.has(d.date) && !d.holiday ? { ...d, mark } : d));
+  const before = { long: new Set(offsInLongAway(days)), three: new Set(allThreeInAWeek(days)) };
+  return {
+    offInLongAway: offsInLongAway(after).filter((d) => !before.long.has(d)),
+    threeInWeek: allThreeInAWeek(after).filter((w) => !before.three.has(w)),
+  };
+}
+
 // --- Phase 3: the month's summary (the register's foot, its CSV and the assistants) ---
 
 // Each person's month: days present (holiday duty apart), CL (half days ½), CH, offs, absent, days of leave from the

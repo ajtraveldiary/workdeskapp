@@ -29,7 +29,14 @@ and wait for the user's yes, as CLAUDE.md requires.
 ## 2. Research
 
 ### Kerala rules
-- **No Health Department order on the weekly-off cycle was found online.** The nearest is **G.O.(Ms) No. 161/08/AD
+- **Found later (the user's copy, 2026-11-03): G.O.(Ms) No. 303/82/HSD dated 15.12.1982, Health (A) Department**,
+  "Weekly off and compensation off to Hospital Staff": six days of duty continuously give the 7th day off, CL and CH
+  within the six days counting as duty; **CL, CH and weekly off taken at a stretch for a week or more give no weekly
+  off**; weekly off and Sunday not both in a week; **CL with an off, or an off with CH, may be taken together, but not
+  all three in a week**; never more than 15 days at a stretch; CH 22 a year (later set by post, G.O.(Ms) 43/2021);
+  CL 20 a year. The two rules in bold were added as warnings (`offsInLongAway`, `allThreeInAWeek`, `go303Breaks` in
+  src/shared/attendance.ts) in Person days and the register's bar; the rest was already built.
+- **No Health Department order on the weekly-off cycle was found online** (before the user's copy above). The nearest is **G.O.(Ms) No. 161/08/AD
   dated 27.09.2008** (Animal Husbandry), issued to give veterinary hospital staff weekly off "on par with the
   hospital employees of H & FW Department", so it most likely copies the Health Department's rule. It says (from the
   AHD Manual and a copy of the order; to be checked against the original):

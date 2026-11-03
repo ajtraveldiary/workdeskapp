@@ -131,15 +131,15 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   in a row is flagged (and warned about before marking). An off given early is still marked, shown as taken early. Starting figures carry over a year already under way,
   entered in Settings or imported from a spreadsheet. Tap anyone's CL / CH cell for their figures; CH that must be
   taken within a week are listed above the register. The register stretches to fit the screen. The Summary button opens a summary of the month for each person; Print gives
-  an A4 page with signature lines, and Download a spreadsheet of the month. Home reminds you from 11 am when people
-  aren't marked yet today; `/markattendance` is a plain page for phones to mark one person's CL, CH or off for a
+  an A4 page with signature lines, and Download a spreadsheet of the month. The Today tab shows who is still to be
+  ticked; `/markattendance` is a plain page for phones to mark one person's CL, CH or off for a
   day or a range, and each employee's page shows their month so far.
-- **Offs board:** the Attendance page opens on Offs: a card per weekly-off person, the most urgent first, with
+- **Offs board:** the Attendance page opens on Offs: a card per weekly-off person, in the order of the designations in Settings, with
   "Day N" (days of duty in a row), a coloured status (off after n more days, off due, overdue, or the off and a
   compensatory off owed after 12 days), the last 14 days at a glance, the last off and an Off today button. Tap a
   card for their figures in plain words, CL and CH this year, and **Correct the count** (days in a row and offs
-  owed with − / +, with a note and Undo) when the office knows better than the marks. Home's Today tab and the
-  morning notification say who needs an off. **Days not marked count as duty** (a switch in Settings ›
+  owed with − / +, with a note and Undo) when the office knows better than the marks. The morning notification says
+  who needs an off. Attendance stays on its own page: Home's Due Today shows none of it. **Days not marked count as duty** (a switch in Settings ›
   Attendance, on to start), so the office marks only offs, CL, CH and absences; the register shows those days with a
   faint ✓. The **Today** tab lists everyone for one day: tap a person for Duty, Off, CL, half-day CL, CH or Absent
   (saved at once, with Undo), or tick several and use the bar. **Start the register** puts everyone's starting point
@@ -152,11 +152,12 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   in Today, or the + / Mark for someone button and pick them) and see their next three weeks: tap tomorrow, tap Off;
   tap the day after, tap CL. Saved at once, with Undo; future days are drawn lighter until they come. Each button says
   before you tap what it would cause (an off taken early, CL past 20, past 12 days in a row, no holiday worked for a
-  CH). In **Today**, each person's circle is the tick: tap to mark present, tap again to clear, with "12 of 16 done"
+  CH, and from G.O.(Ms) 303/82/HSD: no off after a week away on CL, CH and offs, and not CL, CH and an off all in one
+  week). In **Today**, each person's circle is the tick: tap to mark present, tap again to clear, with "12 of 16 done"
   at the top and "Tick the other n present" for the rest.
 - **Who is away today and tomorrow:** the Today tab starts with everyone off, on CL, ½CL, CH, absent or on leave
   today and tomorrow (planned offs too), each name opening their days, and the CH that must be taken within a week;
-  Home's Today tab and the morning notification carry the same "Away today" line.
+  the morning notification carries the same "Away today" line.
 - **Yearly leave credits:** switch a leave to automatic in Settings › Leave and it is credited on each employee's
   service anniversary: HPL 20 days a year, earned leave as 1/11 of the days on duty (less leave taken) for staff
   whose probation is declared. Opening balances can be imported from a spreadsheet (Import / Export › Leave balances).

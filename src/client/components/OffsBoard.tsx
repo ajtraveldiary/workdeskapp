@@ -1,6 +1,6 @@
 // The Offs board (user request 2026-11-02, "attendance is mainly for reminding staff to take an off in 6 days, or the
 // off and a compensatory off after 12 days without a break"; docs/ATTENDANCE_UX_PLAN.md phase 1): the Attendance page's
-// first tab. A card per weekly-off person, the most urgent first: Day N (days of duty in a row) and a coloured status
+// first tab. A card per weekly-off person, in designation order (Settings › Employees) then name: Day N (days of duty in a row) and a coloured status
 // (offStatus: off after n more days / off due / overdue / off + compensatory off owed), the last 14 days as a strip, the
 // last off, and Off today. Tapping a card opens the person sheet: the figures in plain words, CL / CH this year, the
 // holidays worked with CH to take, Off today, Correct the count (days in a row and offs owed with − / +, a note; saved
@@ -33,10 +33,9 @@ export function OffsBoard({ onRegister }: { onRegister: () => void }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const people = useMemo(() => {
     if (!data) return [];
-    return data.people
-      .map((p) => ({ p, st: offStatus(p, data) }))
-      // Those with a starting point by urgency, then those without one.
-      .sort((a, b) => Number(b.p.started) - Number(a.p.started) || b.st.rank - a.st.rank || b.p.run - a.p.run || a.p.name.localeCompare(b.p.name));
+    // In the order of the designations in Settings › Employees, then name, as the server sends them (user request
+    // 2026-11-02, replacing most urgent first); the colours still show who needs an off.
+    return data.people.map((p) => ({ p, st: offStatus(p, data) }));
   }, [data]);
   const open = people.find((x) => x.p.id === openId);
   const counted = people.filter((x) => x.p.started);

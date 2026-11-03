@@ -4,13 +4,14 @@
 // staff), CL, ½CL, CH… (choose the holiday worked for each day), Absent or Clear; saved at once, future days too
 // (drawn lighter until they come), with Undo putting back what was there. Each mark button says before it is tapped
 // what it would cause for the days chosen (an off taken early, CL past the year's days, past the most days in a row,
-// CL / CH with holidays past 15 days, no holiday worked open for a CH); nothing is blocked. Opened with
+// CL / CH with holidays past 15 days, no holiday worked open for a CH; and G.O.(Ms) 303/82/HSD: no off after a week
+// away on CL, CH and offs, not CL, CH and an off all in one week); nothing is blocked. Opened with
 // openPersonDays(id) from the Today tab's names and the Offs board, or openPersonDays() (the + button / Mark for
 // someone), which first asks who. Lives once in the app shell (PersonDaysHost).
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { PersonDay, PersonDays as Data } from "../../shared/types";
-import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chFits, clDays, mondayOf, offStatus, offsEarned, weeklyOff, type AttendanceMark, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chFits, clDays, go303Breaks, mondayOf, offStatus, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendanceActions, useMe, usePersonDays, useStaff } from "../api";
@@ -359,6 +360,15 @@ function warnings(data: Data, selected: Set<string>) {
   // CH needs a holiday worked open for each day.
   const lacking = working.filter((d) => !data.chOpen.some((o) => chFits(o, d.date)));
   if (lacking.length) out.ch = lacking.length === working.length ? "no holiday worked open" : `none open for ${lacking.length}`;
+  // G.O.(Ms) 303/82/HSD: no off after a week away on CL, CH and offs; not CL, CH and an off all in one week.
+  const marked: MarkDay[] = data.days.map((d) => ({ date: d.date, mark: d.out || d.leave ? null : d.mark, holiday: !d.out && !d.leave && !d.mark && !!d.holiday }));
+  const dates = new Set(working.map((d) => d.date));
+  for (const m of ["off", "cl", "cl_half", "ch"] as const) {
+    if (m === "off" && data.employee.offDay !== "weekly") continue;
+    const b = go303Breaks(marked, dates, m);
+    const said = [out[m], b.offInLongAway.length ? "no off after a week away" : null, b.threeInWeek.length ? "CL, CH and off in one week" : null].filter(Boolean);
+    if (said.length) out[m] = said.join(" · ");
+  }
   return out;
 }
 

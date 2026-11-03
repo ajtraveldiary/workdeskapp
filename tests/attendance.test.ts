@@ -9,11 +9,11 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import { DEFAULT_ATTENDANCE_SETTINGS, dutyForOff, fromLastOff, mondayOf, needsOff, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
+import { DEFAULT_ATTENDANCE_SETTINGS, allThreeInAWeek, dutyForOff, fromLastOff, go303Breaks, mondayOf, needsOff, offsInLongAway, offLine, offStatus, offsEarned, monthCounts, addMonths, chExpires, guessChLimit, holidayOn, isSecondSaturday, monthDays, offByItself, shiftMonth, weeklyOff, type WeeklyDay } from "../src/shared/attendance";
 import type { AttendanceMonth, AuditEvent, AwayDays, LeaveType, OffsBoard, PersonDays } from "../src/shared/types";
-import type { AttendanceSettings } from "../src/shared/attendance";
+import type { AttendanceSettings, MarkDay } from "../src/shared/attendance";
 import { dayLabel } from "../src/shared/reminderSchedule";
-import { offsReminder, settlePlannedOffs, unmarkedToday } from "../src/server/routes/attendance";
+import { awayDays, offsReminder, settlePlannedOffs, unmarkedToday } from "../src/server/routes/attendance";
 import { BACKUP_TABLES } from "../src/shared/transfer";
 
 const NAME = "2026-27 സാമ്പത്തിക വർഷത്തെ ജൂനിയർ ഹെൽത്ത് ഇൻസ്‌പെക്ടർ ശ്രീമതി അനിതാകുമാരി രാധാകൃഷ്ണൻ";
@@ -317,14 +317,15 @@ describe("attendance register", () => {
     expect(b.people[0]).toMatchObject({ id: w, run: 13, offsDue: 2, towards: 1, lastOff: null, cl: 0, chLimit: 22 });
     expect(b.people[0]!.days.map((d) => d.date)).toEqual(Array.from({ length: 14 }, (_, i) => shift(i - 13)));
     expect(b.people[0]!.days[13]).toMatchObject({ date: today, mark: null });
-    expect((await call("GET", "/summary")).json.attendanceOffs).toEqual([{ employeeId: w, name: NAME, tone: "red", text: "13 days without an off · 2 offs owed" }]);
+    const uid = (await db.select().from(schema.users))[0]!.id;
+    expect(await offsReminder(db, uid, today)).toEqual([{ employeeId: w, name: NAME, tone: "red", text: "13 days without an off · 2 offs owed" }]);
     // The office knows better: an off last week wasn't marked.
     const fix = await call("POST", "/attendance/corrections", { employeeId: w, offsDue: 0, towards: 3, run: 3, note: "Off on Sunday not marked" });
     expect(fix.status).toBe(200);
     b = await board();
     expect(b.people[0]).toMatchObject({ run: 3, offsDue: 0, towards: 3 });
     expect(b.people[0]!.corrections).toEqual([{ id: fix.json.id, date: today, offsDue: 0, towards: 3, run: 3, note: "Off on Sunday not marked" }]);
-    expect((await call("GET", "/summary")).json.attendanceOffs).toEqual([]);
+    expect(await offsReminder(db, uid, today)).toEqual([]);
     expect((await history())[0]).toBe(`Attendance: count of ${NAME} corrected to Day 3, no off owed (was Day 13, 2 offs owed). Off on Sunday not marked`);
     // Nothing to correct for Sunday-off staff; days towards the next off stay under the days that earn one.
     expect((await call("POST", "/attendance/corrections", { employeeId: s, offsDue: 0, towards: 0, run: 0 })).status).toBe(400);
@@ -420,7 +421,8 @@ describe("attendance register", () => {
     const after = await unmarkedToday(db, userId, today, "Asia/Kolkata", at(12));
     // On a holiday or a Sunday nobody is due (0); otherwise marking Biju leaves one fewer.
     expect(before === 0 ? after : before! - 1).toBe(after);
-    expect((await call("GET", "/summary")).json).toHaveProperty("attendanceUnmarked");
+    // Home no longer shows it (attendance on its own page only, 2026-11-02).
+    expect((await call("GET", "/summary")).json).not.toHaveProperty("attendanceUnmarked");
     // While days not marked count as duty there is nothing to remind about.
     await call("PUT", "/attendance/settings", { assumeDuty: true });
     expect(await unmarkedToday(db, userId, today, "Asia/Kolkata", at(12))).toBeNull();
@@ -459,13 +461,14 @@ describe("attendance register", () => {
     await call("PUT", "/attendance/settings", { assumeDuty: true });
     // Nobody has a starting point: nothing is assumed and nobody is reminded.
     expect(await person(w)).toMatchObject({ started: false, run: 0, offsDue: 0 });
-    expect((await call("GET", "/summary")).json.attendanceOffs).toEqual([]);
+    const uid = (await db.select().from(schema.users))[0]!.id;
+    expect(await offsReminder(db, uid, today)).toEqual([]);
     // The last off 16 days before the start (as on 3 days ago): 13 days since it, so Day 13 with the off and a
     // compensatory off owed and 1 day towards the next; the 2 days since then count as duty, today not yet.
     expect((await call("POST", "/attendance/start", { asOn: shift(-3), people: [{ employeeId: w, lastOff: shift(-16), clTaken: 1 }, { employeeId: s, clTaken: 2.5 }] })).json).toEqual({ saved: 2 });
     expect(await person(w)).toMatchObject({ started: true, run: 15, offsDue: 2, towards: 3, lastOff: shift(-16) });
     expect(await person(fresh)).toMatchObject({ started: false });
-    expect((await call("GET", "/summary")).json.attendanceOffs.map((o: { employeeId: string }) => o.employeeId)).toEqual([w]);
+    expect((await offsReminder(db, uid, today)).map((o) => o.employeeId)).toEqual([w]);
     expect((await history())[0]).toBe(`Attendance register started as on ${dayLabel(shift(-3))} for 2 people`);
     const saved = (await call("GET", "/attendance/settings")).json.settings as AttendanceSettings;
     expect(saved.start[w]).toMatchObject({ asOn: shift(-3), run: 13, offsDue: 2, towards: 1, lastOff: shift(-16), clTaken: 1 });
@@ -555,7 +558,7 @@ describe("attendance register", () => {
     expect(mondayOf("2026-11-02")).toBe("2026-11-02");
   });
 
-  it("away today and tomorrow: offs, CL, CH, absences, leave and planned offs, in Home's summary too", async () => {
+  it("away today and tomorrow: offs, CL, CH, absences, leave and planned offs", async () => {
     const w = await add({ name: NAME, offDay: "weekly" });
     const s = await add({ name: "Biju" });
     const x = await add({ name: "Nobody away" });
@@ -572,6 +575,28 @@ describe("attendance register", () => {
     expect(said(0)).toEqual([`${NAME}: Off`, "Biju: ½ CL"].sort());
     expect(said(1)).toEqual([`${NAME}: Off (planned)`, "Biju: CL"].sort());
     expect(away.chLapsing).toEqual([]);
-    expect(((await call("GET", "/summary")).json.attendanceAway as AwayDays["days"]).map((d) => d.people.length)).toEqual([2, 2]);
+    const uid = (await db.select().from(schema.users))[0]!.id;
+    expect((await awayDays(db, uid, today)).days.map((d) => d.people.length)).toEqual([2, 2]);
+  });
+
+  it("G.O.(Ms) 303/82/HSD: no off after a week away on CL, CH and offs; not CL, CH and an off all in one week", () => {
+    // 2–8 Nov 2026 is Monday to Sunday.
+    const d = (day: number, mark: MarkDay["mark"], holiday = false): MarkDay => ({ date: `2026-11-${String(day).padStart(2, "0")}`, mark, holiday });
+    // CL 2–4, CH 5, off 6, CL 7–8: seven days away in a row, so the off on 6 Nov is not due; 6 days would be fine.
+    const week = [d(1, "present"), d(2, "cl"), d(3, "cl"), d(4, "cl"), d(5, "ch"), d(6, "off"), d(7, "cl"), d(8, "cl"), d(9, "present")];
+    expect(offsInLongAway(week)).toEqual(["2026-11-06"]);
+    expect(offsInLongAway(week.map((x) => (x.date === "2026-11-08" ? { ...x, mark: "present" as const } : x)))).toEqual([]);
+    // A holiday not worked joins the stretch; a day of duty breaks it.
+    expect(offsInLongAway([d(2, "cl"), d(3, "cl"), d(4, null, true), d(5, "cl"), d(6, "off"), d(7, "ch"), d(8, "cl")])).toEqual(["2026-11-06"]);
+    // CL, CH and an off in the same Monday–Sunday week; CL with an off, or an off with CH, is allowed.
+    expect(allThreeInAWeek(week)).toEqual(["2026-11-02"]);
+    expect(allThreeInAWeek([d(2, "cl"), d(6, "off")])).toEqual([]);
+    expect(allThreeInAWeek([d(2, "cl_half"), d(4, "ch"), d(8, "off")])).toEqual(["2026-11-02"]);
+    // Across two weeks (Sunday 8 and Monday 9) it is not one week.
+    expect(allThreeInAWeek([d(7, "cl"), d(8, "ch"), d(9, "off")])).toEqual([]);
+    // What a new mark would break: only what it adds, and holidays keep their own state.
+    const before = [d(2, "cl"), d(3, "present"), d(4, "ch"), d(5, "present")];
+    expect(go303Breaks(before, new Set(["2026-11-05"]), "off")).toEqual({ offInLongAway: [], threeInWeek: ["2026-11-02"] });
+    expect(go303Breaks(before, new Set(["2026-11-05"]), "cl")).toEqual({ offInLongAway: [], threeInWeek: [] });
   });
 });

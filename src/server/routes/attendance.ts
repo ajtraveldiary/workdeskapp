@@ -46,7 +46,7 @@ import {
 } from "../../shared/attendance";
 import { leaveEnd, leaveShort, shiftDate } from "../../shared/leave";
 import { dayLabel } from "../../shared/reminderSchedule";
-import type { AttendanceMonth, AwayDays, AwayPerson, Holiday, OffsBoard, OffsBoardDay, PersonDays, Summary } from "../../shared/types";
+import type { AttendanceMonth, AwayDays, AwayPerson, Holiday, OffNeeded, OffsBoard, OffsBoardDay, PersonDays } from "../../shared/types";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 
@@ -412,7 +412,7 @@ export async function awayDays(db: DB, userId: string, today: string, n = 2, chL
 
 // Weekly-off staff who need an off now (owed one, or past the most days in a row), most urgent first: Home's line
 // and the morning notification (docs/ATTENDANCE_UX_PLAN.md 4.8).
-export async function offsReminder(db: DB, userId: string, today: string): Promise<Summary["attendanceOffs"]> {
+export async function offsReminder(db: DB, userId: string, today: string): Promise<OffNeeded[]> {
   await settlePlannedOffs(db, userId, today);
   const { weekly } = await weeklyPeopleToday(db, userId, today);
   if (!weekly.length) return [];

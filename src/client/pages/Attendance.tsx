@@ -33,7 +33,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type Pointe
 import { Link, useSearchParams } from "react-router";
 import { CalendarClock, CalendarPlus, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
-import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chFits, clDays, go303Breaks, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
 import { saveFile } from "../saveFile";
 import { dayLabel } from "../../shared/reminderSchedule";
@@ -982,6 +982,24 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
       return { id, first: added[0] };
     })
     .filter((x) => x.first);
+  // G.O.(Ms) 303/82/HSD for each person chosen, if the selection were marked Off / CL / CH: an off in a stretch of a
+  // week or more away on CL, CH and offs (no off is due then), and CL, CH and an off all in one week (Monday–Sunday).
+  const go303 = people
+    .map((id) => {
+      const e = byId.get(id)!;
+      const marked: MarkDay[] = data.days.map((d) => {
+        const info = cells.info(e, d.date);
+        return info.out || info.leave ? { date: d.date, mark: null } : { date: d.date, mark: info.mark, holiday: info.holiday && !info.mark };
+      });
+      const dates = new Set(picked.filter((c) => c.employeeId === id && !cells.holiday(e, c.date)).map((c) => c.date));
+      const weekly = e.offDay === "weekly";
+      return {
+        id,
+        noOff: weekly && go303Breaks(marked, dates, "off").offInLongAway.length > 0,
+        three: (["off", "cl", "ch"] as const).filter((m) => (m !== "off" || weekly) && go303Breaks(marked, dates, m).threeInWeek.length > 0),
+      };
+    })
+    .filter((x) => x.noOff || x.three.length > 0);
   const run = (m: Markable) =>
     mark.mutate(
       { cells: picked, mark: m, replace },
@@ -1060,6 +1078,21 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
       {longAway.length > 0 && (
         <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
           As CL or CH, with the holidays around it: {longAway.map((x) => `${byId.get(x.id)?.name} ${x.days} days in a row`).join(", ")}; at most 15 (KSR Appendix VII).
+        </p>
+      )}
+      {go303.length > 0 && (
+        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+          {go303
+            .map((x) =>
+              [
+                x.noOff && `${byId.get(x.id)?.name}: as Off, no off is due after a week away on CL, CH and offs`,
+                x.three.length > 0 && `${byId.get(x.id)?.name}: as ${x.three.map((m) => (m === "off" ? "Off" : m.toUpperCase())).join(" or ")}, CL, CH and an off in one week`,
+              ]
+                .filter(Boolean)
+                .join("; "),
+            )
+            .join(" · ")}{" "}
+          (G.O.(Ms) 303/82/HSD). It can still be marked.
         </p>
       )}
       <ErrorNote error={mark.error ?? clear.error} />
