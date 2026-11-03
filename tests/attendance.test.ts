@@ -554,6 +554,12 @@ describe("attendance register", () => {
     expect(later.from).toBe(mondayOf(shift(9)));
     expect(later.days[6]).toMatchObject({ weekday: 0, holiday: "Sunday" });
     expect(later.weekly).toBeNull();
+    // ?month= gives the whole weeks that cover the month (the Mark days calendar): November 2026 runs Mon 26 Oct to
+    // Sun 6 Dec, 6 weeks; February 2027 starts on a Monday, 1 Feb to Sun 28 Feb, 4 weeks.
+    const nov = (await call("GET", `/attendance/person/${s}?month=2026-11`)).json as PersonDays;
+    expect([nov.from, nov.to, nov.days.length, nov.days.at(-1)!.weekday]).toEqual(["2026-10-26", "2026-12-06", 42, 0]);
+    const feb = (await call("GET", `/attendance/person/${s}?month=2027-02`)).json as PersonDays;
+    expect([feb.from, feb.to, feb.days.length]).toEqual(["2027-02-01", "2027-02-28", 28]);
     expect((await call("GET", "/attendance/person/00000000-0000-4000-8000-000000000000")).status).toBe(404);
     expect(mondayOf("2026-11-08")).toBe("2026-11-02");
     expect(mondayOf("2026-11-02")).toBe("2026-11-02");

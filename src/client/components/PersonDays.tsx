@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { PersonDay, PersonDays as Data } from "../../shared/types";
-import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chExpires, chFits, clDays, go303Breaks, inAttendance, markName, markShort, mondayOf, nextToLeave, notEligible, offStatus, offTakeBy, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chExpires, chFits, clDays, go303Breaks, inAttendance, markName, markShort, monthLabel, nextToLeave, shiftMonth, notEligible, offStatus, offTakeBy, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendanceActions, useAttendanceSettings, useMe, usePersonDays, useStaff } from "../api";
@@ -82,7 +82,6 @@ function WhoPicker({ onPick }: { onPick: (id: string) => void }) {
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
 const short = (d: string) => `${DAY_NAMES[new Date(`${d}T00:00:00Z`).getUTCDay()]} ${Number(d.slice(8))}`;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 type Markable = Exclude<AttendanceMark, "ch">;
@@ -102,15 +101,16 @@ const holidayKind = (d: PersonDay) => (d.holiday ? { kind: d.holiday === "Second
 
 function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: () => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
-  const [from, setFrom] = useState(() => mondayOf(today));
-  const { data, error } = usePersonDays(id, from);
+  // A month calendar (user request 2026-11-03, replacing three weeks at a time): this month to start.
+  const [month, setMonth] = useState(() => today.slice(0, 7));
+  const { data, error } = usePersonDays(id, month);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [choosingCh, setChoosingCh] = useState(false);
   // OD asks for a remark (where they were on duty) before it is marked.
   const [odOpen, setOdOpen] = useState(false);
   const [odNote, setOdNote] = useState("");
   const { mark, clear, markCh } = useAttendanceActions();
-  useEffect(() => setSelected(new Set()), [from]);
+  useEffect(() => setSelected(new Set()), [month]);
   const warn = useMemo(() => (data ? warnings(data, selected) : null), [data, selected]);
   if (error) return <ErrorNote error={error} />;
   if (!data) return <Loading />;
@@ -222,18 +222,16 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
       </div>
 
       <div className="flex items-center gap-1">
-        <button type="button" onClick={() => setFrom(addDays(from, -7))} aria-label="Earlier week" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
+        <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Earlier month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
           <ChevronLeft size={18} />
         </button>
-        <span className="min-w-0 flex-1 text-center text-sm font-medium text-ink">
-          {dayShort(data.from)} – {dayLabel(data.to)}
-        </span>
-        {from !== mondayOf(today) && (
-          <Button size="sm" variant="ghost" onClick={() => setFrom(mondayOf(today))}>
-            This week
+        <span className="min-w-0 flex-1 text-center text-sm font-medium text-ink">{monthLabel(month)}</span>
+        {month !== today.slice(0, 7) && (
+          <Button size="sm" variant="ghost" onClick={() => setMonth(today.slice(0, 7))}>
+            This month
           </Button>
         )}
-        <button type="button" onClick={() => setFrom(addDays(from, 7))} aria-label="Later week" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
+        <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Later month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
           <ChevronRight size={18} />
         </button>
       </div>
@@ -246,10 +244,10 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
             </span>
           ))}
         </div>
-        {[0, 1, 2].map((week) => (
+        {Array.from({ length: Math.ceil(data.days.length / 7) }, (_, week) => (
           <div role="row" key={week} className="grid grid-cols-7 gap-1 pb-1">
             {data.days.slice(week * 7, week * 7 + 7).map((d) => (
-              <DayCell key={d.date} d={d} today={data.today} on={selected.has(d.date)} onTap={() => toggle(d)} />
+              <DayCell key={d.date} d={d} today={data.today} on={selected.has(d.date)} dim={d.date.slice(0, 7) !== month} onTap={() => toggle(d)} />
             ))}
           </div>
         ))}
@@ -319,7 +317,8 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
 
 // A day: its number, then its mark (✓, O, CL, ½, CH, A), the leave's short name, H (holiday) or a planned off's dotted
 // O. Today outlined; future marks lighter; leave and days outside the office can't be chosen.
-function DayCell({ d, today, on, onTap }: { d: PersonDay; today: string; on: boolean; onTap: () => void }) {
+// `dim`: a day of the month before or after, filling the first and last weeks (faded, still choosable).
+function DayCell({ d, today, on, dim, onTap }: { d: PersonDay; today: string; on: boolean; dim?: boolean; onTap: () => void }) {
   const future = d.date > today;
   const words = d.out ? "not in the office" : d.leave ? `leave (${d.leave})` : d.mark ? `${markName(d.mark, holidayKind(d))}${d.note ? `: ${d.note}` : ""}` : d.holiday ? d.holiday : d.planned ? "off planned" : "not marked";
   return (
@@ -332,7 +331,8 @@ function DayCell({ d, today, on, onTap }: { d: PersonDay; today: string; on: boo
       title={`${dayLabel(d.date)}: ${words}`}
       onClick={onTap}
       className={cx(
-        "no-tap flex h-14 min-w-0 flex-col items-center justify-center rounded-lg border text-center transition active:scale-[0.97] disabled:cursor-default",
+        "no-tap flex h-12 min-w-0 flex-col items-center justify-center rounded-lg border text-center transition active:scale-[0.97] disabled:cursor-default sm:h-14",
+        dim && !on && "opacity-45",
         on ? "border-brand-600 bg-brand-100 ring-2 ring-brand-500" : d.holiday ? "border-line bg-slate-100" : d.out ? "border-transparent bg-slate-50" : "border-line bg-white enabled:hover:bg-slate-50",
         d.date === today && !on && "ring-2 ring-brand-400",
       )}

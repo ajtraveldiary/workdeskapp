@@ -821,15 +821,18 @@ export const attendanceRoutes = new Hono<AppEnv>()
     await settlePlannedOffs(db, userId, today);
     return c.json(await awayDays(db, userId, today, 2, true));
   })
-  // Person days (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): ?from= (moved to its Monday; this week's to start), 21 days.
+  // Person days (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): ?month=YYYY-MM gives the whole weeks (Monday to Sunday) that
+  // cover the month, the Mark days calendar (user request 2026-11-03, "show the full calendar instead of the weekly
+  // view"); ?from= (moved to its Monday; this week's without either) still gives 21 days, for older copies of the app.
   .get("/person/:id", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
     const today = todayIn(timezone(c.env));
     await settlePlannedOffs(db, userId, today);
     const asked = /^\d{4}-\d{2}-\d{2}$/.test(c.req.query("from") ?? "") ? c.req.query("from")! : today;
-    const from = mondayOf(asked);
-    const to = shiftDate(from, 20);
+    const month = /^\d{4}-\d{2}$/.test(c.req.query("month") ?? "") ? c.req.query("month")! : null;
+    const from = mondayOf(month ? `${month}-01` : asked);
+    const to = month ? shiftDate(mondayOf(monthDays(month).at(-1)!), 6) : shiftDate(from, 20);
     const [row] = await db
       .select({ e: employees, designation: designations.name })
       .from(employees)
@@ -860,7 +863,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
     ]);
     const markOf = new Map(marks.map((m) => [m.date, m]));
     const planned = new Set(plans.map((p) => p.date));
-    const days = Array.from({ length: 21 }, (_, i) => {
+    const days = Array.from({ length: Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1 }, (_, i) => {
       const date = shiftDate(from, i);
       const m = markOf.get(date);
       const h = holidayOn(date, hols, settings);

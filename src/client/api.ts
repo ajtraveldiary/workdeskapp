@@ -360,10 +360,10 @@ export function useAttendanceActions() {
     cancelPlan: m((id: string) => api<{ employeeId: string; date: string; note: string }>(`/attendance/plans/${id}`, { method: "DELETE" })),
   };
 }
-// Person days (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): one person's three weeks from the Monday of `from`. Under
-// "attendance", so every mark refreshes it.
-export const usePersonDays = (id: string | null, from: string) =>
-  useQuery({ queryKey: ["attendance", "person", id, from], queryFn: () => api<PersonDays>(`/attendance/person/${id}?from=${from}`), enabled: !!id });
+// Person days (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): one person's month (YYYY-MM) as whole weeks, Monday to Sunday.
+// Under "attendance", so every mark refreshes it.
+export const usePersonDays = (id: string | null, month: string) =>
+  useQuery({ queryKey: ["attendance", "person", id, "month", month], queryFn: () => api<PersonDays>(`/attendance/person/${id}?month=${month}`), enabled: !!id });
 // Away today and tomorrow (docs/ATTENDANCE_ASSIST_PLAN.md 3.3): fresh each time the page opens.
 export const useAway = () => useQuery({ queryKey: ["attendance", "away"], queryFn: () => api<AwayDays>("/attendance/away"), refetchOnMount: "always" });
 // Start the register (docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point at once.
