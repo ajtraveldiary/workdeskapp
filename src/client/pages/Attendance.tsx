@@ -720,7 +720,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                         ? "Off planned"
                         : d.holiday?.name;
                 tds.push(
-                  <td key={d.date} className={cx("border border-slate-300 p-0", info.holiday && "bg-slate-100", ch.long.has(k) && "outline outline-1 -outline-offset-1 outline-urgent")}>
+                  <td key={d.date} className={cx("h-px border border-slate-300 p-0", info.holiday && "bg-slate-100", ch.long.has(k) && "outline outline-1 -outline-offset-1 outline-urgent")}>
                     <button
                       type="button"
                       onPointerDown={(ev) => cellDown(ev, r, c)}
@@ -729,7 +729,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                       aria-pressed={on}
                       aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : info.assumed ? "duty, not marked" : "not marked"}`}
                       title={[cellDate(d.date), title, ch.long.has(k) && "more than 12 days in a row without an off"].filter(Boolean).join(" · ")}
-                      className={cx("no-tap relative flex h-8 w-full items-center justify-center overflow-hidden text-caption2 xl:text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
+                      className={cx("no-tap relative flex h-full min-h-8 w-full items-center justify-center overflow-hidden text-caption2 xl:text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
                     >
                       {info.mark && <span className={cx(MARK_TONE[info.mark], d.date > data.today && "opacity-55")}>{markShort(info.mark, d.holiday)}</span>}
                       {info.assumed && <span className="text-slate-300 print:text-slate-400">✓</span>}
