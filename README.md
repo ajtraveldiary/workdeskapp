@@ -132,7 +132,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   place, and a tap selects a cell (a swipe just scrolls). **CH**: work on a holiday earns a compensation leave; Mark CH asks which
   holiday each one is for and only offers holidays worked in the last 3 months, with each post's yearly limit
   (G.O. 43/2021). **Weekly-off staff**: 6 days of work earn an off; offs due (or the days of duty still needed for one) show by the name, and more than 12 days
-  in a row is flagged (and warned about before marking). An off given early is still marked, shown as taken early. Starting figures carry over a year already under way,
+  in a row is flagged (and warned about before marking). An off given early is still marked, shown as taken early. Starting figures carry over a year already under way (also from the register: tap a person's CL / CH, then Edit figures to enter CL and CH taken, CH still to take and, for weekly-off staff, offs owed, days carried and Day N as on the end of last month),
   entered in Settings or imported from a spreadsheet. Tap anyone's CL / CH cell for their figures; CH that must be
   taken within a week are listed above the register. The register stretches to fit the screen. The Summary button opens a summary of the month for each person; Print gives
   an A4 page with signature lines, and Download a spreadsheet of the month; `/markattendance` is a plain page for phones to mark one person's CL, CH or off for a

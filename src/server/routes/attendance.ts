@@ -19,7 +19,7 @@ import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ma
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { attendanceCorrections, attendanceMarks, attendanceSettings, plannedOffs, designations, employeeLeaves, employees, events, holidays, leaveTypes } from "../db/schema";
-import { attendanceChInput, attendanceClearInput, attendanceCorrectionInput, attendanceMarkInput, attendanceSettingsInput, attendanceStartInput, holidayInput, plannedOffInput, plannedOffMove } from "../../shared/schemas";
+import { attendanceChInput, attendanceClearInput, attendanceCorrectionInput, attendanceMarkInput, attendanceSettingsInput, attendanceStartInput, holidayInput, startFigures, plannedOffInput, plannedOffMove } from "../../shared/schemas";
 import {
   DEFAULT_ATTENDANCE_SETTINGS,
   MARK_NAME,
@@ -255,18 +255,21 @@ async function yearTotals(db: DB, userId: string, settings: AttendanceSettings, 
   const totals = new Map<string, { cl: number; ch: number }>();
   if (!ids.length) return totals;
   const rows = await db
-    .select({ employeeId: attendanceMarks.employeeId, mark: attendanceMarks.mark, n: sql<number>`count(*)::int` })
+    .select({ employeeId: attendanceMarks.employeeId, mark: attendanceMarks.mark, date: attendanceMarks.date })
     .from(attendanceMarks)
-    .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), gte(attendanceMarks.date, `${year}-01-01`), lte(attendanceMarks.date, `${year}-12-31`), inArray(attendanceMarks.mark, ["cl", "cl_half", "ch"])))
-    .groupBy(attendanceMarks.employeeId, attendanceMarks.mark);
+    .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), gte(attendanceMarks.date, `${year}-01-01`), lte(attendanceMarks.date, `${year}-12-31`), inArray(attendanceMarks.mark, ["cl", "cl_half", "ch"])));
+  // Starting figures in that year: their CL and CH taken (chTaken since 2026-11-09), then only marks after their
+  // date, so a mark already in the figures isn't counted twice.
   for (const id of ids) {
     const s = settings.start[id];
-    if (s && s.asOn.slice(0, 4) === year && s.clTaken) totals.set(id, { cl: s.clTaken, ch: 0 });
+    if (s && s.asOn.slice(0, 4) === year && (s.clTaken || s.chTaken)) totals.set(id, { cl: s.clTaken, ch: s.chTaken ?? 0 });
   }
   for (const r of rows) {
+    const s = settings.start[r.employeeId];
+    if (s && r.date <= s.asOn) continue;
     const t = totals.get(r.employeeId) ?? { cl: 0, ch: 0 };
-    if (r.mark === "ch") t.ch += Number(r.n);
-    else t.cl += clDays(r.mark) * Number(r.n);
+    if (r.mark === "ch") t.ch += 1;
+    else t.cl += clDays(r.mark);
     totals.set(r.employeeId, t);
   }
   return totals;
@@ -1038,6 +1041,29 @@ export const attendanceRoutes = new Hono<AppEnv>()
 
   // --- Settings ---
   .get("/settings", async (c) => c.json({ settings: await loadSettings(c.get("db"), c.get("userId")) }))
+  // One person's starting figures from the register's figures pop-up (Edit figures, 2026-11-09): as on a day (the end
+  // of last month to start), CL and CH already taken that year, the holidays worked with CH still to take, and for
+  // weekly-off staff the offs owed, the days carried towards the next and Day N. The register counts on from the
+  // day after. Stored in settings.start, as Settings › Attendance › Starting figures does; one History entry.
+  .put("/start/:employeeId", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const v = startFigures.parse(await c.req.json());
+    const [e] = await db.select().from(employees).where(and(eq(employees.userId, userId), eq(employees.id, c.req.param("employeeId"))));
+    if (!e) throw new HTTPException(404, { message: "Employee not found" });
+    const settings = await loadSettings(db, userId);
+    const weekly = e.offDay === "weekly";
+    const figures = { ...v, chOpen: v.chOpen.filter((x) => x.date), ...(weekly ? {} : { offsDue: 0, towards: 0, run: undefined }) };
+    const data = { ...settings, start: { ...settings.start, [e.id]: figures } };
+    await db.insert(attendanceSettings).values({ userId, data }).onConflictDoUpdate({ target: attendanceSettings.userId, set: { data, updatedAt: new Date() } });
+    await log(
+      db,
+      userId,
+      "attendance.start_figures",
+      `Attendance: figures of ${e.name} as on ${dayLabel(v.asOn)}: CL ${v.clTaken}, CH ${v.chTaken ?? 0} taken, ${figures.chOpen.length} CH to take${weekly ? `, ${v.offsDue} offs owed, ${v.towards} days carried, Day ${v.run ?? 0}` : ""}`,
+    );
+    return c.json({ ok: true });
+  })
   .put("/settings", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");

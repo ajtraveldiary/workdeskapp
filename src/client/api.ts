@@ -7,7 +7,7 @@ import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, Emai
 import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput, LeaveInput, LeaveLineInput, LeavePatch, LeaveSurrenderInput, LeaveTypeInput } from "../shared/schemas";
 import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, LeaveType } from "../shared/types";
 import type { AttendanceMonth, AwayDays, Holiday, OffsBoard, PersonDays } from "../shared/types";
-import type { AttendanceMark, AttendanceSettings } from "../shared/attendance";
+import type { AttendanceMark, AttendanceSettings, StartFigures } from "../shared/attendance";
 
 export class ApiError extends Error {
   constructor(
@@ -353,6 +353,8 @@ export function useAttendanceActions() {
     // Settings › Attendance › Clear all attendance (2026-11-03): marks, planned offs and corrections.
     clearAll: m((confirm: string) => api<{ marks: number; plans: number; corrections: number }>("/attendance/clear-all", { method: "POST", body: { confirm } })),
     saveSettings: m((body: AttendanceSettings) => api("/attendance/settings", { method: "PUT", body })),
+    // One person's starting figures, from the register's figures pop-up (Edit figures, 2026-11-09).
+    saveStart: m(({ employeeId, figures }: { employeeId: string; figures: StartFigures }) => api(`/attendance/start/${employeeId}`, { method: "PUT", body: figures })),
     // Correct the count (docs/ATTENDANCE_UX_PLAN.md 4.4) and its Undo.
     correct: m((body: { employeeId: string; offsDue: number; towards: number; run: number; note: string }) => api<{ id: string }>("/attendance/corrections", { method: "POST", body })),
     uncorrect: m((id: string) => api(`/attendance/corrections/${id}`, { method: "DELETE" })),

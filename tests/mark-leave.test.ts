@@ -9,7 +9,8 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
-import type { PersonDay, PersonDays } from "../src/shared/types";
+import type { AttendanceMonth, PersonDay, PersonDays } from "../src/shared/types";
+import type { AttendanceSettings } from "../src/shared/attendance";
 import { markWarnings, prefixSuffix, workingDays } from "../src/shared/markWarnings";
 
 const NAME = "2026-27 സാമ്പത്തിക വർഷത്തെ ജൂനിയർ ഹെൽത്ത് ഇൻസ്‌പെക്ടർ ശ്രീമതി അനിതാകുമാരി രാധാകൃഷ്ണൻ";
@@ -88,6 +89,34 @@ describe("Mark leave", () => {
     const task = ((await call("GET", "/tasks?view=any")).json.tasks as { id: string; checklist: { id: string; done: boolean }[] }[]).find((t) => t.id === r.json.taskId)!;
     expect(task.checklist.find((x) => x.id === "attendance")!.done).toBe(true);
     expect((await days(s)).days.find((d) => d.date === "2026-11-16")!.leave).toBe("EL");
+  });
+
+  it("Edit figures: a person's figures as on a day carry over, and marks up to that day aren't counted again", async () => {
+    const s = await add({ name: NAME });
+    const w = await add({ name: "Weekly", offDay: "weekly" });
+    // A CL and a CH in October, before the figures' date: the figures already hold them.
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: s, date: "2026-10-20" }], mark: "cl" });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: s, date: "2026-11-03" }], mark: "cl" });
+    const put = (id: string, body: unknown) => call("PUT", `/attendance/start/${id}`, body);
+    expect((await put(s, { asOn: "2026-10-31", clTaken: 5, chTaken: 2, chOpen: [{ date: "2026-10-02", name: "Gandhi Jayanthi" }], offsDue: 3, towards: 4, run: 9 })).status).toBe(200);
+    const nov = (await call("GET", "/attendance?month=2026-11")).json as AttendanceMonth;
+    // CL 5 from the figures + the November CL; the October one isn't counted again. CH 2.
+    expect(nov.totals.find((t) => t.employeeId === s)).toMatchObject({ cl: 6, ch: 2 });
+    expect(nov.chOpen.filter((o) => o.employeeId === s).map((o) => o.holiday)).toEqual(["2026-10-02"]);
+    // Sunday-off staff keep no weekly-off figures.
+    const saved = (await call("GET", "/attendance/settings")).json.settings as AttendanceSettings;
+    expect(saved.start[s]).toMatchObject({ offsDue: 0, towards: 0, chTaken: 2, chOpen: [{ date: "2026-10-02" }] });
+    expect(saved.start[s]!.run).toBeUndefined();
+    // Weekly-off staff: offs owed, days carried and Day N carry over.
+    await put(w, { asOn: "2026-10-31", clTaken: 0, chOpen: [], offsDue: 1, towards: 2, run: 8 });
+    const weekly = nov.weekly.find((x) => x.employeeId === w);
+    const again = ((await call("GET", "/attendance?month=2026-11")).json as AttendanceMonth).weekly.find((x) => x.employeeId === w)!;
+    expect(weekly === undefined || weekly.dueBefore !== 1).toBe(true);
+    expect([again.dueBefore, again.towardsBefore, again.runBefore]).toEqual([1, 2, 8]);
+    const history = ((await call("GET", "/history")).json.events as { summary: string }[]).map((e) => e.summary);
+    expect(history[0]).toBe("Attendance: figures of Weekly as on 31.10.2026: CL 0, CH 0 taken, 0 CH to take, 1 offs owed, 2 days carried, Day 8");
+    expect(history[1]).toContain(`figures of ${NAME} as on 31.10.2026: CL 5, CH 2 taken, 1 CH to take`);
+    expect((await put("00000000-0000-4000-8000-000000000000", { asOn: "2026-10-31" })).status).toBe(404);
   });
 
   // A made-up person for the warnings: days from Mon 2 Nov 2026.

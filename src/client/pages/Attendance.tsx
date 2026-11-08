@@ -32,16 +32,16 @@
 // lists the CH to take within a week, in place of ChDueSoon there). Only the register since 2026-11-03 (user request,
 // "remove off and today pages, show only register"): no tabs, on every screen size (it scrolls sideways on phones,
 // the name and CL / CH columns staying put); Mark for someone stays beside the toolbar (the + button on phones).
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { AlertTriangle, CalendarClock, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Eraser, KeyRound, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Eraser, KeyRound, Pencil, Plus, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
-import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chExpires, chFits, clDays, go303Breaks, markName, markShort, nextToLeave, notEligible, onDuty, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chExpires, chFits, clDays, go303Breaks, markName, markShort, nextToLeave, notEligible, onDuty, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type StartFigures, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
 import { saveFile } from "../saveFile";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
-import { useAttendance, useAttendanceActions, useMe, useOfficeProfile, type AttendanceCell } from "../api";
+import { useAttendance, useAttendanceActions, useAttendanceSettings, useMe, useOfficeProfile, type AttendanceCell } from "../api";
 import { HolidayWorkedForm } from "../components/HolidayWorked";
 import { openPersonDays } from "../components/PersonDays";
 import { openMarkLeave } from "../components/MarkLeave";
@@ -325,6 +325,9 @@ function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data
   const open = (id && lookups.open.get(id)) || [];
   const w = id ? lookups.weekly.get(id) : undefined;
   const limit = id ? lookups.limit.get(id) : null;
+  // Edit figures (2026-11-09): the figures to carry over, as on a day; closing the pop-up leaves the form.
+  const [editing, setEditing] = useState(false);
+  useEffect(() => setEditing(false), [id]);
   const row = (label: string, value: string, bad?: boolean) => (
     <div className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
       <span className="text-slate-600">{label}</span>
@@ -332,8 +335,9 @@ function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data
     </div>
   );
   return (
-    <Modal open={!!e} onClose={onClose} title={e?.name ?? "Figures"} closeOnBackdrop>
-      {e && (
+    <Modal open={!!e} onClose={onClose} title={e?.name ?? "Figures"} closeOnBackdrop={!editing}>
+      {e && editing && <FiguresForm e={e} data={data} onDone={() => setEditing(false)} />}
+      {e && !editing && (
         <div className="divide-y divide-line">
           {row(`Casual leave in ${data.month.slice(0, 4)}`, `${t.cl} of ${data.settings.clPerYear}`, t.cl > data.settings.clPerYear)}
           {row(`Compensation leave in ${data.month.slice(0, 4)}`, `${t.ch}${limit == null ? " (no limit for this post)" : ` of ${limit}`}`, limit != null && t.ch > limit)}
@@ -362,6 +366,9 @@ function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data
           )}
           {/* 2026-11-08: Person days lost its own toolbar button to Mark leave, so a person's figures open both. */}
           <div className="flex flex-wrap justify-end gap-2 pt-3">
+            <Button size="sm" variant="ghost" onClick={() => setEditing(true)} className="mr-auto">
+              <Pencil size={15} /> Edit figures
+            </Button>
             <Button size="sm" onClick={() => (onClose(), openPersonDays(e.id))}>
               Mark days
             </Button>
@@ -372,6 +379,95 @@ function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data
         </div>
       )}
     </Modal>
+  );
+}
+
+// Edit figures (user request 2026-11-09, "add an edit option here so that details from last month can carry over,
+// for first time entering the details"): the person's starting figures as on the end of a day (the end of the month
+// before the one shown, to start); the register counts on from the next day. Everyone: CL and CH already taken that
+// year and the holidays worked whose CH is still to take (each needs its date: a CH is taken within 3 months of the
+// holiday). Weekly-off staff also: offs owed, days of duty carried towards the next off (the days still needed are
+// worked out from them) and Day N. Saved by PUT /attendance/start/:employeeId (settings.start, History).
+function FiguresForm({ e, data, onDone }: { e: Person; data: AttendanceMonth; onDone: () => void }) {
+  const settings = useAttendanceSettings().data?.settings;
+  const { saveStart } = useAttendanceActions();
+  const weekly = e.offDay === "weekly";
+  const every = data.settings.offEvery;
+  const lastMonthEnd = addDays(`${data.month}-01`, -1);
+  const [f, setF] = useState<StartFigures | null>(null);
+  useEffect(() => {
+    if (settings && !f) setF(settings.start[e.id] ?? { asOn: lastMonthEnd, clTaken: 0, chTaken: 0, chOpen: [], offsDue: 0, towards: 0, run: 0 });
+  }, [settings, f, e.id, lastMonthEnd]);
+  if (!f) return <SkeletonList rows={3} />;
+  const num = (v: string) => (v.trim() === "" ? 0 : Number(v));
+  const year = f.asOn.slice(0, 4);
+  const needed = dutyForOff(f.offsDue, f.towards, every);
+  const label = "block text-footnote font-medium text-slate-600";
+  const field = (text: string, input: ReactNode, hint?: string) => (
+    <label className="block space-y-1">
+      <span className={label}>{text}</span>
+      {input}
+      {hint && <span className="block text-caption text-slate-500">{hint}</span>}
+    </label>
+  );
+  const submit = (ev: FormEvent) => {
+    ev.preventDefault();
+    saveStart.mutate(
+      { employeeId: e.id, figures: { ...f, chOpen: f.chOpen.filter((c) => c.date), ...(weekly ? {} : { offsDue: 0, towards: 0, run: 0 }) } },
+      { onSuccess: () => (showUndo({ message: `Figures saved for ${e.name}` }), onDone()) },
+    );
+  };
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-slate-600">What they had already, as on the end of a day. The register counts on from the next day, so marks after it are added and marks up to it are not counted again.</p>
+      {field("Figures as on (end of the day)", <input type="date" required className={inputClass} value={f.asOn} onChange={(ev) => setF({ ...f, asOn: ev.target.value })} />, `To carry over from last month, use its last day (${dayLabel(lastMonthEnd)}).`)}
+      <div className="grid gap-3 min-[420px]:grid-cols-2">
+        {field(`Casual leave taken in ${year} (days)`, <input type="number" inputMode="decimal" min={0} max={60} step={0.5} className={inputClass} value={f.clTaken} onChange={(ev) => setF({ ...f, clTaken: num(ev.target.value) })} />, "Half days as .5")}
+        {field(`Compensation leave taken in ${year} (days)`, <input type="number" inputMode="numeric" min={0} max={366} step={1} className={inputClass} value={f.chTaken ?? 0} onChange={(ev) => setF({ ...f, chTaken: num(ev.target.value) })} />)}
+      </div>
+      <div className="space-y-1">
+        <span className={label}>Compensation leave still to take: {f.chOpen.length === 0 ? "none" : f.chOpen.length}</span>
+        <span className="block text-caption text-slate-500">One line for each holiday worked whose CH isn't taken yet. Its date is needed: a CH is taken within 3 months of the holiday.</span>
+        <ul className="space-y-2">
+          {f.chOpen.map((c, i) => (
+            <li key={i} className="flex flex-wrap items-center gap-2">
+              <input type="date" className={cx(inputClass, "w-auto")} value={c.date} onChange={(ev) => setF({ ...f, chOpen: f.chOpen.map((x, j) => (j === i ? { ...x, date: ev.target.value } : x)) })} aria-label="Date of the holiday worked" />
+              <input className={cx(inputClass, "min-w-0 flex-1 basis-32")} value={c.name} onChange={(ev) => setF({ ...f, chOpen: f.chOpen.map((x, j) => (j === i ? { ...x, name: ev.target.value } : x)) })} maxLength={100} placeholder="Holiday, e.g. Onam" aria-label="Name of the holiday" />
+              <button type="button" onClick={() => setF({ ...f, chOpen: f.chOpen.filter((_, j) => j !== i) })} aria-label="Remove this holiday" className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 active:scale-90">
+                <X size={16} />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setF({ ...f, chOpen: [...f.chOpen, { date: "", name: "" }] })}>
+          <Plus size={15} /> Add a holiday worked
+        </Button>
+      </div>
+      {weekly && (
+        <fieldset className="space-y-3 rounded-lg border border-line px-3 pt-1 pb-3">
+          <legend className="px-1 text-sm font-medium text-ink">Weekly off</legend>
+          <div className="grid gap-3 min-[420px]:grid-cols-2">
+            {field("Weekly offs owed (earned, not yet taken)", <input type="number" inputMode="numeric" min={-30} max={60} step={1} className={inputClass} value={f.offsDue} onChange={(ev) => setF({ ...f, offsDue: num(ev.target.value) })} />, "Below 0 for offs taken early")}
+            {field(`Days of duty already counted towards the next off (0–${every - 1})`, <input type="number" inputMode="numeric" min={0} max={every - 1} step={1} className={inputClass} value={f.towards} onChange={(ev) => setF({ ...f, towards: Math.min(every - 1, num(ev.target.value)) })} />)}
+            {field("Days of duty in a row without an off (Day N)", <input type="number" inputMode="numeric" min={0} max={366} step={1} className={inputClass} value={f.run ?? 0} onChange={(ev) => setF({ ...f, run: num(ev.target.value) })} />, `At most ${data.settings.maxRun}`)}
+            <div className="space-y-1">
+              <span className={label}>Days of duty still needed for the next off</span>
+              <p className="flex h-10 items-center rounded-lg bg-slate-50 px-3 text-sm text-ink tabular-nums">{f.offsDue >= 1 ? "None: an off is owed" : needed}</p>
+              <span className="block text-caption text-slate-500">Worked out from the two figures before it ({every} days of duty earn an off).</span>
+            </div>
+          </div>
+        </fieldset>
+      )}
+      <ErrorNote error={saveStart.error} />
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button type="submit" variant="primary" disabled={saveStart.isPending}>
+          <Check size={15} /> Save figures
+        </Button>
+      </div>
+    </form>
   );
 }
 

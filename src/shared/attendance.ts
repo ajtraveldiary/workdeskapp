@@ -141,7 +141,8 @@ export const chFits = (o: { holiday: string; expires: string }, date: string) =>
 // towards the next one.
 // Start the register (2026-11-02): `run` the days of duty in a row as on that date, and `lastOff` the day of the last
 // off they were worked out from (kept to show and to export).
-export type StartFigures = { asOn: string; clTaken: number; chOpen: { date: string; name: string }[]; offsDue: number; towards: number; run?: number; lastOff?: string | null };
+// chTaken (2026-11-09, the register's Edit figures): CH already taken that year, added to the year's CH like clTaken.
+export type StartFigures = { asOn: string; clTaken: number; chTaken?: number; chOpen: { date: string; name: string }[]; offsDue: number; towards: number; run?: number; lastOff?: string | null };
 // Figures from the last off (Start the register, docs/ATTENDANCE_UX_PLAN.md 4.5): every day after it up to asOn counts
 // as duty, so 13 days since the last off is Day 13 with 2 offs owed and 1 day towards the next; `extra` offs owed
 // from before are added.

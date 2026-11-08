@@ -471,9 +471,11 @@ export const attendanceMarkInput = z.object({
 export const attendanceClearInput = z.object({ cells: attendanceCells });
 export const holidayInput = z.object({ date: day, name: z.string().trim().max(100).default("") });
 // Starting figures (phase 2): from before the register was kept, per employee.
-const startFigures = z.object({
+export const startFigures = z.object({
   asOn: day,
   clTaken: z.number().min(0).max(60).multipleOf(0.5, "Use whole or half days").default(0),
+  // CH already taken that year (2026-11-09, the register's Edit figures).
+  chTaken: z.number().int().min(0).max(366).optional(),
   chOpen: z.array(z.object({ date: day, name: z.string().trim().max(100).default("") })).max(30).default([]),
   offsDue: z.number().int().min(-30).max(60).default(0),
   towards: z.number().int().min(0).max(12).default(0),
