@@ -366,6 +366,9 @@ export function useAttendanceActions() {
 // Under "attendance", so every mark refreshes it.
 export const usePersonDays = (id: string | null, month: string) =>
   useQuery({ queryKey: ["attendance", "person", id, "month", month], queryFn: () => api<PersonDays>(`/attendance/person/${id}?month=${month}`), enabled: !!id });
+// The Mark leave pop-up (docs/ATTENDANCE_MARK_LEAVE_PLAN.md): one person's days from the Monday of `from` to `until`.
+export const usePersonWindow = (id: string | null, from: string, until: string) =>
+  useQuery({ queryKey: ["attendance", "person", id, "window", from, until], queryFn: () => api<PersonDays>(`/attendance/person/${id}?from=${from}&until=${until}`), enabled: !!id, placeholderData: (prev) => (prev?.employee.id === id ? prev : undefined) });
 // Away today and tomorrow (docs/ATTENDANCE_ASSIST_PLAN.md 3.3): fresh each time the page opens.
 export const useAway = () => useQuery({ queryKey: ["attendance", "away"], queryFn: () => api<AwayDays>("/attendance/away"), refetchOnMount: "always" });
 // Start the register (docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point at once.

@@ -1,0 +1,9 @@
+{
+  "enabledPlugins": {
+    "replay-theater@claude-code-playground-mods": true,
+    "reflect-mod@claude-reflect-marketplace": true,
+    "blast-radius@claude-code-playground-mods": false,
+    "filetree@claude-code-filetree": true,
+    "savvy-progress@claude-kit": true
+  }
+}

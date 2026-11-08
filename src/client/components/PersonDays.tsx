@@ -13,7 +13,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { PersonDay, PersonDays as Data } from "../../shared/types";
-import { CL_RUN_MAX, MARK_NAME, MARK_SHORT, awayDay, chExpires, chFits, clDays, go303Breaks, inAttendance, markName, markShort, monthLabel, nextToLeave, shiftMonth, notEligible, offStatus, offTakeBy, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
+import { MARK_NAME, chExpires, chFits, inAttendance, markName, markShort, monthLabel, shiftMonth, offStatus, offTakeBy, type AttendanceMark } from "../../shared/attendance";
+import { markWarnings } from "../../shared/markWarnings";
 import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendanceActions, useAttendanceSettings, useMe, usePersonDays, useStaff } from "../api";
@@ -111,7 +112,7 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
   const [odNote, setOdNote] = useState("");
   const { mark, clear, markCh } = useAttendanceActions();
   useEffect(() => setSelected(new Set()), [month]);
-  const warn = useMemo(() => (data ? warnings(data, selected) : null), [data, selected]);
+  const warn = useMemo(() => (data ? markWarnings(data, selected) : null), [data, selected]);
   if (error) return <ErrorNote error={error} />;
   if (!data) return <Loading />;
   const e = data.employee;
@@ -166,7 +167,7 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
   const allHoliday = chosen.length > 0 && chosen.every((d) => d.holiday);
   const busy = mark.isPending || clear.isPending || markCh.isPending;
   const button = (m: Markable | "ch" | "clear", label: string) => {
-    const w = warn?.[m];
+    const w = warn?.[m]?.map((x) => x.short).join(" · ");
     // Holidays take duty, OD or the holiday taken; the holiday taken needs every chosen day to be a holiday of the
     // register (a Sunday-off person's Sunday isn't one).
     const disabled =
@@ -353,90 +354,6 @@ function DayCell({ d, today, on, dim, onTap }: { d: PersonDay; today: string; on
       </span>
     </button>
   );
-}
-
-// What each mark would cause for the chosen days, said on its button before it is tapped (nothing is blocked).
-function warnings(data: Data, selected: Set<string>) {
-  const out: Partial<Record<Markable | "ch" | "clear", string>> = {};
-  const chosen = data.days.filter((d) => selected.has(d.date) && !d.out && !d.leave);
-  const working = chosen.filter((d) => !d.holiday);
-  if (!working.length) return out;
-  const w = data.weekly;
-  // G.O.(Ms) 303/82/HSD: CL, CH and offs together for a week or more count nothing (as the server counts).
-  const states = (as?: AttendanceMark): WeeklyDay[] =>
-    notEligible(
-      statesOf(as),
-      data.days.map((d) => {
-        if (d.out || d.leave) return { date: d.date, mark: null };
-        const m = as && selected.has(d.date) && !d.holiday ? as : d.mark;
-        return { date: d.date, mark: m, holiday: !!d.holiday && !m };
-      }),
-    );
-  const statesOf = (as?: AttendanceMark): WeeklyDay[] =>
-    data.days.map((d) => {
-      if (d.out || (w?.countFrom && d.date < w.countFrom)) return { date: d.date, state: "skip" as const };
-      if (d.leave) return { date: d.date, state: "reset" as const };
-      const m = as && selected.has(d.date) && !d.holiday ? as : d.mark;
-      const state: WeeklyDay["state"] =
-        m === "off" ? "off" : m === "absent" ? "reset" : m ? "count" : d.holiday ? "count" : data.settings.assumeDuty && w?.countFrom && d.date < data.today ? "count" : "skip";
-      return { date: d.date, state };
-    });
-  if (w && data.employee.offDay === "weekly") {
-    // An off before it is earned.
-    const asked: OffCheckDay[] = states().map((s) => (working.some((d) => d.date === s.date) && data.days.find((d) => d.date === s.date)?.mark !== "off" ? { ...s, state: "off", asked: true, was: s.state } : s));
-    const early = [...offsEarned(asked, { offsDue: w.dueBefore, towards: w.towardsBefore }, data.settings).refused];
-    if (early.length) out.off = early.length === 1 ? `${plural(early[0]![1], "day")} early` : `${early.length} taken early`;
-    // Past the most days in a row.
-    const before = new Set(weeklyOff(states(), undefined, data.settings, w.runBefore).long);
-    for (const m of ["present", "cl", "cl_half"] as Markable[]) {
-      const added = weeklyOff(states(m), undefined, data.settings, w.runBefore).long.filter((x) => !before.has(x));
-      if (added.length) out[m] = `past ${data.settings.maxRun} days in a row`;
-    }
-  }
-  // CL past the year's days (half days ½; days already CL don't count twice).
-  for (const m of ["cl", "cl_half"] as Markable[]) {
-    const add = working.reduce((n, d) => n + clDays(m) - clDays(d.mark), 0);
-    if (data.cl + add > data.settings.clPerYear) out[m] = `${data.cl + add} of ${data.settings.clPerYear} CL`;
-  }
-  // CL / CH with the holidays around them past 15 days in a row (KSR Appendix VII).
-  for (const m of ["cl", "ch"] as const) {
-    let len = data.edges.before;
-    let best = 0;
-    let touches = false;
-    for (const d of data.days) {
-      const away = d.out || d.leave ? false : selected.has(d.date) && !d.holiday ? true : awayDay(d.mark, !!d.holiday);
-      if (away) {
-        len++;
-        touches ||= selected.has(d.date);
-        if (touches) best = Math.max(best, len);
-      } else {
-        len = 0;
-        touches = false;
-      }
-    }
-    if (touches && len > 0) best = Math.max(best, len + data.edges.after);
-    if (best > CL_RUN_MAX) out[m] = `${best} days away in a row`;
-  }
-  // CH needs a holiday worked open for each day.
-  const lacking = working.filter((d) => !data.chOpen.some((o) => chFits(o, d.date)));
-  if (lacking.length) out.ch = lacking.length === working.length ? "no holiday worked open" : `none open for ${lacking.length}`;
-  // CL and CH not combined with regular leave (KSR Appendix VII rule 6; G.O.(Ms) 43/2021).
-  const touching = nextToLeave(
-    data.days.map((d) => ({ date: d.date, leave: !!d.leave, holiday: !!d.holiday && !d.mark })),
-    new Set(working.map((d) => d.date)),
-  );
-  if (touching.length)
-    for (const m of ["cl", "cl_half", "ch"] as const) out[m] = [out[m], "next to leave"].filter(Boolean).join(" · ");
-  // G.O.(Ms) 303/82/HSD: no off after a week away on CL, CH and offs; not CL, CH and an off all in one week.
-  const marked: MarkDay[] = data.days.map((d) => ({ date: d.date, mark: d.out || d.leave ? null : d.mark, holiday: !d.out && !d.leave && !d.mark && !!d.holiday }));
-  const dates = new Set(working.map((d) => d.date));
-  for (const m of ["off", "cl", "cl_half", "ch"] as const) {
-    if (m === "off" && data.employee.offDay !== "weekly") continue;
-    const b = go303Breaks(marked, dates, m);
-    const said = [out[m], b.offInLongAway.length ? "no off after a week away" : null, b.threeInWeek.length ? "CL, CH and off in one week" : null].filter(Boolean);
-    if (said.length) out[m] = said.join(" · ");
-  }
-  return out;
 }
 
 // CH for the chosen days: each day gets one of the holidays worked still open on it (oldest first, each once).

@@ -28,6 +28,11 @@ describe("attendance register", () => {
   const month = async (m: string) => (await call("GET", `/attendance?month=${m}`)).json as AttendanceMonth;
   const add = async (body: Record<string, unknown>) => (await call("POST", "/staff/employees", body)).json.id as string;
   const history = async () => ((await call("GET", "/history")).json.events as AuditEvent[]).map((e) => e.summary);
+  // Second Saturdays not holidays, for tests that mark today whatever day it is.
+  const noSecondSaturdays = async () => {
+    const saved = (await call("GET", "/attendance/settings")).json.settings as AttendanceSettings;
+    await call("PUT", "/attendance/settings", { ...saved, secondSaturday: false });
+  };
   const markOf = (m: AttendanceMonth, id: string, date: string) => m.marks.find((x) => x.employeeId === id && x.date === date)?.mark;
 
   beforeEach(async () => {
@@ -589,8 +594,11 @@ describe("attendance register", () => {
 
   it("away today and tomorrow: offs, CL, CH, absences, leave and planned offs", async () => {
     const w = await add({ name: NAME, offDay: "weekly" });
-    const s = await add({ name: "Biju" });
+    // Weekly off, and no second Saturdays, so the test works whatever day it runs: a Sunday-off person's Sunday or a
+    // second Saturday takes no CL (2026-11-08: it failed on Sundays).
+    const s = await add({ name: "Biju", offDay: "weekly" });
     const x = await add({ name: "Nobody away" });
+    await noSecondSaturdays();
     const today = (await call("GET", "/me")).json.today as string;
     const shift = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
     await call("POST", "/attendance/mark", { cells: [{ employeeId: w, date: today }], mark: "off" });
@@ -710,7 +718,9 @@ describe("attendance register", () => {
   it("who is in the register: people left out and temporary staff hidden leave the month, the Offs board and the away lists", async () => {
     const a = await add({ name: NAME, offDay: "weekly" });
     const b = await add({ name: "Biju", offDay: "weekly" });
-    const t = await add({ name: "Daily wage", permanent: false });
+    // Weekly off, and no second Saturdays, so today's CL is marked whatever day it runs (2026-11-08: failed on Sundays).
+    const t = await add({ name: "Daily wage", permanent: false, offDay: "weekly" });
+    await noSecondSaturdays();
     const today = (await call("GET", "/me")).json.today as string;
     await call("POST", "/attendance/mark", { cells: [a, b, t].map((employeeId) => ({ employeeId, date: today })), mark: "cl" });
     const names = async () => (await month(today.slice(0, 7))).employees.map((e) => e.name).sort();

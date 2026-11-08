@@ -136,7 +136,11 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   entered in Settings or imported from a spreadsheet. Tap anyone's CL / CH cell for their figures; CH that must be
   taken within a week are listed above the register. The register stretches to fit the screen. The Summary button opens a summary of the month for each person; Print gives
   an A4 page with signature lines, and Download a spreadsheet of the month; `/markattendance` is a plain page for phones to mark one person's CL, CH or off for a
-  day or a range, and each employee's page shows their month so far.
+  day or a range, and each employee's page shows their month so far. **Mark leave** (the register's main button, and + on
+  phones) is the quick way to enter what someone said on the phone: pick the employee, CL, half-day CL, CH, Off, OD or
+  Absent, the first day and the number of days (or the last day). It lists the working days it will mark (holidays and
+  Sundays skipped), the days it replaces, and every rule the marks would break, with the rule's G.O. or KSR rule,
+  before you save; nothing is blocked, and Undo puts the days back.
 - **Weekly offs:** each weekly-off person's offs owed (or the days of duty still needed for one) and "Day N" show
   by their name in the register, and the morning notification says who needs an off. Attendance stays on its own
   page: Home's Due Today shows none of it. **A day left blank is never duty**: it means the person wasn't in the

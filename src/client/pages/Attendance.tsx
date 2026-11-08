@@ -44,6 +44,7 @@ import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendance, useAttendanceActions, useMe, useOfficeProfile, type AttendanceCell } from "../api";
 import { HolidayWorkedForm } from "../components/HolidayWorked";
 import { openPersonDays } from "../components/PersonDays";
+import { openMarkLeave } from "../components/MarkLeave";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
 import { Button, Card, ErrorNote, Fab, Modal, SkeletonList, cx, inputClass } from "../components/ui";
@@ -134,12 +135,13 @@ export function AttendancePage() {
   useEffect(() => setSelected(new Set()), [month]);
   // The month's summary, in a pop-up opened by Summary.
   const [summary, setSummary] = useState(false);
-  // Mark for someone (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): Person days after asking who; a button in the toolbar on
-  // wider screens, the round + button on phones.
+  // Mark leave (docs/ATTENDANCE_MARK_LEAVE_PLAN.md, 2026-11-08, replacing Mark for someone): the pop-up for what an
+  // employee said; a button in the toolbar on wider screens, the round + button on phones. Person days stays reachable
+  // from the pop-up ("Open their month") and from a person's figures (Mark days).
   return (
     <>
       <h1 className="sr-only">Attendance register</h1>
-      <Fab label="Mark for someone" onClick={() => openPersonDays()} />
+      <Fab label="Mark leave" onClick={() => openMarkLeave()} />
       <div className="mb-2 flex flex-wrap items-center gap-1 print:hidden">
         <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 active:scale-90">
           <ChevronLeft size={18} />
@@ -175,8 +177,8 @@ export function AttendancePage() {
             Holidays
           </Link>
           {wide && (
-            <Button size="sm" variant="primary" onClick={() => openPersonDays()}>
-              <CalendarPlus size={15} /> Mark for someone
+            <Button size="sm" variant="primary" onClick={() => openMarkLeave()}>
+              <CalendarPlus size={15} /> Mark leave
             </Button>
           )}
         </span>
@@ -322,6 +324,15 @@ function DetailsDialog({ id, data, lookups, onClose }: { id: string | null; data
               {row("Day N (days of duty in a row)", `Day ${w.run} (at most ${data.settings.maxRun})`, w.run > data.settings.maxRun)}
             </>
           )}
+          {/* 2026-11-08: Person days lost its own toolbar button to Mark leave, so a person's figures open both. */}
+          <div className="flex flex-wrap justify-end gap-2 pt-3">
+            <Button size="sm" onClick={() => (onClose(), openPersonDays(e.id))}>
+              Mark days
+            </Button>
+            <Button size="sm" variant="primary" onClick={() => (onClose(), openMarkLeave(e.id))}>
+              Mark leave
+            </Button>
+          </div>
         </div>
       )}
     </Modal>

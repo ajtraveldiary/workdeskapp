@@ -850,7 +850,10 @@ export const attendanceRoutes = new Hono<AppEnv>()
     const asked = /^\d{4}-\d{2}-\d{2}$/.test(c.req.query("from") ?? "") ? c.req.query("from")! : today;
     const month = /^\d{4}-\d{2}$/.test(c.req.query("month") ?? "") ? c.req.query("month")! : null;
     const from = mondayOf(month ? `${month}-01` : asked);
-    const to = month ? shiftDate(mondayOf(monthDays(month).at(-1)!), 6) : shiftDate(from, 20);
+    // `until` (Mark leave pop-up, docs/ATTENDANCE_MARK_LEAVE_PLAN.md): with `from`, the days run on to it (at most 70
+    // days from the Monday), so a CL of several working days fits in one answer.
+    const until = !month && /^\d{4}-\d{2}-\d{2}$/.test(c.req.query("until") ?? "") ? c.req.query("until")! : null;
+    const to = month ? shiftDate(mondayOf(monthDays(month).at(-1)!), 6) : until && until > shiftDate(from, 20) ? (until < shiftDate(from, 69) ? until : shiftDate(from, 69)) : shiftDate(from, 20);
     const [row] = await db
       .select({ e: employees, designation: designations.name })
       .from(employees)
