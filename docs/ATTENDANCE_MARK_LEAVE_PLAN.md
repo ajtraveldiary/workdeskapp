@@ -1,7 +1,10 @@
 # Attendance: one "Mark leave" pop-up and a cleaner register — plan
 
-Status: **phase 1 built** (2026-11-08, "Yes, start Phase 1"; the questions in section 7 not answered yet, so the
-From date starts on tomorrow from 4 pm and the morning notification is unchanged). Phases 2 and 3 not built. Follows `docs/ATTENDANCE_PLAN.md`, `docs/ATTENDANCE_UX_PLAN.md`,
+Status: **all three phases built** (2026-11-08: phase 1 on "Yes, start Phase 1", phases 2 and 3 on "go for remaining
+phase"; the questions in section 7 were not answered, so every point of section 4 was built, the From date starts on
+tomorrow from 4 pm and the morning notification is unchanged). Differences from the plan: register marks inside a new
+leave are cleared by the app through `/attendance/clear` after the leave is saved (no `clearMarks` on the leave route);
+leave days are whole days in the pop-up (half days on the Leave page); the leave band is a darker grey than holidays. Follows `docs/ATTENDANCE_PLAN.md`, `docs/ATTENDANCE_UX_PLAN.md`,
 `docs/ATTENDANCE_ASSIST_PLAN.md` (the register, rules, Person days) and `docs/LEAVE_PLAN.md` (leave accounts, marking
 leave). Items that change committed behaviour are marked **(changes committed: …)** and are covered by the user's
 answers below unless marked **(needs a yes)**.

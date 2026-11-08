@@ -33,8 +33,8 @@
 // "remove off and today pages, show only register"): no tabs, on every screen size (it scrolls sideways on phones,
 // the name and CL / CH columns staying put); Mark for someone stays beside the toolbar (the + button on phones).
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { Link, useSearchParams } from "react-router";
-import { CalendarClock, CalendarPlus, Check, ChevronLeft, ChevronRight, ClipboardCheck, Download, Eraser, Printer, Sigma, X } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router";
+import { AlertTriangle, CalendarClock, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Eraser, KeyRound, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
 import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chExpires, chFits, clDays, go303Breaks, markName, markShort, nextToLeave, notEligible, onDuty, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
@@ -45,9 +45,10 @@ import { useAttendance, useAttendanceActions, useMe, useOfficeProfile, type Atte
 import { HolidayWorkedForm } from "../components/HolidayWorked";
 import { openPersonDays } from "../components/PersonDays";
 import { openMarkLeave } from "../components/MarkLeave";
+import { LEAVE_BAND, MARK_COLOR, MARK_KEY } from "../markColors";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
-import { Button, Card, ErrorNote, Fab, Modal, SkeletonList, cx, inputClass } from "../components/ui";
+import { Button, Card, ErrorNote, Fab, Menu, Modal, SkeletonList, cx, inputClass } from "../components/ui";
 
 type Person = AttendanceMonth["employees"][number];
 type Markable = Exclude<AttendanceMark, "ch">;
@@ -58,16 +59,8 @@ const unkey = (k: string): AttendanceCell => {
   const [employeeId, date] = k.split("|") as [string, string];
   return { employeeId, date };
 };
-const MARK_TONE: Record<AttendanceMark, string> = {
-  present: "font-semibold text-low-ink",
-  off: "font-medium text-slate-500",
-  cl: "font-semibold text-high-ink",
-  cl_half: "font-semibold text-high-ink",
-  ch: "font-semibold text-info-ink",
-  absent: "font-bold text-urgent-ink",
-  od: "font-semibold text-low-ink",
-  holiday: "font-medium text-slate-500",
-};
+// One colour per kind of mark, shared with Person days and the Mark leave pop-up (markColors.ts, 2026-11-08).
+const MARK_TONE = MARK_COLOR;
 const WIDE = "(min-width: 768px)";
 // The register's set columns (the day columns share what is left): Sl · Name and CL / CH, wider on bigger screens;
 // TOTALS_LEFT keeps the CL / CH column beside the name while the table scrolls sideways.
@@ -135,6 +128,9 @@ export function AttendancePage() {
   useEffect(() => setSelected(new Set()), [month]);
   // The month's summary, in a pop-up opened by Summary.
   const [summary, setSummary] = useState(false);
+  // The key to the marks, in a pop-up (phase 3; printed under the register instead).
+  const [keyOpen, setKey] = useState(false);
+  const navigate = useNavigate();
   // Mark leave (docs/ATTENDANCE_MARK_LEAVE_PLAN.md, 2026-11-08, replacing Mark for someone): the pop-up for what an
   // employee said; a button in the toolbar on wider screens, the round + button on phones. Person days stays reachable
   // from the pop-up ("Open their month") and from a person's figures (Mark days).
@@ -155,32 +151,28 @@ export function AttendancePage() {
             This month
           </Button>
         )}
+        {/* The register cleaned up (2026-11-08, docs/ATTENDANCE_MARK_LEAVE_PLAN.md phase 3): Mark leave, then Key, refresh
+            and one menu for Summary, Download, Print and Holidays. */}
         <span className="ml-auto flex flex-wrap items-center gap-1">
-          {data && data.employees.length > 0 && (
-            <>
-              <Button size="sm" variant="ghost" aria-haspopup="dialog" onClick={() => setSummary(true)} title="Show the month's summary" aria-label="Summary">
-                <Sigma size={15} /> <span className="hidden sm:inline">Summary</span>
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => downloadMonth(data)} aria-label="Download the month as a CSV file">
-                <Download size={15} /> <span className="hidden sm:inline">Download</span>
-              </Button>
-              {/* Printing is for the register's page (computers). */}
-              {wide && (
-                <Button size="sm" variant="ghost" onClick={() => window.print()} aria-label="Print the month">
-                  <Printer size={15} /> Print
-                </Button>
-              )}
-            </>
-          )}
-          <RefreshButton keys={[["attendance"]]} label="Refresh the register" />
-          <Link to="/settings#attendance" className="hidden h-8 items-center rounded-lg px-3 text-footnote font-medium text-brand-700 hover:bg-slate-50 sm:inline-flex">
-            Holidays
-          </Link>
           {wide && (
             <Button size="sm" variant="primary" onClick={() => openMarkLeave()}>
               <CalendarPlus size={15} /> Mark leave
             </Button>
           )}
+          <Button size="sm" variant="ghost" aria-haspopup="dialog" onClick={() => setKey(true)} aria-label="Key to the marks">
+            <KeyRound size={15} /> <span className="hidden sm:inline">Key</span>
+          </Button>
+          <RefreshButton keys={[["attendance"]]} label="Refresh the register" />
+          <Menu
+            label="Summary, download, print and holidays"
+            items={[
+              { label: "Summary", onClick: () => setSummary(true), hidden: !data || data.employees.length === 0 },
+              { label: "Download (CSV)", onClick: () => data && downloadMonth(data), hidden: !data || data.employees.length === 0 },
+              // Printing is for the register's page (computers).
+              { label: "Print", onClick: () => window.print(), hidden: !wide || !data || data.employees.length === 0 },
+              { label: "Holidays", onClick: () => navigate("/settings#attendance") },
+            ]}
+          />
         </span>
       </div>
       <ErrorNote error={error} />
@@ -200,6 +192,9 @@ export function AttendancePage() {
           </div>
         </>
       )}
+      <Modal open={keyOpen} onClose={() => setKey(false)} title="Key to the marks" closeOnBackdrop>
+        <MarkKey />
+      </Modal>
       {data && (
         <Modal open={summary} onClose={() => setSummary(false)} title={`Summary for ${monthLabel(data.month)}`} wide closeOnBackdrop>
           <MonthSummary data={data} bare />
@@ -238,13 +233,10 @@ function useChLookups(data: AttendanceMonth) {
 }
 type Lookups = ReturnType<typeof useChLookups>;
 
-// CL and CH this year, the CH still to take (+n, red when one must be taken within a week) and, for weekly-off
-// staff, the offs due ("Off 1"), or the days of duty still needed for one ("Off in 4").
-// Tapping it opens the person's figures (DetailsDialog), so they are reachable by touch too.
+// CL and CH this year (red past the limits). Since 2026-11-08 (the register cleaned up) the CH still to take and the
+// offs are only in the person's figures, which tapping it opens (DetailsDialog), so they are reachable by touch too;
+// the off status is the name's second line (shortStatus).
 function TotalsCell({ id, cl, ch, data, lookups, onOpen }: { id: string; cl: number; ch: number; data: AttendanceMonth; lookups: Lookups; onOpen: () => void }) {
-  const open = lookups.open.get(id) ?? [];
-  const soon = open.some((o) => o.expires <= addDays(data.today, 7));
-  const w = lookups.weekly.get(id);
   const limit = lookups.limit.get(id);
   return (
     <td className={cx("sticky z-10 border border-slate-300 bg-white p-0 text-center leading-tight tabular-nums", TOTALS_LEFT)}>
@@ -252,15 +244,59 @@ function TotalsCell({ id, cl, ch, data, lookups, onOpen }: { id: string; cl: num
         <span className={cx("block", cl > data.settings.clPerYear ? "font-semibold text-urgent-ink" : "text-slate-700")}>CL {String(cl).padStart(2, "0")}</span>
         <span className={cx("block", limit != null && ch > limit ? "font-semibold text-urgent-ink" : "text-slate-700")}>
           CH {String(ch).padStart(2, "0")}
-          {open.length > 0 && <span className={cx("ml-0.5 text-caption2 font-semibold", soon ? "text-urgent-ink" : "text-info-ink")}>+{open.length}</span>}
         </span>
-        {w && (
-          <span className={cx("block text-caption2", w.offsDue < 0 ? "font-semibold text-urgent-ink" : w.offsDue > 0 ? "font-medium text-low-ink" : "text-slate-500")}>
-            {w.offsDue > 0 ? `Off ${w.offsDue}` : `Off in ${dutyForOff(w.offsDue, w.towards, data.settings.offEvery)}`}
-          </span>
-        )}
       </button>
     </td>
+  );
+}
+
+// The name's second line for weekly-off staff (2026-11-08): "Day 5 · off in 1", "Day 7 · 1 off owed", "Day 2 · 1 off
+// early".
+function shortStatus(w: { run: number; offsDue: number; towards: number }, offEvery: number) {
+  const off = w.offsDue > 0 ? `${w.offsDue} off owed` : w.offsDue < 0 ? `${-w.offsDue} off early` : `off in ${dutyForOff(w.offsDue, w.towards, offEvery)}`;
+  return `Day ${w.run} · ${off}`;
+}
+
+// The key to the marks (the Key button; printed under the register as a line instead).
+function MarkKey() {
+  return (
+    <ul className="space-y-1.5 text-sm">
+      {MARK_KEY.map((k) => (
+        <li key={k.mark} className="flex items-baseline gap-3">
+          <span className={cx("w-12 shrink-0 text-center", MARK_TONE[k.mark])}>{k.symbol}</span>
+          <span className="text-ink">{k.name}</span>
+        </li>
+      ))}
+      <li className="flex items-baseline gap-3">
+        <span className={cx("w-12 shrink-0 rounded text-center text-caption font-semibold", LEAVE_BAND)}>EL</span>
+        <span className="text-ink">Leave from the Leave page (EL, HPL…), across its days</span>
+      </li>
+      <li className="flex items-baseline gap-3">
+        <span className="w-12 shrink-0 rounded bg-slate-100 text-center text-caption text-slate-500">H</span>
+        <span className="text-ink">Grey column: a holiday, or Sunday for Sunday-off staff</span>
+      </li>
+      <li className="flex items-baseline gap-3">
+        <span className="flex w-12 shrink-0 justify-center">
+          <span className="size-1.5 rounded-full bg-info" />
+        </span>
+        <span className="text-ink">Holiday worked: CH still to take (grey once taken)</span>
+      </li>
+      <li className="flex items-baseline gap-3">
+        <span className="w-12 shrink-0 text-center font-medium text-brand-700">
+          <span className="rounded border border-dashed border-brand-500 px-0.5">O</span>
+        </span>
+        <span className="text-ink">Off planned</span>
+      </li>
+      <li className="flex items-baseline gap-3">
+        <span className="w-12 shrink-0 text-center font-semibold text-urgent-ink underline decoration-dotted">12</span>
+        <span className="text-ink">A past day with someone not marked yet</span>
+      </li>
+      <li className="flex items-baseline gap-3">
+        <span className="w-12 shrink-0 text-center outline outline-1 outline-urgent">&nbsp;</span>
+        <span className="text-ink">More than 12 days in a row without an off</span>
+      </li>
+      <li className="pt-1 text-footnote text-slate-500">Marks on days still to come are lighter. CL and CH are this year's; tap them for the CH still to take and the offs.</li>
+    </ul>
   );
 }
 
@@ -625,15 +661,15 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                       onClick={() => column(d.date)}
                       aria-pressed={whole}
                       aria-label={`${dayLabel(d.date)}${d.holiday ? `, ${d.holiday.name}` : ""}: select everyone`}
-                      title={d.holiday ? d.holiday.name : `Select everyone on ${dayLabel(d.date)}`}
+                      title={[d.holiday ? d.holiday.name : `Select everyone on ${dayLabel(d.date)}`, pending && "someone not marked yet"].filter(Boolean).join(" · ")}
                       className={cx(
                         "no-tap flex h-11 w-full flex-col items-center justify-center leading-tight hover:bg-slate-50 aria-pressed:bg-brand-100",
                         d.date === data.today && "ring-2 ring-brand-500 ring-inset",
                       )}
                     >
-                      <span className="text-caption2 font-semibold text-ink tabular-nums xl:text-xs">{d.date.slice(8)}</span>
+                      {/* Someone not marked yet on a past day: the day's number in red, underlined (was a red dot, 2026-11-08). */}
+                      <span className={cx("text-caption2 font-semibold tabular-nums xl:text-xs", pending ? "text-urgent-ink underline decoration-dotted" : "text-ink")}>{d.date.slice(8)}</span>
                       <span className={cx("text-caption2", d.weekday === 0 || d.holiday ? "text-urgent-ink" : "text-slate-500")}>{d.holiday ? "H" : WEEKDAY_LETTER[d.weekday]}</span>
-                      {pending && <span className="size-1 rounded-full bg-urgent" aria-hidden />}
                     </button>
                   </th>
                 );
@@ -660,8 +696,8 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                   let span = 1;
                   while (c + span < data.days.length && data.days[c + span]!.date <= info.leave.to) span++;
                   tds.push(
-                    <td key={d.date} colSpan={span} className="border border-slate-300 bg-brand-50 px-0.5 text-center" title={`${info.leave.name}, ${dayLabel(info.leave.from)} to ${dayLabel(info.leave.to)} (Leave page)`}>
-                      <Link to={`/leave?employee=${e.id}`} className="no-tap block truncate text-caption2 font-semibold text-brand-700 hover:underline">
+                    <td key={d.date} colSpan={span} className={cx("border border-slate-300 px-0.5 text-center", LEAVE_BAND)} title={`${info.leave.name}, ${dayLabel(info.leave.from)} to ${dayLabel(info.leave.to)} (Leave page)`}>
+                      <Link to={`/leave?employee=${e.id}`} className="no-tap block truncate text-caption2 font-semibold hover:underline">
                         {info.leave.short}
                       </Link>
                     </td>,
@@ -695,7 +731,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                       title={[cellDate(d.date), title, ch.long.has(k) && "more than 12 days in a row without an off"].filter(Boolean).join(" · ")}
                       className={cx("no-tap relative flex h-8 w-full items-center justify-center overflow-hidden text-caption2 xl:text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
                     >
-                      {info.mark && <span className={MARK_TONE[info.mark]}>{markShort(info.mark, d.holiday)}</span>}
+                      {info.mark && <span className={cx(MARK_TONE[info.mark], d.date > data.today && "opacity-55")}>{markShort(info.mark, d.holiday)}</span>}
                       {info.assumed && <span className="text-slate-300 print:text-slate-400">✓</span>}
                       {!info.mark && ch.planned.has(k) && (
                         <span className="rounded border border-dashed border-brand-500 px-0.5 leading-none font-medium text-brand-700" title={`${cellDate(d.date)} · Off planned${ch.planned.get(k)!.note ? `: ${ch.planned.get(k)!.note}` : ""}`}>
@@ -710,17 +746,15 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
               return (
                 <tr key={e.id}>
                   <th scope="row" className="sticky left-0 z-10 border border-slate-300 bg-white p-0 text-left font-normal">
-                    <button type="button" onClick={() => row(e)} title={`Select ${e.name}'s month`} className="no-tap flex w-full items-start gap-1.5 px-2 py-1 text-left hover:bg-slate-50">
+                    <button type="button" onClick={() => row(e)} title={`${[e.name, e.designation, !e.permanent && "Temporary", e.offDay === "weekly" && OFF_DAY_LABELS.weekly].filter(Boolean).join(" · ")}: select the month`} className="no-tap flex w-full items-start gap-1.5 px-2 py-1 text-left hover:bg-slate-50">
                       <span className="w-5 shrink-0 pt-px text-slate-400 tabular-nums">{r + 1}</span>
                       <span className="min-w-0 flex-1">
                         <span className="line-clamp-2 text-xs font-medium text-ink [overflow-wrap:anywhere]">{e.name}</span>
-                        <span className="block truncate text-caption2 text-slate-500">
-                          {[e.designation, !e.permanent && "Temporary", e.offDay === "weekly" && OFF_DAY_LABELS.weekly].filter(Boolean).join(" · ")}
-                        </span>
+                        {/* On paper the designation stays under the name; on screen it is in the hint (2026-11-08). */}
+                        <span className="hidden truncate text-caption2 text-slate-500 print:block">{[e.designation, !e.permanent && "Temporary"].filter(Boolean).join(" · ")}</span>
                         {ch.weekly.get(e.id) && (
-                          <span className={cx("block text-caption2", (ch.weekly.get(e.id)!.long.length ?? 0) > 0 ? "font-medium text-urgent-ink" : "text-slate-500")}>
-                            Day {ch.weekly.get(e.id)!.run} · {offLine(ch.weekly.get(e.id)!, data.settings.offEvery)}
-                            {ch.weekly.get(e.id)!.long.length > 0 && ` · over ${data.settings.maxRun} this month`}
+                          <span className={cx("block truncate text-caption2", ch.weekly.get(e.id)!.long.length > 0 ? "font-medium text-urgent-ink" : ch.weekly.get(e.id)!.offsDue > 0 ? "font-medium text-medium-ink" : "text-slate-500")}>
+                            {shortStatus(ch.weekly.get(e.id)!, data.settings.offEvery)}
                           </span>
                         )}
                       </span>
@@ -734,7 +768,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
           </tbody>
         </table>
       </div>
-      <p className="border-t border-line px-4 py-2 text-footnote text-slate-500">
+      <p className="hidden border-t border-line px-4 py-2 text-footnote text-slate-500 print:block">
         ✓ Present · OD On duty · O Weekly off · H / SS Holiday / second Saturday taken · CL Casual leave · ½CL Half day · CH Compensation leave · A Absent · grey: holiday or Sunday off · a blue dot: holiday worked, CH open (grey once taken) · EL, HPL…: leave from the
         Leave page · a dotted O: off planned · {data.settings.assumeDuty ? "a faint ✓: not marked, counted as duty" : "a red dot under a day: someone not marked yet"} · red outline: more than 12 days in a row without an off. CL and CH are this year's; +n: CH still to take.
       </p>
@@ -861,6 +895,8 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
         },
       },
     );
+  const [showRules, setShowRules] = useState(false);
+  const ruleCount = [over.length, offsRefused.length, overRun.length, longAway.length, byLeave.length, go303.length].filter((n) => n > 0).length;
   const busy = mark.isPending || clear.isPending;
   return (
     // Phones: pinned just above the tab bar (the list gets room for it below); wider screens: stuck to the bottom
@@ -927,52 +963,63 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
           Replace the {existing.length} {existing.length === 1 ? "mark" : "marks"} already there (otherwise only empty cells change)
         </label>
       )}
-      {over.length > 0 && (
-        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
-          As CL: {over.map((x) => `${byId.get(x.id)?.name} ${x.after} of ${data.settings.clPerYear}`).join(", ")} this year (casual leave, KSR Appendix VII). It can still be marked.
-        </p>
+      {/* The rule warnings folded to one line that opens them (2026-11-08, the register cleaned up; still warn only). */}
+      {ruleCount > 0 && (
+        <button type="button" onClick={() => setShowRules(!showRules)} aria-expanded={showRules} className="mt-1 flex items-center gap-1.5 rounded-lg px-1 py-0.5 text-footnote font-medium text-urgent-ink hover:bg-urgent-soft">
+          <AlertTriangle size={14} aria-hidden /> {ruleCount} {ruleCount === 1 ? "rule" : "rules"}
+          <ChevronDown size={14} className={cx("transition", showRules && "rotate-180")} aria-hidden />
+        </button>
       )}
-      {offsRefused.length > 0 && (
-        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
-          Off taken early:{" "}
-          {offsRefused
-            .map((x) => {
-              const [date, need] = x.refused[0]!;
-              return `${byId.get(x.id)?.name} on ${dayLabel(date)}, ${need} ${need === 1 ? "day" : "days"} of duty before it was due${x.refused.length > 1 ? ` (${x.refused.length} days early)` : ""}`;
-            })
-            .join(", ")}
-          . It can still be marked: the next off earned pays it back ({data.settings.offEvery} days of duty, CL or CH earn an off).
-        </p>
-      )}
-      {overRun.length > 0 && (
-        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
-          As Present, CL or CH: {overRun.map((x) => `${byId.get(x.id)?.name} past ${data.settings.maxRun} days in a row on ${dayLabel(x.first!)}`).join(", ")}; an off is due first.
-        </p>
-      )}
-      {longAway.length > 0 && (
-        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
-          As CL or CH, with the holidays around it: {longAway.map((x) => `${byId.get(x.id)?.name} ${x.days} days in a row`).join(", ")}; at most 15 (KSR Appendix VII).
-        </p>
-      )}
-      {byLeave.length > 0 && (
-        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
-          As CL or CH: {byLeave.map((id) => byId.get(id)?.name).join(", ")} next to leave from the Leave page; CL and CH aren't combined with regular leave unless the head of office allows (KSR Appendix VII).
-        </p>
-      )}
-      {go303.length > 0 && (
-        <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
-          {go303
-            .map((x) =>
-              [
-                x.noOff && `${byId.get(x.id)?.name}: as Off, no off is due after a week away on CL, CH and offs`,
-                x.three.length > 0 && `${byId.get(x.id)?.name}: as ${x.three.map((m) => (m === "off" ? "Off" : m.toUpperCase())).join(" or ")}, CL, CH and an off in one week`,
-              ]
-                .filter(Boolean)
-                .join("; "),
-            )
-            .join(" · ")}{" "}
-          (G.O.(Ms) 303/82/HSD). It can still be marked.
-        </p>
+      {showRules && (
+        <div>
+          {over.length > 0 && (
+            <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+              As CL: {over.map((x) => `${byId.get(x.id)?.name} ${x.after} of ${data.settings.clPerYear}`).join(", ")} this year (casual leave, KSR Appendix VII). It can still be marked.
+            </p>
+          )}
+          {offsRefused.length > 0 && (
+            <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+              Off taken early:{" "}
+              {offsRefused
+                .map((x) => {
+                  const [date, need] = x.refused[0]!;
+                  return `${byId.get(x.id)?.name} on ${dayLabel(date)}, ${need} ${need === 1 ? "day" : "days"} of duty before it was due${x.refused.length > 1 ? ` (${x.refused.length} days early)` : ""}`;
+                })
+                .join(", ")}
+              . It can still be marked: the next off earned pays it back ({data.settings.offEvery} days of duty, CL or CH earn an off).
+            </p>
+          )}
+          {overRun.length > 0 && (
+            <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+              As Present, CL or CH: {overRun.map((x) => `${byId.get(x.id)?.name} past ${data.settings.maxRun} days in a row on ${dayLabel(x.first!)}`).join(", ")}; an off is due first.
+            </p>
+          )}
+          {longAway.length > 0 && (
+            <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+              As CL or CH, with the holidays around it: {longAway.map((x) => `${byId.get(x.id)?.name} ${x.days} days in a row`).join(", ")}; at most 15 (KSR Appendix VII).
+            </p>
+          )}
+          {byLeave.length > 0 && (
+            <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+              As CL or CH: {byLeave.map((id) => byId.get(id)?.name).join(", ")} next to leave from the Leave page; CL and CH aren't combined with regular leave unless the head of office allows (KSR Appendix VII).
+            </p>
+          )}
+          {go303.length > 0 && (
+            <p className="mt-1 px-1 text-footnote text-urgent-ink [overflow-wrap:anywhere]">
+              {go303
+                .map((x) =>
+                  [
+                    x.noOff && `${byId.get(x.id)?.name}: as Off, no off is due after a week away on CL, CH and offs`,
+                    x.three.length > 0 && `${byId.get(x.id)?.name}: as ${x.three.map((m) => (m === "off" ? "Off" : m.toUpperCase())).join(" or ")}, CL, CH and an off in one week`,
+                  ]
+                    .filter(Boolean)
+                    .join("; "),
+                )
+                .join(" · ")}{" "}
+              (G.O.(Ms) 303/82/HSD). It can still be marked.
+            </p>
+          )}
+        </div>
       )}
       <ErrorNote error={mark.error ?? clear.error} />
       {picking && <ChPicker data={data} cells={cells} lookups={lookups} picked={picked} replace={replace} onClose={() => setPicking(false)} onDone={onDone} />}

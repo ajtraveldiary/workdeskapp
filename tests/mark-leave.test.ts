@@ -10,7 +10,7 @@ import * as schema from "../src/server/db/schema";
 import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
 import type { PersonDay, PersonDays } from "../src/shared/types";
-import { markWarnings, workingDays } from "../src/shared/markWarnings";
+import { markWarnings, prefixSuffix, workingDays } from "../src/shared/markWarnings";
 
 const NAME = "2026-27 സാമ്പത്തിക വർഷത്തെ ജൂനിയർ ഹെൽത്ത് ഇൻസ്‌പെക്ടർ ശ്രീമതി അനിതാകുമാരി രാധാകൃഷ്ണൻ";
 const shift = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
@@ -59,6 +59,35 @@ describe("Mark leave", () => {
     // Leave from the Leave page is skipped and named.
     const leave = { ...p, days: p.days.map((d) => (d.date === "2026-11-16" ? { ...d, leave: "EL" } : d)) };
     expect(workingDays(leave, "2026-11-13", 2, null)).toMatchObject({ dates: ["2026-11-13", "2026-11-17"], skipped: [{ date: "2026-11-14" }, { date: "2026-11-15" }, { date: "2026-11-16", why: "on EL" }] });
+  });
+
+  it("phase 2: holidays prefixed and suffixed to a leave", async () => {
+    const s = await add({ name: NAME });
+    const w = await add({ name: "Weekly", offDay: "weekly" });
+    // Mon 16 – Tue 17 Nov 2026: Sat 14 (second Saturday) and Sun 15 before, a holiday on Wed 18 after.
+    await call("POST", "/attendance/holidays", { date: "2026-11-18", name: "Test holiday" });
+    const days = async (id: string) => (await call("GET", `/attendance/person/${id}?from=2026-11-09&until=2026-12-31`)).json as PersonDays;
+    const p = await days(s);
+    expect(prefixSuffix(p, "2026-11-16", "2026-11-17")).toEqual({
+      prefix: [
+        { date: "2026-11-14", name: "Second Saturday" },
+        { date: "2026-11-15", name: "Sunday" },
+      ],
+      suffix: [{ date: "2026-11-18", name: "Test holiday" }],
+    });
+    // Weekly-off staff: Sunday is a working day, so only nothing before; a holiday worked is no prefix.
+    const q = await days(w);
+    expect(prefixSuffix(q, "2026-11-16", "2026-11-17").prefix).toEqual([]);
+    const worked = { ...p, days: p.days.map((d) => (d.date === "2026-11-15" ? { ...d, mark: "present" as const } : d)) };
+    expect(prefixSuffix(worked, "2026-11-16", "2026-11-17").prefix).toEqual([]);
+    // Leave marked from the pop-up: the Leave page's own route, with "Mark in attendance" ticked.
+    await call("POST", "/leave/types/usual");
+    const el = ((await call("GET", "/leave/types")).json.types as { id: string; ksrKey: string | null }[]).find((t) => t.ksrKey === "el")!;
+    const r = await call("POST", "/leave/leaves", { employeeId: s, typeId: el.id, fromDate: "2026-11-16", toDate: "2026-11-17", days: 2, notes: "Prefix: 14.11.2026 (Second Saturday)", doneSteps: ["attendance"] });
+    expect(r.status).toBe(201);
+    const task = ((await call("GET", "/tasks?view=any")).json.tasks as { id: string; checklist: { id: string; done: boolean }[] }[]).find((t) => t.id === r.json.taskId)!;
+    expect(task.checklist.find((x) => x.id === "attendance")!.done).toBe(true);
+    expect((await days(s)).days.find((d) => d.date === "2026-11-16")!.leave).toBe("EL");
   });
 
   // A made-up person for the warnings: days from Mon 2 Nov 2026.

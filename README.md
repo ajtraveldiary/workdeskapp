@@ -140,7 +140,11 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   phones) is the quick way to enter what someone said on the phone: pick the employee, CL, half-day CL, CH, Off, OD or
   Absent, the first day and the number of days (or the last day). It lists the working days it will mark (holidays and
   Sundays skipped), the days it replaces, and every rule the marks would break, with the rule's G.O. or KSR rule,
-  before you save; nothing is blocked, and Undo puts the days back.
+  before you save; nothing is blocked, and Undo puts the days back. For permanent staff it also takes EL, HPL, commuted
+  and the other leave types: the leave goes on the Leave page with its task ("Mark in attendance" already ticked), the
+  balance before and after is shown, and for EL, HPL and commuted leave the holidays just before and after it (prefix
+  and suffix) are listed and written into the leave's notes. The register itself is kept simple: Mark leave, a Key to
+  the marks, and one menu for Summary, Download, Print and Holidays; each mark has its own colour.
 - **Weekly offs:** each weekly-off person's offs owed (or the days of duty still needed for one) and "Day N" show
   by their name in the register, and the morning notification says who needs an off. Attendance stays on its own
   page: Home's Due Today shows none of it. **A day left blank is never duty**: it means the person wasn't in the

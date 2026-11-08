@@ -115,6 +115,23 @@ export function markWarnings(data: PersonDays, selected: Set<string>): Partial<R
   return out;
 }
 
+// Holidays prefixed and suffixed to a leave (phase 2, for EL, HPL and commuted leave: KSR Part I): the unbroken run of
+// the person's days off by themselves (holidays of the register, second Saturdays, Sundays for Sunday-off staff) just
+// before `from` and just after `to`, not worked (no duty or OD marked). Days outside `data.days` aren't known.
+export function prefixSuffix(data: PersonDays, from: string, to: string) {
+  const at = new Map(data.days.map((d) => [d.date, d]));
+  const off = (date: string) => {
+    const d = at.get(date);
+    return !!d && !!d.holiday && !d.out && !d.leave && d.mark !== "present" && d.mark !== "od";
+  };
+  const step = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+  const prefix: { date: string; name: string }[] = [];
+  for (let d = step(from, -1); off(d); d = step(d, -1)) prefix.unshift({ date: d, name: at.get(d)!.holiday! });
+  const suffix: { date: string; name: string }[] = [];
+  for (let d = step(to, 1); off(d); d = step(d, 1)) suffix.push({ date: d, name: at.get(d)!.holiday! });
+  return { prefix, suffix };
+}
+
 // The days `count` working days from `from` (the person's days off by themselves, leave and days out of the office
 // skipped), or every working day from `from` to `to`. Days not in `data.days` aren't known, so fewer may come back.
 export function workingDays(data: PersonDays, from: string, count: number | null, to: string | null) {

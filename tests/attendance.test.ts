@@ -559,6 +559,9 @@ describe("attendance register", () => {
   it("Person days: a person's three weeks from a Monday, with their marks, leave, holidays, planned offs and figures", async () => {
     const w = await add({ name: NAME, offDay: "weekly" });
     const s = await add({ name: "Sunday off" });
+    // No second Saturdays, so the off planned 5 days ahead isn't refused as a holiday whatever day it runs
+    // (2026-11-09: failed on the Monday before a second Saturday).
+    await noSecondSaturdays();
     const today = (await call("GET", "/me")).json.today as string;
     const shift = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
     const monday = mondayOf(today);

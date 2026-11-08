@@ -15,6 +15,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import type { PersonDay, PersonDays as Data } from "../../shared/types";
 import { MARK_NAME, chExpires, chFits, inAttendance, markName, markShort, monthLabel, shiftMonth, offStatus, offTakeBy, type AttendanceMark } from "../../shared/attendance";
 import { markWarnings } from "../../shared/markWarnings";
+import { LEAVE_BAND, MARK_COLOR } from "../markColors";
 import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendanceActions, useAttendanceSettings, useMe, usePersonDays, useStaff } from "../api";
@@ -87,16 +88,8 @@ const short = (d: string) => `${DAY_NAMES[new Date(`${d}T00:00:00Z`).getUTCDay()
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 type Markable = Exclude<AttendanceMark, "ch">;
 const TONE_OF = { red: "urgent", orange: "high", amber: "medium", blue: "info", grey: "neutral" } as const;
-const MARK_LOOK: Record<AttendanceMark, string> = {
-  present: "text-low-ink",
-  off: "text-brand-700",
-  cl: "text-high-ink",
-  cl_half: "text-high-ink",
-  ch: "text-info-ink",
-  absent: "text-urgent-ink",
-  od: "text-low-ink",
-  holiday: "text-slate-500",
-};
+// One colour per kind of mark, shared with the register and the Mark leave pop-up (markColors.ts, 2026-11-08).
+const MARK_LOOK = MARK_COLOR;
 // A day's holiday name as markShort / markName read it: "Second Saturday" is the second Saturday.
 const holidayKind = (d: PersonDay) => (d.holiday ? { kind: d.holiday === "Second Saturday" ? ("second_saturday" as const) : ("public" as const) } : null);
 
@@ -341,7 +334,7 @@ function DayCell({ d, today, on, dim, onTap }: { d: PersonDay; today: string; on
       <span className={cx("text-footnote leading-tight tabular-nums", d.date === today ? "font-bold text-brand-700" : "text-slate-600")}>{Number(d.date.slice(8))}</span>
       <span className={cx("text-footnote leading-tight font-semibold", future && "opacity-55")}>
         {d.leave ? (
-          <span className="text-snooze-ink">{d.leave.length <= 3 ? d.leave : "L"}</span>
+          <span className={cx("rounded px-0.5", LEAVE_BAND)}>{d.leave.length <= 3 ? d.leave : "L"}</span>
         ) : d.mark ? (
           <span className={MARK_LOOK[d.mark]}>{d.mark === "cl_half" ? "½" : markShort(d.mark, holidayKind(d))}</span>
         ) : d.planned ? (
