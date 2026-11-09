@@ -75,7 +75,7 @@ const employeeFields = {
   contractDays: z.number().int().min(1).max(3650).nullable().optional().describe("Temporary only"),
   payPerDay: z.number().min(0).max(1_000_000).nullable().optional().describe("Temporary only, in rupees"),
   contractEnds: day.nullable().optional().describe("Temporary only"),
-  dayOff: z.enum(["Sunday off", "Weekly off"]).optional().describe("Every employee: Sunday off (the default) or a weekly off"),
+  dayOff: z.enum(["Sunday off", "Weekly off"]).optional().describe("Leave out to follow the designation's day off (set in Settings › Employees › Posts); give it only to set this employee's own, as an exception"),
 };
 const FIELD_KEY: Record<string, keyof Employee> = {
   pen: "pen",
@@ -120,7 +120,8 @@ function employeeForm(s: StaffList, base: Partial<Employee>, a: Record<string, u
     payScale: base.payScale ?? "",
     basicPay: base.basicPay ?? null,
     probationDeclaredOn: base.probationDeclaredOn ?? null,
-    offDay: base.offDay ?? "sunday",
+    // No day off unless asked (2026-11-10): left out, the employee keeps following their designation's day off (or
+    // keeps their own), also when the designation changes.
     address: base.address ?? "",
     notes: base.notes ?? "",
   };
@@ -136,6 +137,7 @@ function employeeForm(s: StaffList, base: Partial<Employee>, a: Record<string, u
     if (!t && a.type) throw new Unclear(`No type "${a.type}". Types: ${s.types.map((x) => x.name).join(", ")}`);
     form.typeId = t?.id ?? null;
   }
+  // A day off asked for that differs from the designation's is kept as an individual exception (withSwitches).
   if (a.dayOff) form.offDay = a.dayOff === "Weekly off" ? "weekly" : "sunday";
   if (a.engagedAs) form.engagement = (Object.entries(ENGAGEMENT_LABELS).find(([, label]) => label === a.engagedAs)?.[0] ?? "") as Engagement | "";
   for (const [k, key] of Object.entries(FIELD_KEY)) if (a[k] !== undefined) form[key] = a[k] ?? (typeof form[key] === "string" ? "" : null);

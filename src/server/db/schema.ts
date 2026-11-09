@@ -351,6 +351,9 @@ export const designations = pgTable("designations", {
   sortOrder: integer("sort_order").notNull().default(0),
   // A gazetted post (user request 2026-10-30): fills the Gazetted switch of its employees.
   gazetted: boolean("gazetted").notNull().default(false),
+  // The post's day off (user request 2026-11-10, "make it designation wise, with individual exceptions"): its
+  // employees follow it unless their own is set (employees.offDayOwn).
+  offDay: text("off_day", { enum: OFF_DAYS }).notNull().default("sunday"),
   createdAt: createdAt(),
 });
 
@@ -418,6 +421,10 @@ export const employees = pgTable("employees", {
   probationDeclared: boolean("probation_declared").notNull().default(false),
   // Sunday off or weekly off (user request 2026-10-31; OFF_DAYS in src/shared/staff.ts), every employee.
   offDay: text("off_day", { enum: OFF_DAYS }).notNull().default("sunday"),
+  // Set individually (user request 2026-11-10): false = the day off / gazetted follow the designation's
+  // (designations.offDay / gazetted) and change with it; true = an exception kept for this employee.
+  offDayOwn: boolean("off_day_own").notNull().default(false),
+  gazettedOwn: boolean("gazetted_own").notNull().default(false),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });

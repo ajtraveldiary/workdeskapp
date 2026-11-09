@@ -2,14 +2,14 @@
 // an employee. Only WorkDesk's database changes; every change is in History.
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { and, asc, count, desc, eq, inArray, max, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, max, ne, or, sql } from "drizzle-orm";
 import type { AppEnv } from "../app";
 import type { DB } from "../db";
 import { designations, employeeTypes, employees, events, reports, tasks, eventTypes, registers, leaveTypes } from "../db/schema";
 import { timezone } from "../env";
 import { todayIn } from "../lib/dates";
 import { designationInput, employeeInput, orderInput } from "../../shared/schemas";
-import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES, nextYear, renewedEnd, retiringSoon } from "../../shared/staff";
+import { COMMON_DESIGNATIONS, COMMON_EMPLOYEE_TYPES, OFF_DAY_LABELS, nextYear, renewedEnd, retiringSoon } from "../../shared/staff";
 import type { Employee, RetiringEmployee, StaffList } from "../../shared/types";
 import { openTaskOrder, selectTasks, toTask } from "./tasks";
 import { ensurePensionTasks } from "../lib/pension";
@@ -46,11 +46,30 @@ export function employeeValues(input: ReturnType<typeof employeeInput.parse>) {
     : { ...input, pen: "", joinedOfficeOn: null, nextIncrementOn: null, retiresOn: null, probationDeclaredOn: null, payScale: "", basicPay: null, address: "", notes: "", probationDeclared: false, gazetted: false };
 }
 
-// The Probation declared and Gazetted switches and the day off when the form (or an assistant's whole-form update)
-// left them out: the saved values, or for a new employee no, the designation's gazetted tick and Sunday off.
+// The Probation declared switch left out: the saved value, else no. The day off and Gazetted (user request
+// 2026-11-10, "designation wise, with individual exceptions"): an employee follows their designation's unless set
+// individually (offDayOwn / gazettedOwn). `postValue` decides: own false → the post's value; own true → the value given
+// (else the saved one); own left out (older forms, assistants' whole-form updates) → a value different from the
+// post's is an exception, the same value keeps the saved choice, and no value keeps the saved choice.
+export function postValue<T>(own: boolean | undefined, value: T | undefined, savedOwn: boolean | undefined, savedValue: T | undefined, post: T): { own: boolean; value: T } {
+  if (own === false) return { own: false, value: post };
+  if (own === true) return { own: true, value: value ?? savedValue ?? post };
+  if (value !== undefined) return { own: value !== post || !!savedOwn, value };
+  return savedOwn ? { own: true, value: savedValue ?? post } : { own: false, value: post };
+}
 async function withSwitches(db: DB, userId: string, input: ReturnType<typeof employeeInput.parse>, saved?: typeof employees.$inferSelect) {
-  const gazetted = input.gazetted ?? saved?.gazetted ?? (input.designationId ? (await loadDesignation(db, userId, input.designationId)).gazetted : false);
-  return { ...input, gazetted, probationDeclared: input.probationDeclared ?? saved?.probationDeclared ?? false, offDay: input.offDay ?? saved?.offDay ?? "sunday" };
+  const post = input.designationId ? await loadDesignation(db, userId, input.designationId) : null;
+  const off = postValue(input.offDayOwn, input.offDay, saved?.offDayOwn, saved?.offDay, post?.offDay ?? "sunday");
+  // Only permanent staff are gazetted (employeeValues clears it for temporary ones).
+  const gaz = postValue(input.gazettedOwn, input.gazetted, saved?.gazettedOwn, saved?.gazetted, post?.gazetted ?? false);
+  return {
+    ...input,
+    gazetted: gaz.value,
+    gazettedOwn: input.permanent ? gaz.own : false,
+    probationDeclared: input.probationDeclared ?? saved?.probationDeclared ?? false,
+    offDay: off.value,
+    offDayOwn: off.own,
+  };
 }
 
 function toEmployee(e: typeof employees.$inferSelect): Employee {
@@ -102,7 +121,7 @@ export const staffRoutes = new Hono<AppEnv>()
     const db = c.get("db");
     const userId = c.get("userId");
     const [d, t, e] = await Promise.all([
-      db.select({ id: designations.id, name: designations.name, sortOrder: designations.sortOrder, gazetted: designations.gazetted }).from(designations).where(eq(designations.userId, userId)).orderBy(asc(designations.sortOrder), asc(designations.name)),
+      db.select({ id: designations.id, name: designations.name, sortOrder: designations.sortOrder, gazetted: designations.gazetted, offDay: designations.offDay }).from(designations).where(eq(designations.userId, userId)).orderBy(asc(designations.sortOrder), asc(designations.name)),
       db.select({ id: employeeTypes.id, name: employeeTypes.name, sortOrder: employeeTypes.sortOrder }).from(employeeTypes).where(eq(employeeTypes.userId, userId)).orderBy(asc(employeeTypes.sortOrder), asc(employeeTypes.name)),
       db.select().from(employees).where(eq(employees.userId, userId)).orderBy(asc(employees.name)),
     ]);
@@ -142,8 +161,8 @@ export const staffRoutes = new Hono<AppEnv>()
     if (name !== d.name) await log(db, userId, "staff.designation_renamed", `Designation renamed: ${d.name} → ${name}`);
     return c.json({ ok: true });
   })
-  // A gazetted post or not (user request 2026-10-30, Settings › Leave): its permanent employees' Gazetted switch
-  // follows (still changeable per employee afterwards).
+  // A gazetted post or not (user request 2026-10-30, Settings › Leave; Settings › Employees › Posts since 2026-11-10):
+  // its permanent employees follow, except those set individually (gazettedOwn, since 2026-11-10).
   .post("/designations/:id/gazetted", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");
@@ -154,10 +173,28 @@ export const staffRoutes = new Hono<AppEnv>()
     const changed = await db
       .update(employees)
       .set({ gazetted, updatedAt: new Date() })
-      .where(and(eq(employees.userId, userId), eq(employees.designationId, d.id), eq(employees.permanent, true), eq(employees.gazetted, !gazetted)))
+      .where(and(eq(employees.userId, userId), eq(employees.designationId, d.id), eq(employees.permanent, true), eq(employees.gazettedOwn, false), eq(employees.gazetted, !gazetted)))
       .returning({ id: employees.id });
     if (gazetted !== d.gazetted || changed.length)
       await log(db, userId, "staff.designation_gazetted", `${d.name} ${gazetted ? "is" : "is not"} a gazetted post${changed.length ? ` (${changed.length} employee${changed.length === 1 ? "" : "s"} changed)` : ""}`);
+    return c.json({ ok: true, changed: changed.length });
+  })
+  // The post's day off (user request 2026-11-10, Settings › Employees › Posts): its employees follow, except those
+  // set individually (offDayOwn); the register, Mark leave and the offs counting read the employees' day off.
+  .post("/designations/:id/off-day", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const d = await loadDesignation(db, userId, c.req.param("id"));
+    const { offDay } = (await c.req.json()) as { offDay: string };
+    if (offDay !== "sunday" && offDay !== "weekly") throw new HTTPException(400, { message: "offDay must be sunday or weekly" });
+    await db.update(designations).set({ offDay }).where(eq(designations.id, d.id));
+    const changed = await db
+      .update(employees)
+      .set({ offDay, updatedAt: new Date() })
+      .where(and(eq(employees.userId, userId), eq(employees.designationId, d.id), eq(employees.offDayOwn, false), ne(employees.offDay, offDay)))
+      .returning({ id: employees.id });
+    if (offDay !== d.offDay || changed.length)
+      await log(db, userId, "staff.designation_off_day", `${d.name}: ${OFF_DAY_LABELS[offDay]}${changed.length ? ` (${changed.length} employee${changed.length === 1 ? "" : "s"} changed)` : ""}`);
     return c.json({ ok: true, changed: changed.length });
   })
   // Arranged by drag and drop in Settings > Employees (user request 2026-10-08).

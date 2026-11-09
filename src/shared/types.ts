@@ -216,7 +216,8 @@ export type EmailContent = { threadId: string; version: number; messages: EmailM
 
 // Staff page (user request 2026-10-07).
 // gazetted: a gazetted post (user request 2026-10-30), filling its employees' Gazetted switch.
-export type Designation = { id: string; name: string; sortOrder: number; gazetted: boolean };
+// offDay (2026-11-10): the post's day off, which its employees follow unless set individually.
+export type Designation = { id: string; name: string; sortOrder: number; gazetted: boolean; offDay: OffDay };
 export type Employee = {
   id: string;
   name: string;
@@ -247,6 +248,9 @@ export type Employee = {
   gazetted: boolean;
   // Sunday off or weekly off (user request 2026-10-31), every employee.
   offDay: OffDay;
+  // Set individually (2026-11-10): false = the day off / gazetted follow the designation's; true = an exception.
+  offDayOwn: boolean;
+  gazettedOwn: boolean;
   address: string;
   notes: string;
   // Left the office on (null = still here). Hidden from the pickers, kept for old tasks.

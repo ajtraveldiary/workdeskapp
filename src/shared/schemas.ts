@@ -297,6 +297,11 @@ export const employeeInput = z.object({
   // Sunday off / weekly off (user request 2026-10-31). Optional like the switches: left out keeps the saved value
   // (a new employee: Sunday off).
   offDay: z.enum(OFF_DAYS).optional(),
+  // Set individually or as the post (user request 2026-11-10): false = follow the designation's day off / gazetted,
+  // true = keep this employee's own. Left out: a value different from the post's makes an exception, else the saved
+  // choice stays (withSwitches in routes/staff.ts).
+  offDayOwn: z.boolean().optional(),
+  gazettedOwn: z.boolean().optional(),
   address: z.string().trim().max(500).default(""),
   notes: z.string().max(5_000).default(""),
 });

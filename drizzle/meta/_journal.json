@@ -407,6 +407,13 @@
       "when": 1793684472978,
       "tag": "0057_attendance_mark_note",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1794252337525,
+      "tag": "0058_post_day_off",
+      "breakpoints": true
     }
   ]
 }

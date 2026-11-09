@@ -615,8 +615,8 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
         ["Basic pay", e.basicPay != null && rupees(e.basicPay)],
         ["Pay scale", e.payScale],
         ["Probation declared", e.probationDeclaredOn ? fullDate(e.probationDeclaredOn) : e.probationDeclared && "Yes (date not entered)"],
-        ["Gazetted officer", e.gazetted && "Yes"],
-        ["Day off", OFF_DAY_LABELS[e.offDay ?? "sunday"]],
+        ["Gazetted officer", e.gazetted && `Yes${e.gazettedOwn ? " (set individually)" : ""}`],
+        ["Day off", `${OFF_DAY_LABELS[e.offDay ?? "sunday"]}${e.offDayOwn ? " (set individually)" : ""}`],
         ["Home address", e.address && <span className="whitespace-pre-wrap">{e.address}</span>],
         ["Notes", e.notes && <span className="whitespace-pre-wrap">{e.notes}</span>],
       ]
@@ -632,7 +632,7 @@ function Details({ e, staff, onClose, onEdit }: { e: Employee; staff: StaffList;
         ["Contract period", e.contractDays && plural(e.contractDays, "day")],
         ["Pay per day", e.payPerDay != null && rupees(e.payPerDay)],
         ["Contract end date", e.engagedTill && <span className={cx(ended && "font-medium text-urgent-ink")}>{fullDate(e.engagedTill)}{ended && " (ended)"}</span>],
-        ["Day off", OFF_DAY_LABELS[e.offDay ?? "sunday"]],
+        ["Day off", `${OFF_DAY_LABELS[e.offDay ?? "sunday"]}${e.offDayOwn ? " (set individually)" : ""}`],
       ];
   const del = () => {
     if (!confirm(`Delete ${e.name}? Use "Left the office" instead to keep them on old tasks.`)) return;
@@ -764,6 +764,9 @@ const EMPTY: EmployeeInput = {
   probationDeclared: false,
   gazetted: false,
   offDay: "sunday",
+  // A new employee follows their designation's day off and gazetted tick (2026-11-10).
+  offDayOwn: false,
+  gazettedOwn: false,
   address: "",
   notes: "",
 };
@@ -781,8 +784,17 @@ function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee
   const [v, setV] = useState<EmployeeInput>(() => {
     if (!employee) return EMPTY;
     const { id: _id, leftOn: _left, ...rest } = employee;
-    return { ...rest, category: rest.category as EmployeeInput["category"], engagement: rest.engagement as EmployeeInput["engagement"] };
+    // Set individually when saved so, or when it differs from the post anyway (an older copy, a restored backup), so
+    // saving the form never changes it without being asked (2026-11-10).
+    const post = staff.designations.find((d) => d.id === employee.designationId);
+    const offDayOwn = !!employee.offDayOwn || employee.offDay !== (post?.offDay ?? "sunday");
+    const gazettedOwn = employee.permanent && (!!employee.gazettedOwn || employee.gazetted !== !!post?.gazetted);
+    return { ...rest, offDayOwn, gazettedOwn, category: rest.category as EmployeeInput["category"], engagement: rest.engagement as EmployeeInput["engagement"] };
   });
+  // The designation's day off and gazetted tick, which the employee follows unless set individually (2026-11-10).
+  const post = staff.designations.find((d) => d.id === v.designationId);
+  const postOff = post?.offDay ?? "sunday";
+  const postGazetted = !!post?.gazetted;
   const set = <K extends keyof EmployeeInput>(k: K, value: EmployeeInput[K]) => setV((s) => ({ ...s, [k]: value }));
   const { addEmployee, saveEmployee } = useStaffActions();
   const save = employee ? saveEmployee : addEmployee;
@@ -858,8 +870,13 @@ function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee
         <select
           className={inputClass}
           value={v.designationId ?? ""}
-          // A gazetted post fills the Gazetted switch (user request 2026-10-30); it can still be changed.
-          onChange={(e) => setV((s) => ({ ...s, designationId: e.target.value || null, gazetted: !!staff.designations.find((d) => d.id === e.target.value)?.gazetted }))}
+          // The new post's day off and gazetted tick, unless set individually (2026-11-10).
+          onChange={(e) =>
+            setV((s) => {
+              const d = staff.designations.find((x) => x.id === e.target.value);
+              return { ...s, designationId: e.target.value || null, offDay: s.offDayOwn ? s.offDay : (d?.offDay ?? "sunday"), gazetted: s.gazettedOwn ? s.gazetted : !!d?.gazetted };
+            })
+          }
         >
           <option value="">No designation</option>
           {staff.designations.map((d) => (
@@ -870,8 +887,14 @@ function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee
         </select>
       </Field>
       {staff.designations.length === 0 && <p className="-mt-2 text-footnote text-slate-500">Add designations in Settings › Employees.</p>}
-      {/* Every employee, permanent or temporary (user request 2026-10-31); Sunday off unless chosen. */}
-      <Choice label="Day off" value={v.offDay ?? "sunday"} options={OFF_DAYS.map((d) => [d, OFF_DAY_LABELS[d]] as const)} onChange={(d) => set("offDay", d)} />
+      {/* Every employee, permanent or temporary (user request 2026-10-31). Since 2026-11-10 it follows the designation
+          ("As post") unless set individually here. */}
+      <Choice
+        label="Day off"
+        value={v.offDayOwn ? (v.offDay ?? "sunday") : "post"}
+        options={[["post", `${post ? "As post" : "Default"} (${OFF_DAY_LABELS[postOff]})`] as const, ...OFF_DAYS.map((d) => [d, OFF_DAY_LABELS[d]] as const)]}
+        onChange={(d) => setV((s) => (d === "post" ? { ...s, offDayOwn: false, offDay: postOff } : { ...s, offDayOwn: true, offDay: d }))}
+      />
 
       {v.permanent ? (
         <>
@@ -898,7 +921,13 @@ function EmployeeForm({ employee, staff, onDone, onAdded }: { employee: Employee
             <Field label="Basic pay (₹)">
               <input type="number" inputMode="decimal" min={0} step="1" className={inputClass} value={v.basicPay ?? ""} onChange={(e) => set("basicPay", num(e.target.value, false))} placeholder="e.g. 41300" />
             </Field>
-            <YesNo label="Gazetted officer" value={!!v.gazetted} onChange={(yes) => set("gazetted", yes)} />
+            {/* Follows the designation's tick ("As post") unless set individually (2026-11-10). */}
+            <Choice
+              label="Gazetted officer"
+              value={v.gazettedOwn ? (v.gazetted ? "yes" : "no") : "post"}
+              options={[["post", `${post ? "As post" : "Default"} (${postGazetted ? "Yes" : "No"})`], ["yes", "Yes"], ["no", "No"]] as const}
+              onChange={(c) => setV((s) => (c === "post" ? { ...s, gazettedOwn: false, gazetted: postGazetted } : { ...s, gazettedOwn: true, gazetted: c === "yes" }))}
+            />
           </Section>
           <Field label="Home address">
             <textarea className={cx(inputClass, "h-auto py-2")} rows={3} value={v.address} onChange={(e) => set("address", e.target.value)} maxLength={500} />

@@ -150,6 +150,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   balance before and after is shown, and for EL, HPL and commuted leave the holidays just before and after it (prefix
   and suffix) are listed and written into the leave's notes. The register itself is kept simple: Mark leave, a Key to
   the marks, and one menu for Summary, Download, Print and Holidays; each mark has its own colour.
+- **Day off and gazetted by post:** each designation has a day off (Sunday off or weekly off) and a gazetted tick
+  (Settings › Employees › Posts); its employees follow it, and anyone can be set individually as an exception in their
+  employee form.
 - **Weekly offs:** each weekly-off person's offs owed (or the days of duty still needed for one) and "Day N" show
   by their name in the register, and the morning notification says who needs an off. Attendance stays on its own
   page: Home's Due Today shows none of it. **A day left blank is never duty**: it means the person wasn't in the

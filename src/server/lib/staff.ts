@@ -1,6 +1,6 @@
 // Staff (user request 2026-10-07): checks what a task or reminder is said to be about, and names it for History.
 import { HTTPException } from "hono/http-exception";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import type { DB } from "../db";
 import { designations, employees } from "../db/schema";
 import type { RelatedKind } from "../../shared/staff";
@@ -28,4 +28,24 @@ export async function relatedName(db: DB, r: Related): Promise<string> {
   }
   const [d] = await db.select({ name: designations.name }).from(designations).where(eq(designations.id, r.relatedId));
   return d ? `${d.name} (all)` : "a designation";
+}
+
+// Day off and Gazetted by designation (user request 2026-11-10): `offDayIds` / `gazettedIds` are employees whose value
+// was just given (the CSV import): each becomes an individual exception when it differs from their post. Then every
+// employee who follows their post (not set individually) takes the post's day off and, if permanent, its gazetted
+// tick; with no designation, Sunday off and not gazetted.
+export async function applyPostSettings(db: DB, userId: string, offDayIds: string[] = [], gazettedIds: string[] = []) {
+  const post = (col: "off_day" | "gazetted", fallback: string) => sql.raw(`coalesce((select d.${col} from designations d where d.id = employees.designation_id), ${fallback})`);
+  if (offDayIds.length)
+    await db.update(employees).set({ offDayOwn: sql`${employees.offDay} <> ${post("off_day", "'sunday'")}` }).where(and(eq(employees.userId, userId), inArray(employees.id, offDayIds)));
+  if (gazettedIds.length)
+    await db
+      .update(employees)
+      .set({ gazettedOwn: sql`${employees.permanent} and ${employees.gazetted} <> ${post("gazetted", "false")}` })
+      .where(and(eq(employees.userId, userId), inArray(employees.id, gazettedIds)));
+  await db.update(employees).set({ offDay: sql`${post("off_day", "'sunday'")}` }).where(and(eq(employees.userId, userId), eq(employees.offDayOwn, false)));
+  await db
+    .update(employees)
+    .set({ gazetted: sql`${employees.permanent} and ${post("gazetted", "false")}` })
+    .where(and(eq(employees.userId, userId), eq(employees.gazettedOwn, false)));
 }

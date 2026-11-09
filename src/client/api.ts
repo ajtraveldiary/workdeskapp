@@ -270,6 +270,17 @@ export function useStaffActions() {
     saveEmployee: m(({ id, input }: { id: string; input: EmployeeInput }) => api(`/staff/employees/${id}`, { method: "PUT", body: input })),
     setLeft: m(({ id, left }: { id: string; left: boolean }) => api(`/staff/employees/${id}/left`, { method: "POST", body: { left } })),
     removeEmployee: m((id: string) => api(`/staff/employees/${id}`, { method: "DELETE" })),
+    // A post's day off (user request 2026-11-10, Settings › Employees › Posts): its employees follow, except those set
+    // individually. Shown at once.
+    setOffDayPost: useMutation({
+      mutationFn: ({ id, offDay }: { id: string; offDay: "sunday" | "weekly" }) => api(`/staff/designations/${id}/off-day`, { method: "POST", body: { offDay } }),
+      onMutate: async ({ id, offDay }) => {
+        await qc.cancelQueries({ queryKey: ["staff"], exact: true });
+        qc.setQueryData<StaffList>(["staff"], (old) => (old ? { ...old, designations: old.designations.map((d) => (d.id === id ? { ...d, offDay } : d)) } : old));
+      },
+      // The register and the offs counting read the employees' day off.
+      onSettled: () => (refresh(), qc.invalidateQueries({ queryKey: ["attendance"] })),
+    }),
     // A gazetted post (user request 2026-10-30): its employees' switch follows. Shown at once.
     setGazettedPost: useMutation({
       mutationFn: ({ id, gazetted }: { id: string; gazetted: boolean }) => api(`/staff/designations/${id}/gazetted`, { method: "POST", body: { gazetted } }),

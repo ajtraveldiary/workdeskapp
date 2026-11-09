@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { PostSettings } from "../components/PostSettings";
 import { useLocation, useNavigate } from "react-router";
 import { CalendarDays, Copy, Check, EyeOff, ListChecks, Moon, Sun, SunMoon, Pencil, RefreshCw, Scissors, ShieldCheck, Tag, Trash2, X } from "lucide-react";
 import { useCalendarLink, useCalendarLinkActions, useLabelActions, useLabels, useMe, useMutedSenderActions, useMutedSenders, useSetTaskLabelSettings, useSnippetActions, useSnippets, useTaskLabelSettings } from "../api";
@@ -87,6 +88,8 @@ export function SettingsPage() {
                 {/* Relieve from here, also someone not yet in WorkDesk (user request 2026-10-16). */}
                 <RelieveExistingCard />
                 <EmployeeSettings />
+                {/* Each designation's day off and gazetted tick (2026-11-10). */}
+                <PostSettings />
               </>
             )}
             {tab === "leave" && <LeaveSettings />}

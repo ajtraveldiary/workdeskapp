@@ -77,7 +77,7 @@ export const persister = createSyncStoragePersister({ storage: browserStorage(),
 // 43: the Offs board and Person days carry owedSince (G.O.(Ms) 161/08/AD, take an off within a month, 2026-11-03).
 // 44: attendance marks carry an OD remark (note); OD and holiday marks; month counts od / holiday (2026-11-03).
 // 45: attendance settings carry hideTemporary / leftOut (2026-11-03).
-export const CACHE_VERSION = "45";
+export const CACHE_VERSION = "46";
 
 export async function clearSavedData() {
   queryClient.clear();

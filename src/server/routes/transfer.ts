@@ -42,6 +42,7 @@ import { ensureReportPeriods } from "../lib/reports";
 import { ensurePensionTasks } from "../lib/pension";
 import { ensureContractTasks } from "../lib/contracts";
 import { ensureProbationTasks } from "../lib/probation";
+import { applyPostSettings } from "../lib/staff";
 import { employeeInput, eventInput, eventPatch, officeFileInput, reminderLinks, reportInput, reportPatch, taskInput, taskPatch } from "../../shared/schemas";
 import { eventOccurrences, shiftDay } from "../../shared/eventSchedule";
 import { ensureEventTasks, loadEvents, ruleOf } from "../lib/officeEvents";
@@ -479,7 +480,15 @@ async function planEmployees(db: DB, userId: string, rows: Row[], result: Import
       };
       for (const e of touched) if (e.id) await db.update(employees).set({ ...fix(e), updatedAt: new Date() }).where(eq(employees.id, e.id));
       const add = [...touched].filter((e) => !e.id);
-      if (add.length) await db.insert(employees).values(add.map((e) => ({ ...fix(e), userId })));
+      const made = add.length ? await db.insert(employees).values(add.map((e) => ({ ...fix(e), userId }))).returning({ id: employees.id }) : [];
+      // Day off and Gazetted by designation (user request 2026-11-10): a value the file gives that differs from the
+      // employee's post is kept as an individual exception; everyone else follows their post.
+      const idOf = (e: Entry, i: number) => e.id ?? made[add.indexOf(e)]?.id ?? null;
+      const said = (key: string) =>
+        [...touched]
+          .map((e, i) => (key in e.values ? idOf(e, i) : null))
+          .filter((x): x is string => !!x);
+      await applyPostSettings(db, userId, said("offDay"), said("gazetted"));
     },
   };
 }
