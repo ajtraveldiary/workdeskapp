@@ -51,6 +51,7 @@ import {
 } from "../../shared/attendance";
 import { calendarDays as calendarSpan, leaveEnd, leaveShort, shiftDate } from "../../shared/leave";
 import { REGISTER_LEAVES, markRuns, type LeaveLog, type LeaveLogEntry } from "../../shared/leaveLog";
+import { offKinds, type OffsLog, type OffsLogEntry } from "../../shared/offsLog";
 import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import type { AttendanceMonth, AwayDays, AwayPerson, Holiday, OffNeeded, OffsBoard, OffsBoardDay, PersonDays } from "../../shared/types";
 import { timezone } from "../env";
@@ -123,7 +124,9 @@ async function openCh(db: DB, userId: string, settings: AttendanceSettings, ids:
 // Weekly-off staff's figures up to the month's end (or today): from the day after their starting figures, else from
 // their first mark or first correction, each day counted, an off, a fresh start or nothing (weeklyOff in
 // shared/attendance.ts); a correction sets the figures as on the end of its day. `corrections`: those from `first` on.
-async function weeklyFigures(db: DB, userId: string, settings: AttendanceSettings, people: { id: string; from: string | null; until: string | null }[], first: string, last: string, today: string) {
+// withKinds (the offs log, 2026-11-10): also each off taken labelled off / C-off / early (`offKinds`); the month and the
+// other callers leave it out, so their answers keep their shape.
+async function weeklyFigures(db: DB, userId: string, settings: AttendanceSettings, people: { id: string; from: string | null; until: string | null }[], first: string, last: string, today: string, withKinds = false) {
   if (!people.length) return [];
   const end = last < today ? last : today;
   const ids = people.map((p) => p.id);
@@ -218,6 +221,7 @@ async function weeklyFigures(db: DB, userId: string, settings: AttendanceSetting
       towardsBefore: before.towards,
       corrections: fixes.filter((f) => f.employeeId === p.id && f.date >= first).map((f) => ({ employeeId: f.employeeId, date: f.date, offsDue: f.offsDue, towards: f.towards, run: f.run })),
       owedSince: w.owedSince,
+      ...(withKinds ? { offKinds: offKinds(days, start, settings) } : {}),
     };
   });
 }
@@ -952,6 +956,69 @@ export const attendanceRoutes = new Hono<AppEnv>()
       entries,
       people: who.map((p) => ({ id: p.e.id, name: p.e.name, designation: p.designation, permanent: p.e.permanent, left: !!p.e.leftOn && p.e.leftOn < today })),
       types: [...REGISTER_LEAVES.map((x) => ({ filter: x.filter, label: x.label, name: x.name })), ...types.map((t) => ({ filter: `leave:${t.id}`, label: leaveShort(t), name: t.name }))],
+    };
+    return c.json(out);
+  })
+  // The offs log (user request 2026-11-10): every off and holiday taken (H / SS) of weekly-off staff from–to (this year
+  // to start), oldest first. Each off is labelled from the person's whole count (weeklyFigures withKinds, to the last
+  // day asked so offs marked ahead are labelled too): Off, C-off (it pays the compensatory off: one earned while another
+  // was owed) or Off taken early. Filtering by staff and type is done in the app.
+  .get("/offs-log", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const today = todayIn(timezone(c.env));
+    const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const from = isDay(c.req.query("from")) ? c.req.query("from")! : `${today.slice(0, 4)}-01-01`;
+    let to = isDay(c.req.query("to")) ? c.req.query("to")! : `${today.slice(0, 4)}-12-31`;
+    if (to < from) throw new HTTPException(400, { message: "The last day is before the first" });
+    if (to > shiftDate(from, 1100)) to = shiftDate(from, 1100);
+    const [settings, people] = await Promise.all([
+      loadSettings(db, userId),
+      db
+        .select({ e: employees, designation: designations.name, order: designations.sortOrder })
+        .from(employees)
+        .leftJoin(designations, eq(designations.id, employees.designationId))
+        .where(and(eq(employees.userId, userId), eq(employees.offDay, "weekly"))),
+    ]);
+    people.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.e.name.localeCompare(b.e.name));
+    const ids = people.map((p) => p.e.id);
+    const [marks, hols, figures] = ids.length
+      ? await Promise.all([
+          db
+            .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark })
+            .from(attendanceMarks)
+            .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), gte(attendanceMarks.date, from), lte(attendanceMarks.date, to), inArray(attendanceMarks.mark, ["off", "holiday"])))
+            .orderBy(asc(attendanceMarks.date)),
+          holidayMap(db, userId, from, to),
+          weeklyFigures(
+            db,
+            userId,
+            settings,
+            people.map((p) => ({ id: p.e.id, from: p.e.joinedOfficeOn, until: p.e.leftOn })),
+            from,
+            to,
+            to > today ? to : today,
+            true,
+          ),
+        ])
+      : [[], new Map<string, string>(), []];
+    const kindsOf = new Map(figures.map((f) => [f.employeeId, (f as { offKinds?: Map<string, "off" | "coff" | "early"> }).offKinds]));
+    const rank = new Map(people.map((p, i) => [p.e.id, i]));
+    const entries: OffsLogEntry[] = marks.map((m) => {
+      if (m.mark === "holiday") {
+        const h = holidayOn(m.date, hols, settings);
+        return { employeeId: m.employeeId, date: m.date, kind: h?.kind === "second_saturday" ? "ss" : "h", details: h && h.kind !== "second_saturday" ? h.name : h ? "" : "Not a holiday of the register" };
+      }
+      const k = kindsOf.get(m.employeeId)?.get(m.date);
+      return { employeeId: m.employeeId, date: m.date, kind: k === "coff" ? "coff" : "off", details: k === "early" ? "Taken early (before it was earned)" : k ? "" : "Before the count starts" };
+    });
+    entries.sort((a, b) => a.date.localeCompare(b.date) || rank.get(a.employeeId)! - rank.get(b.employeeId)!);
+    const who = new Set(entries.map((e) => e.employeeId));
+    const out: OffsLog = {
+      from,
+      to,
+      entries,
+      people: people.filter((p) => who.has(p.e.id)).map((p) => ({ id: p.e.id, name: p.e.name, designation: p.designation, left: !!p.e.leftOn && p.e.leftOn < today })),
     };
     return c.json(out);
   })

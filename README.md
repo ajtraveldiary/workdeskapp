@@ -143,7 +143,9 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   before you save; nothing is blocked, and Undo puts the days back. Whatever you enter is saved, even an off or CL
   that breaks a rule; the register outlines such a cell in yellow, and pointing at it says what is wrong. **Leave log**
   (a button on the register): every CL, half-day CL, CH and leave from the Leave page in date order, filtered by type of
-  leave and employee for any period, with a total of days by type, and a Print button. For permanent staff it also takes EL, HPL, commuted
+  leave and employee for any period, with a total of days by type, and a Print button. **Offs log** (beside it): every weekly off, C-off
+  (the off that pays back the compensatory off after 12 days without one) and holiday taken (H / SS) of weekly-off
+  staff in date order, filtered by staff member and type, with Print. For permanent staff it also takes EL, HPL, commuted
   and the other leave types: the leave goes on the Leave page with its task ("Mark in attendance" already ticked), the
   balance before and after is shown, and for EL, HPL and commuted leave the holidays just before and after it (prefix
   and suffix) are listed and written into the leave's notes. The register itself is kept simple: Mark leave, a Key to

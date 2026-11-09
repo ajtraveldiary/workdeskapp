@@ -8,6 +8,7 @@ import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileIn
 import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, LeaveType } from "../shared/types";
 import type { AttendanceMonth, AwayDays, Holiday, OffsBoard, PersonDays } from "../shared/types";
 import type { LeaveLog } from "../shared/leaveLog";
+import type { OffsLog } from "../shared/offsLog";
 import type { AttendanceMark, AttendanceSettings, StartFigures } from "../shared/attendance";
 
 export class ApiError extends Error {
@@ -377,6 +378,9 @@ export const usePersonWindow = (id: string | null, from: string, until: string) 
 // marking the register refreshes it (leave changes refresh "leave", which it also listens to by refetching on open).
 export const useLeaveLog = (from: string, to: string) =>
   useQuery({ queryKey: ["attendance", "leave-log", from, to], queryFn: () => api<LeaveLog>(`/attendance/leave-log?from=${from}&to=${to}`), refetchOnMount: "always", placeholderData: (prev) => prev });
+// The offs log (2026-11-10): weekly-off staff's offs, C-offs and holidays taken from–to, oldest first.
+export const useOffsLog = (from: string, to: string) =>
+  useQuery({ queryKey: ["attendance", "offs-log", from, to], queryFn: () => api<OffsLog>(`/attendance/offs-log?from=${from}&to=${to}`), refetchOnMount: "always", placeholderData: (prev) => prev });
 export const useAway = () => useQuery({ queryKey: ["attendance", "away"], queryFn: () => api<AwayDays>("/attendance/away"), refetchOnMount: "always" });
 // Start the register (docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point at once.
 export function useStartRegister() {

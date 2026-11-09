@@ -34,7 +34,7 @@
 // the name and CL / CH columns staying put); Mark for someone stays beside the toolbar (the + button on phones).
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { AlertTriangle, ScrollText, CalendarClock, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Eraser, KeyRound, Pencil, Plus, X } from "lucide-react";
+import { AlertTriangle, CalendarOff, ScrollText, CalendarClock, CalendarPlus, Check, ChevronDown, ChevronLeft, ChevronRight, ClipboardCheck, Eraser, KeyRound, Pencil, Plus, X } from "lucide-react";
 import type { AttendanceMonth } from "../../shared/types";
 import { CH_HOLD_MAX, CL_RUN_MAX, MARK_NAME, MARK_SHORT, WEEKDAY_LETTER, awayDay, chExpires, chFits, clDays, go303Breaks, markName, markShort, nextToLeave, notEligible, onDuty, dutyForOff, monthCounts, monthLabel, needsOff, offByItself, offLine, offStatus, offsEarned, shiftMonth, weeklyOff, type AttendanceMark, type ChOpen, type MarkDay, type OffCheckDay, type StartFigures, type WeeklyDay } from "../../shared/attendance";
 import { toCsv } from "../../shared/transfer";
@@ -163,6 +163,10 @@ export function AttendancePage() {
           {/* Leave log (2026-11-09): every CL, ½ CL, CH and Leave page leave in date order, with filters and Print. */}
           <Link to="/attendance/leave-log" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-footnote font-medium text-ink hover:bg-slate-100 active:scale-[0.97] pointer-coarse:h-9" aria-label="Leave log">
             <ScrollText size={15} aria-hidden /> <span className="hidden sm:inline">Leave log</span>
+          </Link>
+          {/* Offs log (2026-11-10): weekly-off staff's offs, C-offs and holidays taken, with filters and Print. */}
+          <Link to="/attendance/offs-log" className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-footnote font-medium text-ink hover:bg-slate-100 active:scale-[0.97] pointer-coarse:h-9" aria-label="Offs log">
+            <CalendarOff size={15} aria-hidden /> <span className="hidden sm:inline">Offs log</span>
           </Link>
           <Button size="sm" variant="ghost" aria-haspopup="dialog" onClick={() => setKey(true)} aria-label="Key to the marks">
             <KeyRound size={15} /> <span className="hidden sm:inline">Key</span>
