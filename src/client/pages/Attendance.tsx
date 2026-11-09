@@ -710,7 +710,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
         if (info.out) return { date: d.date, mark: null, chHoliday: null, holiday: false, registerHoliday: !!d.holiday, leave: false, out: true };
         if (info.mark === "cl" || info.mark === "cl_half") clMonth += clDays(info.mark);
         if (info.mark === "ch") chMonth++;
-        return { date: d.date, mark: info.mark ?? null, chHoliday: ch.forCell.get(key(e.id, d.date)) ?? null, holiday: !!info.holiday, registerHoliday: !!d.holiday, leave: !!info.leave, out: false };
+        return { date: d.date, mark: info.mark ?? null, chHoliday: ch.forCell.get(key(e.id, d.date)) ?? null, holiday: !!info.holiday, registerHoliday: !!d.holiday, holidayName: d.holiday?.name ?? null, leave: !!info.leave, out: false };
       });
       const w = ch.weekly.get(e.id);
       const found = cellWarnings({

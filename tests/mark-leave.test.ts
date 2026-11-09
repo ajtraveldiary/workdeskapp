@@ -176,8 +176,11 @@ describe("Mark leave", () => {
     const base = { settings, clBefore: 0, chBefore: 0, chLimit: 22 };
     // Sunday-off staff: CL on the holiday and on Sunday, an off, H on a working day, a CH with no holiday worked.
     const s = cellWarnings({ ...base, offDay: "sunday", days: days("sunday", { 4: "cl", 8: "cl", 9: "off", 10: "holiday", 11: "ch" }) });
-    expect(s.get("2026-11-04")).toEqual(["CL on a holiday or their Sunday off: it isn't a working day"]);
-    expect(s.get("2026-11-08")).toEqual(["CL on a holiday or their Sunday off: it isn't a working day"]);
+    expect(s.get("2026-11-04")).toEqual(["CL on a holiday: it isn't a working day"]);
+    expect(s.get("2026-11-08")).toEqual(["CL on their Sunday off: it isn't a working day"]);
+    // The holiday by its name (2026-11-10): "CL on Diwali".
+    const named = cellWarnings({ ...base, offDay: "weekly", days: days("weekly", { 4: "cl" }, { 4: { holidayName: "Diwali" } }) });
+    expect(named.get("2026-11-04")).toEqual(["CL on Diwali, a holiday: it isn't a working day"]);
     expect(s.get("2026-11-09")).toEqual(["An off for Sunday-off staff: they take no weekly off"]);
     expect(s.get("2026-11-10")).toEqual(["H / SS on a working day: it is only for a holiday of the register"]);
     expect(s.get("2026-11-11")![0]).toContain("CH with no holiday worked");

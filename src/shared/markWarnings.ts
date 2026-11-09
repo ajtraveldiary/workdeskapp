@@ -156,7 +156,8 @@ export function workingDays(data: PersonDays, from: string, count: number | null
 // `holiday`: a day off by itself for them (a holiday of the register, or Sunday for Sunday-off staff); `registerHoliday`:
 // a holiday of the register (where H / SS belongs). `states` / `start` / `long`: the weekly-off counting of the month
 // (weekly-off staff), as the register works it out. `clBefore` / `chBefore`: CL and CH of the year before this month.
-export type RegisterDay = { date: string; mark: AttendanceMark | null; chHoliday: string | null; holiday: boolean; registerHoliday: boolean; leave: boolean; out: boolean };
+// holidayName (2026-11-10): the register holiday's name, so a warning says which holiday ("CL on Diwali").
+export type RegisterDay = { date: string; mark: AttendanceMark | null; chHoliday: string | null; holiday: boolean; registerHoliday: boolean; holidayName?: string | null; leave: boolean; out: boolean };
 export function cellWarnings(o: {
   days: RegisterDay[];
   offDay: "sunday" | "weekly";
@@ -178,7 +179,10 @@ export function cellWarnings(o: {
   for (const d of o.days) {
     if (!d.mark || d.out || d.leave) continue;
     // A mark on a day that isn't a working day for them.
-    if (d.holiday && NAMES[d.mark]) add(d.date, `${NAMES[d.mark]} on a holiday${o.offDay === "sunday" ? " or their Sunday off" : ""}: it isn't a working day`);
+    // Which day off it is (user request 2026-11-10, "name the holiday"): the register's holiday by its name, else their
+    // Sunday off.
+    if (d.holiday && NAMES[d.mark])
+      add(d.date, d.registerHoliday ? `${NAMES[d.mark]} on ${d.holidayName ? `${d.holidayName}, a holiday` : "a holiday"}: it isn't a working day` : `${NAMES[d.mark]} on their Sunday off: it isn't a working day`);
     if (d.mark === "holiday" && !d.registerHoliday) add(d.date, "H / SS on a working day: it is only for a holiday of the register");
     if (d.mark === "off" && o.offDay === "sunday") add(d.date, "An off for Sunday-off staff: they take no weekly off");
     // CL and CH past the year's limits, from the cell that goes past.
