@@ -62,6 +62,10 @@ const unkey = (k: string): AttendanceCell => {
 };
 // One colour per kind of mark, shared with Person days and the Mark leave pop-up (markColors.ts, 2026-11-08).
 const MARK_TONE = MARK_COLOR;
+// The highlighter on the hovered cell's name and day heading (2026-11-10): a soft yellow, over the cells' own white or
+// holiday grey (`.reg-highlight` in styles.css: mixed solid so the sticky name column stays opaque, and with the
+// theme's own surface so dark mode gets a dark amber).
+const HIGHLIGHT = ["reg-highlight"];
 const WIDE = "(min-width: 768px)";
 // The register's set columns (the day columns share what is left): Sl · Name and CL / CH, wider on bigger screens;
 // TOTALS_LEFT keeps the CL / CH column beside the name while the table scrolls sideways.
@@ -674,6 +678,22 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
   // register sideways scrolls it instead of selecting the cell the swipe started on. Mouse and pen select on press
   // (and drag); the click that follows is then skipped. Keyboards select with the click too.
   const pressed = useRef(false);
+  // Hovering a day cell with a mouse or pen (user request 2026-11-10) highlights that person's name and that day's
+  // heading, so a cell's row and column are easy to follow. Done on the elements themselves (no re-render of the
+  // grid); touch has no hover, so taps don't highlight.
+  const table = useRef<HTMLTableElement>(null);
+  const lit = useRef<Element[]>([]);
+  const unlight = () => {
+    for (const el of lit.current) el.classList.remove(...HIGHLIGHT);
+    lit.current = [];
+  };
+  const light = (ev: ReactPointerEvent, r: number, c: number) => {
+    unlight();
+    if (ev.pointerType === "touch" || !table.current) return;
+    const els = [table.current.querySelector(`thead th[data-col="${c}"]`), table.current.querySelector(`tbody th[data-row="${r}"]`)].filter((x): x is Element => !!x);
+    for (const el of els) el.classList.add(...HIGHLIGHT);
+    lit.current = els;
+  };
   const settings = data.settings;
   const totals = new Map(data.totals.map((t) => [t.employeeId, t]));
   const ch = useChLookups(data);
@@ -776,7 +796,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
         <p className="font-serif text-subhead text-slate-600">For the month of {monthLabel(data.month)}</p>
       </div>
       <div className="scroll-thin overflow-x-auto select-none print:overflow-visible">
-        <table className="w-full min-w-[72rem] table-fixed md:min-w-[46rem] border-collapse text-xs print:min-w-0">
+        <table ref={table} onPointerLeave={unlight} className="w-full min-w-[72rem] table-fixed md:min-w-[46rem] border-collapse text-xs print:min-w-0">
           <colgroup>
             <col className={NAME_COL} />
             <col className={TOTALS_COL} />
@@ -788,12 +808,12 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
             <tr className="font-serif">
               <th className="sticky left-0 z-20 border border-slate-300 bg-white px-2 py-1.5 text-left font-semibold text-slate-700">Sl · Name</th>
               <th className={cx("sticky z-20 border border-slate-300 bg-white px-1 py-1.5 text-center font-semibold text-slate-700", TOTALS_LEFT)}>CL / CH</th>
-              {data.days.map((d) => {
+              {data.days.map((d, c) => {
                 const pending = d.date <= data.today && data.employees.some((e) => cells.unmarked(e, d.date));
                 const keys = data.employees.filter((e) => cells.selectable(e, d.date)).map((e) => key(e.id, d.date));
                 const whole = keys.length > 0 && keys.every((k) => selected.has(k));
                 return (
-                  <th key={d.date} className={cx("border border-slate-300 p-0 font-normal", d.holiday && "bg-slate-100")}>
+                  <th key={d.date} data-col={c} className={cx("border border-slate-300 p-0 font-normal", d.holiday && "bg-slate-100")}>
                     <button
                       type="button"
                       onClick={() => column(d.date)}
@@ -865,7 +885,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                       type="button"
                       onPointerDown={(ev) => cellDown(ev, r, c)}
                       onClick={(ev) => cellClick(ev, r, c)}
-                      onPointerEnter={() => cellEnter(r, c)}
+                      onPointerEnter={(ev) => (light(ev, r, c), cellEnter(r, c))}
                       aria-pressed={on}
                       aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : info.assumed ? "duty, not marked" : "not marked"}${warned.has(k) ? `. Warning: ${warned.get(k)!.join("; ")}` : ""}`}
                       title={[[cellDate(d.date), title].filter(Boolean).join(" · "), ...(warned.get(k) ?? []).map((w) => `⚠ ${w}`)].join("\n")}
@@ -885,7 +905,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
               }
               return (
                 <tr key={e.id}>
-                  <th scope="row" className="sticky left-0 z-10 border border-slate-300 bg-white p-0 text-left font-normal">
+                  <th scope="row" data-row={r} className="sticky left-0 z-10 border border-slate-300 bg-white p-0 text-left font-normal">
                     <button type="button" onClick={() => row(e)} title={`${[e.name, e.designation, !e.permanent && "Temporary", e.offDay === "weekly" && OFF_DAY_LABELS.weekly].filter(Boolean).join(" · ")}: select the month`} className="no-tap flex w-full items-start gap-1.5 px-2 py-1 text-left hover:bg-slate-50">
                       <span className="w-5 shrink-0 pt-px text-slate-400 tabular-nums">{r + 1}</span>
                       <span className="min-w-0 flex-1">

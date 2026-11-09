@@ -689,6 +689,13 @@ html.dark [data-tag-color="pink"] { --tag-bg: #462036; --tag-ink: #f3b2d4; }
 
 /* Printing the attendance register (attendance phase 3): A4 landscape, only the page (the sidebar, top bar, tab bar
    and action bar are print:hidden), the shell's fixed heights and scrolling undone, the register shrunk to fit. */
+/* The attendance register: the hovered cell's name and day heading (2026-11-10). Solid, so the sticky name column
+   stays opaque over the days scrolling under it; mixed with the theme's surface (--color-white is the dark card in
+   dark mode), so it is a soft yellow in light and a dark amber in dark. */
+.reg-highlight {
+  background-color: color-mix(in srgb, var(--color-medium) 35%, var(--color-white)) !important;
+}
+
 @media print {
   @page {
     size: A4 landscape;
