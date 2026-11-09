@@ -542,6 +542,9 @@ describe("attendance register", () => {
   it("plans an off ahead: refused on a holiday, today or for Sunday-off staff; moved, cancelled, and on its day it becomes an off", async () => {
     const w = await add({ name: NAME, offDay: "weekly" });
     const s = await add({ name: "Sunday off" });
+    // No second Saturdays, so the days planned 2 and 4 days ahead are not refused as holidays whatever day it runs
+    // (2026-11-10: failed when 4 days ahead was the second Saturday).
+    await noSecondSaturdays();
     const today = (await call("GET", "/me")).json.today as string;
     const shift = (n: number) => new Date(Date.parse(`${today}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
     const board = async () => (await call("GET", "/attendance/offs")).json as OffsBoard;
