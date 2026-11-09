@@ -3,7 +3,7 @@
 // (docs/ATTENDANCE_MARK_LEAVE_PLAN.md). Moved here from components/PersonDays.tsx on 2026-11-08; since then every
 // warning that applies is listed (one used to replace another on the same button), and CH past the post's yearly
 // limit is new.
-import { CL_RUN_MAX, awayDay, chFits, clDays, go303Breaks, nextToLeave, notEligible, offsEarned, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "./attendance";
+import { CL_RUN_MAX, allThreeInAWeek, awayDay, chFits, clDays, go303Breaks, mondayOf, nextToLeave, notEligible, offsEarned, offsInLongAway, weeklyOff, type AttendanceMark, type MarkDay, type OffCheckDay, type WeeklyDay } from "./attendance";
 import type { PersonDays } from "./types";
 
 export type MarkKey = AttendanceMark | "clear";
@@ -148,4 +148,82 @@ export function workingDays(data: PersonDays, from: string, count: number | null
   // Skipped days after the last one picked don't matter.
   const last = picked.at(-1);
   return { dates: picked, skipped: last ? skipped.filter((x) => x.date < last) : [] };
+}
+
+// What is wrong with the marks already in the register (user request 2026-11-09, "anything the user enters must be
+// allowed; show a yellow warning around those cells with what's wrong in the hint"): for one person's days of the month,
+// in date order, each marked day's broken rules as sentences. Nothing here stops a mark; it only explains it.
+// `holiday`: a day off by itself for them (a holiday of the register, or Sunday for Sunday-off staff); `registerHoliday`:
+// a holiday of the register (where H / SS belongs). `states` / `start` / `long`: the weekly-off counting of the month
+// (weekly-off staff), as the register works it out. `clBefore` / `chBefore`: CL and CH of the year before this month.
+export type RegisterDay = { date: string; mark: AttendanceMark | null; chHoliday: string | null; holiday: boolean; registerHoliday: boolean; leave: boolean; out: boolean };
+export function cellWarnings(o: {
+  days: RegisterDay[];
+  offDay: "sunday" | "weekly";
+  states?: WeeklyDay[];
+  start?: { offsDue: number; towards: number };
+  long?: Set<string>;
+  settings: { offEvery: number; maxRun: number; clPerYear: number };
+  clBefore: number;
+  chBefore: number;
+  chLimit: number | null;
+  edges?: { before: number; after: number };
+}): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  const add = (date: string, text: string) => out.set(date, [...(out.get(date) ?? []), text]);
+  const s = o.settings;
+  const NAMES: Partial<Record<AttendanceMark, string>> = { off: "An off", cl: "CL", cl_half: "Half day CL", ch: "CH", absent: "Absent" };
+  let cl = o.clBefore;
+  let ch = o.chBefore;
+  for (const d of o.days) {
+    if (!d.mark || d.out || d.leave) continue;
+    // A mark on a day that isn't a working day for them.
+    if (d.holiday && NAMES[d.mark]) add(d.date, `${NAMES[d.mark]} on a holiday${o.offDay === "sunday" ? " or their Sunday off" : ""}: it isn't a working day`);
+    if (d.mark === "holiday" && !d.registerHoliday) add(d.date, "H / SS on a working day: it is only for a holiday of the register");
+    if (d.mark === "off" && o.offDay === "sunday") add(d.date, "An off for Sunday-off staff: they take no weekly off");
+    // CL and CH past the year's limits, from the cell that goes past.
+    if (d.mark === "cl" || d.mark === "cl_half") {
+      cl += clDays(d.mark);
+      if (cl > s.clPerYear) add(d.date, `CL ${cl} of ${s.clPerYear} this year (KSR Part I Appendix VII)`);
+    }
+    if (d.mark === "ch") {
+      ch++;
+      if (o.chLimit !== null && ch > o.chLimit) add(d.date, `CH ${ch} of ${o.chLimit} this year for the post (G.O.(Ms) 43/2021/H&FWD)`);
+      if (!d.chHoliday) add(d.date, "CH with no holiday worked tied to it (a CH is for a holiday worked in the last 3 months)");
+    }
+  }
+  // Weekly-off staff: offs before they were earned, and days past the most in a row.
+  if (o.offDay === "weekly" && o.states) {
+    const checked: OffCheckDay[] = o.states.map((x) => (x.state === "off" ? { ...x, asked: true, was: "skip" } : x));
+    for (const [date, need] of offsEarned(checked, o.start, s).refused)
+      add(date, `Off taken early: ${need} more ${need === 1 ? "day" : "days"} of duty were needed to earn it (one off for ${s.offEvery} days of duty)`);
+  }
+  for (const date of o.long ?? []) if (o.days.some((d) => d.date === date && d.mark)) add(date, `More than ${s.maxRun} days in a row without an off`);
+  // CL / CH with the holidays around them past 15 days in a row (KSR Part I Appendix VII).
+  let run: RegisterDay[] = [];
+  let len = o.edges?.before ?? 0;
+  const flush = (end: boolean) => {
+    const total = len + (end ? (o.edges?.after ?? 0) : 0);
+    if (total > CL_RUN_MAX && run.some((d) => d.mark === "cl" || d.mark === "ch"))
+      for (const d of run) if (d.mark === "cl" || d.mark === "ch") add(d.date, `${total} days away in a row with CL / CH and holidays (at most ${CL_RUN_MAX}, KSR Part I Appendix VII)`);
+    run = [];
+    len = 0;
+  };
+  for (const d of o.days) {
+    if (!d.out && !d.leave && awayDay(d.mark, d.holiday)) {
+      run.push(d);
+      len++;
+    } else flush(false);
+  }
+  flush(true);
+  // CL and CH joined to regular leave (KSR Part I Appendix VII rule 6; G.O.(Ms) 43/2021).
+  const clCh = new Set(o.days.filter((d) => !d.leave && (d.mark === "cl" || d.mark === "cl_half" || d.mark === "ch")).map((d) => d.date));
+  for (const date of nextToLeave(o.days.map((d) => ({ date: d.date, leave: d.leave, holiday: d.holiday && !d.mark })), clCh)) add(date, "Next to regular leave from the Leave page (CL and CH aren't joined to it)");
+  // G.O.(Ms) 303/82/HSD: no off inside a week or more away; not CL, CH and an off all in one week.
+  const marks: MarkDay[] = o.days.map((d) => ({ date: d.date, mark: d.out || d.leave ? null : d.mark, holiday: !d.out && !d.leave && !d.mark && d.holiday }));
+  if (o.offDay === "weekly") for (const date of offsInLongAway(marks)) add(date, "An off inside a week or more away on CL, CH and offs: no weekly off is due (G.O.(Ms) 303/82/HSD)");
+  const weeks = new Set(allThreeInAWeek(marks));
+  for (const d of marks)
+    if (d.mark && ["cl", "cl_half", "ch", "off"].includes(d.mark) && weeks.has(mondayOf(d.date))) add(d.date, "CL, CH and an off in one week (G.O.(Ms) 303/82/HSD: CL with an off, or an off with CH, not all three)");
+  return out;
 }

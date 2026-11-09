@@ -345,7 +345,7 @@ export function useAttendanceActions() {
     ),
     clear: m((cells: AttendanceCell[]) => api<{ cleared: number; kept: number }>("/attendance/clear", { method: "POST", body: { cells } })),
     // Phase 2: CH, each cell with the holiday worked it is for.
-    markCh: m((body: { items: (AttendanceCell & { holiday: string })[]; replace?: boolean }) =>
+    markCh: m((body: { items: (AttendanceCell & { holiday: string | null })[]; replace?: boolean }) =>
       api<{ marked: number; skipped: Record<string, number> }>("/attendance/ch", { method: "POST", body }),
     ),
     saveHoliday: m((body: { date: string; name: string }) => api("/attendance/holidays", { method: "POST", body })),

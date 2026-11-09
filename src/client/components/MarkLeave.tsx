@@ -70,6 +70,8 @@ const KINDS: { kind: Kind; label: string }[] = [
 ];
 // Register marks run a few days at most; leave can be long.
 const MAX_DAYS = 30;
+// A CH marked without a holiday worked (2026-11-09: saved, and outlined in yellow in the register).
+const NO_HOLIDAY = "none";
 const MAX_LEAVE_DAYS = 365;
 // Prefix / suffix holidays are for these built-in KSR types (user's answer 2026-11-08).
 const PREFIX_TYPES = new Set(["el", "hpl", "commuted"]);
@@ -153,10 +155,11 @@ function MarkLeaveForm({ first, onClose }: { first: string | null; onClose: () =
   const type = types.find((t) => t.id === typeId);
 
   const weekly = data?.employee.offDay === "weekly";
-  // Off is for weekly-off staff only, leave for permanent staff only.
+  // Leave is for permanent staff only. Off is offered to everyone (2026-11-09: anything entered is saved; an off for
+  // Sunday-off staff is outlined in yellow in the register).
   useEffect(() => {
-    if ((data && !weekly && kind === "off") || (employee && !permanent && kind === "leave")) setKind("cl");
-  }, [data, weekly, kind, employee, permanent]);
+    if (employee && !permanent && kind === "leave") setKind("cl");
+  }, [kind, employee, permanent]);
 
   // Register marks: the person's working days.
   const range = useMemo(() => (data && !leave ? workingDays(data, from, by === "days" ? n : null, by === "to" && to >= from ? to : by === "to" ? from : null) : null), [data, leave, from, by, n, to]);
@@ -209,13 +212,13 @@ function MarkLeaveForm({ first, onClose }: { first: string | null; onClose: () =
       if (o) {
         out[d] = o.holiday;
         used.add(o.holiday);
-      }
+      } else out[d] = NO_HOLIDAY;
     }
     return out;
   }, [data, kind, dates, selected, chPick]);
   const chItems = Object.entries(chFor)
     .filter(([d, h]) => h && selected.has(d))
-    .map(([date, holiday]) => ({ employeeId: id!, date, holiday }));
+    .map(([date, holiday]) => ({ employeeId: id!, date, holiday: holiday === NO_HOLIDAY ? null : holiday }));
 
   const busy = mark.isPending || clear.isPending || markCh.isPending || markLeave.isPending;
   const howMany = leave ? leaveDays : kind === "ch" ? chItems.length : dates.length;
@@ -354,7 +357,7 @@ function MarkLeaveForm({ first, onClose }: { first: string | null; onClose: () =
         </span>
         <div role="radiogroup" aria-labelledby="ml-type" className="space-y-2">
           <div className="flex flex-wrap gap-2">
-            {KINDS.filter((k) => k.kind !== "off" || !data || weekly).map((k) => (
+            {KINDS.map((k) => (
               <button key={k.kind} type="button" role="radio" aria-checked={kind === k.kind} onClick={() => setKind(k.kind)} className={chip(kind === k.kind, k.kind)}>
                 {k.label}
               </button>
@@ -505,18 +508,15 @@ function MarkLeaveForm({ first, onClose }: { first: string | null; onClose: () =
               return (
                 <li key={d} className="grid gap-1 min-[420px]:grid-cols-[7rem_1fr] min-[420px]:items-center">
                   <span className="text-sm text-slate-700">{dayLabel(d)}</span>
-                  {fits.length === 0 ? (
-                    <span className="text-footnote text-urgent-ink">No holiday worked open for this day</span>
-                  ) : (
-                    <select className={inputClass} value={chFor[d] ?? ""} onChange={(ev) => setChPick((c) => ({ ...c, [d]: ev.target.value }))} aria-label={`Holiday for the CH on ${dayLabel(d)}`}>
-                      <option value="">Not CH</option>
-                      {fits.map((o) => (
-                        <option key={o.holiday} value={o.holiday}>
-                          {o.name}, {dayLabel(o.holiday)} (by {dayLabel(o.expires)})
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  <select className={inputClass} value={chFor[d] ?? ""} onChange={(ev) => setChPick((c) => ({ ...c, [d]: ev.target.value }))} aria-label={`Holiday for the CH on ${dayLabel(d)}`}>
+                    <option value="">Not CH</option>
+                    <option value={NO_HOLIDAY}>CH without a holiday worked (warned)</option>
+                    {fits.map((o) => (
+                      <option key={o.holiday} value={o.holiday}>
+                        {o.name}, {dayLabel(o.holiday)} (by {dayLabel(o.expires)})
+                      </option>
+                    ))}
+                  </select>
                 </li>
               );
             })}

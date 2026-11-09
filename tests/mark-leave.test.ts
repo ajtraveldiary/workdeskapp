@@ -11,7 +11,7 @@ import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
 import type { AttendanceMonth, PersonDay, PersonDays } from "../src/shared/types";
 import type { AttendanceSettings } from "../src/shared/attendance";
-import { markWarnings, prefixSuffix, workingDays } from "../src/shared/markWarnings";
+import { cellWarnings, markWarnings, prefixSuffix, workingDays, type RegisterDay } from "../src/shared/markWarnings";
 
 const NAME = "2026-27 സാമ്പത്തിക വർഷത്തെ ജൂനിയർ ഹെൽത്ത് ഇൻസ്‌പെക്ടർ ശ്രീമതി അനിതാകുമാരി രാധാകൃഷ്ണൻ";
 const shift = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400_000).toISOString().slice(0, 10);
@@ -161,5 +161,40 @@ describe("Mark leave", () => {
     const off = markWarnings(weekly, new Set(["2026-11-05"])).off!;
     expect(off[0]).toMatchObject({ short: "3 days early" });
     expect(off[0]!.text).toContain("3 more days");
+  });
+
+  it("cell warnings: what is wrong with marks already in the register (they are saved all the same)", () => {
+    // Mon 2 – Sun 15 Nov 2026; Sundays off for Sunday-off staff; a register holiday on Wed 4.
+    const days = (offDay: "sunday" | "weekly", marks: Record<number, RegisterDay["mark"]>, extra: Record<number, Partial<RegisterDay>> = {}): RegisterDay[] =>
+      Array.from({ length: 14 }, (_, i) => {
+        const date = shift("2026-11-02", i);
+        const sunday = (i + 1) % 7 === 0;
+        const registerHoliday = i === 2;
+        return { date, mark: marks[i + 2] ?? null, chHoliday: null, holiday: registerHoliday || (offDay === "sunday" && sunday), registerHoliday, leave: false, out: false, ...extra[i + 2] };
+      });
+    const settings = { offEvery: 6, maxRun: 12, clPerYear: 20 };
+    const base = { settings, clBefore: 0, chBefore: 0, chLimit: 22 };
+    // Sunday-off staff: CL on the holiday and on Sunday, an off, H on a working day, a CH with no holiday worked.
+    const s = cellWarnings({ ...base, offDay: "sunday", days: days("sunday", { 4: "cl", 8: "cl", 9: "off", 10: "holiday", 11: "ch" }) });
+    expect(s.get("2026-11-04")).toEqual(["CL on a holiday or their Sunday off: it isn't a working day"]);
+    expect(s.get("2026-11-08")).toEqual(["CL on a holiday or their Sunday off: it isn't a working day"]);
+    expect(s.get("2026-11-09")).toEqual(["An off for Sunday-off staff: they take no weekly off"]);
+    expect(s.get("2026-11-10")).toEqual(["H / SS on a working day: it is only for a holiday of the register"]);
+    expect(s.get("2026-11-11")![0]).toContain("CH with no holiday worked");
+    // A CH tied to a holiday is fine; CL past the year from the cell that goes past.
+    const t = cellWarnings({ ...base, clBefore: 19, offDay: "sunday", days: days("sunday", { 5: "cl", 6: "cl", 11: "ch" }, { 11: { chHoliday: "2026-10-02" } }) });
+    expect([t.has("2026-11-05"), t.get("2026-11-06"), t.has("2026-11-11")]).toEqual([false, ["CL 21 of 20 this year (KSR Part I Appendix VII)"], false]);
+    // Weekly-off staff: an off taken early (3 days of duty, then an off: 3 more were needed).
+    const marks = { 2: "present", 3: "present", 5: "present", 6: "off" } as const;
+    const w = days("weekly", marks);
+    const states = w.map((d) => ({ date: d.date, state: d.mark === "off" ? ("off" as const) : d.mark || d.holiday ? ("count" as const) : ("skip" as const) }));
+    const early = cellWarnings({ ...base, offDay: "weekly", days: w, states, start: { offsDue: 0, towards: 0 } });
+    // 2, 3, the holiday on 4 and 5 counted = 4 days: 2 more were needed.
+    expect(early.get("2026-11-06")).toEqual(["Off taken early: 2 more days of duty were needed to earn it (one off for 6 days of duty)"]);
+    expect(early.size).toBe(1);
+    // CL next to regular leave; CL, CH and an off in one week.
+    const near = cellWarnings({ ...base, offDay: "weekly", days: days("weekly", { 5: "cl", 7: "ch", 8: "off" }, { 6: { leave: true } }), states: undefined });
+    expect(near.get("2026-11-05")).toContain("Next to regular leave from the Leave page (CL and CH aren't joined to it)");
+    expect(near.get("2026-11-08")).toContain("CL, CH and an off in one week (G.O.(Ms) 303/82/HSD: CL with an off, or an off with CH, not all three)");
   });
 });

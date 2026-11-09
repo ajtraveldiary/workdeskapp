@@ -81,23 +81,24 @@ describe("attendance register", () => {
     expect((await month("2026-11")).employees.some((e) => e.id === later)).toBe(true);
   });
 
-  it("leaves out holidays, Sunday-off Sundays, offs for Sunday-off staff, other marks and days not in the office", async () => {
+  it("saves what is entered on holidays and offs for Sunday-off staff; leaves out other marks and days not in the office", async () => {
     const a = await add({ name: NAME });
     const w = await add({ name: "Weekly", offDay: "weekly" });
     const late = await add({ name: "Late joiner", joinedOfficeOn: "2026-10-20" });
     await call("POST", "/attendance/holidays", { date: "2026-10-02", name: "Gandhi Jayanthi" });
-    // CL on a holiday, a Sunday (4 Oct) and the second Saturday (10 Oct): only the weekly-off Sunday takes it.
-    const cl = await call("POST", "/attendance/mark", {
-      cells: ["2026-10-02", "2026-10-04", "2026-10-10"].flatMap((date) => [a, w].map((employeeId) => ({ employeeId, date }))),
-      mark: "cl",
-    });
-    expect(cl.json).toEqual({ marked: 1, skipped: { holiday: 5 } });
+    // CL on a holiday, a Sunday (4 Oct) and the second Saturday (10 Oct). Asked with skipDaysOff (a range in words, for
+    // assistants), only the weekly-off Sunday takes it; entered as it is (2026-11-09: anything entered is saved, the
+    // register outlines it in yellow), the rest are marked too.
+    const cells = ["2026-10-02", "2026-10-04", "2026-10-10"].flatMap((date) => [a, w].map((employeeId) => ({ employeeId, date })));
+    expect((await call("POST", "/attendance/mark", { cells, mark: "cl", skipDaysOff: true })).json).toEqual({ marked: 1, skipped: { holiday: 5 } });
+    expect((await call("POST", "/attendance/mark", { cells, mark: "cl" })).json).toEqual({ marked: 5, skipped: { "already marked": 1 } });
+    await call("POST", "/attendance/clear", { cells: cells.filter((c) => !(c.employeeId === w && c.date === "2026-10-04")) });
     // Present on a holiday is holiday duty, allowed.
     expect((await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-10-02" }], mark: "present" })).json.marked).toBe(1);
-    // An off is for weekly-off staff only (Weekly brings one in from the starting figures).
+    // An off is meant for weekly-off staff, but one for Sunday-off staff is saved too (warned about in the register).
     await call("PUT", "/attendance/settings", { start: { [w]: { asOn: "2026-09-30", clTaken: 0, chOpen: [], offsDue: 1, towards: 0 } } });
     const off = await call("POST", "/attendance/mark", { cells: [a, w].map((employeeId) => ({ employeeId, date: "2026-10-06" })), mark: "off" });
-    expect(off.json).toEqual({ marked: 1, skipped: { "Sunday-off staff": 1 } });
+    expect(off.json).toEqual({ marked: 2, skipped: {} });
     // A cell with another mark stays unless replace; the same mark is left alone.
     const keep = await call("POST", "/attendance/mark", { cells: [{ employeeId: w, date: "2026-10-06" }, { employeeId: w, date: "2026-10-04" }], mark: "present" });
     expect(keep.json).toEqual({ marked: 0, skipped: { "has another mark": 2 } });
@@ -186,15 +187,24 @@ describe("attendance register", () => {
     ]);
     const ch = (items: { date: string; holiday: string }[]) => call("POST", "/attendance/ch", { items: items.map((i) => ({ employeeId: a, ...i })) });
     expect((await ch([{ date: "2026-10-05", holiday: "2026-10-02" }])).json).toEqual({ marked: 1, skipped: {} });
-    // Not again for the same holiday, not before it, not on a holiday, not after 3 months.
-    expect((await ch([{ date: "2026-10-06", holiday: "2026-10-02" }])).json.skipped).toEqual({ "no holiday worked to take it for": 1 });
-    expect((await ch([{ date: "2026-10-09", holiday: "2026-10-10" }])).json.skipped).toEqual({ "no holiday worked to take it for": 1 });
-    expect((await ch([{ date: "2026-10-11", holiday: "2026-10-10" }])).json.skipped).toEqual({ holiday: 1 });
-    expect((await ch([{ date: "2027-01-11", holiday: "2026-10-10" }])).json.skipped).toEqual({ "no holiday worked to take it for": 1 });
+    // Not tied again to the same holiday, nor before it, nor after 3 months: since 2026-11-09 such a CH is still saved,
+    // with no holiday worked (the register outlines it in yellow), and the holiday stays open. A CH on a holiday is
+    // saved too, tied to the holiday when it fits.
+    const none = (date: string) => ({ marked: 1, skipped: {}, date });
+    expect({ ...(await ch([{ date: "2026-10-06", holiday: "2026-10-02" }])).json, date: "2026-10-06" }).toEqual(none("2026-10-06"));
+    expect({ ...(await ch([{ date: "2026-10-09", holiday: "2026-10-10" }])).json, date: "2026-10-09" }).toEqual(none("2026-10-09"));
+    expect((await ch([{ date: "2027-01-11", holiday: "2026-10-10" }])).json).toEqual({ marked: 1, skipped: {} });
     const after = await month("2026-10");
     expect(after.chOpen.map((o) => o.holiday)).toEqual(["2026-10-10"]);
+    expect(after.chFor.filter((x) => ["2026-10-06", "2026-10-09"].includes(x.date))).toEqual([]);
+    expect(after.marks.filter((m) => ["2026-10-06", "2026-10-09"].includes(m.date)).map((m) => m.mark)).toEqual(["ch", "ch"]);
+    // With no holiday given at all.
+    expect((await call("POST", "/attendance/ch", { items: [{ employeeId: a, date: "2026-10-13", holiday: null }] })).json).toEqual({ marked: 1, skipped: {} });
+    await call("POST", "/attendance/clear", { cells: ["2026-10-06", "2026-10-09", "2026-10-13"].map((date) => ({ employeeId: a, date })) });
+    await call("POST", "/attendance/clear", { cells: [{ employeeId: a, date: "2027-01-11" }] });
     expect(after.chFor).toEqual([{ employeeId: a, date: "2026-10-05", holiday: "2026-10-02" }]);
-    expect(after.totals[0]).toMatchObject({ ch: 1 });
+    // 5 Oct, plus the two saved with no holiday worked on 6 and 9 Oct.
+    expect(after.totals[0]).toMatchObject({ ch: 3 });
     expect(markOf(after, a, "2026-10-05")).toBe("ch");
     // The holiday worked keeps its mark while its CH is there.
     expect((await call("POST", "/attendance/clear", { cells: [{ employeeId: a, date: "2026-10-02" }] })).json).toEqual({ cleared: 0, kept: 1 });
@@ -405,9 +415,10 @@ describe("attendance register", () => {
     await call("POST", "/attendance/ch", { items: [{ employeeId: a, date: "2026-09-08", holiday: "2026-09-15" }] });
     await call("POST", "/attendance/ch", { items: [{ employeeId: a, date: "2026-09-16", holiday: "2026-09-15" }] });
     const sep = await month("2026-09");
-    // 30 days: 8 marked (the second CH for the same holiday was left out), the second Saturday (12 Sep) not marked
-    // is a holiday; every other day not marked is counted (weekly-off staff work Sundays).
-    expect(monthCounts(sep)[0]).toEqual({ employeeId: a, present: 2, holidayDuty: 1, od: 0, cl: 1.5, ch: 1, off: 1, holiday: 0, absent: 1, leave: 0, notMarked: 30 - 8 - 1 });
+    // 30 days: 9 marked (since 2026-11-09 the second CH for the same holiday is saved too, with no holiday worked),
+    // the second Saturday (12 Sep) not marked is a holiday; every other day not marked is counted (weekly-off staff
+    // work Sundays).
+    expect(monthCounts(sep)[0]).toEqual({ employeeId: a, present: 2, holidayDuty: 1, od: 0, cl: 1.5, ch: 2, off: 1, holiday: 0, absent: 1, leave: 0, notMarked: 30 - 9 - 1 });
   });
 
   it("Home's reminder: from 11 am, people in the office not marked today, only when the register is kept", async () => {
@@ -440,7 +451,8 @@ describe("attendance register", () => {
     const w = await add({ name: "Weekly", offDay: "weekly" });
     const later = new Date(Date.now() + 5 * 86400_000).toISOString().slice(0, 10);
     await call("POST", "/attendance/holidays", { date: "2026-10-02", name: "ഗാന്ധി ജയന്തി" });
-    await call("PUT", "/attendance/settings", { clPerYear: 15, start: { [a]: { asOn: "2026-08-31", clTaken: 2, chOpen: [], offsDue: 0, towards: 0 } } });
+    // No second Saturdays, so the off planned 5 days ahead isn't refused as a holiday whatever day it runs (2026-11-09).
+    await call("PUT", "/attendance/settings", { clPerYear: 15, secondSaturday: false, start: { [a]: { asOn: "2026-08-31", clTaken: 2, chOpen: [], offsDue: 0, towards: 0 } } });
     await call("POST", "/attendance/mark", { cells: [{ employeeId: a, date: "2026-10-05" }, { employeeId: w, date: "2026-10-05" }], mark: "present" });
     await call("POST", "/attendance/corrections", { employeeId: w, offsDue: 1, towards: 2, run: 8 });
     await call("POST", "/attendance/plans", { employeeId: w, date: later });
@@ -698,8 +710,10 @@ describe("attendance register", () => {
     expect(od.json).toEqual({ marked: 3, skipped: {} });
     expect((await history())[0]).toContain("On duty (OD) for");
     expect((await history())[0]).toContain(": ജില്ലാ മെഡിക്കൽ ഓഫീസിൽ യോഗം");
-    // H on a working day is refused; on the second Saturday (12 Sep) and Onam's day it is the holiday taken.
-    expect((await call("POST", "/attendance/mark", { cells: [day(3)], mark: "holiday" })).json.skipped).toEqual({ "not a holiday": 1 });
+    // H on a working day is saved too since 2026-11-09 (the register outlines it in yellow); cleared again here. On the
+    // second Saturday (12 Sep) and Onam's day it is the holiday taken.
+    expect((await call("POST", "/attendance/mark", { cells: [day(3)], mark: "holiday" })).json).toEqual({ marked: 1, skipped: {} });
+    await call("POST", "/attendance/clear", { cells: [day(3)] });
     expect((await call("POST", "/attendance/mark", { cells: [day(12)], mark: "holiday" })).json.marked).toBe(1);
     // Other marks keep no remark.
     await call("POST", "/attendance/mark", { cells: [day(4)], mark: "present", note: "ignored" });

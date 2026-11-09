@@ -46,6 +46,7 @@ import { HolidayWorkedForm } from "../components/HolidayWorked";
 import { openPersonDays } from "../components/PersonDays";
 import { openMarkLeave } from "../components/MarkLeave";
 import { LEAVE_BAND, MARK_COLOR, MARK_KEY } from "../markColors";
+import { cellWarnings } from "../../shared/markWarnings";
 import { RefreshButton } from "../components/RefreshButton";
 import { showUndo } from "../components/SwipeRow";
 import { Button, Card, ErrorNote, Fab, Menu, Modal, SkeletonList, cx, inputClass } from "../components/ui";
@@ -292,8 +293,8 @@ function MarkKey() {
         <span className="text-ink">A past day with someone not marked yet</span>
       </li>
       <li className="flex items-baseline gap-3">
-        <span className="w-12 shrink-0 text-center outline outline-1 outline-urgent">&nbsp;</span>
-        <span className="text-ink">More than 12 days in a row without an off</span>
+        <span className="w-12 shrink-0 text-center outline-2 outline-medium outline">&nbsp;</span>
+        <span className="text-ink">Yellow outline: the mark breaks a rule (an off taken early, too many days in a row, CL on a holiday…). Point at the cell to see what. It is saved all the same.</span>
       </li>
       <li className="pt-1 text-footnote text-slate-500">Marks on days still to come are lighter. CL and CH are this year's; tap them for the CH still to take and the offs.</li>
     </ul>
@@ -668,6 +669,39 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
   const settings = data.settings;
   const totals = new Map(data.totals.map((t) => [t.employeeId, t]));
   const ch = useChLookups(data);
+  // What is wrong with the marks already there (2026-11-09: every mark is saved, rules only warn): a yellow outline
+  // on the cell and the reasons in its hint.
+  const warned = useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const e of data.employees) {
+      const t = data.totals.find((x) => x.employeeId === e.id) ?? { cl: 0, ch: 0 };
+      let clMonth = 0;
+      let chMonth = 0;
+      const days = data.days.map((d) => {
+        const info = cells.info(e, d.date);
+        if (info.out) return { date: d.date, mark: null, chHoliday: null, holiday: false, registerHoliday: !!d.holiday, leave: false, out: true };
+        if (info.mark === "cl" || info.mark === "cl_half") clMonth += clDays(info.mark);
+        if (info.mark === "ch") chMonth++;
+        return { date: d.date, mark: info.mark ?? null, chHoliday: ch.forCell.get(key(e.id, d.date)) ?? null, holiday: !!info.holiday, registerHoliday: !!d.holiday, leave: !!info.leave, out: false };
+      });
+      const w = ch.weekly.get(e.id);
+      const found = cellWarnings({
+        days,
+        offDay: e.offDay,
+        states: e.offDay === "weekly" ? monthStates(data, cells, e) : undefined,
+        start: w ? { offsDue: w.dueBefore, towards: w.towardsBefore } : undefined,
+        long: w ? new Set(w.long) : undefined,
+        settings: data.settings,
+        // The year's CL / CH before this month (the totals are the whole year's, so a later month's marks are in them too).
+        clBefore: t.cl - clMonth,
+        chBefore: t.ch - chMonth,
+        chLimit: ch.limit.get(e.id) ?? null,
+        edges: ch.edges.get(e.id),
+      });
+      for (const [date, list] of found) out.set(key(e.id, date), list);
+    }
+    return out;
+  }, [data, cells, ch]);
   const [details, setDetails] = useState<string | null>(null);
   useEffect(() => {
     const end = () => (drag.current = null);
@@ -816,15 +850,15 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                         ? "Off planned"
                         : d.holiday?.name;
                 tds.push(
-                  <td key={d.date} className={cx("h-px border border-slate-300 p-0", info.holiday && "bg-slate-100", ch.long.has(k) && "outline outline-1 -outline-offset-1 outline-urgent")}>
+                  <td key={d.date} className={cx("h-px border border-slate-300 p-0", info.holiday && "bg-slate-100", warned.has(k) && "outline-2 -outline-offset-2 outline-medium outline")}>
                     <button
                       type="button"
                       onPointerDown={(ev) => cellDown(ev, r, c)}
                       onClick={(ev) => cellClick(ev, r, c)}
                       onPointerEnter={() => cellEnter(r, c)}
                       aria-pressed={on}
-                      aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : info.assumed ? "duty, not marked" : "not marked"}`}
-                      title={[cellDate(d.date), title, ch.long.has(k) && "more than 12 days in a row without an off"].filter(Boolean).join(" · ")}
+                      aria-label={`${e.name}, ${dayLabel(d.date)}: ${info.mark ? MARK_NAME[info.mark] : info.holiday ? "holiday" : info.assumed ? "duty, not marked" : "not marked"}${warned.has(k) ? `. Warning: ${warned.get(k)!.join("; ")}` : ""}`}
+                      title={[[cellDate(d.date), title].filter(Boolean).join(" · "), ...(warned.get(k) ?? []).map((w) => `⚠ ${w}`)].join("\n")}
                       className={cx("no-tap relative flex h-full min-h-8 w-full items-center justify-center overflow-hidden text-caption2 xl:text-xs", on ? "bg-brand-100 outline-2 -outline-offset-2 outline-brand-500" : "hover:bg-slate-50")}
                     >
                       {info.mark && <span className={cx(MARK_TONE[info.mark], d.date > data.today && "opacity-55")}>{markShort(info.mark, d.holiday)}</span>}
@@ -866,7 +900,7 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
       </div>
       <p className="hidden border-t border-line px-4 py-2 text-footnote text-slate-500 print:block">
         ✓ Present · OD On duty · O Weekly off · H / SS Holiday / second Saturday taken · CL Casual leave · ½CL Half day · CH Compensation leave · A Absent · grey: holiday or Sunday off · a blue dot: holiday worked, CH open (grey once taken) · EL, HPL…: leave from the
-        Leave page · a dotted O: off planned · {data.settings.assumeDuty ? "a faint ✓: not marked, counted as duty" : "a red dot under a day: someone not marked yet"} · red outline: more than 12 days in a row without an off. CL and CH are this year's; +n: CH still to take.
+        Leave page · a dotted O: off planned · {data.settings.assumeDuty ? "a faint ✓: not marked, counted as duty" : "a red dot under a day: someone not marked yet"} · yellow outline: the mark breaks a rule (saved all the same). CL and CH are this year's; +n: CH still to take.
       </p>
       <DetailsDialog id={details} data={data} lookups={ch} onClose={() => setDetails(null)} />
     </Card>
@@ -882,7 +916,6 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
   const picked = [...selected].map(unkey);
   const byId = new Map(data.employees.map((e) => [e.id, e]));
   const existing = picked.filter((c) => cells.marks.has(key(c.employeeId, c.date)));
-  const weekly = picked.some((c) => byId.get(c.employeeId)?.offDay === "weekly");
   const totals = new Map(data.totals.map((t) => [t.employeeId, t.cl]));
   // CL past the year's days if the selection were marked CL (cells already CL don't count twice).
   const over = [...new Set(picked.map((c) => c.employeeId))]
@@ -1003,11 +1036,10 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
         <Button size="sm" variant="primary" onClick={() => run("present")} disabled={busy}>
           <Check size={15} /> Present
         </Button>
-        {weekly && (
-          <Button size="sm" onClick={() => run("off")} disabled={busy}>
-            Off
-          </Button>
-        )}
+        {/* Off for anyone (2026-11-09: anything entered is saved; an off for Sunday-off staff is outlined in yellow). */}
+        <Button size="sm" onClick={() => run("off")} disabled={busy}>
+          Off
+        </Button>
         <Button size="sm" onClick={() => run("cl")} disabled={busy}>
           <CalendarClock size={15} /> CL
         </Button>
@@ -1125,6 +1157,8 @@ function ActionBar({ data, cells, selected, onDone }: { data: AttendanceMonth; c
 
 // Mark CH (phase 2): for each person, each chosen day with the holiday worked it is for, from their holidays whose
 // CH is still open on that day (the oldest first; one holiday a CH). Days with none are left out.
+// A CH marked without a holiday worked (2026-11-09).
+const NO_HOLIDAY = "none";
 function ChPicker({ data, cells, lookups, picked, replace, onClose, onDone }: { data: AttendanceMonth; cells: Cells; lookups: Lookups; picked: AttendanceCell[]; replace: boolean; onClose: () => void; onDone: () => void }) {
   const { markCh } = useAttendanceActions();
   const byId = new Map(data.employees.map((e) => [e.id, e]));
@@ -1132,7 +1166,8 @@ function ChPicker({ data, cells, lookups, picked, replace, onClose, onDone }: { 
     const out: { employeeId: string; dates: string[] }[] = [];
     for (const c of [...picked].sort((a, b) => a.date.localeCompare(b.date))) {
       const e = byId.get(c.employeeId);
-      if (!e || cells.holiday(e, c.date) || cells.marks.get(key(c.employeeId, c.date)) === "ch") continue;
+      // Holidays too since 2026-11-09 (anything entered is saved; the register outlines it in yellow).
+      if (!e || cells.marks.get(key(c.employeeId, c.date)) === "ch") continue;
       const row = out.find((r) => r.employeeId === c.employeeId);
       row ? row.dates.push(c.date) : out.push({ employeeId: c.employeeId, dates: [c.date] });
     }
@@ -1141,7 +1176,8 @@ function ChPicker({ data, cells, lookups, picked, replace, onClose, onDone }: { 
   }, [picked]);
   // Every open holiday of theirs, the expired ones too (for the "past 3 months" note).
   const openOf = (id: string) => data.chOpen.filter((o) => o.employeeId === id);
-  // The oldest holiday that fits each day, each used once.
+  // The oldest holiday that fits each day, each used once; a day with none is marked CH without a holiday worked
+  // (NO_HOLIDAY, 2026-11-09: saved and outlined in yellow), unless "Not CH" is chosen.
   const [choice, setChoice] = useState<Record<string, string>>(() => {
     const c: Record<string, string> = {};
     for (const r of rows) {
@@ -1151,14 +1187,14 @@ function ChPicker({ data, cells, lookups, picked, replace, onClose, onDone }: { 
         if (o) {
           c[key(r.employeeId, d)] = o.holiday;
           used.add(o.holiday);
-        }
+        } else c[key(r.employeeId, d)] = NO_HOLIDAY;
       }
     }
     return c;
   });
   const items = Object.entries(choice)
     .filter(([, h]) => h)
-    .map(([k, holiday]) => ({ ...unkey(k), holiday }));
+    .map(([k, holiday]) => ({ ...unkey(k), holiday: holiday === NO_HOLIDAY ? null : holiday }));
   const submit = () =>
     markCh.mutate(
       { items, replace },
@@ -1186,9 +1222,8 @@ function ChPicker({ data, cells, lookups, picked, replace, onClose, onDone }: { 
           return (
             <div key={r.employeeId} className="rounded-lg border border-line p-3">
               <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{e.name}</p>
-              {open.length === 0 ? (
-                <p className="mt-1 text-footnote text-slate-500">No holiday worked to take CH for.</p>
-              ) : (
+              {open.length === 0 && <p className="mt-1 text-footnote text-medium-ink">No holiday worked to take CH for: it can still be marked, and is outlined in yellow.</p>}
+              {
                 <ul className="mt-2 space-y-2">
                   {r.dates.map((d) => {
                     const k = key(r.employeeId, d);
@@ -1196,23 +1231,20 @@ function ChPicker({ data, cells, lookups, picked, replace, onClose, onDone }: { 
                     return (
                       <li key={d} className="grid gap-1 min-[420px]:grid-cols-[7rem_1fr] min-[420px]:items-center">
                         <span className="text-sm text-slate-700">{dayLabel(d)}</span>
-                        {fits.length === 0 ? (
-                          <span className="text-footnote text-slate-500">No holiday worked before it in the last 3 months</span>
-                        ) : (
-                          <select className={inputClass} value={choice[k] ?? ""} onChange={(ev) => setChoice((c) => ({ ...c, [k]: ev.target.value }))} aria-label={`Holiday for the CH on ${dayLabel(d)}`}>
-                            <option value="">Not CH</option>
-                            {fits.map((o) => (
-                              <option key={o.holiday} value={o.holiday}>
-                                {o.name}, {dayLabel(o.holiday)} (take by {dayLabel(o.expires)})
-                              </option>
-                            ))}
-                          </select>
-                        )}
+                        <select className={inputClass} value={choice[k] ?? ""} onChange={(ev) => setChoice((c) => ({ ...c, [k]: ev.target.value }))} aria-label={`Holiday for the CH on ${dayLabel(d)}`}>
+                          <option value="">Not CH</option>
+                          <option value={NO_HOLIDAY}>CH without a holiday worked (warned)</option>
+                          {fits.map((o) => (
+                            <option key={o.holiday} value={o.holiday}>
+                              {o.name}, {dayLabel(o.holiday)} (take by {dayLabel(o.expires)})
+                            </option>
+                          ))}
+                        </select>
                       </li>
                     );
                   })}
                 </ul>
-              )}
+              }
               {limit != null && total + adding > limit && <p className="mt-1 text-footnote text-urgent-ink">CH this year would be {total + adding}; the limit for this post is {limit}.</p>}
               {held > CH_HOLD_MAX && <p className="mt-1 text-footnote text-urgent-ink">{held} CH are waiting to be taken; at most {CH_HOLD_MAX} may be held.</p>}
               {/* A holiday worked that isn't listed yet: added here, then picked for the first chosen day it fits. */}

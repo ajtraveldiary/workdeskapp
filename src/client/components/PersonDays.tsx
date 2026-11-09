@@ -161,16 +161,9 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
   const busy = mark.isPending || clear.isPending || markCh.isPending;
   const button = (m: Markable | "ch" | "clear", label: string) => {
     const w = warn?.[m]?.map((x) => x.short).join(" · ");
-    // Holidays take duty, OD or the holiday taken; the holiday taken needs every chosen day to be a holiday of the
-    // register (a Sunday-off person's Sunday isn't one).
-    const disabled =
-      busy ||
-      chosen.length === 0 ||
-      (m === "clear"
-        ? !chosen.some((d) => d.mark)
-        : m === "holiday"
-          ? !chosen.every((d) => d.holiday && d.holiday !== "Sunday")
-          : allHoliday && m !== "present" && m !== "od");
+    // Every mark can be put on any day (2026-11-09: anything entered is saved; the register outlines a mark that
+    // breaks a rule in yellow). The holiday taken (H / SS) is still offered only for holidays of the register.
+    const disabled = busy || chosen.length === 0 || (m === "clear" ? !chosen.some((d) => d.mark) : m === "holiday" ? !chosen.every((d) => d.holiday && d.holiday !== "Sunday") : false);
     return (
       <button
         key={m}
@@ -264,7 +257,7 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
         </p>
         <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-7">
           {button("present", allHoliday ? "Holiday duty" : "Duty")}
-          {weekly && button("off", "Off")}
+          {button("off", "Off")}
           {button("cl", "CL")}
           {button("cl_half", "½ CL")}
           {button("ch", "CH…")}
@@ -292,7 +285,7 @@ function PersonDaysView({ id, onChangePerson }: { id: string; onChangePerson?: (
         <ErrorNote error={mark.error ?? clear.error ?? markCh.error} />
       </div>
 
-      {choosingCh && <ChChoose data={data} days={chosen.filter((d) => !d.holiday)} onClose={() => setChoosingCh(false)} onDone={() => (setChoosingCh(false), setSelected(new Set()))} />}
+      {choosingCh && <ChChoose data={data} days={chosen} onClose={() => setChoosingCh(false)} onDone={() => (setChoosingCh(false), setSelected(new Set()))} />}
 
       <p className="text-footnote text-slate-600 [overflow-wrap:anywhere]">
         CL {data.cl} of {data.settings.clPerYear} this year · CH {data.ch}
@@ -349,7 +342,9 @@ function DayCell({ d, today, on, dim, onTap }: { d: PersonDay; today: string; on
   );
 }
 
-// CH for the chosen days: each day gets one of the holidays worked still open on it (oldest first, each once).
+// CH for the chosen days: each day gets one of the holidays worked still open on it (oldest first, each once), or
+// since 2026-11-09 none (NO_HOLIDAY: the CH is saved without one and outlined in yellow in the register).
+const NO_HOLIDAY = "none";
 function ChChoose({ data, days, onClose, onDone }: { data: Data; days: PersonDay[]; onClose: () => void; onDone: () => void }) {
   const { markCh } = useAttendanceActions();
   const [choice, setChoice] = useState<Record<string, string>>(() => {
@@ -360,36 +355,32 @@ function ChChoose({ data, days, onClose, onDone }: { data: Data; days: PersonDay
       if (o) {
         c[d.date] = o.holiday;
         used.add(o.holiday);
-      }
+      } else c[d.date] = NO_HOLIDAY;
     }
     return c;
   });
   const items = Object.entries(choice)
     .filter(([, h]) => h)
-    .map(([date, holiday]) => ({ employeeId: data.employee.id, date, holiday }));
+    .map(([date, holiday]) => ({ employeeId: data.employee.id, date, holiday: holiday === NO_HOLIDAY ? null : holiday }));
   return (
     <Modal open onClose={onClose} title="Compensation leave">
       <div className="space-y-3">
         <p className="text-sm text-slate-600">Each CH is for a holiday worked in the last 3 months (G.O.(Ms) 43/2021/H&FWD).</p>
-        {days.length === 0 && <p className="text-sm text-slate-500">The days chosen are holidays.</p>}
         <ul className="space-y-2">
           {days.map((d) => {
             const fits = data.chOpen.filter((o) => chFits(o, d.date) && (choice[d.date] === o.holiday || !Object.entries(choice).some(([k, h]) => k !== d.date && h === o.holiday)));
             return (
               <li key={d.date} className="grid gap-1 min-[420px]:grid-cols-[7rem_1fr] min-[420px]:items-center">
                 <span className="text-sm text-slate-700">{dayLabel(d.date)}</span>
-                {fits.length === 0 ? (
-                  <span className="text-footnote text-slate-500">No holiday worked open for this day</span>
-                ) : (
-                  <select className={inputClass} value={choice[d.date] ?? ""} onChange={(ev) => setChoice((c) => ({ ...c, [d.date]: ev.target.value }))} aria-label={`Holiday for the CH on ${dayLabel(d.date)}`}>
-                    <option value="">Not CH</option>
-                    {fits.map((o) => (
-                      <option key={o.holiday} value={o.holiday}>
-                        {o.name}, {dayLabel(o.holiday)} (by {dayLabel(o.expires)})
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <select className={inputClass} value={choice[d.date] ?? ""} onChange={(ev) => setChoice((c) => ({ ...c, [d.date]: ev.target.value }))} aria-label={`Holiday for the CH on ${dayLabel(d.date)}`}>
+                  <option value="">Not CH</option>
+                  <option value={NO_HOLIDAY}>CH without a holiday worked (warned)</option>
+                  {fits.map((o) => (
+                    <option key={o.holiday} value={o.holiday}>
+                      {o.name}, {dayLabel(o.holiday)} (by {dayLabel(o.expires)})
+                    </option>
+                  ))}
+                </select>
               </li>
             );
           })}

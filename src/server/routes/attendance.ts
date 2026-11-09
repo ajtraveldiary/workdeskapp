@@ -678,11 +678,12 @@ export const attendanceRoutes = new Hono<AppEnv>()
       }
       if ((e.joinedOfficeOn && cell.date < e.joinedOfficeOn) || (e.leftOn && cell.date > e.leftOn)) skip("not in the office");
       else if (leaves.some((l) => l.employeeId === e.id && l.from <= cell.date && cell.date <= l.to)) skip("on leave");
-      // A holiday takes on duty (present / OD: holiday duty) or H / SS, the holiday taken (2026-11-03), which only a
-      // holiday of the register takes.
-      else if (v.mark === "holiday" && !holidayOn(cell.date, hols, settings)) skip("not a holiday");
-      else if (!onDuty(v.mark) && v.mark !== "holiday" && offByItself(cell.date, holidayOn(cell.date, hols, settings), e.offDay)) skip("holiday");
-      else if (v.mark === "off" && e.offDay !== "weekly") skip("Sunday-off staff");
+      // Anything the user enters is saved (user request 2026-11-09, "anything user enters must be allowed"): a mark
+      // that breaks a rule (CL or an off on a holiday or a Sunday-off person's Sunday, an off for Sunday-off staff, H /
+      // SS on a working day) is no longer left out; the register outlines it in yellow with what is wrong
+      // (cellWarnings in src/shared/markWarnings.ts). Only days outside the office or on leave from the Leave page,
+      // an unchanged mark and a holiday worked whose CH is taken are left out.
+      else if (v.skipDaysOff && !onDuty(v.mark) && v.mark !== "holiday" && offByItself(cell.date, holidayOn(cell.date, hols, settings), e.offDay)) skip("holiday");
       else if (had.get(key) === v.mark) skip("already marked");
       else if (had.has(key) && !v.replace) skip("has another mark");
       else if (chTaken.has(key)) skip("its CH is taken");
@@ -775,13 +776,13 @@ export const attendanceRoutes = new Hono<AppEnv>()
       if (!e) skip("not found");
       else if ((e.joinedOfficeOn && it.date < e.joinedOfficeOn) || (e.leftOn && it.date > e.leftOn)) skip("not in the office");
       else if (leaves.some((l) => l.employeeId === e.id && l.from <= it.date && it.date <= l.to)) skip("on leave");
-      else if (offByItself(it.date, holidayOn(it.date, hols, settings), e.offDay)) skip("holiday");
       else if (had.has(key) && !v.replace) skip("has another mark");
-      else if (!o || !chFits(o, it.date) || usedNow.has(`${it.employeeId}|${it.holiday}`)) skip("no holiday worked to take it for");
-      else {
+      // Since 2026-11-09 a CH is marked even without a holiday worked that fits it (none given, too old, already
+      // used): it is saved with no holiday, and the register warns about it. A CH on a holiday is saved too.
+      else if (it.holiday && o && chFits(o, it.date) && !usedNow.has(`${it.employeeId}|${it.holiday}`)) {
         usedNow.add(`${it.employeeId}|${it.holiday}`);
         rows.push({ userId, employeeId: e.id, date: it.date, mark: "ch", chHoliday: it.holiday });
-      }
+      } else rows.push({ userId, employeeId: e.id, date: it.date, mark: "ch", chHoliday: null });
     }
     if (rows.length) {
       await db
@@ -794,7 +795,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
         userId,
         "attendance.ch",
         who.size === 1 && rows.length === 1
-          ? `Attendance ${dayLabel(rows[0]!.date)}: CH for ${byId.get(rows[0]!.employeeId)!.name}, for the holiday worked on ${dayLabel(rows[0]!.chHoliday!)}`
+          ? `Attendance ${dayLabel(rows[0]!.date)}: CH for ${byId.get(rows[0]!.employeeId)!.name}, ${rows[0]!.chHoliday ? `for the holiday worked on ${dayLabel(rows[0]!.chHoliday)}` : "with no holiday worked"}`
           : `Attendance ${daysText(rows.map((r) => r.date))}: CH for ${who.size === 1 ? byId.get([...who][0]!)!.name : `${who.size} people`} (${rows.length} days, each for a holiday worked)`,
       );
     }

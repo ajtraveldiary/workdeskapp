@@ -75,7 +75,7 @@ export const ATTENDANCE_STAFF_TOOLS: Tool[] = [
     write: true,
     staff: true,
     description:
-      "Mark the attendance register as the app does, for everyone in the office or named employees, on one day or from–to: present, od (on duty elsewhere, counted as present; give a note), holiday (a holiday of the register taken, H, or SS on a second Saturday; weekly-off staff count it as duty), off (weekly-off staff only; 6 counted days of duty, CL or CH earn an off, and an off marked before it is earned is still marked but counted as taken early: tell the user when that happens), cl, half day cl, absent, or ch (compensation leave: give holidayWorked, the holiday they worked that it is for, within the last 3 months). Holidays and Sundays of Sunday-off staff take only present (holiday duty, which earns a CH); days of leave from the Leave page and cells already marked otherwise are left out unless replace (the answer says what was left out and why)." +
+      "Mark the attendance register as the app does, for everyone in the office or named employees, on one day or from–to: present, od (on duty elsewhere, counted as present; give a note), holiday (a holiday of the register taken, H, or SS on a second Saturday; weekly-off staff count it as duty), off (meant for weekly-off staff; 6 counted days of duty, CL or CH earn an off, and an off marked before it is earned is still marked but counted as taken early: tell the user when that happens), cl, half day cl, absent, or ch (compensation leave: give holidayWorked, the holiday they worked that it is for, within the last 3 months). Every mark asked for one day is saved, even one that breaks a rule (an off or CL on a holiday, an off for Sunday-off staff): tell the user the rule it breaks, as the register shows it in yellow. In a from–to range, holidays and Sunday-off staff's Sundays are left out for anything but present, od and holiday. Present on a holiday is holiday duty, which earns a CH. Days of leave from the Leave page and cells already marked otherwise are left out unless replace (the answer says what was left out and why)." +
       ASK,
     input: z.object({
       date: day.describe("The day, or the first day"),
@@ -106,6 +106,9 @@ export const ATTENDANCE_STAFF_TOOLS: Tool[] = [
               mark,
               replace: !!a.replace,
               note: mark === "od" && a.note ? String(a.note) : "",
+              // A from–to range in words means working days: its holidays and Sunday-off Sundays are left out for
+              // anything but duty and H / SS. One day asked for is marked as asked (2026-11-09).
+              skipDaysOff: to !== from,
             });
       const names = ids.map((id) => staff.employees.find((e) => e.id === id)?.name ?? "Employee");
       return {

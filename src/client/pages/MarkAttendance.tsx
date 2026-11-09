@@ -27,6 +27,9 @@ function daysFrom(from: string, to: string) {
   return out;
 }
 
+// A CH marked without a holiday worked (2026-11-09: saved, and outlined in yellow in the register).
+const NO_HOLIDAY = "none";
+
 export function MarkAttendancePage() {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
   const staff = useStaff().data;
@@ -54,10 +57,8 @@ export function MarkAttendancePage() {
     .filter((g) => g.list.length);
   const person = people.find((e) => e.id === employeeId);
   const weekly = person?.offDay === "weekly";
-  // An off is for weekly-off staff only.
-  useEffect(() => {
-    if (kind === "off" && person && !weekly) setKind("cl");
-  }, [kind, person, weekly]);
+  // Off is offered to everyone since 2026-11-09 (anything entered is saved; an off for Sunday-off staff is outlined in
+  // yellow in the register).
 
   const last = to && to >= from ? to : from;
   const dates = from ? daysFrom(from, last) : [];
@@ -79,7 +80,7 @@ export function MarkAttendancePage() {
       if (o) {
         c[d] = o.holiday;
         used.add(o.holiday);
-      }
+      } else c[d] = NO_HOLIDAY;
     }
     setChoice(c);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,7 +110,7 @@ export function MarkAttendancePage() {
   const submit = () => {
     if (!person) return;
     setDone(null);
-    if (kind === "ch") markCh.mutate({ items: chItems.map(([date, holiday]) => ({ employeeId: person.id, date, holiday })), replace }, { onSuccess: (r) => report(r, MARK_NAME.ch) });
+    if (kind === "ch") markCh.mutate({ items: chItems.map(([date, holiday]) => ({ employeeId: person.id, date, holiday: holiday === NO_HOLIDAY ? null : holiday })), replace }, { onSuccess: (r) => report(r, MARK_NAME.ch) });
     else mark.mutate({ cells: working.map((date) => ({ employeeId: person.id, date })), mark: kind, replace }, { onSuccess: (r) => report(r, MARK_NAME[kind]) });
   };
 
@@ -151,14 +152,12 @@ export function MarkAttendancePage() {
               {/* Its own type="button" radios, so nothing submits by accident. */}
               <div role="radiogroup" aria-label="Mark" className="grid grid-cols-3 gap-2">
                 {KINDS.map((k) => {
-                  const off = k.value === "off" && !!person && !weekly;
                   return (
                     <button
                       key={k.value}
                       type="button"
                       role="radio"
                       aria-checked={kind === k.value}
-                      disabled={off}
                       onClick={() => (setKind(k.value), setDone(null))}
                       className="h-10 rounded-lg border border-line bg-white text-sm font-semibold text-slate-700 enabled:active:scale-[0.97] disabled:opacity-40 aria-checked:border-brand-600 aria-checked:bg-brand-600 aria-checked:text-white"
                     >
@@ -167,7 +166,7 @@ export function MarkAttendancePage() {
                   );
                 })}
               </div>
-              {person && !weekly && <span className="mt-1 block text-footnote text-slate-500">Off is for weekly-off staff; {person.name} has Sunday off.</span>}
+              {person && !weekly && kind === "off" && <span className="mt-1 block text-footnote text-medium-ink">{person.name} has Sunday off: the off is marked, and outlined in yellow in the register.</span>}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -194,9 +193,7 @@ export function MarkAttendancePage() {
             {kind === "ch" && person && (
               <div>
                 <span className="mb-1 block text-footnote font-medium text-slate-700">For the holiday worked</span>
-                {working.length === 0 ? null : open.length === 0 ? (
-                  <p className="text-footnote text-urgent-ink">No holiday duty with a CH still to take.</p>
-                ) : (
+                {working.length === 0 ? null : (
                   <ul className="space-y-2">
                     {working.map((d) => {
                       const fits = open.filter((o) => chFits(o, d));
@@ -204,11 +201,10 @@ export function MarkAttendancePage() {
                       return (
                         <li key={d} className="flex items-center gap-2">
                           <span className="w-24 shrink-0 text-footnote text-slate-600">{dayLabel(d)}</span>
-                          {fits.length === 0 ? (
-                            <span className="text-footnote text-slate-400">None open that day</span>
-                          ) : (
+                          {
                             <select className={cx(inputClass, "min-w-0 flex-1")} value={choice[d] ?? ""} onChange={(e) => setChoice({ ...choice, [d]: e.target.value })}>
                               <option value="">Not this day</option>
+                              <option value={NO_HOLIDAY}>Without a holiday worked (warned)</option>
                               {fits.map((o) => (
                                 <option key={o.holiday} value={o.holiday} disabled={taken.has(o.holiday)}>
                                   {o.name ? `${o.name}, ` : ""}
@@ -216,7 +212,7 @@ export function MarkAttendancePage() {
                                 </option>
                               ))}
                             </select>
-                          )}
+                          }
                         </li>
                       );
                     })}

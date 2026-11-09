@@ -231,9 +231,9 @@ export const HELP_GROUPS: HelpGroup[] = [
         name: "mark_attendance",
         title: "Mark attendance",
         kind: "staff",
-        hint: "Marks the register as the app does: present, OD (on duty, with a remark), off, CL, half day CL, absent, CH, or a holiday taken (H / SS), for everyone in the office or named people, on a day or from–to. A CH needs the holiday worked it is for, and an off taken before 6 days of duty, CL or CH is still marked, counted as taken early. Leave days and holidays are left out as in the app.",
+        hint: "Marks the register as the app does: present, OD (on duty, with a remark), off, CL, half day CL, absent, CH, or a holiday taken (H / SS), for everyone in the office or named people, on a day or from–to. A CH needs the holiday worked it is for, and an off taken before 6 days of duty, CL or CH is still marked, counted as taken early. Anything asked is marked even if it breaks a rule (the register outlines it in yellow); only days of leave are left out.",
         example: "Mark everyone present today, and Mary on CL.",
-        note: "It tells you what was left out and why (on leave, holiday, already marked).",
+        note: "It tells you what was left out and why (on leave, already marked).",
       },
       {
         name: "plan_off",

@@ -467,6 +467,10 @@ export const attendanceMarkInput = z.object({
   replace: z.boolean().default(false),
   // A remark for OD (where they were on duty); kept on OD marks only.
   note: z.string().trim().max(200).default(""),
+  // Leave out days off by themselves (holidays, a Sunday-off person's Sunday) for anything but duty and H / SS: for a
+  // from–to range asked for in words (assistants), so "CL Monday to Friday" doesn't put CL on a Sunday between. What
+  // the user enters in the app is saved as entered (2026-11-09).
+  skipDaysOff: z.boolean().default(false),
 });
 export const attendanceClearInput = z.object({ cells: attendanceCells });
 export const holidayInput = z.object({ date: day, name: z.string().trim().max(100).default("") });
@@ -526,6 +530,7 @@ export const plannedOffInput = z.object({ employeeId: z.uuid(), date: day, note:
 export const plannedOffMove = z.object({ date: day });
 // Mark CH (phase 2): each cell with the holiday worked it is taken for.
 export const attendanceChInput = z.object({
-  items: z.array(z.object({ employeeId: z.uuid(), date: day, holiday: day })).min(1).max(500),
+  // holiday: the holiday worked the CH is for; null (2026-11-09) marks a CH with none, warned about in the register.
+  items: z.array(z.object({ employeeId: z.uuid(), date: day, holiday: day.nullable() })).min(1).max(500),
   replace: z.boolean().default(false),
 });

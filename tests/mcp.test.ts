@@ -366,7 +366,7 @@ describe("MCP server", () => {
   it("reads the attendance register and marks it as the app does", async () => {
     const { access_token: at } = await tokens();
     const a = (await api("POST", "/staff/employees", { name: "Anitha K" })).id as string;
-    await api("POST", "/staff/employees", { name: "Biju" });
+    const biju = (await api("POST", "/staff/employees", { name: "Biju" })).id as string;
     await api("POST", "/attendance/holidays", { date: "2026-10-02", name: "Gandhi Jayanthi" });
     const off = await call(at, "mark_attendance", { date: "2026-10-05", mark: "present" });
     expect(off.isError).toBe(true);
@@ -380,8 +380,11 @@ describe("MCP server", () => {
     expect(cl.done).toBe("Casual leave: 2 marked");
     expect(data(await call(at, "mark_attendance", { date: "2026-10-08", employees: ["Anitha K"], mark: "ch" })).error).toContain("which holiday");
     expect(data(await call(at, "mark_attendance", { date: "2026-10-08", employees: ["Anitha K"], mark: "ch", holidayWorked: "2026-10-02" })).done).toBe("Compensation leave: 1 marked");
-    // A holiday takes only present: CL there is left out, and said so.
-    expect(data(await call(at, "mark_attendance", { date: "2026-10-04", employees: ["Biju"], mark: "cl" })).leftOut).toEqual({ holiday: 1 });
+    // One day asked for is marked as asked, even CL on Biju's Sunday (2026-11-09: the register warns about it); in a
+    // range, the Sunday is left out, and said so.
+    expect(data(await call(at, "mark_attendance", { date: "2026-10-04", employees: ["Biju"], mark: "cl" })).done).toBe("Casual leave: 1 marked");
+    await api("POST", "/attendance/clear", { cells: [{ employeeId: biju, date: "2026-10-04" }] });
+    expect(data(await call(at, "mark_attendance", { date: "2026-10-03", to: "2026-10-05", employees: ["Biju"], mark: "cl", replace: true })).leftOut).toEqual({ holiday: 1 });
     const month = data(await call(at, "get_attendance", { month: "2026-10", employee: "Anitha" }));
     expect(month.holidays).toEqual([{ date: "2026-10-02", name: "Gandhi Jayanthi" }, { date: "2026-10-10", name: "Second Saturday" }]);
     expect(month.people[0]).toMatchObject({ name: "Anitha K", thisMonth: { present: 1, holidayDuty: 1, cl: 2, ch: 1 }, thisYear: { cl: 2, ch: 1 } });
