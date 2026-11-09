@@ -390,6 +390,7 @@ function ChChoose({ data, days, onClose, onDone }: { data: Data; days: PersonDay
           <HolidayWorkedForm
             employeeId={data.employee.id}
             before={days[0]!.date}
+            sundayOff={data.employee.offDay === "sunday"}
             onAdded={(h) =>
               setChoice((c) => {
                 const d = days.find((x) => !c[x.date] && h < x.date && x.date <= chExpires(h));

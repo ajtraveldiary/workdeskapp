@@ -366,7 +366,8 @@ export function monthCounts(m: {
       }
       const mark = marks.get(`${e.id}|${d.date}`);
       if (onDuty(mark)) {
-        d.holiday ? c.holidayDuty++ : c.present++;
+        // Holiday duty: a holiday of the register, or (since 2026-11-09) a Sunday-off person's Sunday, which earns a CH.
+        offByItself(d.date, d.holiday, e.offDay) ? c.holidayDuty++ : c.present++;
         if (mark === "od") c.od++;
       } else if (mark === "holiday") c.holiday++;
       else if (mark === "cl" || mark === "cl_half") c.cl += clDays(mark);

@@ -175,16 +175,26 @@ describe("attendance register", () => {
     expect(weeklyOff(days(Array(5).fill("count")), undefined, { offEvery: 5, maxRun: 6 }, 3)).toMatchObject({ offsDue: 1, towards: 0, run: 8, long: ["2026-09-04", "2026-09-05"] });
   });
 
-  it("CH: earned by a holiday worked (not a Sunday), taken once within 3 months, tied to its holiday", async () => {
+  it("CH: earned by a holiday worked (a Sunday too for Sunday-off staff), taken once within 3 months, tied to its holiday", async () => {
     const a = await add({ name: NAME });
+    const w = await add({ name: "Weekly", offDay: "weekly" });
     await call("POST", "/attendance/holidays", { date: "2026-10-02", name: "Gandhi Jayanthi" });
-    // Holiday duty on 2 Oct and the second Saturday (10 Oct); a Sunday worked (4 Oct) earns nothing.
+    // Holiday duty on 2 Oct and the second Saturday (10 Oct); since 2026-11-09 a Sunday worked (4 Oct) by Sunday-off
+    // staff earns a CH too, while for weekly-off staff a Sunday is a working day and earns nothing.
     await call("POST", "/attendance/mark", { cells: ["2026-10-02", "2026-10-04", "2026-10-10"].map((date) => ({ employeeId: a, date })), mark: "present" });
+    await call("POST", "/attendance/mark", { cells: [{ employeeId: w, date: "2026-10-04" }], mark: "present" });
     const oct = await month("2026-10");
     expect(oct.chOpen).toEqual([
       { employeeId: a, holiday: "2026-10-02", name: "Gandhi Jayanthi", expires: "2027-01-02" },
+      { employeeId: a, holiday: "2026-10-04", name: "Sunday", expires: "2027-01-04" },
       { employeeId: a, holiday: "2026-10-10", name: "Second Saturday", expires: "2027-01-10" },
     ]);
+    // Counted as holiday duty for the Sunday-off person, plain duty for the weekly-off one.
+    expect(monthCounts(oct).map((c) => [c.employeeId === a ? "a" : "w", c.holidayDuty, c.present])).toEqual([
+      ["a", 3, 0],
+      ["w", 0, 1],
+    ]);
+    await call("POST", "/attendance/clear", { cells: [{ employeeId: w, date: "2026-10-04" }] });
     const ch = (items: { date: string; holiday: string }[]) => call("POST", "/attendance/ch", { items: items.map((i) => ({ employeeId: a, ...i })) });
     expect((await ch([{ date: "2026-10-05", holiday: "2026-10-02" }])).json).toEqual({ marked: 1, skipped: {} });
     // Not tied again to the same holiday, nor before it, nor after 3 months: since 2026-11-09 such a CH is still saved,
@@ -195,7 +205,7 @@ describe("attendance register", () => {
     expect({ ...(await ch([{ date: "2026-10-09", holiday: "2026-10-10" }])).json, date: "2026-10-09" }).toEqual(none("2026-10-09"));
     expect((await ch([{ date: "2027-01-11", holiday: "2026-10-10" }])).json).toEqual({ marked: 1, skipped: {} });
     const after = await month("2026-10");
-    expect(after.chOpen.map((o) => o.holiday)).toEqual(["2026-10-10"]);
+    expect(after.chOpen.map((o) => o.holiday)).toEqual(["2026-10-04", "2026-10-10"]);
     expect(after.chFor.filter((x) => ["2026-10-06", "2026-10-09"].includes(x.date))).toEqual([]);
     expect(after.marks.filter((m) => ["2026-10-06", "2026-10-09"].includes(m.date)).map((m) => m.mark)).toEqual(["ch", "ch"]);
     // With no holiday given at all.
@@ -204,12 +214,12 @@ describe("attendance register", () => {
     await call("POST", "/attendance/clear", { cells: [{ employeeId: a, date: "2027-01-11" }] });
     expect(after.chFor).toEqual([{ employeeId: a, date: "2026-10-05", holiday: "2026-10-02" }]);
     // 5 Oct, plus the two saved with no holiday worked on 6 and 9 Oct.
-    expect(after.totals[0]).toMatchObject({ ch: 3 });
+    expect(after.totals.find((t) => t.employeeId === a)).toMatchObject({ ch: 3 });
     expect(markOf(after, a, "2026-10-05")).toBe("ch");
     // The holiday worked keeps its mark while its CH is there.
     expect((await call("POST", "/attendance/clear", { cells: [{ employeeId: a, date: "2026-10-02" }] })).json).toEqual({ cleared: 0, kept: 1 });
     await call("POST", "/attendance/clear", { cells: [{ employeeId: a, date: "2026-10-05" }] });
-    expect((await month("2026-10")).chOpen.map((o) => o.holiday)).toEqual(["2026-10-02", "2026-10-10"]);
+    expect((await month("2026-10")).chOpen.map((o) => o.holiday)).toEqual(["2026-10-02", "2026-10-04", "2026-10-10"]);
     expect(await history()).toContain(`Attendance 05.10.2026: CH for ${NAME}, for the holiday worked on 02.10.2026`);
   });
 

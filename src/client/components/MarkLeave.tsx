@@ -524,6 +524,7 @@ function MarkLeaveForm({ first, onClose }: { first: string | null; onClose: () =
           <HolidayWorkedForm
             employeeId={id}
             before={dates[0]!}
+            sundayOff={data.employee.offDay === "sunday"}
             onAdded={(h) => {
               const d = dates.find((x) => !chFor[x] && h < x && x <= chExpires(h));
               if (d) setChPick((c) => ({ ...c, [d]: h }));

@@ -12,7 +12,8 @@ import { Button, ErrorNote, cx, inputClass } from "./ui";
 
 const dayBefore = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) - 86400_000).toISOString().slice(0, 10);
 
-export function HolidayWorkedForm({ employeeId, before, onAdded }: { employeeId: string; before: string; onAdded?: (holiday: string) => void }) {
+// sundayOff: a Sunday-off person, whose Sundays are holidays worked too (2026-11-09: a Sunday worked earns them a CH).
+export function HolidayWorkedForm({ employeeId, before, onAdded, sundayOff }: { employeeId: string; before: string; onAdded?: (holiday: string) => void; sundayOff?: boolean }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState("");
@@ -23,7 +24,8 @@ export function HolidayWorkedForm({ employeeId, before, onAdded }: { employeeId:
   const { saveHoliday, mark } = useAttendanceActions();
   const existing = date ? holidays?.find((h) => h.date === date) : undefined;
   const second = !!date && !!settings?.secondSaturday && isSecondSaturday(date);
-  const isHoliday = !!existing || second;
+  const sunday = !!date && !!sundayOff && new Date(`${date}T00:00:00Z`).getUTCDay() === 0;
+  const isHoliday = !!existing || second || sunday;
   const latest = [dayBefore(before), today].sort()[0]!;
   const earliest = addMonths(before, -3);
   const busy = saveHoliday.isPending || mark.isPending;
@@ -60,7 +62,7 @@ export function HolidayWorkedForm({ employeeId, before, onAdded }: { employeeId:
             <input className={cx(inputClass, "mt-0.5 w-full")} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} placeholder="e.g. Onam" />
           </label>
         )}
-        {date && isHoliday && <span className="pb-2 text-footnote text-slate-600">{existing ? existing.name || "Holiday" : "Second Saturday"}</span>}
+        {date && isHoliday && <span className="pb-2 text-footnote text-slate-600">{existing ? existing.name || "Holiday" : second ? "Second Saturday" : "Sunday"}</span>}
       </div>
       {date && (date < earliest || date > latest) && <p className="text-footnote text-urgent-ink">Pick a day from {dayLabel(earliest)} to {dayLabel(latest)}.</p>}
       {said && <p className="text-footnote text-urgent-ink">{said}</p>}

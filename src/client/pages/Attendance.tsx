@@ -842,12 +842,14 @@ function Register({ data, cells, selected, setSelected }: SelectProps) {
                 const k = key(e.id, d.date);
                 const on = selected.has(k);
                 // Holiday duty: present on a holiday of the register (not a Sunday), which earns a CH.
-                const duty = onDuty(info.mark) && !!d.holiday;
+                // Holiday duty: on duty on a holiday of the register, or (since 2026-11-09) on their Sunday for Sunday-off
+                // staff (info.holiday covers both); it earns a CH.
+                const duty = onDuty(info.mark) && !!info.holiday;
                 const dutyOpen = duty && ch.open.get(e.id)?.find((o) => o.holiday === d.date);
                 const title = info.mark === "ch" && ch.forCell.get(k)
                   ? `CH for the holiday worked on ${dayLabel(ch.forCell.get(k)!)}`
                   : duty
-                    ? `Holiday duty (${d.holiday!.name}): ${dutyOpen ? `CH to take by ${dayLabel(dutyOpen.expires)}` : ch.taken.has(k) ? "CH taken" : "CH no longer open"}`
+                    ? `Holiday duty (${d.holiday?.name ?? "Sunday"}): ${dutyOpen ? `CH to take by ${dayLabel(dutyOpen.expires)}` : ch.taken.has(k) ? "CH taken" : "CH no longer open"}`
                     : info.mark
                       ? `${markName(info.mark, d.holiday)}${cells.notes.get(k) ? `: ${cells.notes.get(k)}` : ""}`
                       : ch.planned.has(k)
@@ -1255,6 +1257,7 @@ function ChPicker({ data, cells, lookups, picked, replace, onClose, onDone }: { 
               <HolidayWorkedForm
                 employeeId={r.employeeId}
                 before={r.dates[0]!}
+                sundayOff={e.offDay === "sunday"}
                 onAdded={(h) =>
                   setChoice((c) => {
                     const d = r.dates.find((x) => !c[key(r.employeeId, x)] && h < x && x <= chExpires(h));

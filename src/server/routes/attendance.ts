@@ -86,12 +86,12 @@ async function leavesIn(db: DB, userId: string, from: string, to: string, employ
     .map((r) => ({ employeeId: r.l.employeeId, from: r.l.fromDate < from ? from : r.l.fromDate, to: leaveEnd(r.l) > to ? to : leaveEnd(r.l), short: leaveShort({ name: r.name, short: r.short }), name: r.name }))
     .filter((r) => r.from <= r.to);
 }
-// Holidays these people worked from–to (marked present or OD on a holiday of the register; Sundays don't count) and the
+// Holidays these people worked from–to (marked present or OD on a holiday of the register, or since 2026-11-09 on a Sunday for Sunday-off staff) and the
 // starting figures' ones, less those a CH was already taken for: each with its name and the last day to take it.
 // chFor: the CH taken from `from` on, each with its holiday.
 async function openCh(db: DB, userId: string, settings: AttendanceSettings, ids: string[], from: string, to: string) {
   if (!ids.length) return { open: [] as ChOpen[], chFor: [] as { employeeId: string; date: string; holiday: string }[] };
-  const [hols, worked, taken] = await Promise.all([
+  const [hols, worked, taken, offDays] = await Promise.all([
     holidayMap(db, userId, from, to),
     db
       .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date })
@@ -101,12 +101,16 @@ async function openCh(db: DB, userId: string, settings: AttendanceSettings, ids:
       .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, holiday: attendanceMarks.chHoliday })
       .from(attendanceMarks)
       .where(and(eq(attendanceMarks.userId, userId), inArray(attendanceMarks.employeeId, ids), eq(attendanceMarks.mark, "ch"), isNotNull(attendanceMarks.chHoliday), gte(attendanceMarks.date, from))),
+    db.select({ id: employees.id, offDay: employees.offDay }).from(employees).where(and(eq(employees.userId, userId), inArray(employees.id, ids))),
   ]);
+  const sundayOff = new Set(offDays.filter((e) => e.offDay === "sunday").map((e) => e.id));
   const chFor = taken.map((t) => ({ employeeId: t.employeeId, date: t.date, holiday: t.holiday! }));
   const used = new Set(chFor.map((t) => `${t.employeeId}|${t.holiday}`));
   const open: ChOpen[] = [];
   for (const w of worked) {
-    const h = holidayOn(w.date, hols, settings);
+    // A holiday of the register, or since 2026-11-09 (user request: "if other staff worked on Sunday they earn a CH")
+    // a Sunday worked by Sunday-off staff; weekly-off staff work Sundays as any day.
+    const h = holidayOn(w.date, hols, settings) ?? (sundayOff.has(w.employeeId) && weekdayOf(w.date) === 0 ? { name: "Sunday" } : null);
     if (h && !used.has(`${w.employeeId}|${w.date}`)) open.push({ employeeId: w.employeeId, holiday: w.date, name: h.name, expires: chExpires(w.date) });
   }
   for (const id of ids)
@@ -882,7 +886,7 @@ export const attendanceRoutes = new Hono<AppEnv>()
       db.select({ id: leaveTypes.id, name: leaveTypes.name, short: leaveTypes.short }).from(leaveTypes).where(eq(leaveTypes.userId, userId)).orderBy(asc(leaveTypes.sortOrder), asc(leaveTypes.name)),
     ]);
     const byId = new Map(people.map((p) => [p.e.id, p]));
-    const holidayName = (d: string) => holidayOn(d, hols, settings)?.name ?? null;
+    const holidayName = (d: string) => holidayOn(d, hols, settings)?.name ?? (weekdayOf(d) === 0 ? "Sunday" : null);
     const entries: LeaveLogEntry[] = [];
     // The register's CL, half day CL and CH, a line for each run.
     const marksOf = new Map<string, typeof marks>();
