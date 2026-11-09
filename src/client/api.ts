@@ -7,6 +7,7 @@ import type { AuditEvent, EmailContent, EmployeeProfile, Label, RangeTasks, Emai
 import type { EmployeeInput, EntryInput, OfficeProfile, EventInput, OfficeFileInput, ReportInput, SiteLoginInput, TaskInput, LeaveInput, LeaveLineInput, LeavePatch, LeaveSurrenderInput, LeaveTypeInput } from "../shared/schemas";
 import type { EmployeeLeave, LeaveAccount, LeaveCreditPlan, LeavePostponed, LeaveType } from "../shared/types";
 import type { AttendanceMonth, AwayDays, Holiday, OffsBoard, PersonDays } from "../shared/types";
+import type { LeaveLog } from "../shared/leaveLog";
 import type { AttendanceMark, AttendanceSettings, StartFigures } from "../shared/attendance";
 
 export class ApiError extends Error {
@@ -372,6 +373,10 @@ export const usePersonDays = (id: string | null, month: string) =>
 export const usePersonWindow = (id: string | null, from: string, until: string) =>
   useQuery({ queryKey: ["attendance", "person", id, "window", from, until], queryFn: () => api<PersonDays>(`/attendance/person/${id}?from=${from}&until=${until}`), enabled: !!id, placeholderData: (prev) => (prev?.employee.id === id ? prev : undefined) });
 // Away today and tomorrow (docs/ATTENDANCE_ASSIST_PLAN.md 3.3): fresh each time the page opens.
+// The leave log (2026-11-09): CL, half day CL, CH and Leave page leaves from–to, oldest first. Under "attendance" so
+// marking the register refreshes it (leave changes refresh "leave", which it also listens to by refetching on open).
+export const useLeaveLog = (from: string, to: string) =>
+  useQuery({ queryKey: ["attendance", "leave-log", from, to], queryFn: () => api<LeaveLog>(`/attendance/leave-log?from=${from}&to=${to}`), refetchOnMount: "always", placeholderData: (prev) => prev });
 export const useAway = () => useQuery({ queryKey: ["attendance", "away"], queryFn: () => api<AwayDays>("/attendance/away"), refetchOnMount: "always" });
 // Start the register (docs/ATTENDANCE_UX_PLAN.md 4.5): everyone's starting point at once.
 export function useStartRegister() {

@@ -49,7 +49,8 @@ import {
   type WeeklyDay,
   type WeeklySet,
 } from "../../shared/attendance";
-import { leaveEnd, leaveShort, shiftDate } from "../../shared/leave";
+import { calendarDays as calendarSpan, leaveEnd, leaveShort, shiftDate } from "../../shared/leave";
+import { REGISTER_LEAVES, markRuns, type LeaveLog, type LeaveLogEntry } from "../../shared/leaveLog";
 import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import type { AttendanceMonth, AwayDays, AwayPerson, Holiday, OffNeeded, OffsBoard, OffsBoardDay, PersonDays } from "../../shared/types";
 import { timezone } from "../env";
@@ -846,6 +847,110 @@ export const attendanceRoutes = new Hono<AppEnv>()
   // Person days (docs/ATTENDANCE_ASSIST_PLAN.md 3.1): ?month=YYYY-MM gives the whole weeks (Monday to Sunday) that
   // cover the month, the Mark days calendar (user request 2026-11-03, "show the full calendar instead of the weekly
   // view"); ?from= (moved to its Monday; this week's without either) still gives 21 days, for older copies of the app.
+  // The leave log (user request 2026-11-09): every CL, half day CL and CH of the register and every leave of the Leave
+  // page (not cancelled) from–to (this year to start; at most about three years), oldest first, CL / CH days in a row
+  // as one line (`markRuns`: days off by themselves between them don't break it). Offs, H / SS, absent and OD are
+  // not leave and stay out. Filtering by type and employee is done in the app.
+  .get("/leave-log", async (c) => {
+    const db = c.get("db");
+    const userId = c.get("userId");
+    const today = todayIn(timezone(c.env));
+    const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const from = isDay(c.req.query("from")) ? c.req.query("from")! : `${today.slice(0, 4)}-01-01`;
+    let to = isDay(c.req.query("to")) ? c.req.query("to")! : `${today.slice(0, 4)}-12-31`;
+    if (to < from) throw new HTTPException(400, { message: "The last day is before the first" });
+    if (to > shiftDate(from, 1100)) to = shiftDate(from, 1100);
+    const [settings, hols, people, marks, leaves, types] = await Promise.all([
+      loadSettings(db, userId),
+      // Back 4 months too, to name the holidays worked a CH was for.
+      holidayMap(db, userId, addMonths(from, -4), to),
+      db
+        .select({ e: employees, designation: designations.name, order: designations.sortOrder })
+        .from(employees)
+        .leftJoin(designations, eq(designations.id, employees.designationId))
+        .where(eq(employees.userId, userId)),
+      db
+        .select({ employeeId: attendanceMarks.employeeId, date: attendanceMarks.date, mark: attendanceMarks.mark, chHoliday: attendanceMarks.chHoliday })
+        .from(attendanceMarks)
+        .where(and(eq(attendanceMarks.userId, userId), gte(attendanceMarks.date, from), lte(attendanceMarks.date, to), inArray(attendanceMarks.mark, ["cl", "cl_half", "ch"])))
+        .orderBy(asc(attendanceMarks.date)),
+      db
+        .select({ l: employeeLeaves, short: leaveTypes.short, name: leaveTypes.name })
+        .from(employeeLeaves)
+        .innerJoin(leaveTypes, eq(leaveTypes.id, employeeLeaves.typeId))
+        .where(and(eq(employeeLeaves.userId, userId), eq(employeeLeaves.status, "active"), lte(employeeLeaves.fromDate, to), gte(employeeLeaves.toDate, from))),
+      db.select({ id: leaveTypes.id, name: leaveTypes.name, short: leaveTypes.short }).from(leaveTypes).where(eq(leaveTypes.userId, userId)).orderBy(asc(leaveTypes.sortOrder), asc(leaveTypes.name)),
+    ]);
+    const byId = new Map(people.map((p) => [p.e.id, p]));
+    const holidayName = (d: string) => holidayOn(d, hols, settings)?.name ?? null;
+    const entries: LeaveLogEntry[] = [];
+    // The register's CL, half day CL and CH, a line for each run.
+    const marksOf = new Map<string, typeof marks>();
+    for (const m of marks) marksOf.set(m.employeeId, [...(marksOf.get(m.employeeId) ?? []), m]);
+    for (const [employeeId, list] of marksOf) {
+      const p = byId.get(employeeId);
+      if (!p) continue;
+      const runs = markRuns(
+        list.map((m) => ({ date: m.date, mark: m.mark as "cl" | "cl_half" | "ch", chHoliday: m.chHoliday })),
+        (d) => offByItself(d, holidayOn(d, hols, settings), p.e.offDay),
+      );
+      for (const r of runs) {
+        const info = REGISTER_LEAVES.find((x) => x.filter === r.mark)!;
+        const forHolidays = r.mark === "ch" ? r.holidays.map((h) => (h ? `${dayLabel(h)}${holidayName(h) ? ` (${holidayName(h)})` : ""}` : "no holiday worked")) : [];
+        entries.push({
+          employeeId,
+          kind: r.mark,
+          filter: r.mark,
+          type: info.label,
+          typeName: info.name,
+          from: r.from,
+          to: r.to,
+          days: r.mark === "cl_half" ? 0.5 : r.days.length,
+          details: [r.days.length > 1 && r.to > r.from && calendarSpan(r.from, r.to) > r.days.length ? `${r.days.map((d) => dayLabel(d).slice(0, 5)).join(", ")}` : "", forHolidays.length ? `For the holiday${forHolidays.length > 1 ? "s" : ""} worked on ${forHolidays.join(", ")}` : ""].filter(Boolean).join(" · "),
+          notes: "",
+        });
+      }
+    }
+    // Leave from the Leave page.
+    for (const r of leaves) {
+      const l = r.l;
+      if (!byId.has(l.employeeId)) continue;
+      entries.push({
+        employeeId: l.employeeId,
+        kind: "leave",
+        filter: `leave:${l.typeId}`,
+        type: leaveShort({ name: r.name, short: r.short }),
+        typeName: r.name,
+        from: l.fromDate,
+        to: leaveEnd(l),
+        days: l.days,
+        details: [
+          l.orderNo && `Order ${l.orderNo}${l.orderDate ? ` dated ${dayLabel(l.orderDate)}` : ""}`,
+          l.onMedical && "On a medical certificate",
+          l.rejoinedOn && `Rejoined on ${dayLabel(l.rejoinedOn)}`,
+          l.extensionOfId && "Extension",
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        notes: l.notes,
+      });
+    }
+    const rank = (id: string) => {
+      const p = byId.get(id)!;
+      return [p.order ?? 1e9, p.e.name] as const;
+    };
+    entries.sort((a, b) => a.from.localeCompare(b.from) || rank(a.employeeId)[0] - rank(b.employeeId)[0] || rank(a.employeeId)[1].localeCompare(rank(b.employeeId)[1]) || a.type.localeCompare(b.type));
+    const who = [...new Set(entries.map((e) => e.employeeId))].map((id) => byId.get(id)!);
+    who.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || a.e.name.localeCompare(b.e.name));
+    const out: LeaveLog = {
+      from,
+      to,
+      entries,
+      people: who.map((p) => ({ id: p.e.id, name: p.e.name, designation: p.designation, permanent: p.e.permanent, left: !!p.e.leftOn && p.e.leftOn < today })),
+      types: [...REGISTER_LEAVES.map((x) => ({ filter: x.filter, label: x.label, name: x.name })), ...types.map((t) => ({ filter: `leave:${t.id}`, label: leaveShort(t), name: t.name }))],
+    };
+    return c.json(out);
+  })
   .get("/person/:id", async (c) => {
     const db = c.get("db");
     const userId = c.get("userId");

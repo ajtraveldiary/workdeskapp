@@ -67,6 +67,7 @@ import { LoginPage } from "./pages/Login";
 import { RegistersPage } from "./pages/Registers";
 import { LeavePage } from "./pages/Leave";
 import { AttendancePage } from "./pages/Attendance";
+import { LeaveLogPage } from "./pages/LeaveLog";
 import { MarkAttendancePage } from "./pages/MarkAttendance";
 
 export function App() {
@@ -109,6 +110,7 @@ export function App() {
         <Route path="/leave" element={<Page><LeavePage /></Page>} />
         {/* Attendance register (user request 2026-10-31): the whole width, like a register page. */}
         <Route path="/attendance" element={<Page full><AttendancePage /></Page>} />
+        <Route path="/attendance/leave-log" element={<Page wide><LeaveLogPage /></Page>} />
         <Route path="/files" element={<Page><FilesPage /></Page>} />
         {/* Registers (user request 2026-10-16): two halves side by side on wide screens. */}
         <Route path="/registers" element={<Page wide><RegistersPage /></Page>} />
