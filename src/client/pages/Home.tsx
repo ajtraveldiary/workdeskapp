@@ -352,9 +352,7 @@ function CommandCenter({
             {todayEvents.map((e) => (
               <EventTodayRow key={`${e.id}:${e.original}`} item={e} />
             ))}
-            {increments.map((i) => (
-              <IncrementRow key={i.employeeId} item={i} today={today} />
-            ))}
+            {increments.length > 0 && <IncrementGroup items={increments} today={today} />}
             {withFoldGroups(
               byPriority(tasks),
               (t) => <CommandRow key={t.id} task={t} today={today} onEdit={onEdit} onOpen={openTask} />,
@@ -509,6 +507,30 @@ function LeaveGroup(props: GroupProps) {
   );
 }
 
+// Due increments (user request 2026-11-26, "doesn't shrink like leaves") fold the same way on a line of their own,
+// "4 employees' increments: Pending" ("4 increments" where the row is narrow); Due Today only, above the tasks.
+function IncrementGroup({ items, today }: { items: IncrementDue[]; today: string }) {
+  const n = items.length;
+  return (
+    <FoldGroup
+      tasks={items}
+      state="Pending"
+      row={(i) => <IncrementRow key={i.employeeId} item={i} today={today} />}
+      lead="tick"
+      textClassName="sm:text-sm"
+      icon={TrendingUp}
+      what={`increments due: ${n}`}
+    >
+      <span className="@[24rem]:hidden">
+        {n} {n === 1 ? "increment" : "increments"}
+      </span>
+      <span className="hidden @[24rem]:inline">
+        {n} {n === 1 ? "employee's increment" : "employees' increments"}
+      </span>
+    </FoldGroup>
+  );
+}
+
 // The list's rows with its Pension papers tasks on one line where the first of them comes, its leave tasks on
 // another, and its joining / relieving tasks on another (withMoveGroup).
 function withFoldGroups(
@@ -525,7 +547,7 @@ function withFoldGroups(
   return withMoveGroup(tasks, folded, moveGroup);
 }
 
-function FoldGroup({
+function FoldGroup<T>({
   tasks,
   state,
   row,
@@ -534,7 +556,7 @@ function FoldGroup({
   icon: Icon,
   what,
   children,
-}: GroupProps & { icon: LucideIcon; what: string; children: ReactNode }) {
+}: Omit<GroupProps, "tasks" | "row"> & { tasks: T[]; row: (t: T) => ReactNode; icon: LucideIcon; what: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const swipe = useSwipeMode();
   return (
@@ -567,7 +589,7 @@ function FoldGroup({
           <ChevronDown size={16} className={cx("shrink-0 text-slate-400 transition-transform", open && "rotate-180")} aria-hidden />
         </button>
       </li>
-      {open && tasks.map(row)}
+      {open && tasks.map((t) => row(t))}
     </>
   );
 }

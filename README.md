@@ -103,7 +103,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   weekly off), grouped by designation (drag to arrange).
 - **An employee's own page:** every detail, their open and completed tasks, reminders, saved logins, the events
   they attend and history.
-- **Increments:** due increments appear on Home; marking one done asks for the new pay and moves the date a year on.
+- **Increments:** due increments appear on Home as one line that opens to each person; marking one done asks for the new pay and moves the date a year on.
 - **Contracts ending:** a week before a temporary contract ends, a task asks whether to renew or end it.
 - **Probation:** when an employee nears the end of probation, a task to declare it or change the date.
 - **Leave account:** each permanent employee's page keeps their leave account: the balance of earned leave, half pay
