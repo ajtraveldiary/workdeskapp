@@ -644,6 +644,7 @@ function EventTodayRow({ item }: { item: EventToday }) {
   );
 }
 
+// Always one line (user request 2026-11-26): a long name or designation is cut with …; tapping opens the employee.
 function IncrementRow({ item, today }: { item: IncrementDue; today: string }) {
   const navigate = useNavigate();
   const swipe = useSwipeMode();
@@ -653,25 +654,26 @@ function IncrementRow({ item, today }: { item: IncrementDue; today: string }) {
   return (
     <SwipeRow
       className="-mx-3 sm:-mx-5"
-      contentClassName="row-click flex items-start gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2"
+      contentClassName="row-click flex items-center gap-2.5 px-3 py-2.5 transition-colors has-[:is(button,a):hover]:bg-slate-50/80 sm:px-5 sm:py-2"
       leading={{ label: "Done", icon: Check, tone: "low", onClick: markDone }}
     >
       {!swipe && (
-        <div className="pt-px">
+        <div>
           <CheckCircle checked={false} onToggle={markDone} label={`Mark increment done: ${item.name}`} />
         </div>
       )}
       <span className="w-[3px] shrink-0 self-stretch rounded-full bg-brand-500" aria-hidden />
       <button
         onClick={() => navigate(`/employees?employee=${item.employeeId}`)}
-        className="row-link line-clamp-3 min-w-0 flex-1 text-left text-subhead leading-snug font-medium text-ink [overflow-wrap:anywhere] hover:text-brand-700 hover:underline sm:text-sm"
+        className="row-link truncate min-w-0 flex-1 text-left text-subhead leading-snug font-medium text-ink hover:text-brand-700 hover:underline sm:text-sm"
         aria-label={`Increment due: ${item.name}. Open employee`}
+        title={[item.name, item.designation].filter(Boolean).join(" · ")}
       >
         <TrendingUp size={14} className="mr-1 inline -translate-y-px text-brand-600" aria-hidden />
         Increment: {item.name}
         {item.designation && <span className="font-normal text-slate-500"> · {item.designation}</span>}
       </button>
-      <span className={cx("shrink-0 pt-px text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{formatDay(item.due, today)}</span>
+      <span className={cx("shrink-0 text-footnote tabular-nums sm:text-xs", late ? "font-medium text-urgent-ink" : "text-slate-500")}>{formatDay(item.due, today)}</span>
     </SwipeRow>
   );
 }
