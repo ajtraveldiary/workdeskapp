@@ -362,6 +362,10 @@ const leaveFields = {
   // On a medical certificate (commuted leave needs one; LND without one has lower limits; EOL with one counts for
   // increment).
   onMedical: z.boolean().default(false),
+  // Holidays prefixed / suffixed (user request 2026-11-26): days off by themselves just before / after it. Left out:
+  // none for a new leave, the saved ones kept when editing.
+  prefixDays: z.number().int().min(0).max(31).optional(),
+  suffixDays: z.number().int().min(0).max(31).optional(),
 };
 const datesInOrder = (v: { fromDate: string; toDate: string }) => v.toDate >= v.fromDate;
 export const leaveInput = z

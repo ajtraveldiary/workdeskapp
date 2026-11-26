@@ -12,7 +12,7 @@ import type { DB } from "../src/server/db";
 import { createApp } from "../src/server/app";
 import { ensureProbationTasks } from "../src/server/lib/probation";
 import { ensureLeaveCredits } from "../src/server/lib/leave";
-import { KSR_LEAVE_TYPES, financialYearStart, leaveWarnings, spellDays } from "../src/shared/leave";
+import { KSR_LEAVE_TYPES, financialYearStart, holidaysAround, leaveWarnings, prefixDates, spellDays, suffixDates } from "../src/shared/leave";
 import { BACKUP_TABLES } from "../src/shared/transfer";
 import { eq as eqId } from "drizzle-orm";
 import { yearBefore } from "../src/shared/staff";
@@ -126,6 +126,30 @@ describe("leave", () => {
       [a, "2021-03-01"],
     ]);
     expect(((await call("GET", "/leave/leaves")).json.leaves as EmployeeLeave[]).map((l) => l.employeeId)).toEqual([b]);
+  });
+
+  it("keeps a leave's prefix and suffix holidays: none to start, kept when an edit leaves them out", async () => {
+    const hpl = await byShort("HPL");
+    const a = await add({ name: NAME });
+    const leaves = async () => (await call("GET", `/leave/leaves?employeeId=${a}`)).json.leaves as EmployeeLeave[];
+    const plain = await call("POST", "/leave/leaves", { employeeId: a, typeId: hpl.id, fromDate: "2026-03-02", toDate: "2026-03-04", days: 3 });
+    const withThem = await call("POST", "/leave/leaves", { employeeId: a, typeId: hpl.id, fromDate: "2026-11-09", toDate: "2026-11-13", days: 5, prefixDays: 2, suffixDays: 2 });
+    expect([plain.status, withThem.status]).toEqual([201, 201]);
+    const find = async (id: string) => (await leaves()).find((l) => l.id === id)!;
+    expect(await find(plain.json.id)).toMatchObject({ prefixDays: 0, suffixDays: 0 });
+    expect(await find(withThem.json.id)).toMatchObject({ prefixDays: 2, suffixDays: 2 });
+    // An edit without them (an older copy of the app) keeps them; with them, changes them.
+    const form = { typeId: hpl.id, fromDate: "2026-11-09", toDate: "2026-11-13", days: 5 };
+    await call("PUT", `/leave/leaves/${withThem.json.id}`, form);
+    expect(await find(withThem.json.id)).toMatchObject({ prefixDays: 2, suffixDays: 2 });
+    await call("PUT", `/leave/leaves/${withThem.json.id}`, { ...form, prefixDays: 0, suffixDays: 1 });
+    expect(await find(withThem.json.id)).toMatchObject({ prefixDays: 0, suffixDays: 1 });
+    expect((await call("POST", "/leave/leaves", { employeeId: a, typeId: hpl.id, fromDate: "2026-12-07", toDate: "2026-12-07", days: 1, prefixDays: 32 })).status).toBe(400);
+    // Worked out from the holidays: Saturday 7 and Sunday 8 Nov before, Saturday 14 and Sunday 15 after.
+    const off = new Set(["2026-11-07", "2026-11-08", "2026-11-14", "2026-11-15"]);
+    expect(holidaysAround("2026-11-09", "2026-11-13", (d) => off.has(d))).toEqual({ prefix: ["2026-11-07", "2026-11-08"], suffix: ["2026-11-14", "2026-11-15"] });
+    expect(holidaysAround("2026-11-10", "2026-11-12", (d) => off.has(d))).toEqual({ prefix: [], suffix: [] });
+    expect([prefixDates({ fromDate: "2026-11-09", prefixDays: 2 }), suffixDates({ toDate: "2026-11-13", suffixDays: 0 })]).toEqual([{ first: "2026-11-07", last: "2026-11-08" }, null]);
   });
 
   it("each step of a leave's task keeps when it last changed, so the leave shows the step updated last", async () => {

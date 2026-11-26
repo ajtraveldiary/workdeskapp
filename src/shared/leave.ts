@@ -303,6 +303,21 @@ export function shiftDate(day: string, n: number) {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
+// Prefix / suffix holidays are filled in for these built-in KSR types (user's answer 2026-11-08); any leave can have
+// them typed in (2026-11-26).
+export const PREFIX_SUFFIX_KEYS = new Set(["el", "hpl", "commuted"]);
+// The days off by themselves just before `from` and just after `to` (user request 2026-11-26, "fill automatically if
+// prefix and suffix are holidays"): `isOff` says whether a day is a holiday for the person. At most 31 each way.
+export function holidaysAround(from: string, to: string, isOff: (day: string) => boolean) {
+  const prefix: string[] = [];
+  for (let d = shiftDate(from, -1); prefix.length < 31 && isOff(d); d = shiftDate(d, -1)) prefix.unshift(d);
+  const suffix: string[] = [];
+  for (let d = shiftDate(to, 1); suffix.length < 31 && isOff(d); d = shiftDate(d, 1)) suffix.push(d);
+  return { prefix, suffix };
+}
+// A prefix / suffix as dates, "08.11.2026 – 09.11.2026" style pieces: its first and last day (null for none).
+export const prefixDates = (l: { fromDate: string; prefixDays: number }) => (l.prefixDays > 0 ? { first: shiftDate(l.fromDate, -l.prefixDays), last: shiftDate(l.fromDate, -1) } : null);
+export const suffixDates = (l: { toDate: string; suffixDays: number }) => (l.suffixDays > 0 ? { first: shiftDate(l.toDate, 1), last: shiftDate(l.toDate, l.suffixDays) } : null);
 // The leave's last day: the day before rejoining when they came back early, else its "to" date.
 export const leaveEnd = (l: { toDate: string; rejoinedOn: string | null }) => (l.rejoinedOn && shiftDate(l.rejoinedOn, -1) < l.toDate ? shiftDate(l.rejoinedOn, -1) : l.toDate);
 // The day they are due back (the leave task is due then): the rejoining date, else the day after the leave.

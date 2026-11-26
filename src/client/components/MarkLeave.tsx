@@ -24,7 +24,7 @@ import { AlertTriangle, CalendarDays } from "lucide-react";
 import type { LeaveType, PersonDay } from "../../shared/types";
 import { MARK_NAME, chExpires, chFits, inAttendance, markName, offStatus, offTakeBy, type AttendanceMark } from "../../shared/attendance";
 import { markWarnings, prefixSuffix, workingDays } from "../../shared/markWarnings";
-import { calendarDays, daysWord, formatDays, leaveShort, leaveWarnings, postponeDays, shiftDate, spellDays } from "../../shared/leave";
+import { PREFIX_SUFFIX_KEYS, calendarDays, daysWord, formatDays, leaveShort, leaveWarnings, postponeDays, shiftDate, spellDays } from "../../shared/leave";
 import { dayLabel, dayShort } from "../../shared/reminderSchedule";
 import { OFF_DAY_LABELS } from "../../shared/staff";
 import { useAttendanceActions, useAttendanceSettings, useEmployeeLeaves, useLeaveAccount, useLeaveActions, useLeaveTypes, useMe, usePersonWindow, useStaff, type AttendanceCell } from "../api";
@@ -73,8 +73,8 @@ const MAX_DAYS = 30;
 // A CH marked without a holiday worked (2026-11-09: saved, and outlined in yellow in the register).
 const NO_HOLIDAY = "none";
 const MAX_LEAVE_DAYS = 365;
-// Prefix / suffix holidays are for these built-in KSR types (user's answer 2026-11-08).
-const PREFIX_TYPES = new Set(["el", "hpl", "commuted"]);
+// Prefix / suffix holidays are for these built-in KSR types (user's answer 2026-11-08; PREFIX_SUFFIX_KEYS).
+const PREFIX_TYPES = PREFIX_SUFFIX_KEYS;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const short = (d: string) => `${DAY_NAMES[new Date(`${d}T00:00:00Z`).getUTCDay()]} ${Number(d.slice(8))}`;
@@ -257,6 +257,9 @@ function MarkLeaveForm({ first, onClose }: { first: string | null; onClose: () =
           days: leaveDays,
           onMedical,
           notes,
+          // Kept on the leave too, for the Leave page's table (2026-11-26).
+          prefixDays: around?.prefix.length ?? 0,
+          suffixDays: around?.suffix.length ?? 0,
           // The leave is in the register now (non-gazetted steps; gazetted ones have no such step).
           doneSteps: employee?.gazetted ? [] : ["attendance"],
           postpone: { increment: offerIncrement && moveIncrement, probation: offerProbation && moveProbation },

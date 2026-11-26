@@ -500,6 +500,10 @@ export const employeeLeaves = pgTable(
     // On a medical certificate (KSR): commuted leave needs it, LND without it has lower limits, EOL with it still
     // counts for increment.
     onMedical: boolean("on_medical").notNull().default(false),
+    // Holidays prefixed and suffixed to the leave (user request 2026-11-26): how many days off by themselves come just
+    // before the first day and just after the last (not leave days; the dates are worked out from these).
+    prefixDays: integer("prefix_days").notNull().default(0),
+    suffixDays: integer("suffix_days").notNull().default(0),
     status: text("status", { enum: ["active", "cancelled"] }).notNull().default("active"),
     extensionOfId: uuid("extension_of_id").references((): AnyPgColumn => employeeLeaves.id, { onDelete: "set null" }),
     taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),

@@ -297,7 +297,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     await checkOverlap(db, e.id, v.fromDate, v.toDate, null);
     const [l] = await db
       .insert(employeeLeaves)
-      .values({ userId, employeeId: e.id, typeId: t.id, fromDate: v.fromDate, toDate: v.toDate, days: v.days, onMedical: v.onMedical, orderNo: v.orderNo, orderDate: v.orderDate, notes: v.notes, extensionOfId: v.extensionOfId })
+      .values({ userId, employeeId: e.id, typeId: t.id, fromDate: v.fromDate, toDate: v.toDate, days: v.days, onMedical: v.onMedical, prefixDays: v.prefixDays ?? 0, suffixDays: v.suffixDays ?? 0, orderNo: v.orderNo, orderDate: v.orderDate, notes: v.notes, extensionOfId: v.extensionOfId })
       .returning();
     await takeDays(db, userId, l!, t);
     const checklist = stampChecklist([], leaveSteps(e.gazetted).map((s) => ({ id: s.id, text: s.text, done: v.doneSteps.includes(s.id) })));
@@ -339,7 +339,7 @@ export const leaveRoutes = new Hono<AppEnv>()
     await checkOverlap(db, e.id, v.fromDate, v.rejoinedOn ? leaveEnd({ toDate: v.toDate, rejoinedOn: v.rejoinedOn }) : v.toDate, l.id);
     const [saved] = await db
       .update(employeeLeaves)
-      .set({ typeId: t.id, fromDate: v.fromDate, toDate: v.toDate, days: v.days, onMedical: v.onMedical, orderNo: v.orderNo, orderDate: v.orderDate, notes: v.notes, rejoinedOn: v.rejoinedOn, updatedAt: new Date() })
+      .set({ typeId: t.id, fromDate: v.fromDate, toDate: v.toDate, days: v.days, onMedical: v.onMedical, ...(v.prefixDays !== undefined ? { prefixDays: v.prefixDays } : {}), ...(v.suffixDays !== undefined ? { suffixDays: v.suffixDays } : {}), orderNo: v.orderNo, orderDate: v.orderDate, notes: v.notes, rejoinedOn: v.rejoinedOn, updatedAt: new Date() })
       .where(eq(employeeLeaves.id, l.id))
       .returning();
     if (t.id !== l.typeId || v.days !== l.days || v.fromDate !== l.fromDate || v.toDate !== l.toDate) {
@@ -525,6 +525,8 @@ async function withTasks(db: DB, rows: (typeof employeeLeaves.$inferSelect)[]): 
     notes: r.notes,
     rejoinedOn: r.rejoinedOn,
     onMedical: r.onMedical,
+    prefixDays: r.prefixDays,
+    suffixDays: r.suffixDays,
     status: r.status,
     extensionOfId: r.extensionOfId,
     task: (r.taskId && byId.get(r.taskId)) || null,

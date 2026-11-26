@@ -7,11 +7,12 @@
 // listed as warnings naming the rule (leaveWarnings); they never stop saving.
 import { useState, type FormEvent } from "react";
 import { Check, X } from "lucide-react";
-import type { EmployeeLeave, LeaveType, StaffList } from "../../shared/types";
-import { calendarDays, daysWord, formatDays, leaveEnd, leaveShort, leaveSteps, leaveWarnings, postponeDays, shiftDate, spellDays } from "../../shared/leave";
+import type { Employee, EmployeeLeave, LeaveType, StaffList } from "../../shared/types";
+import { PREFIX_SUFFIX_KEYS, calendarDays, daysWord, formatDays, holidaysAround, leaveEnd, leaveShort, leaveSteps, leaveWarnings, postponeDays, shiftDate, spellDays } from "../../shared/leave";
+import { DEFAULT_ATTENDANCE_SETTINGS, holidayOn, weekdayOf } from "../../shared/attendance";
 import { dayLabel } from "../../shared/reminderSchedule";
 import { showUndo } from "./SwipeRow";
-import { useEmployeeLeaves, useLeaveAccount, useLeaveActions, useLeaveTypes, useMe, useStaff } from "../api";
+import { useAttendanceSettings, useEmployeeLeaves, useHolidays, useLeaveAccount, useLeaveActions, useLeaveTypes, useMe, useStaff } from "../api";
 import { Button, ErrorNote, Field, Modal, cx, inputClass } from "./ui";
 
 export type LeaveFormState = { employeeId?: string; leave?: EmployeeLeave } | null;
@@ -26,8 +27,23 @@ export function LeaveDialog({ state, onClose }: { state: LeaveFormState; onClose
   );
 }
 
+// The holidays just before and after a leave, for filling in its prefix and suffix (user request 2026-11-26): the
+// register's holidays and second Saturdays (Settings › Attendance) and, for Sunday-off staff, Sundays. Null until the
+// holidays have loaded or without an employee, a type that takes them (PREFIX_SUFFIX_KEYS) or dates in order.
+export function useHolidaysAround(employee: Employee | undefined, type: LeaveType | undefined, from: string, to: string) {
+  const settings = useAttendanceSettings().data?.settings ?? DEFAULT_ATTENDANCE_SETTINGS;
+  const ok = !!from && !!to && to >= from;
+  const before = useHolidays((ok ? shiftDate(from, -31) : from || "2000-01-01").slice(0, 4)).data?.holidays;
+  const after = useHolidays((ok ? shiftDate(to, 31) : to || "2000-01-01").slice(0, 4)).data?.holidays;
+  if (!ok || !employee || !type?.ksrKey || !PREFIX_SUFFIX_KEYS.has(type.ksrKey) || !before || !after) return null;
+  const names = new Map([...before, ...after].map((h) => [h.date, h.name]));
+  return holidaysAround(from, to, (d) => !!holidayOn(d, names, settings) || (employee.offDay === "sunday" && weekdayOf(d) === 0));
+}
+// "08.11.2026 – 09.11.2026", or the one day.
+export const spanText = (first: string, last: string) => (first === last ? dayLabel(first) : `${dayLabel(first)} – ${dayLabel(last)}`);
+
 // Which balance a type takes from, and how many days of it for each day of leave.
-const takesFrom = (t: LeaveType | undefined) => (!t ? null : t.hasAccount ? { typeId: t.id, perDay: 1 } : t.drawsOnId ? { typeId: t.drawsOnId, perDay: t.perDay } : null);
+export const takesFrom = (t: LeaveType | undefined) => (!t ? null : t.hasAccount ? { typeId: t.id, perDay: 1 } : t.drawsOnId ? { typeId: t.drawsOnId, perDay: t.perDay } : null);
 
 function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFormState>; staff: StaffList; types: LeaveType[]; onDone: () => void }) {
   const today = useMe().data?.today ?? new Date().toISOString().slice(0, 10);
@@ -52,12 +68,19 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
   // EOL (phase 4): move the next increment and the Probation declaration task by its days (ticked to start).
   const [moveIncrement, setMoveIncrement] = useState(true);
   const [moveProbation, setMoveProbation] = useState(true);
+  // Prefix / suffix (2026-11-26): typed, or (null) the holidays found around the dates; editing starts typed.
+  const [prefixTyped, setPrefix] = useState<string | null>(editing ? String(editing.prefixDays) : null);
+  const [suffixTyped, setSuffix] = useState<string | null>(editing ? String(editing.suffixDays) : null);
   const account = useLeaveAccount(employeeId).data;
   const theirLeaves = useEmployeeLeaves(employeeId).data?.leaves ?? [];
 
   const employee = staff.employees.find((e) => e.id === employeeId);
   const type = types.find((t) => t.id === typeId);
   const end = rejoinedOn ? leaveEnd({ toDate, rejoinedOn }) : toDate;
+  const around = useHolidaysAround(employee, type, fromDate, toDate);
+  const prefix = prefixTyped ?? String(around?.prefix.length ?? 0);
+  const suffix = suffixTyped ?? String(around?.suffix.length ?? 0);
+  const okAround = [prefix, suffix].every((x) => /^\d{1,2}$/.test(x.trim()) && Number(x) <= 31);
   const setDates = (from: string, to: string, rejoined: string) => {
     setFrom(from);
     setTo(to);
@@ -111,8 +134,8 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
   const save = editing ? saveLeave : markLeave;
   const submit = async (ev: FormEvent) => {
     ev.preventDefault();
-    if (!okDays || !employeeId || !typeId) return;
-    const fields = { typeId, fromDate, toDate, days: n, onMedical, orderNo, orderDate: orderDate || null, notes };
+    if (!okDays || !employeeId || !typeId || !okAround) return;
+    const fields = { typeId, fromDate, toDate, days: n, onMedical, orderNo, orderDate: orderDate || null, notes, prefixDays: Number(prefix), suffixDays: Number(suffix) };
     try {
       if (editing) await saveLeave.mutateAsync({ id: editing.id, input: { ...fields, rejoinedOn: rejoinedOn || null } });
       else {
@@ -202,6 +225,16 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
           {!rejoinedOn && ` Due back on ${shiftDate(toDate, 1).split("-").reverse().join("/")}.`}
         </p>
       )}
+      <div className="grid gap-3 min-[400px]:grid-cols-2">
+        <Field label="Prefix (holidays just before)">
+          <input type="number" inputMode="numeric" min={0} max={31} step={1} className={inputClass} value={prefix} disabled={cancelled} onChange={(e) => setPrefix(e.target.value)} />
+          {Number(prefix) > 0 && fromDate && <span className="mt-1 block text-footnote text-slate-500">{spanText(shiftDate(fromDate, -Number(prefix)), shiftDate(fromDate, -1))}</span>}
+        </Field>
+        <Field label="Suffix (holidays just after)">
+          <input type="number" inputMode="numeric" min={0} max={31} step={1} className={inputClass} value={suffix} disabled={cancelled} onChange={(e) => setSuffix(e.target.value)} />
+          {Number(suffix) > 0 && toDate && <span className="mt-1 block text-footnote text-slate-500">{spanText(shiftDate(toDate, 1), shiftDate(toDate, Number(suffix)))}</span>}
+        </Field>
+      </div>
       {editing && !cancelled && (
         <Field label="Rejoined on (joining report)">
           <input type="date" min={shiftDate(fromDate, 1)} className={inputClass} value={rejoinedOn} onChange={(e) => setDates(fromDate, toDate, e.target.value)} />
@@ -293,7 +326,7 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
           Close
         </Button>
         {!cancelled && (
-          <Button type="submit" variant="primary" disabled={save.isPending || !okDays || !employeeId || !typeId}>
+          <Button type="submit" variant="primary" disabled={save.isPending || !okDays || !employeeId || !typeId || !okAround}>
             <Check size={16} /> {editing ? "Save" : "Mark leave"}
           </Button>
         )}

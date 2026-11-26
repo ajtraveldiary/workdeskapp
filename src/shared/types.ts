@@ -314,6 +314,9 @@ export type EmployeeLeave = {
   notes: string;
   rejoinedOn: string | null;
   onMedical: boolean;
+  // Holidays prefixed / suffixed to it, in days (2026-11-26).
+  prefixDays: number;
+  suffixDays: number;
   status: "active" | "cancelled";
   extensionOfId: string | null;
   task: Task | null;
