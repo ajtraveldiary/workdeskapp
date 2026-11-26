@@ -193,8 +193,8 @@ export function lastStep(items: ChecklistItem[]) {
   if (timed) return timed;
   return [...items].reverse().find((i) => i.done || i.waiting) ?? null;
 }
-const STEP_TONE = (i: ChecklistItem): Tone => (i.done ? "low" : i.waiting ? "medium" : "neutral");
-const stepWord = (i: ChecklistItem) => (i.done ? "Done" : i.waiting ? "Waiting" : "Pending");
+export const STEP_TONE = (i: ChecklistItem): Tone => (i.done ? "low" : i.waiting ? "medium" : "neutral");
+export const stepWord = (i: ChecklistItem) => (i.done ? "Done" : i.waiting ? "Waiting" : "Pending");
 
 export function LeaveRow({ leave: l, type, today, onOpen, onTask, who }: { leave: EmployeeLeave; type?: LeaveType; today: string; onOpen: () => void; onTask: (t: Task) => void; who?: string }) {
   const st = leaveState(l, today);

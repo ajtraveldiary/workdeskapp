@@ -108,7 +108,7 @@ export function App() {
         {/* Was /staff before the page was renamed Employees (user request 2026-10-07). */}
         <Route path="/staff" element={<StaffRedirect />} />
         {/* Leave (user request 2026-10-31): moved from the employee's page to its own page. */}
-        <Route path="/leave" element={<Page><LeavePage /></Page>} />
+        <Route path="/leave" element={<Page wide><LeavePage /></Page>} />
         {/* Attendance register (user request 2026-10-31): the whole width, like a register page. */}
         <Route path="/attendance" element={<Page full><AttendancePage /></Page>} />
         <Route path="/attendance/leave-log" element={<Page wide><LeaveLogPage /></Page>} />

@@ -3,18 +3,22 @@
 // newest first under month headings, each with its state (On leave, Upcoming, Due back, Rejoined, Cancelled) and its
 // paperwork steps; filters by employee, state and leave type. With an employee chosen (?employee=…, as the
 // employee page's summary line opens it) their leave account card (balances, entries, Mark leave, Entry) comes first.
+// From 768px the leaves are a ruled table like a spreadsheet (user request 2026-11-26, "instead of this use a
+// spreadsheet type approach"; LeaveTable), one row per leave with its own columns, the page the wider width; phones
+// keep the list under month headings.
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { CalendarPlus, ExternalLink } from "lucide-react";
-import type { EmployeeLeave, StaffList, Task } from "../../shared/types";
-import { leaveShort } from "../../shared/leave";
+import { CalendarPlus, Check, ExternalLink, Hourglass } from "lucide-react";
+import type { EmployeeLeave, LeaveType, StaffList, Task } from "../../shared/types";
+import { formatDays, leaveEnd, leaveShort, rejoinDay } from "../../shared/leave";
+import { dayLabel } from "../../shared/reminderSchedule";
 import { useAllLeaves, useLeaveTypes, useStaff } from "../api";
-import { LeaveCard, LeaveRow, leaveState } from "../components/LeaveAccount";
+import { LeaveCard, LeaveRow, STEP_TONE, lastStep, leaveState, stepWord } from "../components/LeaveAccount";
 import { LeaveDialog, type LeaveFormState } from "../components/LeaveDialog";
 import { RefreshButton } from "../components/RefreshButton";
 import { TaskDetails } from "../components/TaskDetails";
 import { TaskDialog, type TaskDialogMode } from "../components/TaskDialog";
-import { Button, Card, Fab, PageHeader, Segmented, SkeletonList, inputClass } from "../components/ui";
+import { Badge, Button, Card, Fab, PageHeader, Segmented, SkeletonList, TONE, cx, inputClass } from "../components/ui";
 
 const STATES = ["On leave", "Due back", "Upcoming", "Rejoined", "Cancelled"] as const;
 type StateFilter = "all" | (typeof STATES)[number];
@@ -109,7 +113,17 @@ export function LeavePage() {
             {data.leaves.length === 0 ? "No leave marked yet. Mark leave adds one, with its paperwork as a task." : "No leave matches these filters."}
           </p>
         ) : (
-          months.map((m) => (
+          <>
+            <LeaveTable
+              leaves={list.map((x) => x.l)}
+              staff={staff}
+              types={types}
+              today={today}
+              onOpen={(l) => setForm({ leave: l })}
+              onTask={setTask}
+            />
+            <div className="md:hidden">
+              {months.map((m) => (
             <section key={m.month}>
               <h3 className="border-b border-line bg-slate-50 px-4 py-1.5 text-caption font-semibold text-slate-500 sm:px-5">{m.month}</h3>
               <ul className="divide-y divide-line border-b border-line last:border-b-0">
@@ -126,7 +140,9 @@ export function LeavePage() {
                 ))}
               </ul>
             </section>
-          ))
+              ))}
+            </div>
+          </>
         )}
       </Card>
       {types && types.length > 0 && data && <p className="mt-2 text-footnote text-slate-500">{summaryLine(forPerson.map((x) => x.l), types)}</p>}
@@ -141,6 +157,131 @@ export function LeavePage() {
       />
       <TaskDialog mode={taskForm} onClose={() => setTaskForm(null)} />
     </>
+  );
+}
+
+// The leaves as a ruled table, like a spreadsheet (computers and tablets, 768px and wider): Sl, employee with their
+// designation, leave (with "Medical certificate"), from, to, days, back on (or rejoined), state, order, and the
+// paperwork: the step of its task updated last, which opens the task's steps, with "n/m steps". Tapping a row opens
+// the leave to edit. It scrolls sideways inside its card when the window is narrow.
+function LeaveTable({
+  leaves,
+  staff,
+  types,
+  today,
+  onOpen,
+  onTask,
+}: {
+  leaves: EmployeeLeave[];
+  staff: StaffList;
+  types: LeaveType[];
+  today: string;
+  onOpen: (l: EmployeeLeave) => void;
+  onTask: (t: Task) => void;
+}) {
+  const person = (id: string) => staff.employees.find((e) => e.id === id);
+  const post = (id: string | null) => (id ? staff.designations.find((d) => d.id === id)?.name : undefined);
+  const head = "border border-line bg-canvas-soft px-2 py-2 text-left text-caption font-semibold whitespace-nowrap text-slate-600";
+  const cell = "border border-line px-2 py-2 align-top";
+  return (
+    <div className="overflow-x-auto max-md:hidden">
+      <table className="w-full min-w-[52rem] border-collapse text-footnote">
+        <thead>
+          <tr>
+            <th scope="col" className={cx(head, "w-10 text-right")}>Sl</th>
+            <th scope="col" className={head}>Employee</th>
+            <th scope="col" className={head}>Leave</th>
+            <th scope="col" className={head}>From</th>
+            <th scope="col" className={head}>To</th>
+            <th scope="col" className={cx(head, "text-right")}>Days</th>
+            <th scope="col" className={head}>Back on</th>
+            <th scope="col" className={head}>State</th>
+            <th scope="col" className={head}>Order</th>
+            <th scope="col" className={head}>Paperwork</th>
+          </tr>
+        </thead>
+        <tbody>
+          {leaves.map((l, i) => {
+            const e = person(l.employeeId);
+            const t = types.find((x) => x.id === l.typeId);
+            const st = leaveState(l, today);
+            const items = l.task?.checklist ?? [];
+            const step = lastStep(items);
+            const done = items.filter((x) => x.done).length;
+            const cancelled = l.status === "cancelled";
+            return (
+              <tr key={l.id} className={cx("row-click text-slate-700 transition-colors has-[.row-link:hover]:bg-slate-50/80", cancelled && "text-slate-400")}>
+                <td className={cx(cell, "text-right text-slate-500 tabular-nums")}>{i + 1}</td>
+                <td className={cx(cell, "min-w-32")}>
+                  <button type="button" onClick={() => onOpen(l)} className="row-link group/title text-left" aria-label={`Open ${e?.name ?? "employee"}'s ${t?.name ?? "leave"}, ${dayLabel(l.fromDate)} to ${dayLabel(leaveEnd(l))}`}>
+                    <span className={cx("block font-medium [overflow-wrap:anywhere] group-hover/title:text-brand-700", cancelled ? "text-slate-400" : "text-ink")}>{e?.name ?? "Employee"}</span>
+                  </button>
+                  {post(e?.designationId ?? null) && <span className="block text-caption text-slate-500 [overflow-wrap:anywhere]">{post(e?.designationId ?? null)}</span>}
+                </td>
+                <td className={cell} title={t?.name}>
+                  <span className={cx("block font-medium", cancelled ? "text-slate-400" : "text-ink")}>{t ? leaveShort(t) : "Leave"}</span>
+                  {l.onMedical && <span className="block text-caption text-slate-500">Medical certificate</span>}
+                </td>
+                <td className={cx(cell, "whitespace-nowrap tabular-nums")}>{dayLabel(l.fromDate)}</td>
+                <td className={cx(cell, "whitespace-nowrap tabular-nums")}>
+                  {dayLabel(leaveEnd(l))}
+                  {leaveEnd(l) !== l.toDate && <span className="block text-caption text-slate-500">was {dayLabel(l.toDate)}</span>}
+                </td>
+                <td className={cx(cell, "text-right tabular-nums")}>{formatDays(l.days)}</td>
+                <td className={cx(cell, "whitespace-nowrap tabular-nums")}>
+                  {cancelled ? (
+                    <span className="text-slate-300">—</span>
+                  ) : l.rejoinedOn ? (
+                    <>
+                      <span className="block text-caption text-slate-500">Rejoined</span>
+                      {dayLabel(l.rejoinedOn)}
+                    </>
+                  ) : (
+                    dayLabel(rejoinDay(l))
+                  )}
+                </td>
+                <td className={cell}>
+                  <Badge tone={st.tone}>{st.label}</Badge>
+                </td>
+                <td className={cx(cell, "[overflow-wrap:anywhere]")}>
+                  {l.orderNo || l.orderDate ? (
+                    <>
+                      {l.orderNo && <span className="block">{l.orderNo}</span>}
+                      {l.orderDate && <span className="block text-caption whitespace-nowrap text-slate-500 tabular-nums">{dayLabel(l.orderDate)}</span>}
+                    </>
+                  ) : (
+                    <span className="text-slate-300">—</span>
+                  )}
+                </td>
+                <td className={cx(cell, "min-w-36")}>
+                  {cancelled || !l.task ? (
+                    <span className="text-slate-300">—</span>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onTask(l.task!)}
+                        aria-label={step ? `Last updated step: ${step.text}, ${stepWord(step)}. Show steps` : "No step done yet. Show steps"}
+                        className={cx(
+                          "relative z-10 inline-flex max-w-full items-center gap-1 rounded-md px-1.5 py-0.5 text-left text-xs font-medium enabled:hover:brightness-95 active:scale-[0.97]",
+                          TONE[step ? STEP_TONE(step) : "neutral"].soft,
+                        )}
+                      >
+                        {step?.done ? <Check size={12} className="shrink-0" aria-hidden /> : step?.waiting ? <Hourglass size={12} className="shrink-0" aria-hidden /> : null}
+                        <span className="line-clamp-2 [overflow-wrap:anywhere]">{step ? (step.done ? step.text : `${step.text}: ${stepWord(step)}`) : "No step done yet"}</span>
+                      </button>
+                      <span className="block text-caption text-slate-500 tabular-nums">
+                        {done}/{items.length} steps
+                      </span>
+                    </>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

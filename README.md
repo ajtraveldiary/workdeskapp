@@ -121,7 +121,7 @@ WorkDesk runs in any computer browser and can be installed on a phone's home scr
   paperwork steps, different for gazetted officers (application, apply leave, leave CTC, relieving / joining CTC
   form received, joining report in SPARK, joining CTC, AG payslip) and others (application, check leave account, office proceedings, SPARK, attendance, SB update, joining
   report), due the day they are back. Record the rejoining date (an early return gives the days back), change or
-  cancel a leave. The **Leave** page lists every leave, newest first, with where it stands (on leave, due back,
+  cancel a leave. The **Leave** page lists every leave, newest first, as a spreadsheet-style table on computers (employee, leave, from, to, days, back on, state, order, paperwork), with where it stands (on leave, due back,
   upcoming, rejoined, cancelled), filtered by employee, type or state; choosing an employee shows their leave
   account there. An employee's page has one line with their balances that opens it.
 - **Attendance register:** a page that looks like the paper register: a row per person with this year's CL and CH,
