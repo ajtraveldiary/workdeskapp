@@ -47,7 +47,7 @@ function LeaveForm({ state, staff, types, onDone }: { state: NonNullable<LeaveFo
   const [orderDate, setOrderDate] = useState(editing?.orderDate ?? "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
   const [doneSteps, setDoneSteps] = useState<string[]>([]);
-  // On a medical certificate: ticked to start for a type given on one (commuted leave).
+  // On a medical certificate: ticked to start for a type given on one (miscarriage, special disability…).
   const [onMedical, setOnMedical] = useState(editing?.onMedical ?? !!types.find((t) => t.id === typeId)?.medical);
   // EOL (phase 4): move the next increment and the Probation declaration task by its days (ticked to start).
   const [moveIncrement, setMoveIncrement] = useState(true);

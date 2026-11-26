@@ -82,11 +82,11 @@ export const KSR_LEAVE_TYPES: KsrLeaveType[] = [
     name: "Commuted leave",
     short: "Commuted",
     rule: "KSR Part I, Rules 84, 74",
-    about: "On a medical certificate, at most half the half pay leave due: each day takes 2 days of HPL. EL and commuted leave together at most 240 days at a time.",
+    // Taken on personal grounds too, not only on a medical certificate (user request 2026-11-26), so not `medical`.
+    about: "On a medical certificate or on personal grounds, at most half the half pay leave due: each day takes 2 days of HPL. EL and commuted leave together at most 240 days at a time.",
     hasAccount: false,
     drawsOn: "hpl",
     perDay: 2,
-    medical: true,
     spellLimit: 240,
   },
   {

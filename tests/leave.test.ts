@@ -51,7 +51,7 @@ describe("leave", () => {
     expect(list.map((t) => t.short)).toEqual(["EL", "HPL", "Commuted", "LND", "EOL", "ML", "ML (miscarriage)", "Hysterectomy", "PL", "Adoption", "SDL", "Hospital"]);
     expect(hpl).toMatchObject({ hasAccount: true, yearlyDays: 20, drawsOnId: null, rule: "KSR Part I, Rules 82, 83", active: true });
     expect(list.find((t) => t.short === "EL")).toMatchObject({ hasAccount: true, fromDuty: true, maxBalance: 300, atOnce: 180, spellLimit: 240, surrenderPerYear: 30, terminalSurrender: 300 });
-    expect(list.find((t) => t.short === "Commuted")).toMatchObject({ hasAccount: false, drawsOnId: hpl.id, perDay: 2, medical: true, spellLimit: 240 });
+    expect(list.find((t) => t.short === "Commuted")).toMatchObject({ hasAccount: false, drawsOnId: hpl.id, perDay: 2, medical: false, spellLimit: 240 });
     expect(list.find((t) => t.short === "LND")).toMatchObject({ hasAccount: false, drawsOnId: hpl.id, mayGoNegative: true, serviceLimit: 360, nonMedicalAtOnce: 90, nonMedicalLimit: 180, lastResort: true, medical: false });
     expect(list.find((t) => t.short === "EOL")).toMatchObject({ hasAccount: false, drawsOnId: null, delaysIncrement: true });
     expect(list.find((t) => t.short === "PL")).toMatchObject({ atOnce: 10, serviceLimit: 20 });
@@ -91,7 +91,7 @@ describe("leave", () => {
     const t = (o: Partial<Parameters<typeof leaveWarnings>[0]["type"]>) => ({ name: "Leave not due", short: "LND", rule: "KSR Part I, Rule 85", medical: false, atOnce: null, nonMedicalAtOnce: null, nonMedicalLimit: null, spellLimit: null, lastResort: false, ...o });
     const base = { days: 10, onMedical: false, usedNonMedical: 0, spell: 10, atCredit: [] };
     expect(leaveWarnings({ ...base, type: t({}) })).toEqual([]);
-    expect(leaveWarnings({ ...base, type: t({ name: "Commuted leave", short: "Commuted", rule: "KSR Part I, Rules 84, 74", medical: true }) })).toEqual(["Commuted leave is given on a medical certificate (KSR Part I, Rules 84, 74)."]);
+    expect(leaveWarnings({ ...base, type: t({ name: "Hysterectomy leave", short: "Hyst", rule: "KSR Part I, Rule 101", medical: true }) })).toEqual(["Hysterectomy leave is given on a medical certificate (KSR Part I, Rule 101)."]);
     expect(leaveWarnings({ ...base, days: 181, type: t({ name: "Earned leave", short: "EL", rule: "KSR Part I, Rules 78, 79", atOnce: 180 }) })).toEqual(["At most 180 days of EL at a time (KSR Part I, Rules 78, 79)."]);
     const lnd = t({ nonMedicalAtOnce: 90, nonMedicalLimit: 180, lastResort: true });
     expect(leaveWarnings({ ...base, days: 100, usedNonMedical: 90, type: lnd, atCredit: [{ short: "EL", balance: 12 }, { short: "HPL", balance: 0 }] })).toEqual([

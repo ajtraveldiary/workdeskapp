@@ -107,7 +107,7 @@ export const LEAVE_STAFF_TOOLS: Tool[] = [
       from: day,
       to: day,
       days: z.number().min(0.5).max(9999).optional().describe("Leave out to count every day from–to"),
-      onMedical: z.boolean().optional().describe("On a medical certificate (default: yes for a leave given on one, such as commuted leave)"),
+      onMedical: z.boolean().optional().describe("On a medical certificate (default: yes for a leave given on one, such as special disability leave)"),
       orderNo: z.string().max(100).optional(),
       notes: z.string().max(2000).optional(),
       stepsDone: z.array(z.string()).max(10).optional().describe("Steps already done, by name"),

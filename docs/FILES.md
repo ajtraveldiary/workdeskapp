@@ -99,6 +99,7 @@ Each file changes the database once, in order; `npm run db:migrate` (and the dep
 | `0052_employee_off_day.sql` | `employees.off_day` (Sunday off / weekly off; every employee, default Sunday off). |
 | `0057_attendance_mark_note.sql` | `attendance_marks.note`: an OD mark's remark (2026-11-03). |
 | `0058_post_day_off.sql` | Day off by designation (2026-11-10): `designations.off_day`, `employees.off_day_own` / `gazetted_own`; each post takes the day off most of its employees have and anyone different (day off or gazetted) becomes an individual exception. |
+| `0059_commuted_personal.sql` | Commuted leave may be taken on personal grounds (2026-11-26): turns off "given on a medical certificate" on each account's built-in commuted leave type. |
 | `0056_attendance_tick_daily.sql` | Turns "days not marked count as duty" off in saved attendance settings (the register keeper ticks everyone daily, 2026-11-02). |
 | `0055_planned_offs.sql` | `planned_offs`: an off planned ahead for a weekly-off person (day, note), one per person and day; turned into an off mark on its day. |
 | `0054_attendance_corrections.sql` | `attendance_corrections`: a weekly-off person's count set by hand as on a day (offs owed, days towards the next off, days in a row, a note), one a day per person. |

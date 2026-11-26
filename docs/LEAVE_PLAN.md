@@ -56,7 +56,7 @@ arrange, remove only when unused). "Add the usual leaves" adds the Kerala Servic
 |---|---|---|---|
 | Earned leave | EL | Yes, credited from duty (section 5) | 1 day of EL |
 | Half pay leave | HPL | Yes | 1 day of HPL |
-| Commuted leave | Commuted | No — draws on HPL | **2 days of HPL** (half pay leave taken at full pay on a medical certificate) |
+| Commuted leave | Commuted | No — draws on HPL | **2 days of HPL** (half pay leave taken at full pay, on a medical certificate or on personal grounds: user, 2026-11-26) |
 | Leave not due | LND | No — draws on HPL | 1 day of HPL, which may go below zero; also counted against its own service limit |
 | Extraordinary leave | EOL | No | Nothing |
 | Maternity leave | ML | No | Nothing |
@@ -64,7 +64,7 @@ arrange, remove only when unused). "Add the usual leaves" adds the Kerala Servic
 
 Each type has: name, short name, **draws on** (itself, another type or none), **days taken per day** (1, or 2 for
 commuted), **may go below zero** (LND), **maximum balance** (e.g. EL 300; credits above it lapse with a "lapsed" line),
-**medical certificate needed** (commuted, LND; see 9.2), and its **yearly credit** (section 5). The user can add others
+**medical certificate needed** (LND; commuted leave too until 2026-11-26, when the user said it can be taken on personal grounds; see 9.2), and its **yearly credit** (section 5). The user can add others
 (special disability leave, hospital leave, study leave…) with the same fields. The figures above are the usual rules;
 the user checks them once in Settings, where all of them can be changed.
 
@@ -82,7 +82,7 @@ stays editable):
 |---|---|---|
 | Earned leave (EL) | 78, 79, 74 | Own balance, 1/11 of duty, up to 300; 180 at a time; EL + commuted 240 in one run; surrender 30 a financial year (since 1 Apr 2006), 300 at retirement |
 | Half pay leave (HPL) | 82, 83 | Own balance, 20 days per completed year, no limit |
-| Commuted leave | 84, 74 | 2 HPL a day (so at most half the HPL due), on a medical certificate; 240 in one run with EL |
+| Commuted leave | 84, 74 | 2 HPL a day (so at most half the HPL due), on a medical certificate or on personal grounds (user, 2026-11-26: not warned about without a certificate); 240 in one run with EL |
 | Leave not due (LND) | 85 | From HPL, below zero allowed; 360 in service; without a medical certificate 90 at a time and 180 in all; only when no other leave is at credit |
 | Extraordinary leave (EOL) | 88 | No balance; doesn't count for increment unless on a medical certificate (the dates are offered to move only then) |
 | Maternity leave | 100 | 180 days |
