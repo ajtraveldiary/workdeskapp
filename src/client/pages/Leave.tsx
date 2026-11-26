@@ -7,6 +7,7 @@
 // spreadsheet type approach"; LeaveTable), one row per leave with its own columns, the page the wider width; phones
 // keep the list under month headings. On computers Mark leave adds a new row at the top of the table to type the
 // leave straight into (user request 2026-11-26; NewLeaveRow), with the pop-up's checks under it; phones keep the pop-up.
+// Completed leaves (paperwork done, or cancelled) stay hidden until Show completed is switched on (2026-11-26).
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { CalendarPlus, Check, ExternalLink, Hourglass, X } from "lucide-react";
@@ -24,6 +25,10 @@ import { Badge, Button, Card, ErrorNote, Fab, PageHeader, Segmented, SkeletonLis
 
 const STATES = ["On leave", "Due back", "Upcoming", "Rejoined", "Cancelled"] as const;
 type StateFilter = "all" | (typeof STATES)[number];
+const COMPLETED_KEY = "workdesk-leave-completed";
+// A leave is completed once its paperwork task is done (every step, or the leave cancelled, which completes it);
+// one whose task was deleted counts as completed once they have rejoined.
+const leaveCompleted = (l: EmployeeLeave, state: string) => l.status === "cancelled" || (l.task ? l.task.status === "done" : state === "Rejoined");
 const monthOf = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
 
 export function LeavePage() {
@@ -44,8 +49,27 @@ export function LeavePage() {
   const employee = staff?.employees.find((e) => e.id === employeeId);
   const chooseEmployee = (id: string) => setParams(id ? { employee: id } : {}, { replace: true });
 
+  // Show completed (user request 2026-11-26): completed leaves (paperwork done, or cancelled) are hidden until it is
+  // switched on; the choice is kept on this device.
+  const [showCompleted, setShowCompletedState] = useState(() => {
+    try {
+      return localStorage.getItem(COMPLETED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setShowCompleted = (on: boolean) => {
+    setShowCompletedState(on);
+    try {
+      localStorage.setItem(COMPLETED_KEY, on ? "1" : "0");
+    } catch {
+      /* private mode: only for this visit */
+    }
+  };
   const withState = useMemo(() => (data?.leaves ?? []).map((l) => ({ l, st: leaveState(l, today) })), [data, today]);
-  const forPerson = withState.filter((x) => !employeeId || x.l.employeeId === employeeId).filter((x) => !typeId || x.l.typeId === typeId);
+  const filtered = withState.filter((x) => !employeeId || x.l.employeeId === employeeId).filter((x) => !typeId || x.l.typeId === typeId);
+  const completedCount = filtered.filter((x) => leaveCompleted(x.l, x.st.label)).length;
+  const forPerson = showCompleted ? filtered : filtered.filter((x) => !leaveCompleted(x.l, x.st.label));
   const count = (s: StateFilter) => (s === "all" ? forPerson.length : forPerson.filter((x) => x.st.label === s).length);
   const list = forPerson.filter((x) => state === "all" || x.st.label === state);
   // Newest first (by the day the leave starts), under month headings.
@@ -103,19 +127,26 @@ export function LeavePage() {
           )}
         </div>
       )}
-      <div className="mb-3">
-        <Segmented<StateFilter>
-          value={state}
-          onChange={setState}
-          options={[{ value: "all", label: "All", count: count("all") }, ...STATES.map((s) => ({ value: s, label: s, count: count(s) }))]}
-        />
+      <div className="mb-3 flex flex-wrap items-end justify-end gap-x-4 gap-y-2">
+        <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+          <Segmented<StateFilter>
+            value={state}
+            onChange={setState}
+            options={[{ value: "all", label: "All", count: count("all") }, ...STATES.map((s) => ({ value: s, label: s, count: count(s) }))]}
+          />
+        </div>
+        <ToggleSwitch on={showCompleted} onChange={setShowCompleted} label={`Show completed (${completedCount})`} />
       </div>
       <Card className="overflow-hidden">
         {!data || !staff || !types ? (
           <SkeletonList rows={5} />
         ) : list.length === 0 && !adding ? (
           <p className="px-4 py-6 text-center text-sm text-slate-500 sm:px-5">
-            {data.leaves.length === 0 ? "No leave marked yet. Mark leave adds one, with its paperwork as a task." : "No leave matches these filters."}
+            {data.leaves.length === 0
+              ? "No leave marked yet. Mark leave adds one, with its paperwork as a task."
+              : !showCompleted && completedCount > 0
+                ? `No pending leave matches these filters. ${completedCount} completed ${completedCount === 1 ? "leave is" : "leaves are"} hidden: switch on Show completed.`
+                : "No leave matches these filters."}
           </p>
         ) : (
           <>
@@ -164,6 +195,24 @@ export function LeavePage() {
       />
       <TaskDialog mode={taskForm} onClose={() => setTaskForm(null)} />
     </>
+  );
+}
+
+// A small on / off switch with its words (role="switch"; the base CSS gives the button its 44px tap area).
+function ToggleSwitch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={() => onChange(!on)}
+      className="group/switch inline-flex h-8 shrink-0 items-center gap-2 rounded-lg px-1 text-footnote text-slate-600 enabled:hover:text-ink active:scale-[0.97] aria-checked:font-medium aria-checked:text-ink"
+    >
+      <span className="relative h-5 w-9 shrink-0 rounded-full bg-slate-300 transition-colors group-aria-checked/switch:bg-brand-600">
+        <span className="absolute top-0.5 left-0.5 size-4 rounded-full bg-[#ffffff] shadow-sm transition-transform group-aria-checked/switch:translate-x-4" />
+      </span>
+      {label}
+    </button>
   );
 }
 
